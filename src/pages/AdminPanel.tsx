@@ -1230,26 +1230,33 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
     setWaQr({ instance_name: '', qr_code: null, status: 'creating', loading: true })
     const data = await waCall('create_instance')
     if (data.error) { setMsg({ type: 'err', text: data.error }); setWaQr(null); return }
-    setWaQr({ instance_name: data.instance_name, qr_code: data.qr_code, status: data.status, loading: false })
-    startQrPolling(data.instance_name)
+    const instName = data.instance_name
+    let qrCode = data.qr_code || null
+    // Fetch QR immediately if not returned by create
+    if (!qrCode && instName) {
+      const qrData = await waCall('get_qr', { instance_name: instName })
+      qrCode = qrData.qr_code || null
+    }
+    setWaQr({ instance_name: instName, qr_code: qrCode, status: 'waiting', loading: false })
+    startQrPolling(instName)
   }
 
   function startQrPolling(instName: string) {
     if (waQrPollRef.current) clearInterval(waQrPollRef.current)
     waQrPollRef.current = setInterval(async () => {
-      const data = await waCall('status')
-      const ch = (data.channels || []).find((c: any) => c.evolution_instance_name === instName)
-      if (!ch) return
-      if (ch.live_status === 'open' || ch.is_connected) {
+      const statusData = await waCall('status')
+      const ch = (statusData.channels || []).find((c: any) => c.evolution_instance_name === instName)
+      if (ch?.live_status === 'open' || ch?.is_connected) {
         clearInterval(waQrPollRef.current!)
         waQrPollRef.current = null
         setWaQr(null)
         setMsg({ type: 'ok', text: '✅ تم ربط الرقم بنجاح!' })
         loadWaInfo()
-      } else if (ch.live_status === 'connecting' || ch.live_status === 'qr') {
-        const qrData = await waCall('get_qr', { instance_name: instName })
-        if (qrData.qr_code) setWaQr(prev => prev ? { ...prev, qr_code: qrData.qr_code, status: 'waiting' } : null)
+        return
       }
+      // Always refresh QR (channel may not appear immediately)
+      const qrData = await waCall('get_qr', { instance_name: instName })
+      if (qrData.qr_code) setWaQr(prev => prev ? { ...prev, qr_code: qrData.qr_code, status: 'waiting' } : null)
     }, 4000)
   }
 
