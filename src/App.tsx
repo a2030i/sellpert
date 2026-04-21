@@ -11,11 +11,18 @@ import type { Merchant } from './lib/supabase'
 
 export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory'
 
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory']
+
+function readHash(): View {
+  const h = window.location.hash.replace('#', '') as View
+  return VALID_VIEWS.includes(h) ? h : 'dashboard'
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [merchant, setMerchant] = useState<Merchant | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<View>('dashboard')
+  const [view, setView] = useState<View>(readHash)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,7 +37,9 @@ export default function App() {
       else { setMerchant(null); setLoading(false) }
     })
 
-    return () => subscription.unsubscribe()
+    const onPopState = () => setView(readHash())
+    window.addEventListener('popstate', onPopState)
+    return () => { subscription.unsubscribe(); window.removeEventListener('popstate', onPopState) }
   }, [])
 
   async function fetchMerchant(email: string) {
@@ -77,7 +86,7 @@ export default function App() {
             <div
               key={item.key}
               style={{ ...S.navItem, ...(view === item.key ? S.navActive : {}) }}
-              onClick={() => setView(item.key)}
+              onClick={() => { setView(item.key); window.location.hash = item.key }}
             >
               <span style={S.navIcon}>{item.icon}</span>
               <span style={S.navLabel}>{item.label}</span>

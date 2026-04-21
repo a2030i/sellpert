@@ -10,6 +10,13 @@ import {
 
 type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'synclogs' | 'ai'
 
+const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'synclogs', 'ai']
+
+function readAdminHash(): AdminView {
+  const h = window.location.hash.replace('#admin-', '') as AdminView
+  return ADMIN_VIEWS.includes(h) ? h : 'overview'
+}
+
 const NAV = [
   { key: 'overview' as AdminView,     icon: '🏠', label: 'نظرة عامة'       },
   { key: 'merchants' as AdminView,    icon: '👥', label: 'التجار'           },
@@ -50,7 +57,15 @@ function relativeTime(iso: string) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merchant | null }) {
-  const [view, setView] = useState<AdminView>('overview')
+  const [view, setView] = useState<AdminView>(readAdminHash)
+
+  function navTo(v: AdminView) { setView(v); window.location.hash = `admin-${v}` }
+
+  useEffect(() => {
+    const onPop = () => setView(readAdminHash())
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   const [merchants, setMerchants] = useState<Merchant[]>([])
   const [perfData, setPerfData] = useState<PerformanceData[]>([])
   const [credentials, setCredentials] = useState<PlatformCredential[]>([])
@@ -151,7 +166,7 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
             <div
               key={item.key}
               style={{ ...S.navItem, ...(view === item.key ? S.navActive : {}) }}
-              onClick={() => setView(item.key)}
+              onClick={() => navTo(item.key)}
             >
               <span style={S.navIcon}>{item.icon}</span>
               <span>{item.label}</span>
@@ -1229,10 +1244,19 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
     if (!waConn) return
     setWaQr({ instance_name: '', qr_code: null, status: 'creating', loading: true })
     const data = await waCall('create_instance')
-    if (data.error) { setMsg({ type: 'err', text: data.error }); setWaQr(null); return }
+    if (data.error) {
+      setWaQr(null)
+      const isPermission = data.error.includes('صلاحية') || data.error.includes('403')
+      setMsg({
+        type: 'err',
+        text: isPermission
+          ? '⛔ الـ API Token لا يملك صلاحية whatsapp — تأكد من تفعيل صلاحية "whatsapp" في لوحة Respondly'
+          : `خطأ: ${data.error}`,
+      })
+      return
+    }
     const instName = data.instance_name
     let qrCode = data.qr_code || null
-    // Fetch QR immediately if not returned by create
     if (!qrCode && instName) {
       const qrData = await waCall('get_qr', { instance_name: instName })
       qrCode = qrData.qr_code || null
