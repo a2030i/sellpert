@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant, PerformanceData, PlatformCredential, SyncLog, AiInsight, PlatformConnection, MerchantPlatformMapping } from '../lib/supabase'
 import {
@@ -1107,6 +1107,8 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
   const [waForm, setWaForm]         = useState({ label: 'Respondly', api_key: '', base_url: '' })
   const [waSaving, setWaSaving]     = useState(false)
   const [waEditKey, setWaEditKey]   = useState(false)
+  const [waQr, setWaQr]             = useState<{ instance_name: string; qr_code: string | null; status: string; loading: boolean } | null>(null)
+  const waQrPollRef                 = useRef<ReturnType<typeof setInterval> | null>(null)
   const [waEvents, setWaEvents]     = useState<Record<string, { enabled: boolean; template: string | null }>>({
     sync_complete: { enabled: true,  template: null },
     low_stock:     { enabled: false, template: null },
@@ -1211,6 +1213,61 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
     setMsg({ type: 'ok', text: '✓ تم حفظ إعدادات الأحداث' })
     loadData()
   }
+
+  // ── QR helpers ──
+  async function waCall(action: string, extra: Record<string, any> = {}) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/respondly-info`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection_id: waConn?.id, action, ...extra }),
+    })
+    return res.json()
+  }
+
+  async function startQrConnect() {
+    if (!waConn) return
+    setWaQr({ instance_name: '', qr_code: null, status: 'creating', loading: true })
+    const data = await waCall('create_instance')
+    if (data.error) { setMsg({ type: 'err', text: data.error }); setWaQr(null); return }
+    setWaQr({ instance_name: data.instance_name, qr_code: data.qr_code, status: data.status, loading: false })
+    startQrPolling(data.instance_name)
+  }
+
+  function startQrPolling(instName: string) {
+    if (waQrPollRef.current) clearInterval(waQrPollRef.current)
+    waQrPollRef.current = setInterval(async () => {
+      const data = await waCall('status')
+      const ch = (data.channels || []).find((c: any) => c.evolution_instance_name === instName)
+      if (!ch) return
+      if (ch.live_status === 'open' || ch.is_connected) {
+        clearInterval(waQrPollRef.current!)
+        waQrPollRef.current = null
+        setWaQr(null)
+        setMsg({ type: 'ok', text: '✅ تم ربط الرقم بنجاح!' })
+        loadWaInfo()
+      } else if (ch.live_status === 'connecting' || ch.live_status === 'qr') {
+        const qrData = await waCall('get_qr', { instance_name: instName })
+        if (qrData.qr_code) setWaQr(prev => prev ? { ...prev, qr_code: qrData.qr_code, status: 'waiting' } : null)
+      }
+    }, 4000)
+  }
+
+  async function disconnectChannel(instName: string) {
+    const data = await waCall('logout', { instance_name: instName })
+    if (data.error) { setMsg({ type: 'err', text: data.error }); return }
+    setMsg({ type: 'ok', text: '✓ تم قطع الاتصال' })
+    loadWaInfo()
+  }
+
+  async function deleteChannel(instName: string) {
+    const data = await waCall('delete_instance', { instance_name: instName })
+    if (data.error) { setMsg({ type: 'err', text: data.error }); return }
+    setMsg({ type: 'ok', text: '✓ تم حذف الرقم' })
+    loadWaInfo()
+  }
+
+  useEffect(() => () => { if (waQrPollRef.current) clearInterval(waQrPollRef.current) }, [])
 
   // ── Respondly Info ──
   async function loadRespondlyInfo(connId: string) {
@@ -1714,23 +1771,65 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
                   {/* Channels */}
                   <div style={S.tableCard}>
-                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>📱 القنوات (أرقام الواتساب)</div>
-                    {waChannels.length === 0 ? (
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>📱 القنوات (أرقام الواتساب)</span>
+                      <button
+                        style={{ ...S.miniBtn, background: '#25D366', color: '#fff', borderColor: '#25D366', fontSize: 12 }}
+                        onClick={startQrConnect}
+                        disabled={!!waQr}
+                      >
+                        {waQr ? '⟳ جاري الربط...' : '➕ ربط رقم جديد'}
+                      </button>
+                    </div>
+
+                    {/* QR Panel */}
+                    {waQr && (
+                      <div style={{ padding: 20, borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
+                        {waQr.loading || waQr.status === 'creating' ? (
+                          <div style={{ color: 'var(--text3)', fontSize: 13 }}>⟳ جاري إنشاء الجلسة...</div>
+                        ) : waQr.qr_code ? (
+                          <>
+                            <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 13 }}>امسح QR بتطبيق واتساب</div>
+                            <img
+                              src={waQr.qr_code.startsWith('data:') ? waQr.qr_code : `data:image/png;base64,${waQr.qr_code}`}
+                              alt="WhatsApp QR"
+                              style={{ width: 200, height: 200, borderRadius: 12, border: '2px solid #25D366' }}
+                            />
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
+                              واتساب ← النقاط الثلاث ← الأجهزة المرتبطة ← ربط جهاز
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#25D366', animation: 'pulse 1.5s infinite' }} />
+                              <span style={{ fontSize: 12, color: 'var(--text3)' }}>في انتظار المسح...</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ color: 'var(--text3)', fontSize: 13 }}>⟳ جاري تحديث QR...</div>
+                        )}
+                        <button style={{ ...S.miniBtn, marginTop: 12, color: 'var(--red)' }} onClick={() => { if (waQrPollRef.current) clearInterval(waQrPollRef.current); setWaQr(null) }}>إلغاء</button>
+                      </div>
+                    )}
+
+                    {waChannels.length === 0 && !waQr ? (
                       <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>
-                        لا توجد قنوات — تحقق من صلاحيات API Key<br />
-                        <span style={{ fontSize: 11 }}>أضف أرقام واتساب من داخل Respondly</span>
+                        لا توجد قنوات بعد — اضغط "ربط رقم جديد" أعلاه
                       </div>
                     ) : waChannels.map((ch: any) => {
-                      const isDefault = waConn.extra?.channel_id === (ch.id)
+                      const isDefault = waConn.extra?.channel_id === ch.id
+                      const isConnected = ch.is_connected || ch.live_status === 'open'
                       return (
                         <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: isDefault ? '#25D36608' : 'transparent' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#25D366' : 'var(--text3)', flexShrink: 0 }} />
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{ch.display_phone || ch.business_name || ch.id}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ch.channel_label || ch.channel_type || ''} {ch.is_connected ? '● متصل' : '○ غير متصل'}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{ch.display_phone || ch.business_name || ch.evolution_instance_name || ch.id}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ch.channel_label || ''} {isConnected ? 'متصل' : 'غير متصل'}</div>
                           </div>
-                          <button style={{ ...S.miniBtn, ...(isDefault ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}) }} onClick={() => saveWaDefaultChannel(ch.id)}>
+                          <button style={{ ...S.miniBtn, ...(isDefault ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}), fontSize: 11 }} onClick={() => saveWaDefaultChannel(ch.id)}>
                             {isDefault ? '✓ افتراضي' : 'اختر'}
                           </button>
+                          {ch.evolution_instance_name && (
+                            <button style={{ ...S.miniBtn, color: 'var(--red)', fontSize: 11 }} onClick={() => deleteChannel(ch.evolution_instance_name)}>🗑</button>
+                          )}
                         </div>
                       )
                     })}

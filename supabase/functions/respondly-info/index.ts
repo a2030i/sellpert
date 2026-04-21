@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     if (!caller || !['admin', 'super_admin'].includes(caller.role)) return json({ error: 'Forbidden' }, 403)
 
     const body = await req.json()
-    const { connection_id } = body
+    const { connection_id, action, instance_name } = body
     if (!connection_id) return json({ error: 'connection_id مطلوب' }, 400)
 
     const db = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -35,15 +35,69 @@ Deno.serve(async (req) => {
     const baseUrl = (conn.extra?.base_url || DEFAULT_BASE).replace(/\/$/, '')
     const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
 
-    const [chRes, tplRes] = await Promise.allSettled([
-      fetch(`${baseUrl}/channels`, { headers }),
-      fetch(`${baseUrl}/templates`, { headers }),
-    ])
+    // ── Fetch channels + templates (default) ──────────────────────────────────
+    if (!action || action === 'info') {
+      const [chRes, tplRes] = await Promise.allSettled([
+        fetch(`${baseUrl}/channels`, { headers }),
+        fetch(`${baseUrl}/templates`, { headers }),
+      ])
+      const chData  = chRes.status  === 'fulfilled' && chRes.value.ok  ? await chRes.value.json() : {}
+      const tplData = tplRes.status === 'fulfilled' && tplRes.value.ok ? await tplRes.value.json() : {}
+      return json({ ok: true, channels: chData.channels || [], templates: tplData.templates || [] })
+    }
 
-    const chData   = chRes.status  === 'fulfilled' && chRes.value.ok  ? await chRes.value.json() : {}
-    const tplData  = tplRes.status === 'fulfilled' && tplRes.value.ok ? await tplRes.value.json() : {}
+    // ── Create new QR instance ────────────────────────────────────────────────
+    if (action === 'create_instance') {
+      const res = await fetch(`${baseUrl}/whatsapp/create-instance`, {
+        method: 'POST', headers, body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) return json({ error: data.error || 'فشل إنشاء الجلسة' }, res.status)
+      return json({ ok: true, instance_name: data.instance_name, qr_code: data.qr_code, status: data.status })
+    }
 
-    return json({ ok: true, channels: chData.channels || [], templates: tplData.templates || [] })
+    // ── Get fresh QR for existing instance ───────────────────────────────────
+    if (action === 'get_qr') {
+      if (!instance_name) return json({ error: 'instance_name مطلوب' }, 400)
+      const res = await fetch(`${baseUrl}/whatsapp/qr`, {
+        method: 'POST', headers, body: JSON.stringify({ instance_name }),
+      })
+      const data = await res.json()
+      if (!res.ok) return json({ error: data.error || 'فشل جلب QR' }, res.status)
+      return json({ ok: true, qr_code: data.qr_code, status: data.status })
+    }
+
+    // ── Poll status of all instances ─────────────────────────────────────────
+    if (action === 'status') {
+      const res = await fetch(`${baseUrl}/whatsapp/status`, { headers })
+      const data = await res.json()
+      if (!res.ok) return json({ error: data.error || 'فشل جلب الحالة' }, res.status)
+      return json({ ok: true, channels: data.channels || [] })
+    }
+
+    // ── Logout instance ───────────────────────────────────────────────────────
+    if (action === 'logout') {
+      if (!instance_name) return json({ error: 'instance_name مطلوب' }, 400)
+      const res = await fetch(`${baseUrl}/whatsapp/logout`, {
+        method: 'POST', headers, body: JSON.stringify({ instance_name }),
+      })
+      const data = await res.json()
+      if (!res.ok) return json({ error: data.error || 'فشل قطع الاتصال' }, res.status)
+      return json({ ok: true })
+    }
+
+    // ── Delete instance ───────────────────────────────────────────────────────
+    if (action === 'delete_instance') {
+      if (!instance_name) return json({ error: 'instance_name مطلوب' }, 400)
+      const res = await fetch(`${baseUrl}/whatsapp/instance/${instance_name}`, {
+        method: 'DELETE', headers,
+      })
+      const data = await res.json()
+      if (!res.ok) return json({ error: data.error || 'فشل الحذف' }, res.status)
+      return json({ ok: true })
+    }
+
+    return json({ error: 'action غير معروف' }, 400)
 
   } catch (e: any) {
     return json({ error: e.message }, 500)
