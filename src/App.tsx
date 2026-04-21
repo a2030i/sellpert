@@ -4,10 +4,12 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
 import Integrations from './pages/Integrations'
+import Orders from './pages/Orders'
+import Inventory from './pages/Inventory'
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 
-export type View = 'dashboard' | 'integrations'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -67,8 +69,10 @@ export default function App() {
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
           {[
-            { icon: '📊', label: 'لوحة التحكم', key: 'dashboard' as View },
-            { icon: '🔗', label: 'ربط المنصات', key: 'integrations' as View },
+            { icon: '📊', label: 'لوحة التحكم',  key: 'dashboard'    as View },
+            { icon: '📦', label: 'الطلبات',       key: 'orders'       as View },
+            { icon: '🗃️', label: 'المخزون',       key: 'inventory'    as View },
+            { icon: '🔗', label: 'ربط المنصات',   key: 'integrations' as View },
           ].map(item => (
             <div
               key={item.key}
@@ -99,7 +103,9 @@ export default function App() {
 
       {/* MAIN CONTENT */}
       <main style={S.main}>
-        {view === 'dashboard' && <Dashboard merchant={merchant} />}
+        {view === 'dashboard'    && <Dashboard    merchant={merchant} />}
+        {view === 'orders'       && <Orders       merchant={merchant} />}
+        {view === 'inventory'    && <Inventory    merchant={merchant} />}
         {view === 'integrations' && <Integrations merchant={merchant} />}
       </main>
     </div>

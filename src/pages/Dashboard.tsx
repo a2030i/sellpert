@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase, type Merchant, type PerformanceData } from '../lib/supabase'
+import { supabase, type Merchant, type PerformanceData, type AiInsight } from '../lib/supabase'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -47,6 +47,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const [loading, setLoading] = useState(true)
   const [preset, setPreset] = useState('last30')
   const [platform, setPlatform] = useState('الكل')
+  const [insight, setInsight] = useState<AiInsight | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!merchant) return
@@ -56,7 +59,37 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       .eq('merchant_code', merchant.merchant_code)
       .order('created_at', { ascending: false })
       .then(({ data }) => { setData(data || []); setLoading(false) })
+
+    // Load latest cached insight if available
+    supabase
+      .from('ai_insights')
+      .select('*')
+      .eq('merchant_code', merchant.merchant_code)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => { if (data) setInsight(data) })
   }, [merchant])
+
+  async function requestAiAnalysis() {
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-merchant`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) { setAiError(json.error || 'خطأ'); }
+      else { setInsight(json.insight) }
+    } catch (e: any) { setAiError(e.message) }
+    setAiLoading(false)
+  }
 
   const filtered = filterByPreset(data, preset).filter(r =>
     platform === 'الكل' ? true : PLATFORM_MAP[r.platform] === platform
@@ -157,6 +190,80 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <div style={S.kpiSub}>{card.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* AI INSIGHTS */}
+      <div style={S.aiCard}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: insight ? 20 : 0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:22 }}>🤖</span>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700 }}>تحليل الذكاء الاصطناعي</div>
+              {insight && <div style={{ fontSize:11, color:'var(--text3)', marginTop:2 }}>
+                آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')}
+              </div>}
+            </div>
+          </div>
+          <button style={S.aiBtn} onClick={requestAiAnalysis} disabled={aiLoading}>
+            {aiLoading ? '⟳ جاري التحليل...' : insight ? '🔄 تحديث التحليل' : '✨ ابدأ التحليل'}
+          </button>
+        </div>
+        {aiError && <div style={{ color:'var(--red)', fontSize:12, marginTop:8 }}>⚠ {aiError}</div>}
+        {insight && (
+          <div>
+            {insight.content.summary && (
+              <div style={{ background:'var(--bg)', borderRadius:10, padding:'14px 16px', marginBottom:16, fontSize:13, lineHeight:1.7, color:'var(--text)' }}>
+                {insight.content.summary}
+              </div>
+            )}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:14 }}>
+              {insight.content.recommendations && insight.content.recommendations.length > 0 && (
+                <div style={S.aiSection}>
+                  <div style={S.aiSectionTitle}>💡 التوصيات</div>
+                  {insight.content.recommendations.map((r, i) => (
+                    <div key={i} style={S.aiItem}>
+                      <span style={{ color:'var(--accent)', fontWeight:700, marginLeft:6 }}>{i+1}.</span>{r}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {insight.content.best_days && insight.content.best_days.length > 0 && (
+                <div style={S.aiSection}>
+                  <div style={S.aiSectionTitle}>📅 أفضل أيام البيع</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:8 }}>
+                    {insight.content.best_days.map((d, i) => (
+                      <span key={i} style={{ background:'rgba(0,229,176,0.15)', color:'var(--accent2)', padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:700 }}>{d}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {insight.content.forecast_next_week && (
+                <div style={S.aiSection}>
+                  <div style={S.aiSectionTitle}>🔮 توقع الأسبوع القادم</div>
+                  <div style={{ fontSize:28, fontWeight:800, color:'var(--accent)', marginTop:8 }}>
+                    {insight.content.forecast_next_week.amount.toLocaleString()} ر.س
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
+                    ثقة: {insight.content.forecast_next_week.confidence} — {insight.content.forecast_next_week.reasoning}
+                  </div>
+                </div>
+              )}
+              {insight.content.low_stock_alert && insight.content.low_stock_alert.length > 0 && (
+                <div style={{ ...S.aiSection, borderColor:'rgba(255,77,109,0.3)', background:'rgba(255,77,109,0.06)' }}>
+                  <div style={{ ...S.aiSectionTitle, color:'#ff4d6d' }}>🚨 تحذير مخزون</div>
+                  {insight.content.low_stock_alert.map((p, i) => (
+                    <div key={i} style={{ ...S.aiItem, color:'#ff4d6d' }}>• {p}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {!insight && !aiLoading && (
+          <div style={{ textAlign:'center', padding:'20px 0 4px', color:'var(--text3)', fontSize:13 }}>
+            اضغط "ابدأ التحليل" للحصول على رؤى ذكية مبنية على بيانات متجرك
+          </div>
+        )}
       </div>
 
       {/* CHARTS */}
@@ -314,4 +421,21 @@ const S: Record<string, React.CSSProperties> = {
   tr: { borderBottom: '1px solid var(--border)' },
   td: { padding: '13px 20px', fontSize: 13, color: 'var(--text)' },
   platformTag: { background: 'rgba(124,107,255,0.15)', color: 'var(--accent)', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 },
+  aiCard: {
+    background: 'var(--surface)', border: '1px solid var(--border)',
+    borderRadius: 16, padding: 20, marginBottom: 20,
+    borderTop: '3px solid var(--accent)',
+  },
+  aiBtn: {
+    background: 'linear-gradient(135deg, var(--accent), #a594ff)',
+    border: 'none', color: '#fff', padding: '9px 20px',
+    borderRadius: 10, fontSize: 13, fontWeight: 700,
+    boxShadow: '0 4px 14px rgba(124,107,255,0.35)', cursor: 'pointer',
+  },
+  aiSection: {
+    background: 'var(--bg)', border: '1px solid var(--border)',
+    borderRadius: 12, padding: '14px 16px',
+  },
+  aiSectionTitle: { fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase' as const, letterSpacing: '0.5px' },
+  aiItem: { fontSize: 13, color: 'var(--text)', marginBottom: 6, lineHeight: 1.5 },
 }

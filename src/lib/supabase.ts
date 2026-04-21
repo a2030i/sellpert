@@ -58,3 +58,58 @@ export interface SyncLog {
   started_at: string
   finished_at?: string
 }
+
+export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+
+export interface Order {
+  id: string
+  merchant_code: string
+  platform: 'trendyol' | 'noon' | 'amazon' | 'salla' | 'zid' | 'shopify' | 'other'
+  order_id: string
+  status: OrderStatus
+  product_name?: string
+  sku?: string
+  quantity: number
+  unit_price: number
+  total_amount: number
+  platform_fee?: number
+  shipping_cost?: number
+  currency: string
+  customer_city?: string
+  order_date: string
+  created_at: string
+}
+
+export interface InventoryItem {
+  id: string
+  merchant_code: string
+  sku: string
+  product_name: string
+  platform: 'trendyol' | 'noon' | 'amazon' | 'salla' | 'zid' | 'shopify' | 'warehouse'
+  quantity: number
+  reserved_quantity: number
+  low_stock_threshold: number
+  cost_price?: number
+  image_url?: string
+  is_active: boolean
+  last_updated: string
+  created_at: string
+}
+
+export interface AiInsight {
+  id: string
+  merchant_code: string
+  insight_type: string
+  content: {
+    summary?: string
+    best_days?: string[]
+    best_platforms?: { platform: string; reason: string }[]
+    seasonal_insights?: string[]
+    forecast_next_week?: { amount: number; confidence: string; reasoning?: string }
+    top_products?: { name: string; revenue: number; trend: 'up' | 'down' | 'stable' }[]
+    recommendations?: string[]
+    low_stock_alert?: string[]
+  }
+  model_used?: string
+  created_at: string
+}

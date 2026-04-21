@@ -387,7 +387,7 @@ function OverviewView({ merchantOnly, totalGMV, totalOrders, activeIntegrations,
 function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any) {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState({ name: '', email: '', currency: 'SAR', role: 'merchant' })
+  const [addForm, setAddForm] = useState({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -407,22 +407,40 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
     if (!addForm.name.trim() || !addForm.email.trim()) {
       setMsg({ type: 'err', text: 'الاسم والبريد الإلكتروني مطلوبان' }); return
     }
+    if (!addForm.password.trim() || addForm.password.length < 8) {
+      setMsg({ type: 'err', text: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' }); return
+    }
     setSaving(true)
-    const code = (addForm.role === 'merchant' ? 'M-' : 'A-') + Math.floor(1000 + Math.random() * 9000)
-    const { error } = await supabase.from('merchants').insert({
-      name: addForm.name.trim(),
-      email: addForm.email.trim().toLowerCase(),
-      currency: addForm.currency,
-      role: addForm.role,
-      merchant_code: code,
-      subscription_plan: 'free',
-    })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-merchant`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: addForm.name.trim(),
+          email: addForm.email.trim().toLowerCase(),
+          password: addForm.password,
+          currency: addForm.currency,
+          role: addForm.role,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setMsg({ type: 'err', text: data.error || 'خطأ في الإنشاء' })
+      } else {
+        setMsg({ type: 'ok', text: `✓ تمت إضافة ${addForm.name} — الكود: ${data.merchant_code}` })
+        setAddForm({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant' })
+        setShowAdd(false)
+        onRefresh()
+      }
+    } catch (e: any) {
+      setMsg({ type: 'err', text: e.message })
+    }
     setSaving(false)
-    if (error) { setMsg({ type: 'err', text: 'خطأ: ' + error.message }); return }
-    setMsg({ type: 'ok', text: `✓ تمت إضافة ${addForm.name} — الكود: ${code}` })
-    setAddForm({ name: '', email: '', currency: 'SAR', role: 'merchant' })
-    setShowAdd(false)
-    onRefresh()
   }
 
   async function deleteMerchant(id: string) {
@@ -463,10 +481,11 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
       {showAdd && (
         <div style={{ ...S.formCard, marginBottom: 16 }}>
           <div style={S.formTitle}>إضافة تاجر / مدير جديد</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
             {[
               { key: 'name', label: 'الاسم الكامل', placeholder: 'متجر النور', type: 'text' },
               { key: 'email', label: 'البريد الإلكتروني', placeholder: 'merchant@example.com', type: 'email' },
+              { key: 'password', label: 'كلمة المرور', placeholder: '8 أحرف على الأقل', type: 'password' },
             ].map(f => (
               <div key={f.key}>
                 <label style={S.label}>{f.label}</label>
@@ -498,10 +517,10 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button style={S.saveBtn} onClick={addMerchant} disabled={saving}>
-              {saving ? 'جاري الحفظ...' : '✓ إضافة'}
+              {saving ? '⟳ جاري الإنشاء...' : '✓ إضافة وإنشاء حساب'}
             </button>
             <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-              ملاحظة: بعد الإضافة، أرسل للتاجر بريد الدعوة من Supabase Dashboard → Auth → Users → Invite
+              سيتم إنشاء حساب دخول فوري للتاجر بالبريد وكلمة المرور المحددة
             </span>
           </div>
         </div>
