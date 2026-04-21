@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const { name, email, password, currency = 'SAR', role = 'merchant' } = body
+    const { name, email, password, currency = 'SAR', role = 'merchant', whatsapp_phone } = body
 
     if (!name?.trim() || !email?.trim() || !password?.trim()) {
       return json({ error: 'name, email, password مطلوبة' }, 400)
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const code   = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`
 
     // Insert merchants record
-    const { error: dbErr } = await adminClient.from('merchants').insert({
+    const merchantRow: Record<string, any> = {
       id:                authData.user!.id,
       name:              name.trim(),
       email:             email.trim().toLowerCase(),
@@ -70,7 +70,10 @@ Deno.serve(async (req) => {
       role,
       merchant_code:     code,
       subscription_plan: 'free',
-    })
+    }
+    if (whatsapp_phone?.trim()) merchantRow.whatsapp_phone = whatsapp_phone.trim()
+
+    const { error: dbErr } = await adminClient.from('merchants').insert(merchantRow)
 
     if (dbErr) {
       // Rollback auth user if DB insert failed

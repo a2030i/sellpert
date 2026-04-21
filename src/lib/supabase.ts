@@ -16,6 +16,7 @@ export interface Merchant {
   logo_url?: string
   role: UserRole
   subscription_plan: 'free' | 'pro' | 'elite'
+  whatsapp_phone?: string
   created_at: string
 }
 
@@ -98,7 +99,7 @@ export interface InventoryItem {
 
 export interface PlatformConnection {
   id: string
-  platform: 'trendyol' | 'noon' | 'amazon'
+  platform: 'trendyol' | 'noon' | 'amazon' | 'respondly'
   label: string
   api_key?: string
   api_secret?: string

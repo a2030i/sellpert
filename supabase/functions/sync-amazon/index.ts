@@ -131,6 +131,13 @@ Deno.serve(async (req) => {
       await db.from('merchant_platform_mappings').update({ last_sync_at: now, last_sync_status: 'success', records_synced: orderRows.length, last_sync_error: null }).eq('id', mapping_id)
     }
 
+    // Non-blocking WhatsApp notification
+    fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({ merchant_code, event: 'sync_complete', data: { platform: 'amazon', orders: orderRows.length, records: totalDays } }),
+    }).catch(() => {})
+
     return json({ ok: true, records_synced: totalDays, orders: orderRows.length })
 
   } catch (e: any) {

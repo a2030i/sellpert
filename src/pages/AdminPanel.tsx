@@ -22,10 +22,12 @@ const NAV = [
 const PLATFORM_MAP: Record<string, string> = {
   trendyol: 'تراندايول', noon: 'نون', amazon: 'أمازون',
   salla: 'سلة', zid: 'زد', shopify: 'شوبيفاي', other: 'أخرى',
+  respondly: 'Respondly واتساب',
 }
 const PLATFORM_COLORS: Record<string, string> = {
   trendyol: '#f27a1a', noon: '#f5c518', amazon: '#ff9900',
   salla: '#7c6bff', zid: '#00e5b0', shopify: '#96bf48', other: '#5a5a7a',
+  respondly: '#25D366',
 }
 const CHART_COLORS = ['#7c6bff', '#00e5b0', '#ff9900', '#f27a1a', '#ff6b6b', '#4cc9f0']
 
@@ -387,7 +389,7 @@ function OverviewView({ merchantOnly, totalGMV, totalOrders, activeIntegrations,
 function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any) {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant' })
+  const [addForm, setAddForm] = useState({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant', whatsapp_phone: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -426,6 +428,7 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
           password: addForm.password,
           currency: addForm.currency,
           role: addForm.role,
+          whatsapp_phone: addForm.whatsapp_phone.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -433,7 +436,7 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
         setMsg({ type: 'err', text: data.error || 'خطأ في الإنشاء' })
       } else {
         setMsg({ type: 'ok', text: `✓ تمت إضافة ${addForm.name} — الكود: ${data.merchant_code}` })
-        setAddForm({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant' })
+        setAddForm({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant', whatsapp_phone: '' })
         setShowAdd(false)
         onRefresh()
       }
@@ -481,11 +484,12 @@ function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh }: any
       {showAdd && (
         <div style={{ ...S.formCard, marginBottom: 16 }}>
           <div style={S.formTitle}>إضافة تاجر / مدير جديد</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
             {[
               { key: 'name', label: 'الاسم الكامل', placeholder: 'متجر النور', type: 'text' },
               { key: 'email', label: 'البريد الإلكتروني', placeholder: 'merchant@example.com', type: 'email' },
               { key: 'password', label: 'كلمة المرور', placeholder: '8 أحرف على الأقل', type: 'password' },
+              { key: 'whatsapp_phone', label: 'واتساب (اختياري)', placeholder: '+966501234567', type: 'text' },
             ].map(f => (
               <div key={f.key}>
                 <label style={S.label}>{f.label}</label>
@@ -1074,6 +1078,14 @@ const PLATFORM_FIELDS: Record<string, { label: string; fields: { key: string; la
       { key: 'extra.refresh_token', label: 'Refresh Token', placeholder: 'Atzr|...', hint: 'من صفحة Authorization في Seller Central' },
     ],
   },
+  respondly: {
+    label: 'Respondly واتساب',
+    fields: [
+      { key: 'api_key', label: 'API Key', placeholder: 'rsp_live_xxxxxxxxxxxx', type: 'password', hint: 'من Respondly → الإعدادات → API Keys → أنشئ مفتاح بصلاحيات messages + customers' },
+      { key: 'extra.channel_id', label: 'Channel ID (اختياري)', placeholder: 'uuid الخاص بالقناة', hint: 'اتركه فارغاً لاستخدام القناة الافتراضية' },
+      { key: 'extra.base_url', label: 'API Base URL (اختياري)', placeholder: 'https://ovbrrumnqfvtgmqsscat.supabase.co/functions/v1/public-api', hint: 'اتركه فارغاً للقيمة الافتراضية' },
+    ],
+  },
 }
 
 function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
@@ -1265,8 +1277,8 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
               <div style={S.formTitle}>🔌 إضافة اتصال منصة جديد</div>
 
               {/* Platform selector */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
-                {(['trendyol', 'noon', 'amazon'] as const).map(p => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
+                {(['trendyol', 'noon', 'amazon', 'respondly'] as const).map(p => (
                   <div
                     key={p}
                     style={{ border: `2px solid ${connForm.platform === p ? PLATFORM_COLORS[p] : 'var(--border)'}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', background: connForm.platform === p ? PLATFORM_COLORS[p] + '11' : 'var(--bg)', transition: 'all 0.15s' }}
@@ -1274,7 +1286,7 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
                   >
                     <div style={{ fontSize: 14, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{PLATFORM_MAP[p]}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
-                      {p === 'trendyol' ? 'Basic Auth (API Key + Secret)' : p === 'noon' ? 'Service Account JSON' : 'LWA OAuth2'}
+                      {p === 'trendyol' ? 'Basic Auth (API Key + Secret)' : p === 'noon' ? 'Service Account JSON' : p === 'amazon' ? 'LWA OAuth2' : 'API Key'}
                     </div>
                   </div>
                 ))}
