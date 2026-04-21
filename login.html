@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sellpert — Sign In</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0a0a0f; --surface: #13131a; --border: #2a2a3d;
+      --accent: #6c63ff; --accent2: #00d4aa;
+      --text: #e8e8f0; --text2: #8888aa; --text3: #55556a;
+      --danger: #ff4d6d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .bg-grid {
+      position: fixed; inset: 0;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px; opacity: 0.3; pointer-events: none;
+    }
+    .login-card {
+      position: relative; z-index: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+    }
+    .logo { margin-bottom: 32px; text-align: center; }
+    .logo h1 {
+      font-size: 28px; font-weight: 700; letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .logo p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input {
+      width: 100%; padding: 12px 14px;
+      background: #0a0a0f; border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font-size: 14px; font-family: 'DM Sans', sans-serif;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--text3); }
+
+    .btn-submit {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, var(--accent), #8b7fff);
+      border: none; border-radius: 10px;
+      color: #fff; font-size: 14px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer; margin-top: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-submit:hover { opacity: 0.9; }
+    .btn-submit:active { transform: scale(0.99); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error-msg {
+      background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3);
+      color: var(--danger); border-radius: 8px;
+      padding: 10px 14px; font-size: 12px; margin-top: 12px;
+      display: none;
+    }
+    .error-msg.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="login-card">
+    <div class="logo">
+      <h1>Sellpert</h1>
+      <p>Merchant Analytics Platform</p>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="sp-email" placeholder="merchant@example.com" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="sp-password" placeholder="••••••••" />
+    </div>
+    <button class="btn-submit" id="sp-login-btn" onclick="spLogin()">Sign in</button>
+    <div class="error-msg" id="sp-error"></div>
+  </div>
+
+  <script>
+    const SP_SUPABASE_URL = 'https://urdyzbsukcuibadlaath.supabase.co';
+    const SP_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyZHl6YnN1a2N1aWJhZGxhYXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3ODU4OTMsImV4cCI6MjA5MjM2MTg5M30.TxsXS9V9peCQlsZ9J8QViJNAdFIvcoBe8abYtfa3sZE';
+    const spSupabase = supabase.createClient(SP_SUPABASE_URL, SP_SUPABASE_ANON_KEY);
+
+    async function spLogin() {
+      const email = document.getElementById('sp-email').value.trim();
+      const password = document.getElementById('sp-password').value;
+      const btn = document.getElementById('sp-login-btn');
+      const err = document.getElementById('sp-error');
+
+      err.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+
+      const { error } = await spSupabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        err.textContent = error.message;
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      } else {
+        window.location.href = 'dashboard.html';
+      }
+    }
+
+    // Allow Enter key
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') spLogin(); });
+  </script>
+</body>
+</html>

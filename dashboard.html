@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sellpert — Merchant Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface2: #1c1c27;
+      --border: #2a2a3d;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --danger: #ff4d6d;
+      --text: #e8e8f0;
+      --text2: #8888aa;
+      --text3: #55556a;
+      --green: #00d4aa;
+      --red: #ff4d6d;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* LOADER */
+    #sp-loader-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999;
+      flex-direction: column; gap: 16px;
+      transition: opacity 0.4s;
+    }
+    #sp-loader-overlay.hidden { opacity: 0; pointer-events: none; }
+    .loader-ring {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text { color: var(--text2); font-size: 13px; }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 24px 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .sidebar-logo h1 {
+      font-size: 20px; font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sidebar-logo p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px;
+      color: var(--text2);
+      cursor: pointer;
+      border-radius: 0;
+      transition: all 0.2s;
+      font-size: 13px; font-weight: 500;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { color: var(--accent); background: rgba(108,99,255,0.1); border-right: 2px solid var(--accent); }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .merchant-info { margin-bottom: 12px; }
+    .merchant-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .merchant-email { font-size: 11px; color: var(--text3); margin-top: 2px; font-family: 'DM Mono', monospace; }
+    .merchant-code-badge {
+      display: inline-block;
+      background: rgba(108,99,255,0.15);
+      color: var(--accent);
+      font-size: 10px; font-family: 'DM Mono', monospace;
+      padding: 2px 8px; border-radius: 20px;
+      margin-top: 4px;
+    }
+
+    .btn-logout {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px; font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* MAIN CONTENT */
+    .main {
+      margin-left: 220px;
+      padding: 32px;
+      min-height: 100vh;
+    }
+
+    /* TOPBAR */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    .topbar-title h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+    .topbar-title p { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+    .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+    /* LANG SWITCHER */
+    .lang-switcher {
+      display: flex; gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+    .lang-btn {
+      padding: 5px 10px;
+      border: none; background: transparent;
+      color: var(--text2);
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 11px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+    }
+    .lang-btn.active { background: var(--accent); color: #fff; }
+    .lang-btn:hover:not(.active) { color: var(--text); }
+
+    /* DATE PRESETS */
+    .preset-bar {
+      display: flex; gap: 6px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text2);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px; font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+    }
+    .preset-btn:hover { border-color: var(--accent); color: var(--text); }
+    .preset-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* KPI CARDS */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .kpi-card:hover { border-color: var(--accent); }
+    .kpi-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .kpi-card.revenue::before { background: linear-gradient(90deg, var(--accent), transparent); }
+    .kpi-card.orders::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+    .kpi-card.aov::before { background: linear-gradient(90deg, #ffd166, transparent); }
+    .kpi-card.roi::before { background: linear-gradient(90deg, #ff6b6b, transparent); }
+
+    .kpi-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin-top: 8px; letter-spacing: -1px; font-family: 'DM Mono', monospace; }
+    .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+    /* CHARTS ROW */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .chart-subtitle { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    .chart-wrap { position: relative; height: 180px; }
+
+    /* DATA TABLE */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .table-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-title { font-size: 13px; font-weight: 600; }
+    .row-count-badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      font-size: 11px; font-family: 'DM Mono', monospace;
+      padding: 3px 10px; border-radius: 20px;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 10px 20px;
+      text-align: left;
+      font-size: 11px; font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td {
+      padding: 12px 20px;
+      font-size: 13px; color: var(--text);
+    }
+    tbody td.mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+    .roi-positive { color: var(--green); font-weight: 600; }
+    .roi-negative { color: var(--red); font-weight: 600; }
+
+    .empty-state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--text3);
+    }
+    .empty-state .empty-icon { font-size: 32px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; }
+
+    /* RESPONSIVE */
+    @media (max-width: 1100px) {
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 20px; }
+      .charts-row { grid-template-columns: 1fr; }
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ANIMATIONS */
+    .fade-in { animation: fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="sp-loader-overlay">
+  <div class="loader-ring"></div>
+  <span class="loader-text" id="sp-loader">Loading dashboard...</span>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>Sellpert</h1>
+    <p>Merchant Analytics</p>
+  </div>
+  <nav>
+    <div class="nav-item active">
+      <span class="nav-icon">📊</span>
+      <span data-sp-key="nav_dashboard">Dashboard</span>
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">📦</span>
+      <span data-sp-key="nav_orders">Orders</span>
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">💰</span>
+      <span data-sp-key="nav_revenue">Revenue</span>
+    </div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="merchant-info">
+      <div class="merchant-name" id="sp-merchant-name">—</div>
+      <div class="merchant-email" id="sp-user-email">—</div>
+      <div class="merchant-code-badge" id="sp-merchant-code">—</div>
+    </div>
+    <button class="btn-logout" onclick="spLogout()">
+      <span data-sp-key="btn_logout">Sign out</span>
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title">
+      <h2 data-sp-key="page_title">Analytics Overview</h2>
+      <p id="sp-preset-label" data-sp-key="preset_all">All time</p>
+    </div>
+    <div class="topbar-actions">
+      <div class="lang-switcher">
+        <button class="lang-btn active" data-sp-lang="en" onclick="spSetLang('en')">EN</button>
+        <button class="lang-btn" data-sp-lang="ms" onclick="spSetLang('ms')">MY</button>
+        <button class="lang-btn" data-sp-lang="zh" onclick="spSetLang('zh')">中文</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATE PRESETS -->
+  <div class="preset-bar">
+    <button class="preset-btn active" data-sp-preset="all" onclick="spSetPreset('all')" data-sp-key="preset_all">All time</button>
+    <button class="preset-btn" data-sp-preset="today" onclick="spSetPreset('today')" data-sp-key="preset_today">Today</button>
+    <button class="preset-btn" data-sp-preset="last7" onclick="spSetPreset('last7')" data-sp-key="preset_last7">Last 7 days</button>
+    <button class="preset-btn" data-sp-preset="last30" onclick="spSetPreset('last30')" data-sp-key="preset_last30">Last 30 days</button>
+    <button class="preset-btn" data-sp-preset="thisMonth" onclick="spSetPreset('thisMonth')" data-sp-key="preset_thisMonth">This month</button>
+    <button class="preset-btn" data-sp-preset="lastMonth" onclick="spSetPreset('lastMonth')" data-sp-key="preset_lastMonth">Last month</button>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="cards-grid fade-in">
+    <div class="kpi-card revenue">
+      <div class="kpi-label" data-sp-key="card_revenue">Total Revenue</div>
+      <div class="kpi-value" id="sp-card-revenue">—</div>
+      <div class="kpi-sub" data-sp-key="card_revenue_sub">Gross sales</div>
+    </div>
+    <div class="kpi-card orders">
+      <div class="kpi-label" data-sp-key="card_orders">Total Orders</div>
+      <div class="kpi-value" id="sp-card-orders">—</div>
+      <div class="kpi-sub" data-sp-key="card_orders_sub">Completed transactions</div>
+    </div>
+    <div class="kpi-card aov">
+      <div class="kpi-label" data-sp-key="card_aov">Avg. Order Value</div>
+      <div class="kpi-value" id="sp-card-aov">—</div>
+      <div class="kpi-sub" data-sp-key="card_aov_sub">Per transaction</div>
+    </div>
+    <div class="kpi-card roi">
+      <div class="kpi-label" data-sp-key="card_roi">Avg. ROI</div>
+      <div class="kpi-value" id="sp-card-roi">—</div>
+      <div class="kpi-sub" data-sp-key="card_roi_sub">Return on investment</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts-row fade-in">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title" data-sp-key="chart_revenue_title">Revenue Trend</div>
+          <div class="chart-subtitle" data-sp-key="chart_revenue_sub">Last 30 data points</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="sp-chart-revenue"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title" data-sp-key="chart_orders_title">Orders Volume</div>
+          <div class="chart-subtitle" data-sp-key="chart_orders_sub">Last 30 data points</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="sp-chart-orders"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DATA TABLE -->
+  <div class="table-card fade-in">
+    <div class="table-header">
+      <div class="table-title" data-sp-key="table_title">Transaction History</div>
+      <span class="row-count-badge" id="sp-row-count">0 records</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th data-sp-key="th_date">Date</th>
+          <th data-sp-key="th_orders">Orders</th>
+          <th data-sp-key="th_revenue">Revenue</th>
+          <th data-sp-key="th_roi">ROI</th>
+        </tr>
+      </thead>
+      <tbody id="sp-table-body"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+// ============================================================
+// SELLPERT DASHBOARD — MAIN SCRIPT
+// All functions prefixed with sp to avoid collisions
+// ============================================================
+
+// --- CONFIG: Replace with your new Supabase project details ---
+const SP_SUPABASE_URL = 'https://urdyzbsukcuibadlaath.supabase.co';
+const SP_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyZHl6YnN1a2N1aWJhZGxhYXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3ODU4OTMsImV4cCI6MjA5MjM2MTg5M30.TxsXS9V9peCQlsZ9J8QViJNAdFIvcoBe8abYtfa3sZE';
+
+const spSupabase = supabase.createClient(SP_SUPABASE_URL, SP_SUPABASE_ANON_KEY);
+
+let spAllData = [];
+let spCurrentLang = localStorage.getItem('sp-lang') || 'en';
+let spChartRevenue = null;
+let spChartOrders = null;
+
+// --- TRANSLATIONS ---
+const spI18n = {
+  en: {
+    nav_dashboard: 'Dashboard', nav_orders: 'Orders', nav_revenue: 'Revenue',
+    btn_logout: 'Sign out', page_title: 'Analytics Overview',
+    card_revenue: 'Total Revenue', card_revenue_sub: 'Gross sales',
+    card_orders: 'Total Orders', card_orders_sub: 'Completed transactions',
+    card_aov: 'Avg. Order Value', card_aov_sub: 'Per transaction',
+    card_roi: 'Avg. ROI', card_roi_sub: 'Return on investment',
+    chart_revenue_title: 'Revenue Trend', chart_revenue_sub: 'Last 30 data points',
+    chart_orders_title: 'Orders Volume', chart_orders_sub: 'Last 30 data points',
+    table_title: 'Transaction History',
+    th_date: 'Date', th_orders: 'Orders', th_revenue: 'Revenue', th_roi: 'ROI',
+    preset_all: 'All time', preset_today: 'Today', preset_last7: 'Last 7 days',
+    preset_last30: 'Last 30 days', preset_thisMonth: 'This month', preset_lastMonth: 'Last month',
+    loading: 'Loading dashboard...', no_merchant: 'Merchant account not found.',
+    no_data: 'No data for this period.', records: 'records',
+  },
+  ms: {
+    nav_dashboard: 'Papan Pemuka', nav_orders: 'Pesanan', nav_revenue: 'Hasil',
+    btn_logout: 'Log keluar', page_title: 'Gambaran Analitik',
+    card_revenue: 'Jumlah Hasil', card_revenue_sub: 'Jualan kasar',
+    card_orders: 'Jumlah Pesanan', card_orders_sub: 'Transaksi selesai',
+    card_aov: 'Nilai Pesanan Purata', card_aov_sub: 'Setiap transaksi',
+    card_roi: 'ROI Purata', card_roi_sub: 'Pulangan pelaburan',
+    chart_revenue_title: 'Trend Hasil', chart_revenue_sub: '30 titik data terakhir',
+    chart_orders_title: 'Jumlah Pesanan', chart_orders_sub: '30 titik data terakhir',
+    table_title: 'Sejarah Transaksi',
+    th_date: 'Tarikh', th_orders: 'Pesanan', th_revenue: 'Hasil', th_roi: 'ROI',
+    preset_all: 'Semua masa', preset_today: 'Hari ini', preset_last7: '7 hari lepas',
+    preset_last30: '30 hari lepas', preset_thisMonth: 'Bulan ini', preset_lastMonth: 'Bulan lepas',
+    loading: 'Memuatkan...', no_merchant: 'Akaun peniaga tidak dijumpai.',
+    no_data: 'Tiada data untuk tempoh ini.', records: 'rekod',
+  },
+  zh: {
+    nav_dashboard: '仪表板', nav_orders: '订单', nav_revenue: '收入',
+    btn_logout: '退出登录', page_title: '数据概览',
+    card_revenue: '总收入', card_revenue_sub: '毛销售额',
+    card_orders: '总订单', card_orders_sub: '已完成交易',
+    card_aov: '平均订单额', card_aov_sub: '每笔交易',
+    card_roi: '平均投资回报', card_roi_sub: '投资回报率',
+    chart_revenue_title: '收入趋势', chart_revenue_sub: '最近30个数据点',
+    chart_orders_title: '订单量', chart_orders_sub: '最近30个数据点',
+    table_title: '交易历史',
+    th_date: '日期', th_orders: '订单', th_revenue: '收入', th_roi: '投资回报',
+    preset_all: '全部', preset_today: '今天', preset_last7: '最近7天',
+    preset_last30: '最近30天', preset_thisMonth: '本月', preset_lastMonth: '上月',
+    loading: '加载中...', no_merchant: '未找到商户账户。',
+    no_data: '此期间无数据。', records: '条记录',
+  }
+};
+
+// --- HELPERS ---
+function spT(key) { return (spI18n[spCurrentLang] || spI18n.en)[key] || key; }
+
+function spCol(row, ...names) {
+  if (!row) return null;
+  for (const n of names) { if (n in row) return n; }
+  return null;
+}
+
+function spFmt(val, type) {
+  if (val == null || isNaN(val)) return '—';
+  if (type === 'currency') return 'RM ' + Number(val).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (type === 'percent') return Number(val).toFixed(1) + '%';
+  return Number(val).toLocaleString();
+}
+
+function spAbbrev(val) {
+  if (val >= 1000000) return 'RM ' + (val / 1000000).toFixed(1) + 'M';
+  if (val >= 1000) return 'RM ' + (val / 1000).toFixed(1) + 'k';
+  return 'RM ' + val.toFixed(0);
+}
+
+function spShowLoader(show, msg) {
+  const el = document.getElementById('sp-loader-overlay');
+  const txt = document.getElementById('sp-loader');
+  if (show) { el.classList.remove('hidden'); if (txt && msg) txt.textContent = msg; }
+  else { el.classList.add('hidden'); }
+}
+
+// --- AUTH GUARD ---
+async function spGuard() {
+  const { data: { session } } = await spSupabase.auth.getSession();
+  if (!session) { window.location.href = 'login.html'; return false; }
+  return true;
+}
+
+// --- LOGOUT ---
+async function spLogout() {
+  await spSupabase.auth.signOut();
+  window.location.href = 'login.html';
+}
+
+// --- FETCH DATA ---
+async function spFetchData() {
+  spShowLoader(true, spT('loading'));
+  const { data: { user }, error: authErr } = await spSupabase.auth.getUser();
+  if (authErr || !user) { window.location.href = 'login.html'; return; }
+
+  document.getElementById('sp-user-email').textContent = user.email;
+
+  const { data: merchant, error: mErr } = await spSupabase
+    .from('merchants')
+    .select('merchant_code, merchant_name')
+    .eq('email', user.email)
+    .single();
+
+  if (mErr || !merchant) {
+    spShowLoader(false);
+    document.getElementById('sp-merchant-name').textContent = spT('no_merchant');
+    return;
+  }
+
+  document.getElementById('sp-merchant-name').textContent = merchant.merchant_name || '—';
+  document.getElementById('sp-merchant-code').textContent = merchant.merchant_code;
+
+  const { data: rows, error: dErr } = await spSupabase
+    .from('performance_data')
+    .select('*')
+    .eq('merchant_code', merchant.merchant_code)
+    .order('date', { ascending: false });
+
+  if (dErr) { console.warn('Data fetch error:', dErr); spShowLoader(false); return; }
+
+  spAllData = rows || [];
+  spRenderDashboard(spAllData);
+  spShowLoader(false);
+}
+
+// --- DATE FILTER ---
+function spSetPreset(preset) {
+  document.querySelectorAll('[data-sp-preset]').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`[data-sp-preset="${preset}"]`);
+  if (btn) btn.classList.add('active');
+
+  const lbl = document.getElementById('sp-preset-label');
+  if (lbl) lbl.textContent = spT('preset_' + preset);
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let filtered = spAllData;
+  if (preset === 'today') {
+    filtered = spAllData.filter(r => { const d = new Date(r.date || r.created_at); return d >= today; });
+  } else if (preset === 'last7') {
+    const from = new Date(today); from.setDate(from.getDate() - 7);
+    filtered = spAllData.filter(r => new Date(r.date || r.created_at) >= from);
+  } else if (preset === 'last30') {
+    const from = new Date(today); from.setDate(from.getDate() - 30);
+    filtered = spAllData.filter(r => new Date(r.date || r.created_at) >= from);
+  } else if (preset === 'thisMonth') {
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    filtered = spAllData.filter(r => new Date(r.date || r.created_at) >= from);
+  } else if (preset === 'lastMonth') {
+    const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const to = new Date(now.getFullYear(), now.getMonth(), 1);
+    filtered = spAllData.filter(r => { const d = new Date(r.date || r.created_at); return d >= from && d < to; });
+  }
+
+  spRenderDashboard(filtered);
+}
+
+// --- LANGUAGE SWITCHER ---
+function spSetLang(lang) {
+  spCurrentLang = lang;
+  localStorage.setItem('sp-lang', lang);
+  document.querySelectorAll('[data-sp-lang]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-sp-lang') === lang);
+  });
+  document.querySelectorAll('[data-sp-key]').forEach(el => {
+    const key = el.getAttribute('data-sp-key');
+    const val = spT(key);
+    if (val) el.textContent = val;
+  });
+}
+
+// --- RENDER DASHBOARD ---
+function spRenderDashboard(data) {
+  spUpdateCards(data);
+  spUpdateTable(data);
+  spUpdateCharts(data);
+}
+
+// --- KPI CARDS ---
+function spUpdateCards(data) {
+  if (!data.length) {
+    ['sp-card-revenue','sp-card-orders','sp-card-aov','sp-card-roi'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = '—';
+    });
+    return;
+  }
+  const sample = data[0];
+  const revCol = spCol(sample, 'revenue', 'total_sales');
+  const ordCol = spCol(sample, 'orders', 'order_count');
+  const roiCol = spCol(sample, 'roi', 'margin');
+
+  const totalRev = revCol ? data.reduce((s, r) => s + (Number(r[revCol]) || 0), 0) : null;
+  const totalOrd = ordCol ? data.reduce((s, r) => s + (Number(r[ordCol]) || 0), 0) : null;
+  const aov = (totalRev && totalOrd) ? totalRev / totalOrd : null;
+  const avgRoi = roiCol ? data.reduce((s, r) => s + (Number(r[roiCol]) || 0), 0) / data.length : null;
+
+  const rev = document.getElementById('sp-card-revenue');
+  const ord = document.getElementById('sp-card-orders');
+  const aovEl = document.getElementById('sp-card-aov');
+  const roiEl = document.getElementById('sp-card-roi');
+
+  if (rev) rev.textContent = spFmt(totalRev, 'currency');
+  if (ord) ord.textContent = spFmt(totalOrd, 'number');
+  if (aovEl) aovEl.textContent = spFmt(aov, 'currency');
+  if (roiEl) roiEl.textContent = spFmt(avgRoi, 'percent');
+}
+
+// --- DATA TABLE ---
+function spUpdateTable(data) {
+  const tbody = document.getElementById('sp-table-body');
+  const badge = document.getElementById('sp-row-count');
+  if (!tbody) return;
+
+  if (badge) badge.textContent = data.length + ' ' + spT('records');
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="4">
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <p>${spT('no_data')}</p>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  const sample = data[0];
+  const revCol = spCol(sample, 'revenue', 'total_sales');
+  const ordCol = spCol(sample, 'orders', 'order_count');
+  const roiCol = spCol(sample, 'roi', 'margin');
+
+  tbody.innerHTML = data.map(r => {
+    const dateStr = r.date || r.created_at;
+    const d = dateStr ? new Date(dateStr).toLocaleDateString('en-MY', { year:'numeric', month:'short', day:'numeric' }) : '—';
+    const rev = revCol ? spFmt(r[revCol], 'currency') : '—';
+    const ord = ordCol ? spFmt(r[ordCol], 'number') : '—';
+    const roi = roiCol ? Number(r[roiCol]) : null;
+    const roiClass = roi !== null ? (roi >= 0 ? 'roi-positive' : 'roi-negative') : '';
+    const roiTxt = roi !== null ? spFmt(roi, 'percent') : '—';
+    return `<tr>
+      <td class="mono">${d}</td>
+      <td>${ord}</td>
+      <td class="mono">${rev}</td>
+      <td class="${roiClass}">${roiTxt}</td>
+    </tr>`;
+  }).join('');
+}
+
+// --- CHARTS ---
+function spUpdateCharts(data) {
+  const sorted = [...data].sort((a, b) => {
+    return new Date(a.date || a.created_at) - new Date(b.date || b.created_at);
+  }).slice(-30);
+
+  const labels = sorted.map(r => {
+    const d = new Date(r.date || r.created_at);
+    return d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' });
+  });
+
+  const sample = sorted[0] || {};
+  const revCol = spCol(sample, 'revenue', 'total_sales');
+  const ordCol = spCol(sample, 'orders', 'order_count');
+
+  const revData = sorted.map(r => revCol ? Number(r[revCol]) || 0 : 0);
+  const ordData = sorted.map(r => ordCol ? Number(r[ordCol]) || 0 : 0);
+
+  const chartDefaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1c1c27', titleColor: '#8888aa', bodyColor: '#e8e8f0', borderColor: '#2a2a3d', borderWidth: 1, padding: 10, cornerRadius: 8 } },
+    scales: { x: { grid: { color: '#2a2a3d', drawBorder: false }, ticks: { color: '#55556a', font: { size: 10, family: 'DM Mono' }, maxTicksLimit: 8 } }, y: { grid: { color: '#2a2a3d', drawBorder: false }, ticks: { color: '#55556a', font: { size: 10, family: 'DM Mono' } } } }
+  };
+
+  // Revenue chart
+  const rCtx = document.getElementById('sp-chart-revenue');
+  if (rCtx) {
+    if (spChartRevenue) spChartRevenue.destroy();
+    spChartRevenue = new Chart(rCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{ data: revData, borderColor: '#6c63ff', backgroundColor: 'rgba(108,99,255,0.08)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#6c63ff', borderWidth: 2 }]
+      },
+      options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, tooltip: { ...chartDefaults.plugins.tooltip, callbacks: { label: ctx => 'RM ' + Number(ctx.raw).toLocaleString('en-MY', { minimumFractionDigits: 2 }) } } }, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => spAbbrev(v) } } } }
+    });
+  }
+
+  // Orders chart
+  const oCtx = document.getElementById('sp-chart-orders');
+  if (oCtx) {
+    if (spChartOrders) spChartOrders.destroy();
+    spChartOrders = new Chart(oCtx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ data: ordData, backgroundColor: 'rgba(0,212,170,0.7)', borderColor: '#00d4aa', borderWidth: 1, borderRadius: 4 }]
+      },
+      options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, tooltip: { ...chartDefaults.plugins.tooltip, callbacks: { label: ctx => ctx.raw + ' orders' } } } }
+    });
+  }
+}
+
+// --- INIT ---
+(async () => {
+  spSetLang(spCurrentLang);
+  const ok = await spGuard();
+  if (ok) await spFetchData();
+})();
+</script>
+</body>
+</html>
