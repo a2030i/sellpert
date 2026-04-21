@@ -1112,6 +1112,9 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
   const [deleteConn, setDeleteConn] = useState<string | null>(null)
   const [deleteMap, setDeleteMap] = useState<string | null>(null)
 
+  // Respondly test panel
+  const [respondlyPanel, setRespondlyPanel] = useState<{ connId: string; channels: any[]; templates: any[]; loading: boolean } | null>(null)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -1123,6 +1126,38 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
     setConnections(c.data || [])
     setMappings(m.data || [])
     setLoading(false)
+  }
+
+  // ── Respondly Info ──
+  async function loadRespondlyInfo(connId: string) {
+    setRespondlyPanel({ connId, channels: [], templates: [], loading: true })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/respondly-info`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: connId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setMsg({ type: 'err', text: data.error || 'فشل جلب بيانات Respondly' })
+        setRespondlyPanel(null)
+      } else {
+        setRespondlyPanel({ connId, channels: data.channels || [], templates: data.templates || [], loading: false })
+      }
+    } catch (e: any) {
+      setMsg({ type: 'err', text: e.message })
+      setRespondlyPanel(null)
+    }
+  }
+
+  async function saveChannelId(connId: string, channelId: string) {
+    const conn = connections.find(c => c.id === connId)
+    const extra = { ...(conn?.extra || {}), channel_id: channelId }
+    const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', connId)
+    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    setMsg({ type: 'ok', text: '✓ تم حفظ القناة الافتراضية' })
+    loadData()
   }
 
   // ── Add Connection ──
@@ -1145,13 +1180,14 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
         if (connForm[f.key]) payload[f.key] = connForm[f.key]
       }
     }
-    const { error } = await supabase.from('platform_connections').insert(payload)
+    const { data: inserted, error } = await supabase.from('platform_connections').insert(payload).select().single()
     setSavingConn(false)
     if (error) { setMsg({ type: 'err', text: error.message }); return }
     setMsg({ type: 'ok', text: `✓ تم حفظ اتصال ${PLATFORM_MAP[platform]} — ${connForm.label}` })
     setConnForm({ platform: 'trendyol', label: '' })
     setShowConnForm(false)
-    loadData()
+    await loadData()
+    if (platform === 'respondly' && inserted?.id) loadRespondlyInfo(inserted.id)
   }
 
   // ── Add Mapping ──
@@ -1359,19 +1395,86 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
                       </td>
                       <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(c.created_at).toLocaleDateString('ar-SA')}</td>
                       <td style={S.td}>
-                        {deleteConn === c.id ? (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button style={{ ...S.miniBtn, background: 'var(--red)', color: '#fff' }} onClick={async () => { await supabase.from('platform_connections').delete().eq('id', c.id); setDeleteConn(null); loadData() }}>تأكيد</button>
-                            <button style={S.miniBtn} onClick={() => setDeleteConn(null)}>إلغاء</button>
-                          </div>
-                        ) : (
-                          <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConn(c.id)}>🗑</button>
-                        )}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {c.platform === 'respondly' && (
+                            <button
+                              style={{ ...S.miniBtn, color: '#25D366', borderColor: '#25D366' }}
+                              onClick={() => respondlyPanel?.connId === c.id ? setRespondlyPanel(null) : loadRespondlyInfo(c.id)}
+                            >
+                              {respondlyPanel?.connId === c.id ? '✕ إغلاق' : '🔍 اختبار'}
+                            </button>
+                          )}
+                          {deleteConn === c.id ? (
+                            <>
+                              <button style={{ ...S.miniBtn, background: 'var(--red)', color: '#fff' }} onClick={async () => { await supabase.from('platform_connections').delete().eq('id', c.id); setDeleteConn(null); loadData() }}>تأكيد</button>
+                              <button style={S.miniBtn} onClick={() => setDeleteConn(null)}>إلغاء</button>
+                            </>
+                          ) : (
+                            <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConn(c.id)}>🗑</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ── Respondly Test Panel ── */}
+          {respondlyPanel && (
+            <div style={{ ...S.formCard, marginTop: 16, borderColor: '#25D366' }}>
+              <div style={{ ...S.formTitle, color: '#25D366' }}>🟢 Respondly — قنوات وقوالب</div>
+              {respondlyPanel.loading ? (
+                <div style={{ color: 'var(--text3)', fontSize: 13 }}>⟳ جاري الجلب...</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                  {/* Channels */}
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📱 القنوات (أرقام الواتساب)</div>
+                    {respondlyPanel.channels.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>لا توجد قنوات — تحقق من صلاحيات API Key</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                        {respondlyPanel.channels.map((ch: any) => {
+                          const conn = connections.find(c => c.id === respondlyPanel.connId)
+                          const isSelected = conn?.extra?.channel_id === (ch.id || ch.channel_id)
+                          return (
+                            <div key={ch.id || ch.channel_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${isSelected ? '#25D366' : 'var(--border)'}`, background: isSelected ? '#25D36611' : 'var(--bg2)' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>{ch.name || ch.phone_number || ch.number || ch.id}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ch.status || ch.phone_number || ''}</div>
+                              </div>
+                              <button
+                                style={{ ...S.miniBtn, ...(isSelected ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}) }}
+                                onClick={() => saveChannelId(respondlyPanel.connId, ch.id || ch.channel_id)}
+                              >
+                                {isSelected ? '✓ محدد' : 'اختر'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Templates */}
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📋 القوالب المعتمدة</div>
+                    {respondlyPanel.templates.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>لا توجد قوالب — يتم الإرسال كرسائل نصية</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6, maxHeight: 260, overflowY: 'auto' as const }}>
+                        {respondlyPanel.templates.map((t: any, i: number) => (
+                          <div key={i} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name || t.template_name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{t.status || t.language || ''}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
