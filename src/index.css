@@ -1,0 +1,57 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #07070d;
+  --bg2: #0e0e18;
+  --surface: #12121f;
+  --surface2: #1a1a2e;
+  --surface3: #222236;
+  --border: #2d2d4a;
+  --border2: #3a3a5c;
+  --accent: #7c6bff;
+  --accent2: #00e5b0;
+  --accent3: #ff6b6b;
+  --gold: #ffd166;
+  --text: #eeeef5;
+  --text2: #9090b8;
+  --text3: #5a5a7a;
+  --green: #00e5b0;
+  --red: #ff4d6d;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  direction: rtl;
+}
+
+body.ltr {
+  direction: ltr;
+  font-family: 'Tajawal', sans-serif;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, select { font-family: inherit; }
