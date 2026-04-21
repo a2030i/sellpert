@@ -40,10 +40,10 @@ Deno.serve(async (req) => {
       fetch(`${baseUrl}/templates`, { headers }),
     ])
 
-    const channels  = chRes.status  === 'fulfilled' && chRes.value.ok  ? await chRes.value.json()  : []
-    const templates = tplRes.status === 'fulfilled' && tplRes.value.ok ? await tplRes.value.json() : []
+    const chData   = chRes.status  === 'fulfilled' && chRes.value.ok  ? await chRes.value.json() : {}
+    const tplData  = tplRes.status === 'fulfilled' && tplRes.value.ok ? await tplRes.value.json() : {}
 
-    return json({ ok: true, channels, templates })
+    return json({ ok: true, channels: chData.channels || [], templates: tplData.templates || [] })
 
   } catch (e: any) {
     return json({ error: e.message }, 500)

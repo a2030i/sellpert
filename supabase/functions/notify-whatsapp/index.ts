@@ -52,6 +52,12 @@ Deno.serve(async (req) => {
 
     if (!conn?.api_key) return json({ skipped: true, reason: 'Respondly غير مربوط أو بدون API Key' })
 
+    // Check event is enabled
+    const eventsConfig = conn.extra?.events || {}
+    if (eventsConfig[event] && eventsConfig[event].enabled === false) {
+      return json({ skipped: true, reason: `الحدث ${event} معطّل` })
+    }
+
     // Get merchant info
     const { data: merchant } = await db
       .from('merchants')
@@ -65,11 +71,15 @@ Deno.serve(async (req) => {
     const baseUrl  = (conn.extra?.base_url || 'https://ovbrrumnqfvtgmqsscat.supabase.co/functions/v1/public-api').replace(/\/$/, '')
     const channelId = conn.extra?.channel_id || null
 
+    const templateName = eventsConfig[event]?.template || null
     const message = buildMessage(event, data, merchant.name)
 
-    const payload: Record<string, any> = {
-      to: merchant.whatsapp_phone,
-      message,
+    const payload: Record<string, any> = { to: merchant.whatsapp_phone }
+    if (templateName) {
+      payload.template_name = templateName
+      payload.template_language = 'ar'
+    } else {
+      payload.message = message
     }
     if (channelId) payload.channel_id = channelId
 

@@ -1092,12 +1092,28 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
   const [connections, setConnections] = useState<PlatformConnection[]>([])
   const [mappings, setMappings] = useState<MerchantPlatformMapping[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'connections' | 'mappings'>('connections')
+  const [tab, setTab] = useState<'connections' | 'mappings' | 'whatsapp'>('connections')
 
   // Connection form
   const [showConnForm, setShowConnForm] = useState(false)
   const [connForm, setConnForm] = useState<Record<string, string>>({ platform: 'trendyol', label: '' })
   const [savingConn, setSavingConn] = useState(false)
+
+  // WhatsApp / Respondly state
+  const [waConn, setWaConn]         = useState<PlatformConnection | null>(null)
+  const [waChannels, setWaChannels] = useState<any[]>([])
+  const [waTemplates, setWaTemplates] = useState<any[]>([])
+  const [waLoading, setWaLoading]   = useState(false)
+  const [waForm, setWaForm]         = useState({ label: 'Respondly', api_key: '', base_url: '' })
+  const [waSaving, setWaSaving]     = useState(false)
+  const [waEditKey, setWaEditKey]   = useState(false)
+  const [waEvents, setWaEvents]     = useState<Record<string, { enabled: boolean; template: string | null }>>({
+    sync_complete: { enabled: true,  template: null },
+    low_stock:     { enabled: false, template: null },
+    new_order:     { enabled: true,  template: null },
+    ai_ready:      { enabled: false, template: null },
+    daily_report:  { enabled: false, template: null },
+  })
 
   // Mapping form
   const [showMapForm, setShowMapForm] = useState(false)
@@ -1123,9 +1139,77 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
       supabase.from('platform_connections').select('*').order('created_at', { ascending: false }),
       supabase.from('merchant_platform_mappings').select('*').order('created_at', { ascending: false }),
     ])
-    setConnections(c.data || [])
+    const allConns = c.data || []
+    setConnections(allConns)
     setMappings(m.data || [])
     setLoading(false)
+    // Sync waConn
+    const found = allConns.find((x: PlatformConnection) => x.platform === 'respondly') || null
+    setWaConn(found)
+    if (found) {
+      const evts = found.extra?.events
+      if (evts) setWaEvents(evts)
+    }
+  }
+
+  // ── WhatsApp helpers ──
+  async function saveWaConnection() {
+    if (!waForm.api_key.trim()) { setMsg({ type: 'err', text: 'API Key مطلوب' }); return }
+    setWaSaving(true)
+    const extra: Record<string, any> = {}
+    if (waForm.base_url.trim()) extra.base_url = waForm.base_url.trim()
+    extra.events = waEvents
+
+    if (waConn) {
+      const { error } = await supabase.from('platform_connections').update({ api_key: waForm.api_key.trim(), label: waForm.label || 'Respondly', extra }).eq('id', waConn.id)
+      setWaSaving(false)
+      if (error) { setMsg({ type: 'err', text: error.message }); return }
+    } else {
+      const { data: inserted, error } = await supabase.from('platform_connections').insert({ platform: 'respondly', label: waForm.label || 'Respondly', api_key: waForm.api_key.trim(), is_active: true, extra }).select().single()
+      setWaSaving(false)
+      if (error) { setMsg({ type: 'err', text: error.message }); return }
+      setWaConn(inserted)
+    }
+    setWaEditKey(false)
+    setMsg({ type: 'ok', text: '✓ تم حفظ إعدادات Respondly' })
+    await loadData()
+    loadWaInfo()
+  }
+
+  async function loadWaInfo() {
+    const conn = waConn || (await supabase.from('platform_connections').select('*').eq('platform', 'respondly').eq('is_active', true).limit(1).single()).data
+    if (!conn) return
+    setWaLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/respondly-info`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: conn.id }),
+      })
+      const data = await res.json()
+      if (data.ok) { setWaChannels(data.channels || []); setWaTemplates(data.templates || []) }
+      else setMsg({ type: 'err', text: data.error || 'فشل الاتصال بـ Respondly' })
+    } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
+    setWaLoading(false)
+  }
+
+  async function saveWaDefaultChannel(channelId: string) {
+    if (!waConn) return
+    const extra = { ...(waConn.extra || {}), channel_id: channelId }
+    const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
+    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    setMsg({ type: 'ok', text: '✓ تم تحديد القناة الافتراضية' })
+    loadData()
+  }
+
+  async function saveWaEvents() {
+    if (!waConn) return
+    const extra = { ...(waConn.extra || {}), events: waEvents }
+    const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
+    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    setMsg({ type: 'ok', text: '✓ تم حفظ إعدادات الأحداث' })
+    loadData()
   }
 
   // ── Respondly Info ──
@@ -1285,8 +1369,8 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-        {([['connections', '🔌 مفاتيح API'], ['mappings', '🗂️ ربط التجار']] as const).map(([k, l]) => (
-          <button key={k} style={{ ...S.tabBtn, ...(tab === k ? S.tabActive : {}) }} onClick={() => setTab(k)}>{l}</button>
+        {([['connections', '🔌 مفاتيح API'], ['mappings', '🗂️ ربط التجار'], ['whatsapp', '📱 واتساب']] as const).map(([k, l]) => (
+          <button key={k} style={{ ...S.tabBtn, ...(tab === k ? S.tabActive : {}) }} onClick={() => { setTab(k); if (k === 'whatsapp' && waConn && waChannels.length === 0) loadWaInfo() }}>{l}{k === 'whatsapp' && waConn ? ' ●' : ''}</button>
         ))}
         {tab === 'mappings' && mappings.filter(m => m.is_active).length > 0 && (
           <button
@@ -1313,8 +1397,8 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
               <div style={S.formTitle}>🔌 إضافة اتصال منصة جديد</div>
 
               {/* Platform selector */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
-                {(['trendyol', 'noon', 'amazon', 'respondly'] as const).map(p => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+                {(['trendyol', 'noon', 'amazon'] as const).map(p => (
                   <div
                     key={p}
                     style={{ border: `2px solid ${connForm.platform === p ? PLATFORM_COLORS[p] : 'var(--border)'}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', background: connForm.platform === p ? PLATFORM_COLORS[p] + '11' : 'var(--bg)', transition: 'all 0.15s' }}
@@ -1322,7 +1406,7 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
                   >
                     <div style={{ fontSize: 14, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{PLATFORM_MAP[p]}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
-                      {p === 'trendyol' ? 'Basic Auth (API Key + Secret)' : p === 'noon' ? 'Service Account JSON' : p === 'amazon' ? 'LWA OAuth2' : 'API Key'}
+                      {p === 'trendyol' ? 'Basic Auth (API Key + Secret)' : p === 'noon' ? 'Service Account JSON' : 'LWA OAuth2'}
                     </div>
                   </div>
                 ))}
@@ -1583,6 +1667,146 @@ function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRe
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: WHATSAPP ── */}
+      {tab === 'whatsapp' && (
+        <div>
+          {/* Setup / Edit Key */}
+          {(!waConn || waEditKey) ? (
+            <div style={{ ...S.formCard, borderColor: '#25D366' }}>
+              <div style={{ ...S.formTitle, color: '#25D366' }}>📱 ربط Respondly واتساب</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={S.label}>اسم مرجعي</label>
+                  <input style={S.input} value={waForm.label} onChange={e => setWaForm({ ...waForm, label: e.target.value })} placeholder="Respondly" />
+                </div>
+                <div>
+                  <label style={S.label}>API Key <span style={{ color: 'var(--red)' }}>*</span></label>
+                  <input style={{ ...S.input, fontFamily: 'monospace', fontSize: 12 }} type="password" value={waForm.api_key} onChange={e => setWaForm({ ...waForm, api_key: e.target.value })} placeholder="rsp_live_xxxxxxxxxxxx" />
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>من Respondly ← الإعدادات ← API Keys — أنشئ مفتاح بصلاحية messages</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button style={S.saveBtn} onClick={saveWaConnection} disabled={waSaving}>{waSaving ? '⟳ جاري الحفظ...' : '✓ حفظ وربط'}</button>
+                {waEditKey && <button style={S.miniBtn} onClick={() => setWaEditKey(false)}>إلغاء</button>}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 12, background: 'var(--surface2)', border: '1.5px solid #25D36633', marginBottom: 20 }}>
+              <span style={{ fontSize: 20 }}>🟢</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>Respondly مربوط</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'monospace' }}>{waConn.api_key?.slice(0, 12)}••••••••</div>
+              </div>
+              <button style={{ ...S.miniBtn }} onClick={() => { setWaForm({ label: waConn.label, api_key: '', base_url: waConn.extra?.base_url || '' }); setWaEditKey(true) }}>✏️ تعديل</button>
+              <button style={{ ...S.miniBtn, color: '#25D366', borderColor: '#25D366' }} onClick={loadWaInfo} disabled={waLoading}>{waLoading ? '⟳' : '🔄 تحديث'}</button>
+            </div>
+          )}
+
+          {waConn && !waEditKey && (
+            <>
+              {waLoading && <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 32 }}>⟳ جاري جلب البيانات من Respondly...</div>}
+
+              {!waLoading && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                  {/* Channels */}
+                  <div style={S.tableCard}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>📱 القنوات (أرقام الواتساب)</div>
+                    {waChannels.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>
+                        لا توجد قنوات — تحقق من صلاحيات API Key<br />
+                        <span style={{ fontSize: 11 }}>أضف أرقام واتساب من داخل Respondly</span>
+                      </div>
+                    ) : waChannels.map((ch: any) => {
+                      const isDefault = waConn.extra?.channel_id === (ch.id)
+                      return (
+                        <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: isDefault ? '#25D36608' : 'transparent' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{ch.display_phone || ch.business_name || ch.id}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ch.channel_label || ch.channel_type || ''} {ch.is_connected ? '● متصل' : '○ غير متصل'}</div>
+                          </div>
+                          <button style={{ ...S.miniBtn, ...(isDefault ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}) }} onClick={() => saveWaDefaultChannel(ch.id)}>
+                            {isDefault ? '✓ افتراضي' : 'اختر'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Templates */}
+                  <div style={S.tableCard}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>📋 القوالب المعتمدة</div>
+                    {waTemplates.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>
+                        لا توجد قوالب<br />
+                        <span style={{ fontSize: 11 }}>الإرسال سيكون كرسائل نصية مباشرة</span>
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: 280, overflowY: 'auto' as const }}>
+                        {waTemplates.map((t: any, i: number) => (
+                          <div key={i} style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>{t.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t.language} — {t.category} — {t.status}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Events Config */}
+              <div style={S.tableCard}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>⚡ الأحداث والإشعارات</div>
+                <table style={S.table}>
+                  <thead>
+                    <tr>{['الحدث', 'التوضيح', 'مفعّل', 'القالب (اختياري)'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {([
+                      ['sync_complete', 'مزامنة ناجحة',       'بعد كل مزامنة للطلبات'],
+                      ['low_stock',    'مخزون منخفض',        'عند انخفاض المخزون'],
+                      ['new_order',    'طلب جديد',            'عند وصول طلب جديد'],
+                      ['ai_ready',     'تحليل ذكي جاهز',      'بعد اكتمال التحليل'],
+                      ['daily_report', 'تقرير يومي',          'تقرير يومي تلقائي'],
+                    ] as const).map(([key, label, desc]) => (
+                      <tr key={key} style={S.tr}>
+                        <td style={{ ...S.td, fontWeight: 700 }}>{label}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{desc}</td>
+                        <td style={S.td}>
+                          <div
+                            style={{ width: 40, height: 22, borderRadius: 11, background: waEvents[key]?.enabled ? '#25D366' : 'var(--surface3)', cursor: 'pointer', position: 'relative' as const, transition: 'background 0.2s' }}
+                            onClick={() => setWaEvents(prev => ({ ...prev, [key]: { ...prev[key], enabled: !prev[key]?.enabled } }))}
+                          >
+                            <div style={{ position: 'absolute' as const, top: 3, left: waEvents[key]?.enabled ? 20 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                          </div>
+                        </td>
+                        <td style={S.td}>
+                          <select
+                            style={{ ...S.input, fontSize: 11, padding: '4px 8px', width: 180 }}
+                            value={waEvents[key]?.template || ''}
+                            onChange={e => setWaEvents(prev => ({ ...prev, [key]: { ...prev[key], template: e.target.value || null } }))}
+                          >
+                            <option value="">رسالة نصية (بدون قالب)</option>
+                            {waTemplates.map((t: any) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ padding: '12px 16px' }}>
+                  <button style={S.saveBtn} onClick={saveWaEvents}>✓ حفظ إعدادات الأحداث</button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 12, color: 'var(--text3)' }}>
+                💡 رقم واتساب كل تاجر يُحدد في ملفه عند الإنشاء — اذهب لـ التجار ← تعديل التاجر لتغيير الرقم
+              </div>
+            </>
           )}
         </div>
       )}
