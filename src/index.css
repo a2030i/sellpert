@@ -54,4 +54,23 @@ body.ltr {
 }
 
 button { cursor: pointer; font-family: inherit; }
-input, select { font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+
+/* ── Table scroll wrapper ── */
+.t-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  /* Prevent iOS zoom on focus */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* Touch targets */
+  button { min-height: 40px; }
+
+  /* Softer table on mobile */
+  .t-scroll table { min-width: 560px; }
+
+  /* Entry form: stack buttons */
+  .entry-actions { flex-direction: column !important; }
+  .entry-actions button { width: 100%; }
+}

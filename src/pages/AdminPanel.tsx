@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useMobile } from '../lib/hooks'
 import type { Merchant, PerformanceData, PlatformCredential, SyncLog, AiInsight, PlatformConnection, MerchantPlatformMapping } from '../lib/supabase'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -58,9 +59,11 @@ function relativeTime(iso: string) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merchant | null }) {
-  const [view, setView] = useState<AdminView>(readAdminHash)
+  const [view, setView]         = useState<AdminView>(readAdminHash)
+  const [mobileMore, setMobileMore] = useState(false)
+  const isMobile                = useMobile()
 
-  function navTo(v: AdminView) { setView(v); window.location.hash = `admin-${v}` }
+  function navTo(v: AdminView) { setView(v); setMobileMore(false); window.location.hash = `admin-${v}` }
 
   useEffect(() => {
     const onPop = () => setView(readAdminHash())
@@ -152,8 +155,8 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
 
-      {/* ── SIDEBAR ── */}
-      <aside style={S.sidebar}>
+      {/* ── SIDEBAR (desktop only) ── */}
+      <aside style={{ ...S.sidebar, display: isMobile ? 'none' : 'flex' }}>
         <div style={S.sidebarLogo}>
           <div style={S.logoIcon}>S</div>
           <div>
@@ -188,14 +191,18 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
       </aside>
 
       {/* ── MAIN ── */}
-      <main style={S.main}>
-        <div style={S.topbar}>
+      <main style={{
+        ...S.main,
+        marginRight: isMobile ? 0 : 230,
+        padding: isMobile ? '70px 12px 80px' : '28px 32px',
+      }}>
+        <div style={{ ...S.topbar, marginBottom: isMobile ? 16 : 28 }}>
           <div>
-            <h2 style={S.pageTitle}>{NAV.find(n => n.key === view)?.label}</h2>
-            <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{NAV.find(n => n.key === view)?.label}</h2>
+            {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
           </div>
           <button style={S.refreshBtn} onClick={() => loadAll(true)} disabled={refreshing}>
-            {refreshing ? '⟳ جاري...' : '⟳ تحديث'}
+            {refreshing ? '⟳' : '⟳ تحديث'}
           </button>
         </div>
 
@@ -241,6 +248,91 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
           <EntryView merchants={merchantOnly} />
         )}
       </main>
+
+      {/* ── Mobile Header ── */}
+      {isMobile && (
+        <header style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: 52,
+          background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 14px', zIndex: 150,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,var(--accent),var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>S</div>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>Sellpert Admin</span>
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>{adminMerchant?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
+        </header>
+      )}
+
+      {/* ── Mobile Bottom Nav ── */}
+      {isMobile && (
+        <>
+          <nav style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, height: 60,
+            background: 'var(--surface)', borderTop: '1px solid var(--border)',
+            display: 'flex', zIndex: 200,
+          }}>
+            {[
+              { key: 'overview',     icon: '🏠', label: 'نظرة'  },
+              { key: 'merchants',    icon: '👥', label: 'التجار' },
+              { key: 'entry',        icon: '📝', label: 'إدخال'  },
+              { key: 'connections',  icon: '🔑', label: 'الربط'  },
+              { key: 'performance',  icon: '📊', label: 'الأداء' },
+            ].map(item => (
+              <button key={item.key} onClick={() => navTo(item.key as AdminView)} style={{
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', border: 'none', background: 'transparent',
+                color: view === item.key ? 'var(--accent)' : 'var(--text3)',
+                fontFamily: 'inherit', cursor: 'pointer', padding: '4px 0',
+              }}>
+                <span style={{ fontSize: 20 }}>{item.icon}</span>
+                <span style={{ fontSize: 9, marginTop: 1, fontWeight: view === item.key ? 700 : 400 }}>{item.label}</span>
+              </button>
+            ))}
+            <button onClick={() => setMobileMore(v => !v)} style={{
+              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', border: 'none', background: 'transparent',
+              color: ['synclogs','ai'].includes(view) ? 'var(--accent)' : mobileMore ? 'var(--accent)' : 'var(--text3)',
+              fontFamily: 'inherit', cursor: 'pointer', padding: '4px 0',
+            }}>
+              <span style={{ fontSize: 20 }}>☰</span>
+              <span style={{ fontSize: 9, marginTop: 1 }}>المزيد</span>
+            </button>
+          </nav>
+
+          {/* More sheet */}
+          {mobileMore && (
+            <div style={{
+              position: 'fixed', bottom: 60, left: 0, right: 0,
+              background: 'var(--surface)', borderTop: '1px solid var(--border)',
+              zIndex: 199, padding: '8px 0',
+            }}>
+              {[
+                { key: 'synclogs', icon: '🔄', label: 'سجل المزامنات' },
+                { key: 'ai',       icon: '🤖', label: 'تحليل AI'       },
+              ].map(item => (
+                <div key={item.key} onClick={() => navTo(item.key as AdminView)} style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '14px 20px', cursor: 'pointer',
+                  color: view === item.key ? 'var(--accent)' : 'var(--text)',
+                  fontWeight: view === item.key ? 700 : 400, fontSize: 14,
+                }}>
+                  <span style={{ fontSize: 20 }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+              <div onClick={() => supabase.auth.signOut()} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 20px', cursor: 'pointer', color: 'var(--text3)', fontSize: 14,
+              }}>
+                <span style={{ fontSize: 20 }}>🚪</span>
+                <span>تسجيل الخروج</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -2347,9 +2439,9 @@ function EntryView({ merchants }: { merchants: any[] }) {
             <input type="number" min="0" style={S.input} placeholder="0" value={form.margin} onChange={e => f('margin', e.target.value)} />
           </label>
         </div>
-        <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-          <button style={{ ...S.btn, background: 'var(--accent)', color: '#fff' }} onClick={addRow}>+ إضافة للقائمة</button>
-          <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111' }} onClick={submit} disabled={saving}>
+        <div className="entry-actions" style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+          <button style={{ ...S.btn, background: 'var(--accent)', color: '#fff', flex: 1 }} onClick={addRow}>+ إضافة للقائمة</button>
+          <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', flex: 1 }} onClick={submit} disabled={saving}>
             {saving ? '⟳ جاري الحفظ...' : `💾 حفظ${rows.length > 0 ? ` (${rows.length} سجل)` : ' مباشرة'}`}
           </button>
         </div>
@@ -2364,7 +2456,7 @@ function EntryView({ merchants }: { merchants: any[] }) {
               {saving ? '⟳ جاري...' : '💾 حفظ الكل'}
             </button>
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="t-scroll">
             <table style={S.table}>
               <thead><tr>
                 {['التاجر', 'المنصة', 'التاريخ', 'المبيعات', 'الطلبات', 'الرسوم', 'الإعلانات', 'الهامش', ''].map(h => <th key={h} style={S.th}>{h}</th>)}
@@ -2465,7 +2557,7 @@ const S: Record<string, React.CSSProperties> = {
     width: '100%', background: 'transparent', border: '1px solid var(--border)',
     color: 'var(--text2)', padding: '8px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
   },
-  main: { flex: 1, marginRight: 230, padding: '28px 32px', minHeight: '100vh' },
+  main: { flex: 1, minHeight: '100vh' },
   topbar: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 },
   pageTitle: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
   pageSub: { fontSize: 12, color: 'var(--text3)', marginTop: 3 },
