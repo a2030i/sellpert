@@ -24,14 +24,26 @@ Deno.serve(async (req) => {
     const { data: { user } } = await callerClient.auth.getUser()
     if (!user) return json({ error: 'Unauthorized' }, 401)
 
-    const { data: merchant } = await callerClient
+    const { data: callerRecord } = await callerClient
       .from('merchants').select('*').eq('email', user.email!).single()
-    if (!merchant) return json({ error: 'merchant not found' }, 404)
+    if (!callerRecord) return json({ error: 'merchant not found' }, 404)
 
-    const merchantCode = merchant.merchant_code
+    // Admins can analyze any merchant by passing target_merchant_code
+    let merchantCode = callerRecord.merchant_code
+    let merchant = callerRecord
+    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY)
+
+    if (['admin', 'super_admin'].includes(callerRecord.role)) {
+      let body: any = {}
+      try { body = await req.clone().json() } catch { /* no body */ }
+      if (body?.target_merchant_code) {
+        const { data: targetMerchant } = await adminClient
+          .from('merchants').select('*').eq('merchant_code', body.target_merchant_code).single()
+        if (targetMerchant) { merchant = targetMerchant; merchantCode = targetMerchant.merchant_code }
+      }
+    }
 
     // Check cache — if insights generated in last 6 hours, return cached
-    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY)
     const { data: cached } = await adminClient
       .from('ai_insights')
       .select('*')

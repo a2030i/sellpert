@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../lib/supabase'
+import type { Merchant, PerformanceData, PlatformCredential, SyncLog, AiInsight } from '../lib/supabase'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -8,14 +8,15 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'integrations' | 'synclogs'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'integrations' | 'synclogs' | 'ai'
 
 const NAV = [
-  { key: 'overview' as AdminView, icon: '🏠', label: 'نظرة عامة' },
-  { key: 'merchants' as AdminView, icon: '👥', label: 'التجار' },
-  { key: 'performance' as AdminView, icon: '📊', label: 'الأداء' },
-  { key: 'integrations' as AdminView, icon: '🔗', label: 'التكاملات' },
-  { key: 'synclogs' as AdminView, icon: '🔄', label: 'سجل المزامنات' },
+  { key: 'overview' as AdminView,      icon: '🏠', label: 'نظرة عامة' },
+  { key: 'merchants' as AdminView,     icon: '👥', label: 'التجار' },
+  { key: 'performance' as AdminView,   icon: '📊', label: 'الأداء' },
+  { key: 'integrations' as AdminView,  icon: '🔗', label: 'التكاملات' },
+  { key: 'synclogs' as AdminView,      icon: '🔄', label: 'سجل المزامنات' },
+  { key: 'ai' as AdminView,            icon: '🤖', label: 'تحليل AI' },
 ]
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -218,6 +219,9 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
             merchants={merchantOnly}
             syncLogs={syncLogs}
           />
+        )}
+        {view === 'ai' && (
+          <AiView merchants={merchantOnly} />
         )}
       </main>
     </div>
@@ -1046,6 +1050,227 @@ function SyncLogsView({ merchants, syncLogs }: any) {
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── AI View ─────────────────────────────────────────────────────────────────
+
+function AiView({ merchants }: { merchants: Merchant[] }) {
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('')
+  const [insight, setInsight] = useState<AiInsight | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<AiInsight[]>([])
+
+  useEffect(() => {
+    if (merchants.length > 0 && !selectedMerchant) {
+      setSelectedMerchant(merchants[0].merchant_code)
+    }
+  }, [merchants])
+
+  useEffect(() => {
+    if (!selectedMerchant) return
+    loadHistory()
+  }, [selectedMerchant])
+
+  async function loadHistory() {
+    const { data } = await supabase
+      .from('ai_insights')
+      .select('*')
+      .eq('merchant_code', selectedMerchant)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    setHistory(data || [])
+    if (data && data.length > 0) setInsight(data[0])
+    else setInsight(null)
+  }
+
+  async function runAnalysis() {
+    if (!selectedMerchant) return
+    setLoading(true)
+    setError(null)
+    try {
+      // Find a merchant user to impersonate — use admin's own session
+      // The analyze-merchant function reads merchant_code from the session user
+      // For admin, we call a different approach: pass merchant_code directly
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-merchant`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ target_merchant_code: selectedMerchant }),
+        }
+      )
+      const json = await res.json()
+      if (!res.ok || json.error) { setError(json.error || 'خطأ'); }
+      else { setInsight(json.insight); loadHistory() }
+    } catch (e: any) { setError(e.message) }
+    setLoading(false)
+  }
+
+  const c = insight?.content
+  const selectedName = merchants.find(m => m.merchant_code === selectedMerchant)?.name || selectedMerchant
+
+  return (
+    <div>
+      {/* Controls */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select style={{ ...S.filterSelect, minWidth: 220 }} value={selectedMerchant} onChange={e => setSelectedMerchant(e.target.value)}>
+          {merchants.map(m => <option key={m.id} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>)}
+        </select>
+        <button
+          style={{ background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(124,107,255,0.35)' }}
+          onClick={runAnalysis}
+          disabled={loading || !selectedMerchant}
+        >
+          {loading ? '⟳ جاري التحليل...' : '✨ تشغيل تحليل AI'}
+        </button>
+        {insight && (
+          <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+            آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')} · {insight.model_used}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ ...S.msgBox, ...S.msgErr, marginBottom: 16 }}>{error}</div>
+      )}
+
+      {!insight && !loading && (
+        <div style={{ ...S.chartCard, padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>لا يوجد تحليل لـ {selectedName}</div>
+          <div style={{ fontSize: 12 }}>اضغط "تشغيل تحليل AI" للحصول على رؤى مبنية على بيانات التاجر</div>
+        </div>
+      )}
+
+      {insight && c && (
+        <div>
+          {/* Summary */}
+          {c.summary && (
+            <div style={{ ...S.chartCard, marginBottom: 16, borderRight: '3px solid var(--accent)', padding: '18px 20px' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>ملخص التاجر — {selectedName}</div>
+              <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text)' }}>{c.summary}</div>
+            </div>
+          )}
+
+          {/* Cards grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, marginBottom: 16 }}>
+
+            {/* Forecast */}
+            {c.forecast_next_week && (
+              <div style={{ ...S.chartCard, padding: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔮 توقع الأسبوع القادم</div>
+                <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>
+                  {c.forecast_next_week.amount.toLocaleString()} ر.س
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+                  ثقة: <strong style={{ color: 'var(--text)' }}>{c.forecast_next_week.confidence}</strong>
+                  {c.forecast_next_week.reasoning && ` — ${c.forecast_next_week.reasoning}`}
+                </div>
+              </div>
+            )}
+
+            {/* Best days */}
+            {c.best_days && c.best_days.length > 0 && (
+              <div style={{ ...S.chartCard, padding: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>📅 أفضل أيام البيع</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {c.best_days.map((d, i) => (
+                    <span key={i} style={{ background: 'rgba(0,229,176,0.15)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Best platforms */}
+            {c.best_platforms && c.best_platforms.length > 0 && (
+              <div style={{ ...S.chartCard, padding: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏆 أفضل المنصات</div>
+                {c.best_platforms.map((p, i) => (
+                  <div key={i} style={{ marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginLeft: 6 }}>{PLATFORM_MAP[p.platform] || p.platform}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text2)' }}>{p.reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Low stock alert */}
+            {c.low_stock_alert && c.low_stock_alert.length > 0 && (
+              <div style={{ ...S.chartCard, padding: 20, borderRight: '3px solid #ff4d6d' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#ff4d6d', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🚨 تحذير مخزون</div>
+                {c.low_stock_alert.map((p, i) => (
+                  <div key={i} style={{ fontSize: 13, color: '#ff4d6d', marginBottom: 5 }}>• {p}</div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recommendations */}
+          {c.recommendations && c.recommendations.length > 0 && (
+            <div style={{ ...S.chartCard, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>💡 التوصيات</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {c.recommendations.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: 'var(--bg)', borderRadius: 10, padding: '12px 14px' }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 8, background: 'rgba(124,107,255,0.2)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text)' }}>{r}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Seasonal insights */}
+          {c.seasonal_insights && c.seasonal_insights.length > 0 && (
+            <div style={{ ...S.chartCard, padding: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🗓️ الرؤى الموسمية</div>
+              {c.seasonal_insights.map((s, i) => (
+                <div key={i} style={{ fontSize: 13, color: 'var(--text)', marginBottom: 8, paddingRight: 12, borderRight: '2px solid var(--accent2)' }}>{s}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* History */}
+      {history.length > 1 && (
+        <div style={{ ...S.tableCard, marginTop: 20 }}>
+          <div style={{ ...S.tableHeader }}>
+            <div style={S.chartTitle}>📋 سجل التحليلات</div>
+          </div>
+          <table style={S.table}>
+            <thead>
+              <tr>
+                {['التاريخ', 'النموذج', 'ملخص مختصر', ''].map(h => <th key={h} style={S.th}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {history.map(h => (
+                <tr key={h.id} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => setInsight(h)}>
+                  <td style={{ ...S.td, fontSize: 12 }}>{new Date(h.created_at).toLocaleString('ar-SA')}</td>
+                  <td style={{ ...S.td, fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{h.model_used}</td>
+                  <td style={{ ...S.td, fontSize: 12, color: 'var(--text2)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(h.content as any).summary?.slice(0, 80) || '—'}
+                  </td>
+                  <td style={S.td}>
+                    <span style={{ fontSize: 11, color: insight?.id === h.id ? 'var(--accent)' : 'var(--text3)' }}>
+                      {insight?.id === h.id ? '● محدد' : 'عرض'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
