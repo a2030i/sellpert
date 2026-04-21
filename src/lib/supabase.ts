@@ -96,6 +96,32 @@ export interface InventoryItem {
   created_at: string
 }
 
+export interface PlatformConnection {
+  id: string
+  platform: 'trendyol' | 'noon' | 'amazon'
+  label: string
+  api_key?: string
+  api_secret?: string
+  extra?: Record<string, any>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MerchantPlatformMapping {
+  id: string
+  merchant_code: string
+  connection_id: string
+  platform: string
+  seller_id: string
+  is_active: boolean
+  last_sync_at?: string
+  last_sync_status?: 'success' | 'error' | 'running'
+  last_sync_error?: string
+  records_synced?: number
+  created_at: string
+}
+
 export interface AiInsight {
   id: string
   merchant_code: string

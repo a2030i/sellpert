@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Merchant, PerformanceData, PlatformCredential, SyncLog, AiInsight } from '../lib/supabase'
+import type { Merchant, PerformanceData, PlatformCredential, SyncLog, AiInsight, PlatformConnection, MerchantPlatformMapping } from '../lib/supabase'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -8,15 +8,15 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'integrations' | 'synclogs' | 'ai'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'synclogs' | 'ai'
 
 const NAV = [
-  { key: 'overview' as AdminView,      icon: '🏠', label: 'نظرة عامة' },
-  { key: 'merchants' as AdminView,     icon: '👥', label: 'التجار' },
-  { key: 'performance' as AdminView,   icon: '📊', label: 'الأداء' },
-  { key: 'integrations' as AdminView,  icon: '🔗', label: 'التكاملات' },
-  { key: 'synclogs' as AdminView,      icon: '🔄', label: 'سجل المزامنات' },
-  { key: 'ai' as AdminView,            icon: '🤖', label: 'تحليل AI' },
+  { key: 'overview' as AdminView,     icon: '🏠', label: 'نظرة عامة'       },
+  { key: 'merchants' as AdminView,    icon: '👥', label: 'التجار'           },
+  { key: 'performance' as AdminView,  icon: '📊', label: 'الأداء'           },
+  { key: 'connections' as AdminView,  icon: '🔑', label: 'المفاتيح والربط'  },
+  { key: 'synclogs' as AdminView,     icon: '🔄', label: 'سجل المزامنات'   },
+  { key: 'ai' as AdminView,           icon: '🤖', label: 'تحليل AI'         },
 ]
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -207,12 +207,8 @@ export default function AdminPanel({ merchant: adminMerchant }: { merchant: Merc
             perfData={perfData}
           />
         )}
-        {view === 'integrations' && (
-          <IntegrationsView
-            merchants={merchantOnly}
-            credentials={credentials}
-            onRefresh={() => loadAll(true)}
-          />
+        {view === 'connections' && (
+          <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />
         )}
         {view === 'synclogs' && (
           <SyncLogsView
@@ -1054,14 +1050,441 @@ function SyncLogsView({ merchants, syncLogs }: any) {
   )
 }
 
+// ─── Connections View ─────────────────────────────────────────────────────────
+
+const PLATFORM_FIELDS: Record<string, { label: string; fields: { key: string; label: string; placeholder: string; type?: string; hint?: string }[] }> = {
+  trendyol: {
+    label: 'تراندايول',
+    fields: [
+      { key: 'api_key',    label: 'API Key',    placeholder: 'xxxxxxxxxxxxxxxx' },
+      { key: 'api_secret', label: 'API Secret', placeholder: 'xxxxxxxxxxxxxxxx', type: 'password' },
+    ],
+  },
+  noon: {
+    label: 'نون',
+    fields: [
+      { key: 'extra.service_account', label: 'Service Account JSON', placeholder: '{"type":"service_account","private_key":"..."}', hint: 'محتوى ملف JSON كامل من Noon Developer Portal' },
+    ],
+  },
+  amazon: {
+    label: 'أمازون SP-API',
+    fields: [
+      { key: 'api_key',    label: 'LWA Client ID',     placeholder: 'amzn1.application-...' },
+      { key: 'api_secret', label: 'LWA Client Secret', placeholder: 'xxxxxxxx', type: 'password' },
+      { key: 'extra.refresh_token', label: 'Refresh Token', placeholder: 'Atzr|...', hint: 'من صفحة Authorization في Seller Central' },
+    ],
+  },
+}
+
+function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
+  const [connections, setConnections] = useState<PlatformConnection[]>([])
+  const [mappings, setMappings] = useState<MerchantPlatformMapping[]>([])
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<'connections' | 'mappings'>('connections')
+
+  // Connection form
+  const [showConnForm, setShowConnForm] = useState(false)
+  const [connForm, setConnForm] = useState<Record<string, string>>({ platform: 'trendyol', label: '' })
+  const [savingConn, setSavingConn] = useState(false)
+
+  // Mapping form
+  const [showMapForm, setShowMapForm] = useState(false)
+  const [mapForm, setMapForm] = useState({ merchant_code: '', connection_id: '', seller_id: '' })
+  const [savingMap, setSavingMap] = useState(false)
+
+  // Sync state
+  const [syncing, setSyncing] = useState<string | null>(null)
+  const [syncResults, setSyncResults] = useState<Record<string, { ok: boolean; text: string }>>({})
+
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [deleteConn, setDeleteConn] = useState<string | null>(null)
+  const [deleteMap, setDeleteMap] = useState<string | null>(null)
+
+  useEffect(() => { loadData() }, [])
+
+  async function loadData() {
+    setLoading(true)
+    const [c, m] = await Promise.all([
+      supabase.from('platform_connections').select('*').order('created_at', { ascending: false }),
+      supabase.from('merchant_platform_mappings').select('*').order('created_at', { ascending: false }),
+    ])
+    setConnections(c.data || [])
+    setMappings(m.data || [])
+    setLoading(false)
+  }
+
+  // ── Add Connection ──
+  async function addConnection() {
+    if (!connForm.label?.trim()) { setMsg({ type: 'err', text: 'أدخل اسماً مرجعياً للاتصال' }); return }
+    setSavingConn(true)
+    const platform = connForm.platform
+    const fields = PLATFORM_FIELDS[platform]?.fields || []
+    const payload: Record<string, any> = {
+      platform, label: connForm.label.trim(), is_active: true, extra: {},
+    }
+    for (const f of fields) {
+      if (f.key.startsWith('extra.')) {
+        const k = f.key.replace('extra.', '')
+        if (connForm[f.key]) {
+          try { payload.extra[k] = JSON.parse(connForm[f.key]) }
+          catch { payload.extra[k] = connForm[f.key] }
+        }
+      } else {
+        if (connForm[f.key]) payload[f.key] = connForm[f.key]
+      }
+    }
+    const { error } = await supabase.from('platform_connections').insert(payload)
+    setSavingConn(false)
+    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    setMsg({ type: 'ok', text: `✓ تم حفظ اتصال ${PLATFORM_MAP[platform]} — ${connForm.label}` })
+    setConnForm({ platform: 'trendyol', label: '' })
+    setShowConnForm(false)
+    loadData()
+  }
+
+  // ── Add Mapping ──
+  async function addMapping() {
+    if (!mapForm.merchant_code || !mapForm.connection_id || !mapForm.seller_id.trim()) {
+      setMsg({ type: 'err', text: 'اختر التاجر والاتصال وأدخل Seller ID' }); return
+    }
+    const conn = connections.find(c => c.id === mapForm.connection_id)
+    setSavingMap(true)
+    const { error } = await supabase.from('merchant_platform_mappings').insert({
+      merchant_code: mapForm.merchant_code,
+      connection_id: mapForm.connection_id,
+      platform:      conn?.platform,
+      seller_id:     mapForm.seller_id.trim(),
+    })
+    setSavingMap(false)
+    if (error) {
+      setMsg({ type: 'err', text: error.message.includes('unique') ? 'هذا التاجر مرتبط بهذه المنصة مسبقاً' : error.message })
+      return
+    }
+    setMsg({ type: 'ok', text: '✓ تم ربط التاجر بالمنصة' })
+    setMapForm({ merchant_code: '', connection_id: '', seller_id: '' })
+    setShowMapForm(false)
+    loadData(); onRefresh()
+  }
+
+  // ── Trigger Sync ──
+  async function triggerSync(mapping: MerchantPlatformMapping) {
+    setSyncing(mapping.id)
+    setSyncResults(prev => ({ ...prev, [mapping.id]: { ok: false, text: '⟳ جاري...' } }))
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-${mapping.platform}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ merchant_code: mapping.merchant_code, mapping_id: mapping.id }),
+        }
+      )
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        setSyncResults(prev => ({ ...prev, [mapping.id]: { ok: false, text: '✕ ' + (json.error || 'خطأ') } }))
+      } else {
+        setSyncResults(prev => ({ ...prev, [mapping.id]: { ok: true, text: `✓ ${json.records_synced || 0} سجل` } }))
+        loadData()
+      }
+    } catch (e: any) {
+      setSyncResults(prev => ({ ...prev, [mapping.id]: { ok: false, text: '✕ ' + e.message } }))
+    }
+    setSyncing(null)
+  }
+
+  async function syncAll() {
+    const active = mappings.filter(m => m.is_active)
+    for (const m of active) await triggerSync(m)
+  }
+
+  const getMerchantName = (code: string) => merchants.find(m => m.merchant_code === code)?.name || code
+  const getConnLabel   = (id: string)   => connections.find(c => c.id === id)?.label || id
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>⟳ جاري التحميل...</div>
+
+  return (
+    <div>
+      {msg && (
+        <div style={{ ...S.msgBox, ...(msg.type === 'err' ? S.msgErr : S.msgOk), marginBottom: 16 }}>
+          {msg.text}
+          <button style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setMsg(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 }}>
+        {[
+          { label: 'اتصالات المنصات', value: connections.filter(c => c.is_active).length, icon: '🔌', color: '#7c6bff', sub: 'مفعّل' },
+          { label: 'تجار مربوطون',    value: mappings.filter(m => m.is_active).length,     icon: '👥', color: '#00e5b0', sub: 'ربط نشط' },
+          { label: 'آخر مزامنة ناجحة', value: mappings.filter(m => m.last_sync_status === 'success').length, icon: '✅', color: '#ff9900', sub: 'تاجر' },
+        ].map((k, i) => (
+          <div key={i} style={S.kpiCard}>
+            <div style={{ ...S.kpiBar, background: k.color }} />
+            <div style={S.kpiTop}>
+              <span style={S.kpiLabel}>{k.label}</span>
+              <span style={{ ...S.kpiIcon, background: k.color + '22' }}>{k.icon}</span>
+            </div>
+            <div style={{ ...S.kpiValue, color: k.color }}>{k.value}</div>
+            <div style={S.kpiSub}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+        {([['connections', '🔌 مفاتيح API'], ['mappings', '🗂️ ربط التجار']] as const).map(([k, l]) => (
+          <button key={k} style={{ ...S.tabBtn, ...(tab === k ? S.tabActive : {}) }} onClick={() => setTab(k)}>{l}</button>
+        ))}
+        {tab === 'mappings' && mappings.filter(m => m.is_active).length > 0 && (
+          <button
+            style={{ marginRight: 'auto', background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', alignSelf: 'center', marginBottom: 1 }}
+            onClick={syncAll}
+            disabled={syncing !== null}
+          >
+            {syncing ? '⟳ جاري المزامنة...' : '⟳ مزامنة الكل'}
+          </button>
+        )}
+      </div>
+
+      {/* ── TAB: CONNECTIONS ── */}
+      {tab === 'connections' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <button style={S.addBtn} onClick={() => setShowConnForm(!showConnForm)}>
+              {showConnForm ? '✕ إلغاء' : '+ إضافة اتصال'}
+            </button>
+          </div>
+
+          {showConnForm && (
+            <div style={{ ...S.formCard, marginBottom: 20 }}>
+              <div style={S.formTitle}>🔌 إضافة اتصال منصة جديد</div>
+
+              {/* Platform selector */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+                {(['trendyol', 'noon', 'amazon'] as const).map(p => (
+                  <div
+                    key={p}
+                    style={{ border: `2px solid ${connForm.platform === p ? PLATFORM_COLORS[p] : 'var(--border)'}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', background: connForm.platform === p ? PLATFORM_COLORS[p] + '11' : 'var(--bg)', transition: 'all 0.15s' }}
+                    onClick={() => setConnForm({ platform: p, label: '' })}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{PLATFORM_MAP[p]}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                      {p === 'trendyol' ? 'Basic Auth (API Key + Secret)' : p === 'noon' ? 'Service Account JSON' : 'LWA OAuth2'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, maxWidth: 500 }}>
+                <div>
+                  <label style={S.label}>اسم مرجعي (لأغراض الإدارة فقط)</label>
+                  <input style={S.input} placeholder='مثال: "تراندايول - حساب رئيسي"' value={connForm.label || ''} onChange={e => setConnForm({ ...connForm, label: e.target.value })} />
+                </div>
+                {(PLATFORM_FIELDS[connForm.platform]?.fields || []).map(f => (
+                  <div key={f.key}>
+                    <label style={S.label}>{f.label}</label>
+                    {f.hint && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>{f.hint}</div>}
+                    {f.key.startsWith('extra.') && connForm.platform === 'noon' ? (
+                      <textarea
+                        style={{ ...S.input, height: 100, resize: 'vertical' as const, fontFamily: 'monospace', fontSize: 11 }}
+                        placeholder={f.placeholder}
+                        value={connForm[f.key] || ''}
+                        onChange={e => setConnForm({ ...connForm, [f.key]: e.target.value })}
+                      />
+                    ) : (
+                      <input
+                        style={{ ...S.input, fontFamily: f.type === 'password' ? 'inherit' : 'monospace', fontSize: 12 }}
+                        type={f.type || 'text'}
+                        placeholder={f.placeholder}
+                        value={connForm[f.key] || ''}
+                        onChange={e => setConnForm({ ...connForm, [f.key]: e.target.value })}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <button style={S.saveBtn} onClick={addConnection} disabled={savingConn}>
+                  {savingConn ? '⟳ جاري الحفظ...' : '✓ حفظ الاتصال'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {connections.length === 0 ? (
+            <div style={{ ...S.tableCard, padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🔌</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>لا توجد اتصالات بعد</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>أضف مفاتيح API للمنصات من الزر أعلاه</div>
+            </div>
+          ) : (
+            <div style={S.tableCard}>
+              <table style={S.table}>
+                <thead>
+                  <tr>{['المنصة', 'الاسم المرجعي', 'الحالة', 'API Key', 'تاريخ الإضافة', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {connections.map(c => (
+                    <tr key={c.id} style={S.tr}>
+                      <td style={S.td}>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: (PLATFORM_COLORS[c.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[c.platform] || '#5a5a7a' }}>
+                          {PLATFORM_MAP[c.platform] || c.platform}
+                        </span>
+                      </td>
+                      <td style={{ ...S.td, fontWeight: 600 }}>{c.label}</td>
+                      <td style={S.td}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: c.is_active ? 'rgba(0,229,176,0.15)' : 'rgba(90,90,122,0.2)', color: c.is_active ? 'var(--accent2)' : 'var(--text3)' }}>
+                          {c.is_active ? '● نشط' : '○ معطّل'}
+                        </span>
+                      </td>
+                      <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>
+                        {c.api_key ? c.api_key.slice(0, 8) + '••••••••' : c.extra && Object.keys(c.extra).length > 0 ? '✓ JSON محفوظ' : '—'}
+                      </td>
+                      <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(c.created_at).toLocaleDateString('ar-SA')}</td>
+                      <td style={S.td}>
+                        {deleteConn === c.id ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button style={{ ...S.miniBtn, background: 'var(--red)', color: '#fff' }} onClick={async () => { await supabase.from('platform_connections').delete().eq('id', c.id); setDeleteConn(null); loadData() }}>تأكيد</button>
+                            <button style={S.miniBtn} onClick={() => setDeleteConn(null)}>إلغاء</button>
+                          </div>
+                        ) : (
+                          <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConn(c.id)}>🗑</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: MAPPINGS ── */}
+      {tab === 'mappings' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <button style={S.addBtn} onClick={() => setShowMapForm(!showMapForm)} disabled={connections.length === 0}>
+              {showMapForm ? '✕ إلغاء' : '+ ربط تاجر بمنصة'}
+            </button>
+          </div>
+
+          {connections.length === 0 && (
+            <div style={{ ...S.msgBox, ...S.msgErr, marginBottom: 14 }}>أضف اتصال منصة أولاً من تبويب "مفاتيح API"</div>
+          )}
+
+          {showMapForm && connections.length > 0 && (
+            <div style={{ ...S.formCard, marginBottom: 20 }}>
+              <div style={S.formTitle}>🗂️ ربط تاجر بمنصة</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={S.label}>التاجر</label>
+                  <select style={S.input} value={mapForm.merchant_code} onChange={e => setMapForm({ ...mapForm, merchant_code: e.target.value })}>
+                    <option value="">-- اختر تاجر --</option>
+                    {merchants.map(m => <option key={m.id} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>الاتصال (المنصة)</label>
+                  <select style={S.input} value={mapForm.connection_id} onChange={e => setMapForm({ ...mapForm, connection_id: e.target.value })}>
+                    <option value="">-- اختر اتصال --</option>
+                    {connections.filter(c => c.is_active).map(c => (
+                      <option key={c.id} value={c.id}>{PLATFORM_MAP[c.platform]} — {c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Seller ID (خاص بالتاجر)</label>
+                  <input style={S.input} placeholder='مثال: 12345678' value={mapForm.seller_id} onChange={e => setMapForm({ ...mapForm, seller_id: e.target.value })} />
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>رقم البائع الخاص بهذا التاجر على المنصة</div>
+                </div>
+              </div>
+              <button style={S.saveBtn} onClick={addMapping} disabled={savingMap}>
+                {savingMap ? '⟳ جاري الربط...' : '✓ ربط التاجر'}
+              </button>
+            </div>
+          )}
+
+          {mappings.length === 0 ? (
+            <div style={{ ...S.tableCard, padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🗂️</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>لا يوجد تجار مربوطون بعد</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>اربط تجارك بالمنصات من الزر أعلاه</div>
+            </div>
+          ) : (
+            <div style={S.tableCard}>
+              <table style={S.table}>
+                <thead>
+                  <tr>{['التاجر', 'المنصة', 'Seller ID', 'الاتصال', 'آخر مزامنة', 'السجلات', 'الحالة', 'إجراء'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {mappings.map(m => {
+                    const result = syncResults[m.id]
+                    const status = result ? result : m.last_sync_status ? { ok: m.last_sync_status === 'success', text: m.last_sync_status === 'success' ? `✓ ${m.records_synced || 0} سجل` : `✕ ${m.last_sync_error?.slice(0, 40) || 'خطأ'}` } : null
+                    return (
+                      <tr key={m.id} style={S.tr}>
+                        <td style={{ ...S.td, fontWeight: 600 }}>{getMerchantName(m.merchant_code)}</td>
+                        <td style={S.td}>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: (PLATFORM_COLORS[m.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[m.platform] || '#5a5a7a' }}>
+                            {PLATFORM_MAP[m.platform] || m.platform}
+                          </span>
+                        </td>
+                        <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{m.seller_id}</td>
+                        <td style={{ ...S.td, fontSize: 12, color: 'var(--text3)' }}>{getConnLabel(m.connection_id)}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{m.last_sync_at ? relativeTime(m.last_sync_at) : '—'}</td>
+                        <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{m.records_synced?.toLocaleString() || 0}</td>
+                        <td style={S.td}>
+                          {status && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: status.ok ? 'var(--accent2)' : 'var(--red)' }}>{status.text}</span>
+                          )}
+                        </td>
+                        <td style={S.td}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              style={{ ...S.miniBtn, background: syncing === m.id ? 'var(--surface3)' : 'var(--accent)', color: '#fff', border: 'none' }}
+                              onClick={() => triggerSync(m)}
+                              disabled={syncing !== null}
+                            >
+                              {syncing === m.id ? '⟳' : '⟳ مزامنة'}
+                            </button>
+                            {deleteMap === m.id ? (
+                              <>
+                                <button style={{ ...S.miniBtn, background: 'var(--red)', color: '#fff' }} onClick={async () => { await supabase.from('merchant_platform_mappings').delete().eq('id', m.id); setDeleteMap(null); loadData() }}>حذف</button>
+                                <button style={S.miniBtn} onClick={() => setDeleteMap(null)}>لا</button>
+                              </>
+                            ) : (
+                              <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteMap(m.id)}>🗑</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── AI View ─────────────────────────────────────────────────────────────────
 
 function AiView({ merchants }: { merchants: Merchant[] }) {
   const [selectedMerchant, setSelectedMerchant] = useState<string>('')
+  const [mode, setMode] = useState<'quick' | 'deep'>('quick')
   const [insight, setInsight] = useState<AiInsight | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<AiInsight[]>([])
+  const [showSetup, setShowSetup] = useState(false)
 
   useEffect(() => {
     if (merchants.length > 0 && !selectedMerchant) {
@@ -1080,7 +1503,7 @@ function AiView({ merchants }: { merchants: Merchant[] }) {
       .select('*')
       .eq('merchant_code', selectedMerchant)
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(8)
     setHistory(data || [])
     if (data && data.length > 0) setInsight(data[0])
     else setInsight(null)
@@ -1091,9 +1514,6 @@ function AiView({ merchants }: { merchants: Merchant[] }) {
     setLoading(true)
     setError(null)
     try {
-      // Find a merchant user to impersonate — use admin's own session
-      // The analyze-merchant function reads merchant_code from the session user
-      // For admin, we call a different approach: pass merchant_code directly
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-merchant`,
@@ -1104,12 +1524,17 @@ function AiView({ merchants }: { merchants: Merchant[] }) {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ target_merchant_code: selectedMerchant }),
+          body: JSON.stringify({ target_merchant_code: selectedMerchant, mode }),
         }
       )
       const json = await res.json()
-      if (!res.ok || json.error) { setError(json.error || 'خطأ'); }
-      else { setInsight(json.insight); loadHistory() }
+      if (!res.ok || json.error) {
+        setError(json.error || 'خطأ')
+        if (json.error?.includes('OPENROUTER_API_KEY')) setShowSetup(true)
+      } else {
+        setInsight(json.insight)
+        loadHistory()
+      }
     } catch (e: any) { setError(e.message) }
     setLoading(false)
   }
@@ -1119,11 +1544,64 @@ function AiView({ merchants }: { merchants: Merchant[] }) {
 
   return (
     <div>
+      {/* OpenRouter setup guide */}
+      <div style={{ ...S.chartCard, marginBottom: 20, borderRight: '3px solid #ffd166', cursor: 'pointer' }} onClick={() => setShowSetup(v => !v)}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>🔑</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>إعداد مفتاح OpenRouter</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>مطلوب لتشغيل تحليل AI — اضغط لعرض الخطوات</div>
+            </div>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>{showSetup ? '▲' : '▼'}</span>
+        </div>
+        {showSetup && (
+          <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+              {[
+                { n: 1, t: 'إنشاء حساب OpenRouter', d: 'اذهب إلى openrouter.ai وسجّل حساباً مجانياً' },
+                { n: 2, t: 'إنشاء API Key', d: 'من لوحة التحكم → "Keys" → "Create Key" — انسخ المفتاح' },
+                { n: 3, t: 'إضافة المفتاح في Supabase', d: 'Supabase Dashboard → Edge Functions → Secrets → "Add Secret"' },
+                { n: 4, t: 'اسم المتغير', d: 'الاسم: OPENROUTER_API_KEY  |  القيمة: مفتاحك (يبدأ بـ sk-or-)' },
+                { n: 5, t: 'جاهز', d: 'ارجع هنا واضغط "تشغيل تحليل AI"' },
+              ].map(s => (
+                <div key={s.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{ width: 24, height: 24, borderRadius: 8, background: 'rgba(255,209,102,0.2)', color: '#ffd166', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{s.n}</span>
+                  <div><div style={{ fontSize: 13, fontWeight: 700 }}>{s.t}</div><div style={{ fontSize: 11, color: 'var(--text3)' }}>{s.d}</div></div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontFamily: 'monospace', fontSize: 12, color: 'var(--text2)' }}>
+              النماذج المتاحة:<br />
+              ⚡ <strong>Quick</strong> — Gemini 2.0 Flash (سريع، رخيص، للفحص اليومي)<br />
+              🧠 <strong>Deep</strong> — Claude Opus 4 (تحليل موسع، للتقارير الشهرية)
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Controls */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
         <select style={{ ...S.filterSelect, minWidth: 220 }} value={selectedMerchant} onChange={e => setSelectedMerchant(e.target.value)}>
           {merchants.map(m => <option key={m.id} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>)}
         </select>
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          {(['quick', 'deep'] as const).map(m => (
+            <button
+              key={m}
+              style={{ border: 'none', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: mode === m ? 'var(--accent)' : 'transparent',
+                color: mode === m ? '#fff' : 'var(--text2)' }}
+              onClick={() => setMode(m)}
+            >
+              {m === 'quick' ? '⚡ سريع' : '🧠 عميق'}
+            </button>
+          ))}
+        </div>
+
         <button
           style={{ background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(124,107,255,0.35)' }}
           onClick={runAnalysis}
@@ -1133,7 +1611,7 @@ function AiView({ merchants }: { merchants: Merchant[] }) {
         </button>
         {insight && (
           <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-            آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')} · {insight.model_used}
+            آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')} · {insight.model_used?.split('/')[1] || insight.model_used}
           </span>
         )}
       </div>
@@ -1391,6 +1869,8 @@ const S: Record<string, React.CSSProperties> = {
     color: 'var(--text2)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
   },
   presetActive: { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' },
+  tabBtn:    { padding: '10px 20px', background: 'transparent', border: 'none', color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: -1 },
+  tabActive: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
   msgBox: { borderRadius: 10, padding: '12px 16px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   msgOk: { background: 'rgba(0,229,176,0.1)', border: '1px solid rgba(0,229,176,0.3)', color: 'var(--green)' },
   msgErr: { background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.3)', color: 'var(--red)' },
