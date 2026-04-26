@@ -169,22 +169,21 @@ async function analyzeOne(adminClient: any, openrouterKey: string, merchantCode:
   const perf      = perfRes.data      || []
   const inventory = inventoryRes.data || []
 
-  const totalRevenue = orders.reduce((s: number, o: any) => s + (o.total_amount || 0), 0)
-  const byPlatform: Record<string, { revenue: number; count: number; cancelled: number }> = {}
+  // ── Revenue from orders table ────────────────────────────────────────────────
+  const ordersRevenue = orders.reduce((s: number, o: any) => s + (o.total_amount || 0), 0)
+  const byPlatformOrders: Record<string, { revenue: number; count: number; cancelled: number }> = {}
   for (const o of orders) {
-    if (!byPlatform[o.platform]) byPlatform[o.platform] = { revenue: 0, count: 0, cancelled: 0 }
-    byPlatform[o.platform].revenue += o.total_amount || 0
-    byPlatform[o.platform].count++
-    if (o.status === 'cancelled') byPlatform[o.platform].cancelled++
+    if (!byPlatformOrders[o.platform]) byPlatformOrders[o.platform] = { revenue: 0, count: 0, cancelled: 0 }
+    byPlatformOrders[o.platform].revenue += o.total_amount || 0
+    byPlatformOrders[o.platform].count++
+    if (o.status === 'cancelled') byPlatformOrders[o.platform].cancelled++
   }
   const byDay: Record<string, number> = {}
   for (const o of orders) {
     const day = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][new Date(o.order_date).getDay()]
     byDay[day] = (byDay[day] || 0) + (o.total_amount || 0)
   }
-  const lowStock   = inventory.filter((i: any) => i.quantity > 0 && i.quantity <= i.low_stock_threshold).map((i: any) => i.product_name)
-  const outOfStock = inventory.filter((i: any) => i.quantity === 0).map((i: any) => i.product_name)
-  const topProducts = Object.entries(
+  const topProductsOrders = Object.entries(
     orders.reduce((acc: Record<string, number>, o: any) => {
       if (o.product_name) acc[o.product_name] = (acc[o.product_name] || 0) + (o.total_amount || 0)
       return acc
@@ -196,26 +195,47 @@ async function analyzeOne(adminClient: any, openrouterKey: string, merchantCode:
   const prev7Rev = orders.filter((o: any) => { const age = now - new Date(o.order_date).getTime(); return age >= 7 * 86400000 && age < 14 * 86400000 }).reduce((s: number, o: any) => s + (o.total_amount || 0), 0)
   const weekTrend = prev7Rev > 0 ? Math.round(((last7Rev - prev7Rev) / prev7Rev) * 100) : 0
 
-  // Also include performance_data summary
-  const perfByPlatform: Record<string, { sales: number; count: number }> = {}
+  // ── Revenue from performance_data (platform reports: trendyol etc.) ──────────
+  const perfByPlatform: Record<string, { sales: number; orders: number }> = {}
   for (const p of perf) {
-    if (!perfByPlatform[p.platform]) perfByPlatform[p.platform] = { sales: 0, count: 0 }
-    perfByPlatform[p.platform].sales += p.total_sales || 0
-    perfByPlatform[p.platform].count++
+    if (!perfByPlatform[p.platform]) perfByPlatform[p.platform] = { sales: 0, orders: 0 }
+    perfByPlatform[p.platform].sales  += p.total_sales  || 0
+    perfByPlatform[p.platform].orders += p.order_count  || 0
   }
+  const perfRevenue     = perf.reduce((s: number, p: any) => s + (p.total_sales  || 0), 0)
+  const perfOrdersTotal = perf.reduce((s: number, p: any) => s + (p.order_count  || 0), 0)
+
+  const topProductsPerf = Object.entries(
+    perf.reduce((acc: Record<string, number>, p: any) => {
+      if (p.product_name) acc[p.product_name] = (acc[p.product_name] || 0) + (p.total_sales || 0)
+      return acc
+    }, {})
+  ).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 5)
+
+  // ── Merge both sources ────────────────────────────────────────────────────────
+  const combinedRevenue = ordersRevenue + perfRevenue
+  const combinedOrders  = orders.length + perfOrdersTotal
+  const topProducts     = topProductsPerf.length > 0 ? topProductsPerf : topProductsOrders
+
+  const byPlatformAll: Record<string, { revenue: number; orders: number; cancel_rate: number }> = {}
+  for (const [p, v] of Object.entries(byPlatformOrders)) {
+    byPlatformAll[p] = { revenue: Math.round(v.revenue), orders: v.count, cancel_rate: v.count > 0 ? Math.round((v.cancelled / v.count) * 100) : 0 }
+  }
+  for (const [p, v] of Object.entries(perfByPlatform)) {
+    if (byPlatformAll[p]) { byPlatformAll[p].revenue += Math.round(v.sales); byPlatformAll[p].orders += v.orders }
+    else byPlatformAll[p] = { revenue: Math.round(v.sales), orders: v.orders, cancel_rate: 0 }
+  }
+
+  const lowStock   = inventory.filter((i: any) => i.quantity > 0 && i.quantity <= i.low_stock_threshold).map((i: any) => i.product_name)
+  const outOfStock = inventory.filter((i: any) => i.quantity === 0).map((i: any) => i.product_name)
 
   const dataSummary = {
     period: 'آخر 90 يوم',
-    total_orders: orders.length,
-    total_revenue: Math.round(totalRevenue),
-    performance_entries: perf.length,
+    total_orders: combinedOrders,
+    total_revenue: Math.round(combinedRevenue),
     currency: merchant.currency || 'SAR',
     week_over_week_change_pct: weekTrend,
-    revenue_by_platform: Object.entries(byPlatform).map(([p, v]) => ({
-      platform: p, revenue: Math.round(v.revenue), orders: v.count,
-      cancel_rate: v.count > 0 ? Math.round((v.cancelled / v.count) * 100) : 0,
-    })),
-    perf_by_platform: Object.entries(perfByPlatform).map(([p, v]) => ({ platform: p, sales: Math.round(v.sales), entries: v.count })),
+    revenue_by_platform: Object.entries(byPlatformAll).map(([p, v]) => ({ platform: p, ...v })),
     revenue_by_day_of_week: Object.entries(byDay).map(([day, rev]) => ({ day, revenue: Math.round(rev) })),
     top_products: topProducts.map(([name, rev]) => ({ name, revenue: Math.round(rev as number) })),
     low_stock_products: lowStock.slice(0, 10),
