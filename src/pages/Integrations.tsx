@@ -415,21 +415,18 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
       if (perfErr) throw perfErr
 
       // ── 2. products: كتالوج المنتجات (upsert by merchant+sku) ───────────────
-      const productsWithSku = report.products.filter(p => p.sku && p.sku.trim())
-      if (productsWithSku.length > 0) {
-        const { error: prodErr } = await supabase.from('products').upsert(
-          productsWithSku.map(p => ({
-            merchant_code: mc,
-            name: p.product_name,
-            sku: p.sku.trim(),
-            barcode: p.barcode || null,
-            category: p.category || null,
-            status: p.stock > 0 ? 'active' : 'out_of_stock',
-          })),
-          { onConflict: 'merchant_code,sku', ignoreDuplicates: false }
-        )
-        if (prodErr) throw prodErr
-      }
+      const { error: prodErr } = await supabase.from('products').upsert(
+        report.products.map(p => ({
+          merchant_code: mc,
+          name: p.product_name,
+          sku: p.sku.trim() || null,
+          barcode: p.barcode.trim() || null,
+          category: p.category || null,
+          status: p.stock > 0 ? 'active' : ('out_of_stock' as const),
+        })),
+        { onConflict: 'merchant_code,sku', ignoreDuplicates: false }
+      )
+      if (prodErr) throw prodErr
 
       // ── 3. inventory: مخزون تراندايول (upsert by merchant+sku+platform) ─────
       const invRows = report.products
