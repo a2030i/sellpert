@@ -122,8 +122,23 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
+  function goProducts() {
+    window.history.pushState(null, '', '/products')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   return (
     <div style={S.wrap}>
+      {/* Page Tabs */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
+        <button onClick={goProducts} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit' }}>
+          🏷️ كتالوج المنتجات
+        </button>
+        <button style={{ background: 'none', border: 'none', borderBottom: '2px solid var(--accent)', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
+          🗃️ المخزون
+        </button>
+      </div>
+
       {/* TOPBAR */}
       <div style={{ ...S.topbar, flexWrap: 'wrap', gap: 10 }}>
         <div>
