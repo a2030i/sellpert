@@ -394,7 +394,14 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
     if (!merchant || !report || report.products.length === 0) return
     setSaving(true); setMsg(null)
     try {
-      // حذف البيانات القديمة لنفس التاجر / المنصة / التاريخ أولاً
+      // تجميع كل المنتجات في صف واحد (الجدول مصمم: صف واحد لكل تاجر+منصة+تاريخ)
+      const totalNet      = report.products.reduce((s, p) => s + p.net_revenue, 0)
+      const totalSold     = report.products.reduce((s, p) => s + p.net_sold, 0)
+      const totalGross    = report.products.reduce((s, p) => s + p.gross_revenue, 0)
+      const totalDiscount = report.products.reduce((s, p) => s + p.discount, 0)
+      const avgMargin     = totalGross > 0 ? Math.round((totalNet / totalGross) * 1000) / 10 : 0
+
+      // حذف أي صف سابق لنفس التاريخ
       const { error: delErr } = await supabase.from('performance_data')
         .delete()
         .eq('merchant_code', merchant.merchant_code)
@@ -402,16 +409,12 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
         .eq('data_date', reportDate)
       if (delErr) throw delErr
 
-      const rows = report.products.map(p => ({
+      const { error: insErr } = await supabase.from('performance_data').insert({
         merchant_code: merchant.merchant_code,
         platform: 'trendyol', data_date: reportDate,
-        product_name: p.product_name,
-        total_sales: p.net_revenue, order_count: p.net_sold,
-        margin: p.gross_revenue > 0 ? Math.round((p.net_revenue / p.gross_revenue) * 1000) / 10 : 0,
-        ad_spend: 0, platform_fees: p.discount,
-      }))
-
-      const { error: insErr } = await supabase.from('performance_data').insert(rows)
+        total_sales: totalNet, order_count: totalSold,
+        margin: avgMargin, ad_spend: 0, platform_fees: totalDiscount,
+      })
       if (insErr) throw insErr
 
       setMsg({ text: `✅ تم حفظ ${report.products.length} منتج`, ok: true })
