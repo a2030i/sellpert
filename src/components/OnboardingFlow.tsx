@@ -7,32 +7,40 @@ interface Props {
   onComplete: () => void
 }
 
-const STEPS = [
-  {
-    icon: '🏪',
-    title: 'متجرك جاهز!',
-    desc: 'تم ربط متجر سلة بنجاح. Sellpert سيزامن طلباتك ومنتجاتك تلقائياً.',
-  },
-  {
-    icon: '📊',
-    title: 'لوحة التحكم',
-    desc: 'تابع مبيعاتك اليومية، الطلبات، وأداء متجرك من مكان واحد.',
-  },
-  {
-    icon: '📦',
-    title: 'الطلبات والمخزون',
-    desc: 'كل طلبات سلة تظهر هنا تلقائياً. يمكنك تتبع الحالة وإدارة المخزون.',
-  },
-  {
-    icon: '🚀',
-    title: 'وسّع قنواتك',
-    desc: 'هل تبيع على أمازون أو نون؟ رقّي اشتراكك لباقة النمو وادر كل قنواتك من مكان واحد.',
-    cta: true,
-  },
-]
+function getSteps(signupSource: string) {
+  const isSalla = signupSource === 'salla_app'
+  return [
+    {
+      icon: '🏪',
+      title: isSalla ? 'متجرك جاهز!' : 'مرحباً بك في Sellpert!',
+      desc: isSalla
+        ? 'تم ربط متجر سلة بنجاح. Sellpert سيزامن طلباتك ومنتجاتك تلقائياً.'
+        : 'أهلاً — منصتك الموحدة لإدارة مبيعاتك على تراندايول ونون وأمازون من مكان واحد.',
+    },
+    {
+      icon: '📊',
+      title: 'لوحة التحكم',
+      desc: 'تابع مبيعاتك اليومية، الطلبات، وأداء متجرك من مكان واحد.',
+    },
+    {
+      icon: isSalla ? '📦' : '🔗',
+      title: isSalla ? 'الطلبات والمخزون' : 'ارفع تقارير منصاتك',
+      desc: isSalla
+        ? 'كل طلبات سلة تظهر هنا تلقائياً. يمكنك تتبع الحالة وإدارة المخزون.'
+        : 'من صفحة "المنصات" ارفع تقارير تراندايول أو نون أو أمازون وستظهر بياناتك فوراً في لوحة التحكم.',
+    },
+    {
+      icon: '🚀',
+      title: 'وسّع قنواتك',
+      desc: 'هل تبيع على أكثر من منصة؟ رقّي اشتراكك لباقة النمو وادر كل قنواتك من مكان واحد.',
+      cta: true,
+    },
+  ]
+}
 
 export default function OnboardingFlow({ merchant, onComplete }: Props) {
-  const [step, setStep] = useState(0)
+  const STEPS = getSteps(merchant.signup_source || '')
+  const [step, setStep]     = useState(0)
   const [closing, setClosing] = useState(false)
 
   async function finish() {
