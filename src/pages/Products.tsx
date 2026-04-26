@@ -20,6 +20,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [search, setSearch]             = useState('')
   const [showAdd, setShowAdd]           = useState(false)
   const [showRequest, setShowRequest]   = useState<Product | null>(null)
+  const [editProduct, setEditProduct]   = useState<Product | null>(null)
+  const [editForm, setEditForm]         = useState({ cost_price: '', target_net_price: '' })
+  const [editSaving, setEditSaving]     = useState(false)
   const [msg, setMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const isMobile = useMobile()
 
@@ -103,6 +106,36 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     setShowAdd(false)
     loadData()
     setSaving(false)
+  }
+
+  function openEdit(prod: Product) {
+    setEditProduct(prod)
+    setEditForm({ cost_price: prod.cost_price > 0 ? String(prod.cost_price) : '', target_net_price: prod.target_net_price > 0 ? String(prod.target_net_price) : '' })
+  }
+
+  async function saveEditProduct() {
+    if (!editProduct) return
+    if (!editForm.target_net_price) { setMsg({ type: 'err', text: 'السعر الصافي المستهدف مطلوب' }); return }
+    setEditSaving(true)
+    const netPrice = parseFloat(editForm.target_net_price)
+    const costPrice = parseFloat(editForm.cost_price) || 0
+    const { error } = await supabase.from('products').update({ cost_price: costPrice, target_net_price: netPrice }).eq('id', editProduct.id)
+    if (error) { setMsg({ type: 'err', text: error.message }); setEditSaving(false); return }
+
+    // Recalculate platform prices
+    const priceUpserts = PLATFORMS.map(p => {
+      const rate = getRate(p, editProduct.category || undefined)
+      if (!rate) return null
+      return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate }
+    }).filter(Boolean)
+    if (priceUpserts.length) {
+      await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
+    }
+
+    setMsg({ type: 'ok', text: '✅ تم تحديث الأسعار وإعادة الحساب' })
+    setEditProduct(null)
+    setEditSaving(false)
+    loadData()
   }
 
   async function sendRequest() {
@@ -282,7 +315,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                       <span style={{ fontSize: 11, color: profit > 0 ? 'var(--accent2)' : 'var(--text3)' }}>
                         هامش: {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
                       </span>
-                      <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button style={{ ...S.reqBtn, background: 'rgba(124,107,255,0.1)', color: 'var(--accent)', borderColor: 'rgba(124,107,255,0.25)' }} onClick={() => openEdit(prod)}>✏️</button>
+                        <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -325,7 +361,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                           </span>
                         </td>
                         <td style={S.td}>
-                          <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button style={{ ...S.reqBtn, background: 'rgba(124,107,255,0.1)', color: 'var(--accent)', borderColor: 'rgba(124,107,255,0.25)' }} onClick={() => openEdit(prod)}>✏️ سعر</button>
+                            <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -371,6 +410,49 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           </div>
         )
       })()}
+
+      {/* Edit Price Modal */}
+      {editProduct && (
+        <div style={S.overlay} onClick={() => setEditProduct(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={S.modalTitle}>✏️ تعديل أسعار — {editProduct.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: -8 }}>
+              {editProduct.category && <span>القسم: {editProduct.category} · </span>}
+              SKU: {editProduct.sku || '—'}
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>تكلفة المنتج (ر.س)</label>
+              <input style={S.input} type="number" value={editForm.cost_price} onChange={e => setEditForm(f => ({ ...f, cost_price: e.target.value }))} placeholder="سعر الشراء / التصنيع" />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>السعر الصافي المستهدف * (ما تريد تستلمه بعد رسوم المنصة)</label>
+              <input style={{ ...S.input, fontSize: 16, fontWeight: 700 }} type="number" value={editForm.target_net_price} onChange={e => setEditForm(f => ({ ...f, target_net_price: e.target.value }))} placeholder="مثال: 200" />
+            </div>
+            {editForm.target_net_price && (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>معاينة الأسعار بعد الحفظ</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {PLATFORMS.map(p => {
+                    const rate = getRate(p, editProduct.category || undefined)
+                    const price = rate ? calcSellingPrice(parseFloat(editForm.target_net_price) || 0, rate) : 0
+                    return (
+                      <div key={p} style={{ flex: 1, textAlign: 'center', background: 'var(--surface)', borderRadius: 8, padding: '8px 4px', border: `1px solid ${PLATFORM_COLORS[p]}33` }}>
+                        <div style={{ fontSize: 10, color: PLATFORM_COLORS[p], fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800 }}>{price.toLocaleString()}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text3)' }}>ر.س</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button style={S.saveBtn} onClick={saveEditProduct} disabled={editSaving}>{editSaving ? '⟳ جاري الحفظ...' : '✓ حفظ وإعادة الحساب'}</button>
+              <button style={S.cancelBtn} onClick={() => setEditProduct(null)}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Request Modal */}
       {showRequest && (

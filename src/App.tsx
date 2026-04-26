@@ -186,7 +186,7 @@ export default function App() {
     const { data } = await supabase.from('merchants').select('*').eq('email', email).maybeSingle()
     setMerchant(data)
     setLoading(false)
-    if (data && data.signup_source === 'salla_app' && !data.onboarding_done) setShowOnboarding(true)
+    if (data && !data.onboarding_done && data.role === 'merchant') setShowOnboarding(true)
   }
 
   function goTo(v: View) {
