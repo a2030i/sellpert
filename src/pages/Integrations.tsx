@@ -394,18 +394,27 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
     if (!merchant || !report || report.products.length === 0) return
     setSaving(true); setMsg(null)
     try {
-      await supabase.from('performance_data').upsert(
-        report.products.filter(p => p.net_sold > 0 || p.net_revenue > 0).map(p => ({
-          merchant_code: merchant.merchant_code,
-          platform: 'trendyol', data_date: reportDate,
-          product_name: p.product_name,
-          total_sales: p.net_revenue, order_count: p.net_sold,
-          margin: p.gross_revenue > 0 ? Math.round((p.net_revenue / p.gross_revenue) * 1000) / 10 : 0,
-          ad_spend: 0, platform_fees: p.discount,
-        })),
-        { onConflict: 'merchant_code,platform,data_date', ignoreDuplicates: false }
-      )
-      setMsg({ text: `✅ تم حفظ ${report.products.filter(p => p.net_sold > 0).length} منتج`, ok: true })
+      // حذف البيانات القديمة لنفس التاجر / المنصة / التاريخ أولاً
+      const { error: delErr } = await supabase.from('performance_data')
+        .delete()
+        .eq('merchant_code', merchant.merchant_code)
+        .eq('platform', 'trendyol')
+        .eq('data_date', reportDate)
+      if (delErr) throw delErr
+
+      const rows = report.products.map(p => ({
+        merchant_code: merchant.merchant_code,
+        platform: 'trendyol', data_date: reportDate,
+        product_name: p.product_name,
+        total_sales: p.net_revenue, order_count: p.net_sold,
+        margin: p.gross_revenue > 0 ? Math.round((p.net_revenue / p.gross_revenue) * 1000) / 10 : 0,
+        ad_spend: 0, platform_fees: p.discount,
+      }))
+
+      const { error: insErr } = await supabase.from('performance_data').insert(rows)
+      if (insErr) throw insErr
+
+      setMsg({ text: `✅ تم حفظ ${report.products.length} منتج`, ok: true })
       setReport(null)
     } catch (e: any) { setMsg({ text: `❌ ${e.message}`, ok: false }) }
     setSaving(false)
@@ -632,7 +641,7 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
             </div>
             <button onClick={() => { setReport(null); setMsg(null) }} style={{ border: '1px solid var(--border)', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'inherit' }}>✕ إلغاء</button>
             <button onClick={save} disabled={saving} style={{ border: 'none', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', background: COLOR, color: '#fff', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
-              {saving ? '⟳ جارٍ الحفظ...' : `💾 حفظ ${report.products.filter(p => p.net_sold > 0).length} منتج`}
+              {saving ? '⟳ جارٍ الحفظ...' : `💾 حفظ ${report.products.length} منتج`}
             </button>
           </div>
         </div>
@@ -721,7 +730,7 @@ function OtherPlatformCard({ merchant }: { merchant: Merchant | null }) {
     if (!merchant || !parsed || parsed.rows.length === 0) return
     setSaving(true); setMsg(null)
     try {
-      await supabase.from('orders').upsert(
+      const { error } = await supabase.from('orders').upsert(
         parsed.rows.map(r => ({
           merchant_code: merchant.merchant_code, platform,
           order_id: r.order_id, status: r.status,
@@ -732,6 +741,7 @@ function OtherPlatformCard({ merchant }: { merchant: Merchant | null }) {
         })),
         { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: false }
       )
+      if (error) throw error
       setMsg({ text: `✅ تم حفظ ${parsed.orderCount} طلب — جارٍ الانتقال للطلبات...`, ok: true })
       setParsed(null)
       setTimeout(() => {
