@@ -9,7 +9,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FX: Record<string, number> = { trendyol: 0.12, noon: 1.02, amazon: 1 }
+const FX: Record<string, number> = { trendyol: 1, noon: 1, amazon: 1 }
 
 const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 

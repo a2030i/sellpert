@@ -27,8 +27,27 @@ Deno.serve(async (req) => {
     const { data: callerRecord } = await adminClient
       .from('merchants').select('*').eq('email', user.email!).maybeSingle()
     if (!callerRecord) return json({ error: 'merchant not found' }, 404)
-    if (!['admin', 'super_admin'].includes(callerRecord.role)) {
-      return json({ error: 'Admin only' }, 403)
+
+    // Parse body early for permission checks
+    let body: any = {}
+    try { body = await req.json() } catch { /* no body */ }
+
+    const mode: string = body?.mode || 'analysis'
+    const isAdmin = ['admin', 'super_admin'].includes(callerRecord.role)
+    const isMerchant = callerRecord.role === 'merchant'
+
+    if (!isAdmin) {
+      if (mode === 'parse_report') {
+        // parse_report allowed for any authenticated merchant
+        if (!isMerchant) return json({ error: 'Unauthorized' }, 403)
+      } else {
+        // analysis mode: merchant can only request their own code
+        const reqCodes: string[] = Array.isArray(body?.merchant_codes) ? body.merchant_codes
+          : body?.target_merchant_code ? [body.target_merchant_code]
+          : []
+        const isMerchantOwn = isMerchant && reqCodes.length === 1 && reqCodes[0] === callerRecord.merchant_code
+        if (!isMerchantOwn) return json({ error: 'Admin only' }, 403)
+      }
     }
 
     // Resolve API key: env first, then platform_connections table
@@ -45,11 +64,6 @@ Deno.serve(async (req) => {
     if (!openrouterKey) {
       return json({ error: 'مفتاح OpenRouter غير مضبوط — أضفه من تبويب AI في لوحة الإدارة' }, 500)
     }
-
-    let body: any = {}
-    try { body = await req.clone().json() } catch { /* no body */ }
-
-    const mode: string = body?.mode || 'analysis'
 
     // ── Mode: parse_report ────────────────────────────────────────────────────
     if (mode === 'parse_report') {
