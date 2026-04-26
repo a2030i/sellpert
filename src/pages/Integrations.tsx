@@ -394,30 +394,64 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
     if (!merchant || !report || report.products.length === 0) return
     setSaving(true); setMsg(null)
     try {
-      // تجميع كل المنتجات في صف واحد (الجدول مصمم: صف واحد لكل تاجر+منصة+تاريخ)
+      const mc = merchant.merchant_code
+
+      // ── 1. performance_data: صف مجمّع واحد لكل تاريخ ──────────────────────
       const totalNet      = report.products.reduce((s, p) => s + p.net_revenue, 0)
       const totalSold     = report.products.reduce((s, p) => s + p.net_sold, 0)
       const totalGross    = report.products.reduce((s, p) => s + p.gross_revenue, 0)
       const totalDiscount = report.products.reduce((s, p) => s + p.discount, 0)
       const avgMargin     = totalGross > 0 ? Math.round((totalNet / totalGross) * 1000) / 10 : 0
 
-      // حذف أي صف سابق لنفس التاريخ
       const { error: delErr } = await supabase.from('performance_data')
-        .delete()
-        .eq('merchant_code', merchant.merchant_code)
-        .eq('platform', 'trendyol')
-        .eq('data_date', reportDate)
+        .delete().eq('merchant_code', mc).eq('platform', 'trendyol').eq('data_date', reportDate)
       if (delErr) throw delErr
 
-      const { error: insErr } = await supabase.from('performance_data').insert({
-        merchant_code: merchant.merchant_code,
-        platform: 'trendyol', data_date: reportDate,
+      const { error: perfErr } = await supabase.from('performance_data').insert({
+        merchant_code: mc, platform: 'trendyol', data_date: reportDate,
         total_sales: totalNet, order_count: totalSold,
         margin: avgMargin, ad_spend: 0, platform_fees: totalDiscount,
       })
-      if (insErr) throw insErr
+      if (perfErr) throw perfErr
 
-      setMsg({ text: `✅ تم حفظ ${report.products.length} منتج`, ok: true })
+      // ── 2. products: كتالوج المنتجات (upsert by merchant+sku) ───────────────
+      const productsWithSku = report.products.filter(p => p.sku && p.sku.trim())
+      if (productsWithSku.length > 0) {
+        const { error: prodErr } = await supabase.from('products').upsert(
+          productsWithSku.map(p => ({
+            merchant_code: mc,
+            name: p.product_name,
+            sku: p.sku.trim(),
+            barcode: p.barcode || null,
+            category: p.category || null,
+            status: p.stock > 0 ? 'active' : 'out_of_stock',
+          })),
+          { onConflict: 'merchant_code,sku', ignoreDuplicates: false }
+        )
+        if (prodErr) throw prodErr
+      }
+
+      // ── 3. inventory: مخزون تراندايول (upsert by merchant+sku+platform) ─────
+      const invRows = report.products
+        .filter(p => (p.sku || p.barcode).trim())
+        .map(p => ({
+          merchant_code: mc,
+          sku: (p.sku || p.barcode).trim(),
+          product_name: p.product_name,
+          platform: 'trendyol' as const,
+          quantity: Math.max(0, Math.round(p.stock)),
+          is_active: true,
+        }))
+
+      if (invRows.length > 0) {
+        const { error: invErr } = await supabase.from('inventory').upsert(
+          invRows,
+          { onConflict: 'merchant_code,sku,platform', ignoreDuplicates: false }
+        )
+        if (invErr) throw invErr
+      }
+
+      setMsg({ text: `✅ تم حفظ ${report.products.length} منتج · ${invRows.length} في المخزون · أداء تراندايول`, ok: true })
       setReport(null)
     } catch (e: any) { setMsg({ text: `❌ ${e.message}`, ok: false }) }
     setSaving(false)
