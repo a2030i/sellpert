@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,16 +17,14 @@ Deno.serve(async (req) => {
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
 
-    // Verify caller identity via anon client
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${callerToken}` } },
-    })
-    const { data: { user: caller }, error: authErr } = await callerClient.auth.getUser()
+    // Verify caller identity using service role + explicit token
+    const adminClient = createClient(supabaseUrl, serviceKey)
+    const { data: { user: caller }, error: authErr } = await adminClient.auth.getUser(callerToken)
     if (authErr || !caller) return json({ error: 'Unauthorized' }, 401)
 
     // Check caller is admin/super_admin
-    const { data: callerMerchant } = await callerClient
-      .from('merchants').select('role').eq('email', caller.email!).single()
+    const { data: callerMerchant } = await adminClient
+      .from('merchants').select('role').eq('email', caller.email!).maybeSingle()
     if (!callerMerchant || !['admin', 'super_admin'].includes(callerMerchant.role)) {
       return json({ error: 'Forbidden: admin only' }, 403)
     }
@@ -41,29 +39,49 @@ Deno.serve(async (req) => {
       return json({ error: 'الباسورد يجب أن يكون 8 أحرف على الأقل' }, 400)
     }
 
-    // Use service role client for admin operations
-    const adminClient = createClient(supabaseUrl, serviceKey)
-
-    // Create auth user
+    // Create auth user (or reuse existing if email already registered)
+    let userId: string
     const { data: authData, error: createErr } = await adminClient.auth.admin.createUser({
       email: email.trim().toLowerCase(),
       password,
       email_confirm: true,
     })
     if (createErr) {
-      const msg = createErr.message.includes('already registered')
-        ? 'هذا البريد الإلكتروني مسجل مسبقاً'
-        : createErr.message
-      return json({ error: msg }, 400)
+      const isAlreadyRegistered =
+        createErr.message.includes('already registered') ||
+        createErr.message.includes('already been registered') ||
+        createErr.message.includes('User already registered')
+      if (!isAlreadyRegistered) return json({ error: createErr.message }, 400)
+
+      // Find existing auth user to reuse their ID
+      const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const existing = listData?.users?.find(
+        u => u.email?.toLowerCase() === email.trim().toLowerCase()
+      )
+      if (!existing) return json({ error: createErr.message }, 400)
+
+      // Check if a merchants record already exists (active merchant)
+      const { data: existingMerchant } = await adminClient
+        .from('merchants').select('id').eq('id', existing.id).maybeSingle()
+      if (existingMerchant) {
+        return json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً وله حساب نشط' }, 400)
+      }
+
+      // Auth user exists but no merchant record — safe to reuse
+      userId = existing.id
+      // Update password to the new one
+      await adminClient.auth.admin.updateUserById(userId, { password })
+    } else {
+      userId = authData.user!.id
     }
 
     // Generate merchant code
-    const prefix = role === 'merchant' ? 'M' : 'A'
+    const prefix = role === 'merchant' ? 'M' : role === 'employee' ? 'E' : 'A'
     const code   = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`
 
     // Insert merchants record
     const merchantRow: Record<string, any> = {
-      id:                authData.user!.id,
+      id:                userId,
       name:              name.trim(),
       email:             email.trim().toLowerCase(),
       currency,
@@ -76,12 +94,12 @@ Deno.serve(async (req) => {
     const { error: dbErr } = await adminClient.from('merchants').insert(merchantRow)
 
     if (dbErr) {
-      // Rollback auth user if DB insert failed
-      await adminClient.auth.admin.deleteUser(authData.user!.id)
+      // Only rollback if we created a new auth user (not reused)
+      if (authData?.user) await adminClient.auth.admin.deleteUser(userId)
       return json({ error: 'خطأ في قاعدة البيانات: ' + dbErr.message }, 500)
     }
 
-    return json({ ok: true, merchant_code: code, user_id: authData.user!.id })
+    return json({ ok: true, merchant_code: code, user_id: userId })
 
   } catch (e: any) {
     return json({ error: e.message }, 500)
@@ -94,3 +112,4 @@ function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
+

@@ -1,17 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useMobile } from '../lib/hooks'
 import type { Merchant, InventoryItem } from '../lib/supabase'
+import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 
-const PLATFORM_MAP: Record<string, string> = {
-  trendyol: 'تراندايول', noon: 'نون', amazon: 'أمازون',
-  salla: 'سلة', zid: 'زد', shopify: 'شوبيفاي', warehouse: 'مستودع',
-}
-const PLATFORM_COLORS: Record<string, string> = {
-  trendyol: '#f27a1a', noon: '#f5c518', amazon: '#ff9900',
-  salla: '#7c6bff', zid: '#00e5b0', shopify: '#96bf48', warehouse: '#4cc9f0',
-}
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 export default function Inventory({ merchant }: { merchant: Merchant | null }) {
+  const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -22,6 +19,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ sku:'', product_name:'', platform:'warehouse', quantity:0, low_stock_threshold:10, cost_price:0 })
   const [msg, setMsg] = useState<{ type:'ok'|'err'; text:string } | null>(null)
+  const [alertSending, setAlertSending] = useState(false)
 
   useEffect(() => { if (merchant) loadInventory() }, [merchant])
 
@@ -99,6 +97,24 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
   }
 
+  async function sendLowStockAlert() {
+    const lowProducts = items
+      .filter(i => i.is_active && (i.quantity === 0 || i.quantity <= i.low_stock_threshold))
+      .map(i => i.product_name)
+    if (lowProducts.length === 0) return
+    setAlertSending(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, apikey: ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant_code: merchant!.merchant_code, event: 'low_stock', data: { products: lowProducts } }),
+      })
+      setMsg({ type: 'ok', text: `✅ تم إرسال تنبيه مخزون لـ ${lowProducts.length} منتج` })
+    } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
+    setAlertSending(false)
+  }
+
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
       <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
@@ -109,18 +125,28 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={S.wrap}>
       {/* TOPBAR */}
-      <div style={S.topbar}>
+      <div style={{ ...S.topbar, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h2 style={S.pageTitle}>إدارة المخزون</h2>
           <p style={S.pageSub}>{stats.skus} منتج مختلف — {stats.total} سجل</p>
         </div>
-        <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(stats.low > 0 || stats.out > 0) && (
+            <button
+              style={{ ...S.addBtn, background: 'rgba(255,209,102,0.15)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', boxShadow: 'none' }}
+              onClick={sendLowStockAlert} disabled={alertSending}
+            >
+              {alertSending ? '⟳ جاري...' : `📲 تنبيه واتساب (${stats.low + stats.out})`}
+            </button>
+          )}
+          <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
+            {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
+          </button>
+        </div>
       </div>
 
       {/* ALERT CARDS */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:14, marginBottom:20 }}>
         {[
           { label:'إجمالي المنتجات', value:stats.total,  icon:'📦', color:'var(--accent)' },
           { label:'منتجات فريدة (SKU)', value:stats.skus, icon:'🏷️', color:'#4cc9f0'     },
@@ -151,7 +177,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {showAdd && (
         <div style={{ ...S.card, padding:24, marginBottom:20 }}>
           <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>إضافة منتج للمخزون</div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap:12, marginBottom:14 }}>
             {[
               { key:'sku',           label:'SKU',           placeholder:'PROD-001',    type:'text'   },
               { key:'product_name',  label:'اسم المنتج',    placeholder:'قميص قطن أبيض',type:'text'  },

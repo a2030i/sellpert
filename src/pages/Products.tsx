@@ -1,0 +1,431 @@
+﻿import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
+import { useMobile } from '../lib/hooks'
+import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantRequest } from '../lib/supabase'
+import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
+
+const PLATFORMS = ['trendyol', 'noon', 'amazon'] as const
+
+function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
+  if (!netTarget || netTarget <= 0) return 0
+  const totalFeeRate = (rate.rate + rate.vat_rate) / 100
+  return Math.ceil((netTarget + rate.shipping_fee + rate.other_fees) / (1 - totalFeeRate))
+}
+
+export default function Products({ merchant }: { merchant: Merchant | null }) {
+  const [products, setProducts]         = useState<Product[]>([])
+  const [prices, setPrices]             = useState<ProductPlatformPrice[]>([])
+  const [rates, setRates]               = useState<CommissionRate[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [search, setSearch]             = useState('')
+  const [showAdd, setShowAdd]           = useState(false)
+  const [showRequest, setShowRequest]   = useState<Product | null>(null)
+  const [msg, setMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const isMobile = useMobile()
+
+  // Add form state
+  const [form, setForm] = useState({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
+  const [saving, setSaving] = useState(false)
+
+  // Request form state
+  const [reqType, setReqType]   = useState<MerchantRequest['type']>('price_change')
+  const [reqNote, setReqNote]   = useState('')
+  const [reqNewPrice, setReqNewPrice] = useState('')
+  const [reqSending, setReqSending]   = useState(false)
+
+  useEffect(() => { if (merchant) loadData() }, [merchant])
+
+  async function loadData() {
+    setLoading(true)
+    const [{ data: prods }, { data: prics }, { data: rts }] = await Promise.all([
+      supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
+      supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
+      supabase.from('platform_commission_rates').select('*'),
+    ])
+    setProducts(prods || [])
+    setPrices(prics || [])
+    setRates(rts || [])
+    setLoading(false)
+  }
+
+  function getRate(platform: string, category?: string): CommissionRate | undefined {
+    if (category) {
+      const specific = rates.find(r => r.platform === platform && r.category.toLowerCase() === category.toLowerCase())
+      if (specific) return specific
+    }
+    return rates.find(r => r.platform === platform && r.category === 'default')
+  }
+
+  function getPrices(productId: string): Record<string, number> {
+    const result: Record<string, number> = {}
+    const prod = products.find(pr => pr.id === productId)
+    for (const p of PLATFORMS) {
+      const existing = prices.find(pr => pr.product_id === productId && pr.platform === p)
+      if (existing) {
+        result[p] = existing.override_price ?? existing.selling_price
+      } else {
+        const rate = getRate(p, prod?.category)
+        if (prod && rate) result[p] = calcSellingPrice(prod.target_net_price, rate)
+      }
+    }
+    return result
+  }
+
+  async function addProduct() {
+    if (!form.name.trim() || !form.target_net_price) { setMsg({ type: 'err', text: 'الاسم والسعر المستهدف مطلوبان' }); return }
+    setSaving(true); setMsg(null)
+    const { data: prod, error } = await supabase.from('products').insert({
+      merchant_code: merchant!.merchant_code,
+      name: form.name.trim(),
+      sku: form.sku.trim() || null,
+      category: form.category.trim() || null,
+      cost_price: parseFloat(form.cost_price) || 0,
+      target_net_price: parseFloat(form.target_net_price),
+    }).select().maybeSingle()
+    if (error) { setMsg({ type: 'err', text: error.message }); setSaving(false); return }
+
+    // Auto-calculate and insert prices for each platform
+    const priceInserts = PLATFORMS.map(p => {
+      const rate = getRate(p)
+      if (!rate) return null
+      return {
+        product_id: prod.id,
+        merchant_code: merchant!.merchant_code,
+        platform: p,
+        selling_price: calcSellingPrice(parseFloat(form.target_net_price), rate),
+        commission_rate: rate.rate,
+      }
+    }).filter(Boolean)
+    if (priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
+
+    setMsg({ type: 'ok', text: '✅ تم إضافة المنتج وحساب الأسعار' })
+    setForm({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
+    setShowAdd(false)
+    loadData()
+    setSaving(false)
+  }
+
+  async function sendRequest() {
+    if (!showRequest) return
+    if (!reqNote.trim()) { setMsg({ type: 'err', text: 'يرجى كتابة تفاصيل الطلب' }); return }
+    setReqSending(true)
+    const details: Record<string, any> = { product_name: showRequest.name }
+    if (reqType === 'price_change' && reqNewPrice) details.new_target_price = parseFloat(reqNewPrice)
+    const { error } = await supabase.from('merchant_requests').insert({
+      merchant_code: merchant!.merchant_code,
+      type: reqType,
+      product_id: showRequest.id,
+      details,
+      note: reqNote.trim(),
+    })
+    if (error) setMsg({ type: 'err', text: 'فشل إرسال الطلب' })
+    else setMsg({ type: 'ok', text: '✅ تم إرسال طلبك للفريق' })
+    setShowRequest(null); setReqNote(''); setReqNewPrice('')
+    setReqSending(false)
+  }
+
+  const filtered = useMemo(() =>
+    products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase()))
+  , [products, search])
+
+  const preview = useMemo(() => {
+    const net = parseFloat(form.target_net_price) || 0
+    if (!net || !form.category.trim()) return null
+    return PLATFORMS.map(p => {
+      const rate = getRate(p, form.category)
+      return { p, price: rate ? calcSellingPrice(net, rate) : 0, ratePct: rate?.rate }
+    })
+  }, [form.target_net_price, form.category, rates])
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
+      <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  return (
+    <div style={S.wrap}>
+      {/* Header */}
+      <div style={S.topbar}>
+        <div>
+          <h2 style={S.title}>المنتجات</h2>
+          <p style={S.sub}>{products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة</p>
+        </div>
+        <button style={S.addBtn} onClick={() => setShowAdd(v => !v)}>
+          {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
+        </button>
+      </div>
+
+      {/* Notification */}
+      {msg && (
+        <div style={{ ...S.alert, background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}` }}>
+          {msg.text}
+          <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Add Product Form */}
+      {showAdd && (
+        <div style={S.formCard}>
+          <div style={S.formTitle}>إضافة منتج جديد</div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+            <div style={S.field}>
+              <label style={S.label}>اسم المنتج *</label>
+              <input style={S.input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="مثال: حذاء رياضي نايك" />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>SKU</label>
+              <input style={S.input} value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))} placeholder="NK-001" dir="ltr" />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>التصنيف</label>
+              <input style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="أحذية، ملابس، إلكترونيات..." />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>تكلفة المنتج (ر.س)</label>
+              <input style={S.input} type="number" value={form.cost_price} onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))} placeholder="0" />
+            </div>
+            <div style={{ ...S.field, gridColumn: isMobile ? '1' : '1 / -1' }}>
+              <label style={S.label}>السعر الصافي المستهدف (ما تريد تستلمه) *</label>
+              <input style={{ ...S.input, fontSize: 16, fontWeight: 700 }} type="number" value={form.target_net_price} onChange={e => setForm(f => ({ ...f, target_net_price: e.target.value }))} placeholder="مثال: 200" />
+            </div>
+          </div>
+
+          {/* Guide: fill category first */}
+          {form.target_net_price && !form.category.trim() && (
+            <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 10, fontSize: 12, color: '#ffd166', fontWeight: 600 }}>
+              ⚠️ اختر تصنيف المنتج لمعاينة الأسعار — نسبة العمولة تختلف حسب القسم
+            </div>
+          )}
+
+          {/* Live price preview — only after category is chosen */}
+          {preview && (
+            <div style={S.preview}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={S.previewTitle}>معاينة الأسعار على المنصات</div>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>قسم: {form.category}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
+                {preview.map(({ p, price, ratePct }) => (
+                  <div key={p} style={{ ...S.previewCard, borderColor: PLATFORM_COLORS[p] + '55' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{price.toLocaleString()}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)' }}>ر.س</div>
+                    {ratePct !== undefined && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>عمولة {ratePct}%</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+            <button style={S.saveBtn} onClick={addProduct} disabled={saving}>{saving ? '⟳ جاري الحفظ...' : '✓ حفظ المنتج'}</button>
+            <button style={S.cancelBtn} onClick={() => setShowAdd(false)}>إلغاء</button>
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <input style={S.search} value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 ابحث باسم المنتج أو SKU..." />
+
+      {/* Products table */}
+      {filtered.length === 0 ? (
+        <div style={S.empty}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>لا توجد منتجات بعد</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>أضف منتجك الأول وسيحسب النظام أسعاره تلقائياً</div>
+        </div>
+      ) : (
+        <div style={S.tableCard}>
+          {isMobile ? (
+            // Mobile: card list
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
+              {filtered.map(prod => {
+                const ps = getPrices(prod.id)
+                const profit = prod.target_net_price - prod.cost_price
+                return (
+                  <div key={prod.id} style={S.mobileCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{prod.name}</div>
+                        {prod.sku && <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'monospace' }}>{prod.sku}</div>}
+                      </div>
+                      <span style={{ ...S.statusBadge, ...(prod.status === 'active' ? S.badgeActive : S.badgeOff) }}>
+                        {prod.status === 'active' ? 'نشط' : prod.status === 'out_of_stock' ? 'نفد' : 'موقوف'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+                      {PLATFORMS.map(p => (
+                        <div key={p} style={{ textAlign: 'center', background: 'var(--bg)', borderRadius: 8, padding: '6px 4px', border: `1px solid ${PLATFORM_COLORS[p]}33` }}>
+                          <div style={{ fontSize: 10, color: PLATFORM_COLORS[p], fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800 }}>{ps[p]?.toLocaleString() || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: profit > 0 ? 'var(--accent2)' : 'var(--text3)' }}>
+                        هامش: {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
+                      </span>
+                      <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    {['المنتج', 'SKU', 'التكلفة', 'الصافي المستهدف', ...PLATFORMS.map(p => PLATFORM_NAMES[p]), 'الهامش', 'الحالة', ''].map(h => (
+                      <th key={h} style={S.th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(prod => {
+                    const ps = getPrices(prod.id)
+                    const profit = prod.target_net_price - prod.cost_price
+                    return (
+                      <tr key={prod.id} style={S.tr}>
+                        <td style={S.td}>
+                          <div style={{ fontWeight: 600 }}>{prod.name}</div>
+                          {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}
+                        </td>
+                        <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{prod.sku || '—'}</td>
+                        <td style={S.td}>{prod.cost_price > 0 ? prod.cost_price.toLocaleString() + ' ر.س' : '—'}</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{prod.target_net_price.toLocaleString()} ر.س</td>
+                        {PLATFORMS.map(p => (
+                          <td key={p} style={{ ...S.td, fontWeight: 700, color: PLATFORM_COLORS[p] }}>
+                            {ps[p] ? ps[p].toLocaleString() + ' ر.س' : '—'}
+                          </td>
+                        ))}
+                        <td style={{ ...S.td, color: profit > 0 ? 'var(--accent2)' : 'var(--red)', fontWeight: 700 }}>
+                          {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
+                        </td>
+                        <td style={S.td}>
+                          <span style={{ ...S.statusBadge, ...(prod.status === 'active' ? S.badgeActive : S.badgeOff) }}>
+                            {prod.status === 'active' ? 'نشط' : prod.status === 'out_of_stock' ? 'نفد' : 'موقوف'}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Commission rates info — filtered by category if form is open */}
+      {rates.length > 0 && (() => {
+        const activeCategory = showAdd && form.category.trim() ? form.category.trim().toLowerCase() : null
+        const categoryRates = activeCategory
+          ? rates.filter(r => r.category.toLowerCase() === activeCategory)
+          : []
+        const defaultRates = rates.filter(r => r.category === 'default')
+        const displayRates = categoryRates.length > 0 ? categoryRates : defaultRates
+        const label = categoryRates.length > 0
+          ? `نسب عمولات قسم "${form.category}"`
+          : 'نسب العمولات الافتراضية (محدّثة من الفريق)'
+
+        return (
+          <div style={S.ratesCard}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={S.ratesTitle}>{label}</div>
+              {categoryRates.length === 0 && showAdd && form.category.trim() && (
+                <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '3px 9px', borderRadius: 20 }}>
+                  لا يوجد نسب خاصة بهذا القسم — يُستخدم الافتراضي
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+              {displayRates.map(r => (
+                <div key={`${r.platform}-${r.category}`} style={{ ...S.rateChip, borderColor: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '44' }}>
+                  <span style={{ fontWeight: 700, color: PLATFORM_COLORS[r.platform] || 'var(--text)' }}>{PLATFORM_NAMES[r.platform] || r.platform}</span>
+                  <span style={{ color: 'var(--text2)' }}>{r.rate}% + ضريبة {r.vat_rate}%</span>
+                  {r.shipping_fee > 0 && <span style={{ color: 'var(--text3)', fontSize: 11 }}>شحن: {r.shipping_fee} ر.س</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Request Modal */}
+      {showRequest && (
+        <div style={S.overlay} onClick={() => setShowRequest(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={S.modalTitle}>طلب تعديل — {showRequest.name}</div>
+            <div style={S.field}>
+              <label style={S.label}>نوع الطلب</label>
+              <select style={S.input} value={reqType} onChange={e => setReqType(e.target.value as any)}>
+                <option value="price_change">تغيير السعر</option>
+                <option value="update_info">تعديل معلومات المنتج</option>
+                <option value="remove_product">إيقاف المنتج</option>
+                <option value="other">أخرى</option>
+              </select>
+            </div>
+            {reqType === 'price_change' && (
+              <div style={S.field}>
+                <label style={S.label}>السعر الصافي الجديد (ر.س)</label>
+                <input style={S.input} type="number" value={reqNewPrice} onChange={e => setReqNewPrice(e.target.value)} placeholder="مثال: 250" />
+              </div>
+            )}
+            <div style={S.field}>
+              <label style={S.label}>تفاصيل الطلب *</label>
+              <textarea style={{ ...S.input, height: 80, resize: 'vertical' }} value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="اكتب تفاصيل طلبك هنا..." />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+              <button style={S.saveBtn} onClick={sendRequest} disabled={reqSending}>{reqSending ? '⟳ جاري الإرسال...' : '✓ إرسال للفريق'}</button>
+              <button style={S.cancelBtn} onClick={() => setShowRequest(null)}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const S: Record<string, React.CSSProperties> = {
+  wrap:       { padding: '28px 32px', minHeight: '100vh', maxWidth: 1100, margin: '0 auto' },
+  topbar:     { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  title:      { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
+  sub:        { fontSize: 13, color: 'var(--text2)', marginTop: 3 },
+  addBtn:     { background: 'var(--accent)', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
+  alert:      { padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  formCard:   { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 },
+  formTitle:  { fontSize: 15, fontWeight: 700, marginBottom: 16 },
+  field:      { display: 'flex', flexDirection: 'column', gap: 6 },
+  label:      { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' },
+  input:      { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', width: '100%', fontFamily: 'inherit' },
+  preview:    { marginTop: 16, background: 'var(--bg)', borderRadius: 12, padding: '14px 16px', border: '1px solid var(--border)' },
+  previewTitle: { fontSize: 12, fontWeight: 700, color: 'var(--text3)' },
+  previewCard:  { flex: 1, minWidth: 80, background: 'var(--surface)', border: '1px solid', borderRadius: 10, padding: '10px 14px', textAlign: 'center' },
+  saveBtn:    { background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
+  cancelBtn:  { background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', padding: '10px 18px', borderRadius: 10, fontSize: 13, cursor: 'pointer' },
+  search:     { width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', color: 'var(--text)', fontSize: 13, outline: 'none', marginBottom: 16, boxSizing: 'border-box' },
+  empty:      { textAlign: 'center', padding: '80px 20px', color: 'var(--text3)' },
+  tableCard:  { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', marginBottom: 20 },
+  table:      { width: '100%', borderCollapse: 'collapse' },
+  th:         { padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' },
+  tr:         { borderBottom: '1px solid var(--border)' },
+  td:         { padding: '12px 16px', fontSize: 13, color: 'var(--text)' },
+  statusBadge: { padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
+  badgeActive: { background: 'rgba(0,229,176,0.12)', color: 'var(--accent2)' },
+  badgeOff:    { background: 'var(--surface2)', color: 'var(--text3)' },
+  reqBtn:     { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  mobileCard: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' },
+  ratesCard:  { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' },
+  ratesTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text2)' },
+  rateChip:   { background: 'var(--bg)', border: '1px solid', borderRadius: 10, padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12 },
+  overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modal:      { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18, padding: '24px 28px', width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 14 },
+  modalTitle: { fontSize: 16, fontWeight: 800 },
+}
+

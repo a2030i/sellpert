@@ -1,16 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useMobile } from '../lib/hooks'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
+import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
-const PLATFORM_MAP: Record<string, string> = {
-  trendyol: 'تراندايول', noon: 'نون', amazon: 'أمازون',
-  salla: 'سلة', zid: 'زد', shopify: 'شوبيفاي', other: 'أخرى',
-}
-const PLATFORM_COLORS: Record<string, string> = {
-  trendyol: '#f27a1a', noon: '#f5c518', amazon: '#ff9900',
-  salla: '#7c6bff', zid: '#00e5b0', shopify: '#96bf48', other: '#5a5a7a',
-}
+const ORDER_PAGE_SIZE = 50
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   pending:    { label: 'معلق',      color: '#ffd166', bg: 'rgba(255,209,102,0.15)' },
   processing: { label: 'قيد التنفيذ', color: '#4cc9f0', bg: 'rgba(76,201,240,0.15)' },
@@ -30,6 +25,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [search, setSearch] = useState('')
   const [preset, setPreset] = useState('last30')
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>('list')
+  const [orderPage, setOrderPage] = useState(0)
+  const isMobile = useMobile()
 
   useEffect(() => {
     if (!merchant) return
@@ -43,6 +40,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }, [merchant])
 
   const filtered = useMemo(() => {
+    setOrderPage(0)
     let d = orders
     if (platform !== 'all') d = d.filter(o => o.platform === platform)
     if (status !== 'all') d = d.filter(o => o.status === status)
@@ -64,6 +62,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }
     return d
   }, [orders, platform, status, search, preset])
+
+  const totalPages = Math.ceil(filtered.length / ORDER_PAGE_SIZE)
+  const pageRows   = filtered.slice(orderPage * ORDER_PAGE_SIZE, (orderPage + 1) * ORDER_PAGE_SIZE)
 
   // KPIs
   const totalRevenue  = filtered.reduce((s, o) => s + o.total_amount, 0)
@@ -171,7 +172,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {/* KPIs */}
-      <div style={S.kpisGrid}>
+      <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>
         {[
           { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'💰', color:'#7c6bff' },
           { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'📦', color:'#00e5b0' },
@@ -218,7 +219,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <tr><td colSpan={9} style={{ padding:'50px', textAlign:'center', color:'var(--text3)' }}>
                     لا توجد طلبات في هذه الفترة
                   </td></tr>
-                ) : filtered.slice(0, 200).map(o => (
+                ) : pageRows.map(o => (
                   <tr key={o.id} style={S.tr}>
                     <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>{o.order_id}</td>
                     <td style={S.td}>
@@ -246,9 +247,26 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               </tbody>
             </table>
           </div>
-          {filtered.length > 200 && (
-            <div style={{ padding:'12px 20px', fontSize:12, color:'var(--text3)', borderTop:'1px solid var(--border)' }}>
-              يُعرض أول 200 طلب من {filtered.length.toLocaleString()}
+          {totalPages > 1 && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px', borderTop:'1px solid var(--border)' }}>
+              <span style={{ fontSize:12, color:'var(--text3)' }}>
+                {orderPage * ORDER_PAGE_SIZE + 1}–{Math.min((orderPage + 1) * ORDER_PAGE_SIZE, filtered.length)} من {filtered.length.toLocaleString()} طلب
+              </span>
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  onClick={() => setOrderPage(p => Math.max(0, p - 1))}
+                  disabled={orderPage === 0}
+                  style={{ ...S.pageBtn, opacity: orderPage === 0 ? 0.4 : 1 }}
+                >›</button>
+                <span style={{ fontSize:12, color:'var(--text2)', padding:'0 4px', alignSelf:'center' }}>
+                  {orderPage + 1} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setOrderPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={orderPage >= totalPages - 1}
+                  style={{ ...S.pageBtn, opacity: orderPage >= totalPages - 1 ? 0.4 : 1 }}
+                >‹</button>
+              </div>
             </div>
           )}
         </div>
@@ -290,10 +308,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>مقارنة الإيراد بين المنصات</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={platformCompare} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2d2d4a" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" horizontal={false} />
                     <XAxis type="number" tick={{ fill:'#5a5a7a', fontSize:11 }} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : String(v)} />
                     <YAxis type="category" dataKey="name" tick={{ fill:'var(--text)', fontSize:12 }} width={70} />
-                    <Tooltip contentStyle={{ background:'#12121f', border:'1px solid #2d2d4a', borderRadius:10, color:'#eeeef5' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
+                    <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                     <Bar dataKey="revenue" radius={[0,6,6,0]}>
                       {platformCompare.map((p,i) => (
                         <rect key={i} fill={PLATFORM_COLORS[p.platform]||'#7c6bff'} />
@@ -309,7 +327,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
       {/* TAB: CHART */}
       {tab === 'chart' && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
           <div style={{ ...S.card, padding:20 }}>
             <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>الإيراد اليومي</div>
             {dailyData.length === 0 ? (
@@ -317,10 +335,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2d2d4a" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
                   <XAxis dataKey="date" tick={{ fill:'#5a5a7a', fontSize:10 }} />
                   <YAxis tick={{ fill:'#5a5a7a', fontSize:10 }} tickFormatter={v => v>=1000?(v/1000).toFixed(0)+'k':v} />
-                  <Tooltip contentStyle={{ background:'#12121f', border:'1px solid #2d2d4a', borderRadius:10, color:'#eeeef5' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
+                  <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                   <Line type="monotone" dataKey="revenue" stroke="#7c6bff" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -333,10 +351,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2d2d4a" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
                   <XAxis dataKey="date" tick={{ fill:'#5a5a7a', fontSize:10 }} />
                   <YAxis tick={{ fill:'#5a5a7a', fontSize:10 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background:'#12121f', border:'1px solid #2d2d4a', borderRadius:10, color:'#eeeef5' }} formatter={(v:number) => [v, 'طلب']} />
+                  <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [v, 'طلب']} />
                   <Bar dataKey="count" fill="#00e5b0" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -372,4 +390,6 @@ const S: Record<string, React.CSSProperties> = {
   td:         { padding:'11px 16px', fontSize:13, color:'var(--text)' },
   platformTag:{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:600 },
   statusBadge:{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 },
+  pageBtn:    { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', width:32, height:32, borderRadius:8, fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
 }
+

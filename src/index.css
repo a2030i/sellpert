@@ -4,28 +4,47 @@
   padding: 0;
 }
 
+/* ── Light theme (main content) ──────────────────────────────────── */
 :root {
-  --bg: #07070d;
-  --bg2: #0e0e18;
-  --surface: #12121f;
-  --surface2: #1a1a2e;
-  --surface3: #222236;
-  --border: #2d2d4a;
-  --border2: #3a3a5c;
-  --accent: #7c6bff;
-  --accent2: #00e5b0;
+  --bg:       #f0f3f9;
+  --bg2:      #e6eaf4;
+  --surface:  #ffffff;
+  --surface2: #f5f7fc;
+  --surface3: #edf0f7;
+  --border:   #e2e8f2;
+  --border2:  #cdd5e8;
+
+  --accent:  #6c5ce7;
+  --accent2: #00b894;
   --accent3: #ff6b6b;
-  --gold: #ffd166;
-  --text: #eeeef5;
-  --text2: #9090b8;
-  --text3: #5a5a7a;
-  --green: #00e5b0;
-  --red: #ff4d6d;
-  --radius: 16px;
+  --gold:    #f0a800;
+  --text:    #1a1e30;
+  --text2:   #5a6480;
+  --text3:   #94a0b8;
+  --green:   #00b894;
+  --red:     #e84040;
+
+  --radius:    16px;
   --radius-sm: 10px;
-  --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow:    0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.04);
 }
 
+/* ── Dark sidebar scope ───────────────────────────────────────────── */
+.sidebar-dark {
+  --bg:       #131627;
+  --bg2:      #191d32;
+  --surface:  #1e2239;
+  --surface2: #252c47;
+  --surface3: #2d3455;
+  --border:   #2c3356;
+  --border2:  #3a4268;
+  --text:     #e2e6f4;
+  --text2:    #8891b4;
+  --text3:    #545d82;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────── */
 body {
   font-family: 'Cairo', sans-serif;
   background: var(--bg);
@@ -40,37 +59,74 @@ body.ltr {
   font-family: 'Tajawal', sans-serif;
 }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
+/* ── Animations ──────────────────────────────────────────────────── */
 .fade-in {
-  animation: fadeIn 0.5s ease forwards;
+  animation: fadeIn 0.35s ease forwards;
 }
-
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Nav hover (sidebar-dark context) ───────────────────────────── */
+.sidebar-dark .nav-item {
+  border-radius: 10px;
+  margin: 1px 8px;
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar-dark .nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: #c8d0ee;
+}
+.sidebar-dark .nav-item.active {
+  background: rgba(108,92,231,0.18);
+  color: #a598ff;
+  font-weight: 700;
+}
+.sidebar-dark .nav-item.active .nav-dot {
+  display: block;
+}
+.nav-dot {
+  display: none;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
 }
 
-button { cursor: pointer; font-family: inherit; }
+/* ── Form elements ───────────────────────────────────────────────── */
+button         { cursor: pointer; font-family: inherit; }
 input, select, textarea { font-family: inherit; }
 
-/* ── Table scroll wrapper ── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.12);
+}
+
+/* ── Table scroll wrapper ─────────────────────────────────────────── */
 .t-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-/* ── Mobile ── */
+/* ── Utility ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  /* Prevent iOS zoom on focus */
   input, select, textarea { font-size: 16px !important; }
-
-  /* Touch targets */
   button { min-height: 40px; }
-
-  /* Softer table on mobile */
   .t-scroll table { min-width: 560px; }
-
-  /* Entry form: stack buttons */
   .entry-actions { flex-direction: column !important; }
   .entry-actions button { width: 100%; }
 }
