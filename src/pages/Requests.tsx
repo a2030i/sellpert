@@ -46,9 +46,36 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={S.wrap}>
       <div style={S.header}>
-        <h2 style={S.title}>طلباتي</h2>
-        <p style={S.sub}>جميع طلباتك المرسلة للفريق ومتابعة حالتها</p>
+        <div>
+          <h2 style={S.title}>الدعم</h2>
+          <p style={S.sub}>أرسل طلبات للفريق — تغيير سعر، إضافة منتج، أو أي استفسار</p>
+        </div>
       </div>
+
+      {/* بطاقة شرح الصفحة */}
+      {requests.length === 0 && !loading && (
+        <div style={{ background: 'linear-gradient(135deg,rgba(108,92,231,0.06),rgba(0,229,176,0.04))', border: '1px solid var(--border)', borderRadius: 16, padding: '24px', marginBottom: 20, display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 40 }}>🎫</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>كيف يعمل الدعم؟</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+              {[
+                { icon: '💰', text: 'طلب تغيير سعر منتج' },
+                { icon: '➕', text: 'طلب إضافة منتج جديد' },
+                { icon: '⛔', text: 'طلب إيقاف منتج' },
+                { icon: '💬', text: 'أي استفسار للفريق' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)', background: 'var(--surface)', borderRadius: 10, padding: '10px 12px', border: '1px solid var(--border)' }}>
+                  <span>{item.icon}</span><span>{item.text}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 10 }}>
+              ابدأ من صفحة <strong>منتجاتي</strong> واضغط على أي منتج لإرسال طلب
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div style={S.tabs}>
@@ -64,9 +91,9 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
         <div style={S.center}>جاري التحميل...</div>
       ) : filtered.length === 0 ? (
         <div style={S.empty}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>لا توجد طلبات</div>
-          <div style={{ fontSize: 13, color: 'var(--text3)' }}>يمكنك إرسال طلب من صفحة المنتجات</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🎫</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>لا توجد طلبات مرسلة بعد</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>اذهب لصفحة منتجاتي وأرسل طلبك الأول للفريق</div>
         </div>
       ) : (
         <div style={S.list}>

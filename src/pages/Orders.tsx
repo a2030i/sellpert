@@ -130,6 +130,21 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
+  if (orders.length === 0) return (
+    <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
+      <div style={{ fontSize:56, marginBottom:16 }}>📦</div>
+      <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
+      <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
+        لم يتم استيراد أي طلبات حتى الآن.<br />
+        اذهب إلى <strong>المنصات</strong> وارفع ملف طلباتك من نون أو أمازون لتبدأ في تتبع مبيعاتك.
+      </p>
+      <button onClick={() => { window.history.pushState(null,'','/integrations'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+        style={{ background:'var(--accent)', border:'none', color:'#fff', padding:'12px 28px', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+        🔗 ربط المنصات وإستيراد الطلبات
+      </button>
+    </div>
+  )
+
   return (
     <div style={S.wrap}>
       {/* TOPBAR */}

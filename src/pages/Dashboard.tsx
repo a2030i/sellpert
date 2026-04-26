@@ -506,7 +506,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             مرحباً {merchant?.name} — {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>
+        {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>}
       </div>
 
       {/* ── Filters ── */}
@@ -553,13 +553,31 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         ))}
       </div>
 
+      {/* ── Empty state ── */}
+      {filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)', marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات في هذه الفترة</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.7 }}>
+            ارفع تقرير تراندايول أو نون أو أمازون من صفحة المنصات<br />لتبدأ في رؤية أداء متجرك هنا
+          </div>
+          <button onClick={() => { window.history.pushState(null,'','/integrations'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+            style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            🔗 ربط المنصات
+          </button>
+        </div>
+      )}
+
       {/* ── Revenue + Platform ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 16, marginBottom: 16 }}>
+      {filtered.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 16, marginBottom: 16 }}>
         <div style={S.card}>
           <div style={S.cardHeader}>
             <div>
               <div style={S.cardTitle}>اتجاه الإيرادات</div>
-              <div style={S.cardSub}>يمكن سحب المنطقة السفلية للتكبير والتصغير</div>
+              {trendData.length > 1
+                ? <div style={S.cardSub}>يمكن سحب المنطقة السفلية للتكبير والتصغير</div>
+                : <div style={{ fontSize: 11, color: '#ffd166' }}>⚠️ نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
+              }
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
@@ -619,10 +637,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ── Day of Week + Top Products + Top Cities ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+      {filtered.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : topCities.length > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
         {/* Day of week */}
         <div style={S.card}>
           <div style={S.cardHeader}>
@@ -653,25 +671,22 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <div style={S.cardSub}>حسب إجمالي المبيعات</div>
           </div>
           {topProducts.length === 0 ? (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 12, textAlign: 'center', padding: '0 16px' }}>
-              لا توجد بيانات منتجات — أضف اسم المنتج عند الإدخال اليدوي
+            <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text3)', fontSize: 12, textAlign: 'center', padding: '0 16px' }}>
+              <span style={{ fontSize: 28 }}>📦</span>
+              ارفع تقرير تراندايول لرؤية أفضل منتجاتك هنا
             </div>
           ) : (
             <TopProducts items={topProducts} />
           )}
         </div>
 
-        {/* Top Cities */}
-        <div style={S.card}>
+        {/* Top Cities — يظهر فقط عند وجود بيانات */}
+        {topCities.length > 0 && <div style={S.card}>
           <div style={S.cardHeader}>
             <div style={S.cardTitle}>أعلى المدن طلباً</div>
             <div style={S.cardSub}>من بيانات الطلبات</div>
           </div>
-          {topCities.length === 0 ? (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 12, textAlign: 'center' }}>
-              لا توجد بيانات مدن بعد
-            </div>
-          ) : (
+          {topCities.length === 0 ? null : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {topCities.map((c, i) => {
                 const maxC = topCities[0].count
@@ -692,10 +707,11 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               })}
             </div>
           )}
-        </div>
-      </div>
+        </div>}
+      </div>}
 
-      {/* ── Saudi Arabia Map ── */}
+      {/* ── Saudi Arabia Map — يظهر فقط عند وجود بيانات مدن ── */}
+      {topCities.length > 0 && (
       <div style={S.card}>
         <div style={{ ...S.cardHeader, marginBottom: 12 }}>
           <div>
@@ -703,13 +719,11 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <div style={S.cardSub}>حجم الفقاعة يعكس عدد الطلبات لكل مدينة · بيانات من طلبات المنصات</div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'left' }}>
-            {Object.keys(cityData).length > 0
-              ? `${Object.keys(cityData).length} مدينة`
-              : 'لا توجد بيانات جغرافية بعد'}
+            {Object.keys(cityData).length} مدينة
           </div>
         </div>
         <SaudiMap cityData={cityData} />
-      </div>
+      </div>)}
 
       {/* ── AI Insights ── */}
       <div style={{ ...S.card, marginTop: 16, borderTop: '3px solid var(--accent)' }}>

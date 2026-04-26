@@ -396,18 +396,17 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
     try {
       const mc = merchant.merchant_code
 
-      // ── 1. performance_data: صف مجمّع واحد لكل تاريخ ──────────────────────
-      const totalNet      = report.products.reduce((s, p) => s + p.net_revenue, 0)
-      const totalSold     = report.products.reduce((s, p) => s + p.net_sold, 0)
-      const totalGross    = report.products.reduce((s, p) => s + p.gross_revenue, 0)
-      const totalDiscount = report.products.reduce((s, p) => s + p.discount, 0)
-      const avgMargin     = totalGross > 0 ? Math.round((totalNet / totalGross) * 1000) / 10 : 0
-
+      // ── 1. performance_data: صف per-product لكل منتج ───────────────────────
+      const perfRows = report.products.map(p => ({
+        merchant_code: mc, platform: 'trendyol', data_date: reportDate,
+        product_name: p.product_name,
+        total_sales: p.net_revenue, order_count: p.net_sold,
+        margin: p.gross_revenue > 0 ? Math.round((p.net_revenue / p.gross_revenue) * 1000) / 10 : 0,
+        ad_spend: 0, platform_fees: p.discount,
+      }))
       const { error: perfErr } = await supabase.from('performance_data').upsert(
-        { merchant_code: mc, platform: 'trendyol', data_date: reportDate,
-          total_sales: totalNet, order_count: totalSold,
-          margin: avgMargin, ad_spend: 0, platform_fees: totalDiscount },
-        { onConflict: 'merchant_code,platform,data_date' }
+        perfRows,
+        { onConflict: 'merchant_code,platform,data_date,product_name' }
       )
       if (perfErr) throw perfErr
 
