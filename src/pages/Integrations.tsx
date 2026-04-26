@@ -403,15 +403,12 @@ function TrendyolUploadCard({ merchant }: { merchant: Merchant | null }) {
       const totalDiscount = report.products.reduce((s, p) => s + p.discount, 0)
       const avgMargin     = totalGross > 0 ? Math.round((totalNet / totalGross) * 1000) / 10 : 0
 
-      const { error: delErr } = await supabase.from('performance_data')
-        .delete().eq('merchant_code', mc).eq('platform', 'trendyol').eq('data_date', reportDate)
-      if (delErr) throw delErr
-
-      const { error: perfErr } = await supabase.from('performance_data').insert({
-        merchant_code: mc, platform: 'trendyol', data_date: reportDate,
-        total_sales: totalNet, order_count: totalSold,
-        margin: avgMargin, ad_spend: 0, platform_fees: totalDiscount,
-      })
+      const { error: perfErr } = await supabase.from('performance_data').upsert(
+        { merchant_code: mc, platform: 'trendyol', data_date: reportDate,
+          total_sales: totalNet, order_count: totalSold,
+          margin: avgMargin, ad_spend: 0, platform_fees: totalDiscount },
+        { onConflict: 'merchant_code,platform,data_date' }
+      )
       if (perfErr) throw perfErr
 
       // ── 2. products: كتالوج المنتجات (upsert by merchant+sku) ───────────────
