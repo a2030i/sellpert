@@ -267,6 +267,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           )}
 
+          {/* Cash flow forecast */}
+          <CashFlowForecast merchant={merchant} />
+
           {/* Account transactions ledger */}
           <TransactionsLedger merchant={merchant} month={month} year={year} />
 
@@ -361,6 +364,51 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ── Cash flow forecast ────────────────────────────────────────────────────────
+function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
+  async function load() {
+    if (!merchant) return
+    const { data: rows } = await supabase.rpc('cash_flow_forecast', { p_merchant_code: merchant.merchant_code })
+    setData(rows || [])
+  }
+  if (data.length === 0) return null
+  const totalIn  = data.reduce((a, r) => a + (Number(r.expected_in) || 0), 0)
+  const totalOut = data.reduce((a, r) => a + (Number(r.expected_out) || 0), 0)
+  const net      = totalIn - totalOut
+  return (
+    <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+        💰 توقّع التدفق النقدي (المستحقات القادمة)
+      </div>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 14 }}>
+          <StatCard label="مستحقات قادمة" value={fmt(totalIn)} color="#00b894" />
+          <StatCard label="مدفوعات قادمة" value={fmt(totalOut)} color="#e84040" />
+          <StatCard label="الصافي المتوقّع" value={fmt(net)} color={net >= 0 ? '#00b894' : '#e84040'} />
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['الفترة','عدد المعاملات','مستحقات','مدفوعات','الصافي'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {data.map((r, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ ...S.td, fontWeight: 700 }}>{r.bucket}</td>
+                  <td style={S.td}>{r.count}</td>
+                  <td style={{ ...S.td, color: '#00b894', fontFamily: 'monospace' }}>{fmt(Number(r.expected_in))}</td>
+                  <td style={{ ...S.td, color: '#e84040', fontFamily: 'monospace' }}>{fmt(Number(r.expected_out))}</td>
+                  <td style={{ ...S.td, fontWeight: 700, color: r.net >= 0 ? '#00b894' : '#e84040' }}>{fmt(Number(r.net))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

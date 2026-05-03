@@ -98,6 +98,9 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
             <KpiCard label="الفرق" value={totals.variance} sub={totals.variance >= 0 ? 'زيادة' : 'نقص'} color={totals.variance < 0 ? '#e84040' : '#00b894'} />
           </div>
 
+          {/* Supply chain health summary */}
+          <SupplyChainHealth merchantCode={merchantCode} />
+
           {/* QC alerts */}
           {totals.qcFail > 0 && (
             <div style={{ ...S.formCard, padding: 18, borderColor: 'rgba(232,64,64,0.3)', background: 'rgba(232,64,64,0.04)' }}>
@@ -233,6 +236,71 @@ function KpiCard({ label, value, sub, icon, color }: { label: string; value: num
       </div>
       <div style={{ ...S.kpiValue, color }}>{value.toLocaleString('ar-SA')}</div>
       {sub && <div style={S.kpiSub}>{sub}</div>}
+    </div>
+  )
+}
+
+// ─── Supply chain health summary ──────────────────────────────────────────────
+function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
+  const [data, setData] = useState<any[]>([])
+  const [topFails, setTopFails] = useState<any[]>([])
+  useEffect(() => { if (merchantCode) load() /* eslint-disable-line */ }, [merchantCode])
+  async function load() {
+    const [{ data: rows }, { data: fails }] = await Promise.all([
+      supabase.from('supply_chain_health').select('*').eq('merchant_code', merchantCode),
+      supabase.from('goods_received')
+        .select('sku, partner_sku, reject_reason, grn_quantity')
+        .eq('merchant_code', merchantCode)
+        .eq('qc_status', 'failed')
+        .order('grn_quantity', { ascending: false })
+        .limit(10),
+    ])
+    setData(rows || [])
+    setTopFails(fails || [])
+  }
+  if (data.length === 0) return null
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>📈 صحة سلسلة التوريد حسب المنصة</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr>{['المنصة','إرساليات','متوقع','مُستلم','الفقد','نسبة الفقد','رفض QC'].map(h => (
+            <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {data.map((r, i) => {
+              const lossRate = Number(r.loss_rate_pct) || 0
+              const color = PLATFORM_COLORS[r.platform] || '#7c6bff'
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 12px', color, fontWeight: 700 }}>{PLATFORM_MAP[r.platform] || r.platform}</td>
+                  <td style={{ padding: '8px 12px' }}>{r.shipments}</td>
+                  <td style={{ padding: '8px 12px' }}>{Number(r.total_expected).toLocaleString()}</td>
+                  <td style={{ padding: '8px 12px', color: '#00b894' }}>{Number(r.total_delivered).toLocaleString()}</td>
+                  <td style={{ padding: '8px 12px', color: '#e84040' }}>{Number(r.total_variance).toLocaleString()}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: lossRate > 5 ? '#e84040' : lossRate > 2 ? '#ff9900' : '#00b894' }}>{lossRate.toFixed(2)}%</td>
+                  <td style={{ padding: '8px 12px' }}>{r.qc_failures} ({Number(r.qc_failed_qty)} قطعة)</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {topFails.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً في فحص الجودة</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {topFails.map((f, i) => (
+              <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text3)' }}>{f.sku || f.partner_sku}</span>
+                <span style={{ flex: 1, color: 'var(--text2)' }}>{f.reject_reason || '—'}</span>
+                <span style={{ fontWeight: 700, color: '#e84040' }}>{f.grn_quantity} قطعة</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

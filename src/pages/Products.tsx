@@ -213,6 +213,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
+      {/* Profitability panel */}
+      <ProfitabilityPanel merchant={merchant} />
+
+
       {/* Add Product Form */}
       {showAdd && (
         <div style={S.formCard}>
@@ -526,3 +530,97 @@ const S: Record<string, React.CSSProperties> = {
   modalTitle: { fontSize: 16, fontWeight: 800 },
 }
 
+
+// ─── Profitability Panel ──────────────────────────────────────────────────────
+function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [show, setShow] = useState(false)
+
+  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
+  async function load() {
+    if (!merchant) return
+    setLoading(true)
+    const { data: rows } = await supabase.from('product_profitability').select('*').eq('merchant_code', merchant.merchant_code)
+    setData(rows || [])
+    setLoading(false)
+  }
+
+  const stats = useMemo(() => {
+    const sold = data.filter(r => r.units_sold > 0)
+    const totalProfit = sold.reduce((a, r) => a + (Number(r.net_profit) || 0), 0)
+    const totalRevenue = sold.reduce((a, r) => a + (Number(r.revenue) || 0), 0)
+    const losing = sold.filter(r => Number(r.net_profit) < 0)
+    const star = [...sold].filter(r => Number(r.profit_margin_pct) > 30).sort((a, b) => Number(b.net_profit) - Number(a.net_profit)).slice(0, 5)
+    const worst = [...sold].sort((a, b) => Number(a.net_profit) - Number(b.net_profit)).slice(0, 5)
+    const margin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
+    return { sold, totalProfit, totalRevenue, losing, star, worst, margin }
+  }, [data])
+
+  if (loading || stats.sold.length === 0) return null
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>💎 ربحية المنتجات</div>
+        <button onClick={() => setShow(v => !v)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {show ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+        </button>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+        <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#7c6bff" />
+        <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="#00b894" />
+        <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? '#00b894' : '#e84040'} />
+        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? '⚠ يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? '#e84040' : '#00b894'} />
+      </div>
+
+      {show && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {/* Star products */}
+          {stats.star.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#00b894', marginBottom: 8 }}>🌟 منتجات نجمة (هامش &gt; 30%)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {stats.star.map((p, i) => (
+                  <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.product_name}>{p.product_name}</span>
+                    <span style={{ fontWeight: 700, color: '#00b894' }}>{fmt(Number(p.net_profit))} · {Number(p.profit_margin_pct).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Worst products */}
+          {stats.worst.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>📉 أقل المنتجات ربحاً</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {stats.worst.map((p, i) => (
+                  <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.product_name}>{p.product_name}</span>
+                    <span style={{ fontWeight: 700, color: Number(p.net_profit) < 0 ? '#e84040' : '#ff9900' }}>
+                      {fmt(Number(p.net_profit))}{p.profit_margin_pct !== null && ' · ' + Number(p.profit_margin_pct).toFixed(0) + '%'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PKpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
+    </div>
+  )
+}

@@ -14,20 +14,23 @@ import Settings from './pages/Settings'
 import Products from './pages/Products'
 import Requests from './pages/Requests'
 import Statement from './pages/Statement'
+import Marketing from './pages/Marketing'
+import Notifications from './pages/Notifications'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import Billing from './pages/Billing'
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications']
 
 const NAV_ITEMS = [
   { icon: '📊', label: 'الرئيسية',    key: 'dashboard'    as View },
   { icon: '🏷️', label: 'منتجاتي',     key: 'products'     as View },
   { icon: '📦', label: 'الطلبات',     key: 'orders'       as View },
+  { icon: '📣', label: 'التسويق',     key: 'marketing'    as View },
   { icon: '🎫', label: 'الدعم',       key: 'requests'     as View },
   { icon: '📄', label: 'كشف الحساب',  key: 'statement'    as View },
   { icon: '💳', label: 'الاشتراك',    key: 'billing'      as View },
@@ -358,6 +361,8 @@ export default function App() {
         {view === 'statement'    && <Statement    merchant={activeMerchant} />}
         {view === 'billing'      && <Billing      merchant={activeMerchant} />}
         {view === 'integrations' && <Integrations merchant={activeMerchant} />}
+        {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
+        {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
         {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
       </main>
 

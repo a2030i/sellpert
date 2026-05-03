@@ -188,6 +188,10 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
+      {/* HEALTH PANEL */}
+      <InventoryHealthPanel merchant={merchant} />
+
+
       {/* ADD FORM */}
       {showAdd && (
         <div style={{ ...S.card, padding:24, marginBottom:20 }}>
@@ -349,4 +353,114 @@ const S: Record<string, React.CSSProperties> = {
   msgBox:    { borderRadius:10, padding:'12px 16px', fontSize:13, display:'flex', alignItems:'center', justifyContent:'space-between' },
   msgOk:     { background:'rgba(0,229,176,0.1)', border:'1px solid rgba(0,229,176,0.3)', color:'var(--green)' },
   msgErr:    { background:'rgba(255,77,109,0.1)', border:'1px solid rgba(255,77,109,0.3)', color:'var(--red)' },
+}
+
+// ─── Inventory Health Panel ──────────────────────────────────────────────────
+function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
+  async function load() {
+    if (!merchant) return
+    setLoading(true)
+    const { data: rows } = await supabase.from('inventory_health').select('*').eq('merchant_code', merchant.merchant_code)
+    setData(rows || [])
+    setLoading(false)
+  }
+
+  const stats = useMemo(() => {
+    const sumCost   = data.reduce((a, r) => a + (Number(r.stock_value_cost) || 0), 0)
+    const sumRetail = data.reduce((a, r) => a + (Number(r.stock_value_retail) || 0), 0)
+    const reorder   = data.filter(r => r.health_status === 'reorder_soon').length
+    const slow      = data.filter(r => r.health_status === 'slow_mover').length
+    const out       = data.filter(r => r.health_status === 'out_of_stock').length
+    const stockoutCost = data
+      .filter(r => r.health_status === 'out_of_stock' && Number(r.daily_velocity) > 0)
+      .reduce((a, r) => a + (Number(r.daily_velocity) * Number(r.selling_price || 0) * 30), 0)
+    return { sumCost, sumRetail, reorder, slow, out, stockoutCost }
+  }, [data])
+
+  const reorderList = useMemo(() => data.filter(r => r.health_status === 'reorder_soon')
+    .sort((a, b) => Number(a.days_of_stock) - Number(b.days_of_stock)).slice(0, 6), [data])
+  const slowList = useMemo(() => data.filter(r => r.health_status === 'slow_mover' && Number(r.stock_value_cost) > 0)
+    .sort((a, b) => Number(b.stock_value_cost) - Number(a.stock_value_cost)).slice(0, 6), [data])
+
+  if (loading || data.length === 0) return null
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>📊 صحة المخزون</div>
+
+      {/* Value KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+        <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#7c6bff" />
+        <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="#00b894" />
+        <HKpi label="هامش متوقّع" value={fmt(stats.sumRetail - stats.sumCost)} sub={stats.sumCost > 0 ? (((stats.sumRetail - stats.sumCost)/stats.sumCost)*100).toFixed(0)+'%' : '—'} color="#4cc9f0" />
+        <HKpi label="خسائر النفاد المتوقّعة" value={fmt(stats.stockoutCost)} sub="30 يوم" color="#e84040" />
+      </div>
+
+      {/* Status counts */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, fontSize: 12 }}>
+        <span style={pill('#e84040')}>🚨 نفد: <b>{stats.out}</b></span>
+        <span style={pill('#ff9900')}>⏳ إعادة طلب قريبة: <b>{stats.reorder}</b></span>
+        <span style={pill('#a598ff')}>🐌 راكد (30+ يوم): <b>{stats.slow}</b></span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        {/* Reorder soon */}
+        {reorderList.length > 0 && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#ff9900', marginBottom: 8 }}>⏳ إعادة طلب قريبة</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {reorderList.map((r, i) => (
+                <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>{r.product_name}</span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text3)', fontSize: 11 }}>{r.quantity} قطعة</span>
+                    <span style={{ fontWeight: 700, color: '#ff9900' }}>{r.days_of_stock} يوم</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Slow movers */}
+        {slowList.length > 0 && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#a598ff', marginBottom: 8 }}>🐌 منتجات راكدة (رأس مال مجمّد)</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {slowList.map((r, i) => (
+                <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>{r.product_name}</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <span style={{ color: 'var(--text3)', fontSize: 11 }}>{r.quantity}×</span>
+                    <span style={{ fontWeight: 700, color: '#a598ff' }}>{fmt(Number(r.stock_value_cost))}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HKpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function pill(color: string): React.CSSProperties {
+  return {
+    padding: '5px 12px', borderRadius: 20,
+    background: color + '15', color, border: `1px solid ${color}30`,
+    fontWeight: 600,
+  }
 }
