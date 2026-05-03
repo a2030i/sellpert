@@ -281,6 +281,8 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 
   const allValid = files.length > 0 && files.every(f => f.validation?.ok)
   const anyParsing = files.some(f => f.stage === 'parsing' || f.stage === 'validating')
+  const pendingSave = files.some(f => f.stage === 'parsed')
+  const allDone = files.length > 0 && files.every(f => f.stage === 'saved' || f.stage === 'rejected' || f.stage === 'failed')
 
   // ── Add files (parse + validate) — يفك ZIP تلقائياً ────────────────────────
   async function onAddFiles(picked: FileList | null) {
@@ -487,14 +489,23 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
               <Stat label="إجمالي الصفوف" value={files.reduce((a, f) => a + (f.parsed?.payloads.reduce((b, p) => b + p.rows.length, 0) || 0), 0)} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={clearAll} disabled={busy} style={{ ...S.miniBtn, padding: '9px 16px', fontSize: 13 }}>إفراغ القائمة</button>
-              <button onClick={saveAll} disabled={busy || !allValid || anyParsing}
-                style={{ ...S.btn, background: allValid && !busy ? color : 'var(--surface2)', color: allValid && !busy ? '#fff' : 'var(--text3)', display: 'flex', alignItems: 'center', gap: 8, opacity: busy ? 0.6 : 1 }}>
-                {busy ? <><Loader2 size={14} style={{ animation: 'spin 0.9s linear infinite' }} /> جاري الحفظ…</> : <><Save size={14} /> حفظ الكل</>}
+              <button onClick={clearAll} disabled={busy} style={{ ...S.miniBtn, padding: '9px 16px', fontSize: 13 }}>
+                {allDone ? 'انتهيت — إفراغ القائمة' : 'إفراغ القائمة'}
               </button>
+              {(pendingSave || busy) && (
+                <button onClick={saveAll} disabled={busy || !allValid || anyParsing || !pendingSave}
+                  style={{ ...S.btn, background: allValid && !busy && pendingSave ? color : 'var(--surface2)', color: allValid && !busy && pendingSave ? '#fff' : 'var(--text3)', display: 'flex', alignItems: 'center', gap: 8, opacity: busy ? 0.6 : 1 }}>
+                  {busy ? <><Loader2 size={14} style={{ animation: 'spin 0.9s linear infinite' }} /> جاري الحفظ…</> : <><Save size={14} /> حفظ الكل</>}
+                </button>
+              )}
+              {allDone && !busy && (
+                <span style={{ ...S.btn, background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.3)', color: '#00b894', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
+                  <CheckCircle2 size={14} /> اكتمل
+                </span>
+              )}
             </div>
           </div>
-          {!allValid && files.length > 0 && !anyParsing && (
+          {!allValid && files.length > 0 && !anyParsing && !allDone && (
             <div style={{ marginTop: 10, fontSize: 11, color: '#e84040' }}>
               ⚠️ بعض الملفات بها أخطاء — لا يمكن الحفظ حتى تُحلّ أو تُحذف
             </div>
