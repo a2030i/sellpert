@@ -270,6 +270,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Account transactions ledger */}
           <TransactionsLedger merchant={merchant} month={month} year={year} />
 
+          {/* Returns analytics */}
+          <ReturnsAnalytics merchant={merchant} grossRevenue={summary.grossRevenue} />
+
           {/* Returns section */}
           <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={load} />
         </>
@@ -359,6 +362,171 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// ── Returns analytics ─────────────────────────────────────────────────────────
+function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | null; grossRevenue: number }) {
+  const [data, setData] = useState<any[]>([])
+  const [orderCount, setOrderCount] = useState(0)
+  const [commissionByPlatform, setCommissionByPlatform] = useState<Record<string, number>>({})
+  const [shippingByPlatform, setShippingByPlatform] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
+  async function load() {
+    if (!merchant) return
+    setLoading(true)
+    const [{ data: rows }, { count }, { data: rates }] = await Promise.all([
+      supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchant.merchant_code),
+      supabase.from('platform_commission_rates').select('platform, rate, shipping_fee'),
+    ])
+    setData(rows || [])
+    setOrderCount(count || 0)
+    const cm: Record<string, number> = {}, sh: Record<string, number> = {}
+    for (const r of (rates || [])) { cm[r.platform] = Number(r.rate) || 0; sh[r.platform] = Number(r.shipping_fee) || 0 }
+    setCommissionByPlatform(cm); setShippingByPlatform(sh)
+    setLoading(false)
+  }
+
+  const stats = useMemo(() => {
+    const total = data.reduce((a, r) => a + (Number(r.return_amount) || 0), 0)
+    const count = data.length
+    const refunded = data.filter(r => r.status === 'refunded' || r.status === 'processed').length
+    const pending  = data.filter(r => r.status === 'pending').length
+    const rateOfRevenue = grossRevenue > 0 ? (total / grossRevenue) * 100 : 0
+    const rateOfOrders  = orderCount > 0 ? (count / orderCount) * 100 : 0
+
+    // الخسائر المتكبدة = العمولات + الشحن على القيم المرتجعة
+    let lossFees = 0, lossShipping = 0
+    for (const r of data) {
+      const cmRate = commissionByPlatform[r.platform] || 12  // افتراضي 12%
+      const shFee  = shippingByPlatform[r.platform] || 0
+      const ret    = Number(r.return_amount) || 0
+      const qty    = Number(r.quantity) || 1
+      lossFees     += (ret * cmRate) / 100
+      lossShipping += shFee * qty
+    }
+    const lossTotal = lossFees + lossShipping
+    return { total, count, refunded, pending, rateOfRevenue, rateOfOrders, lossFees, lossShipping, lossTotal }
+  }, [data, grossRevenue, orderCount, commissionByPlatform, shippingByPlatform])
+
+  const byPlatform = useMemo(() => {
+    const m: Record<string, { count: number; amount: number }> = {}
+    for (const r of data) {
+      if (!m[r.platform]) m[r.platform] = { count: 0, amount: 0 }
+      m[r.platform].count += 1
+      m[r.platform].amount += Number(r.return_amount) || 0
+    }
+    return Object.entries(m).map(([p, v]) => ({ platform: p, ...v })).sort((a, b) => b.amount - a.amount)
+  }, [data])
+
+  const topReasons = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const r of data) {
+      const k = r.reason || 'غير محدّد'
+      m[k] = (m[k] || 0) + 1
+    }
+    return Object.entries(m).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, 8)
+  }, [data])
+
+  const topProducts = useMemo(() => {
+    const m: Record<string, { count: number; amount: number }> = {}
+    for (const r of data) {
+      const k = r.product_name || 'غير محدّد'
+      if (!m[k]) m[k] = { count: 0, amount: 0 }
+      m[k].count += 1
+      m[k].amount += Number(r.return_amount) || 0
+    }
+    return Object.entries(m).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.count - a.count).slice(0, 5)
+  }, [data])
+
+  if (loading || data.length === 0) return null
+
+  return (
+    <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+        📊 تحليل المرتجعات
+      </div>
+      <div style={{ padding: 20 }}>
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
+          <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="#ffd166" />
+          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? '#e84040' : stats.rateOfOrders > 5 ? '#ff9900' : '#00b894'} />
+          <StatCard label="القيمة المرتجعة" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من الإيراد'} color="#e84040" />
+          <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="#ff4d6d" />
+          <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#7c6bff" />
+        </div>
+
+        {/* By platform */}
+        {byPlatform.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 10 }}>المرتجعات حسب المنصة</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {byPlatform.map(p => {
+                const meta = PLATFORM_META[p.platform]
+                const pct = stats.total > 0 ? (p.amount / stats.total) * 100 : 0
+                return (
+                  <div key={p.platform} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ minWidth: 80, fontSize: 12, fontWeight: 700, color: meta?.color || 'var(--text)' }}>{meta?.label || p.platform}</span>
+                    <div style={{ flex: 1, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: meta?.color || 'var(--accent)', borderRadius: 4, transition: 'width 0.6s' }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 50, textAlign: 'left' }}>{p.count} مرتجع</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, minWidth: 90, textAlign: 'left' }}>{fmt(p.amount)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Top products + reasons */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {topProducts.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>🏷️ أكثر المنتجات إرجاعاً</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {topProducts.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.name}>{p.name}</span>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ color: 'var(--text3)' }}>{p.count}×</span>
+                      <span style={{ fontWeight: 700, color: '#e84040' }}>{fmt(p.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {topReasons.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>🔍 أكثر الأسباب</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {topReasons.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
+                    <span>{r.reason}</span>
+                    <span style={{ fontWeight: 700, color: '#ffd166' }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
     </div>
   )
 }
