@@ -151,8 +151,8 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [merchantCode, setMerchantCode] = useState<string>('')
   const [platform, setPlatform]         = useState<string>('noon')
   const [files, setFiles]               = useState<FileEntry[]>([])
-  const [snapshotDate, setSnapshotDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [busy, setBusy]                 = useState(false)
+  const snapshotDate                    = new Date().toISOString().split('T')[0]
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const merchant = useMemo(() => merchants.find(m => m.merchant_code === merchantCode), [merchants, merchantCode])
@@ -257,7 +257,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 
       {/* ── Step 1+2: Merchant & Platform ── */}
       <div style={{ ...S.formCard, padding: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, alignItems: 'end' }}>
           <div>
             <label style={S.label}>1️⃣ التاجر</label>
             <select value={merchantCode} onChange={e => { setMerchantCode(e.target.value); clearAll() }}
@@ -280,9 +280,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             </select>
           </div>
           <div>
-            <label style={S.label}>تاريخ اللقطة</label>
-            <input type="date" value={snapshotDate} onChange={e => setSnapshotDate(e.target.value)}
-              style={{ ...S.input, fontSize: 13 }} />
+            <label style={S.label}>تاريخ الرفع</label>
+            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)', display: 'flex', alignItems: 'center' }}>
+              📅 {new Date().toLocaleDateString('ar-SA')}
+            </div>
           </div>
         </div>
 
