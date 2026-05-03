@@ -761,6 +761,7 @@ export function parseAmazonInventory(wb: XLSX.WorkBook, merchantCode: string): P
     rows.push({
       merchant_code: merchantCode, platform: 'amazon',
       sku, asin: s(r[idx('asin')]),
+      product_name: sku,
       condition_type: s(r[idx('condition-type')]),
       fulfillment_channel: 'FBA',
       quantity: parseInt(s(r[idx('quantity available')])) || 0,
