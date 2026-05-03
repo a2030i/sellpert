@@ -217,7 +217,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       <ProfitabilityPanel merchant={merchant} />
       <InventoryTurnoverCard merchant={merchant} />
       <PricingSuggestionsPanel merchant={merchant} />
-
+      <VariantPerformancePanel merchant={merchant} />
 
       {/* Add Product Form */}
       {showAdd && (
@@ -712,4 +712,43 @@ function PricingSuggestionsPanel({ merchant }: { merchant: Merchant | null }) {
 
 function kpiBox(color: string): React.CSSProperties {
   return { background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }
+}
+
+// ─── Variant Performance ──────────────────────────────────────────────────────
+function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('variant_performance').select('*').eq('merchant_code', merchant.merchant_code).order('units_sold', { ascending: false }).limit(20).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎨 أداء التشكيلات (لون × مقاس)</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>أيّ تشكيلات تبيع أحسن وأيّها أعلى مرتجعات</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr>{['الماركة','اللون','المقاس','مباع','مرتجع','نسبة الإرجاع','الإيراد'].map(h => (
+            <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {data.map((v, i) => {
+              const ret = Number(v.return_rate_pct) || 0
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 600 }}>{v.brand}</td>
+                  <td style={{ padding: '8px 12px' }}>{v.color}</td>
+                  <td style={{ padding: '8px 12px' }}>{v.size}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: '#00b894' }}>{v.units_sold}</td>
+                  <td style={{ padding: '8px 12px', color: v.units_returned > 0 ? '#e84040' : 'var(--text3)' }}>{v.units_returned}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? '#e84040' : ret > 5 ? '#ff9900' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(v.revenue)).toLocaleString('ar-SA')}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }

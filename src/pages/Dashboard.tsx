@@ -6,6 +6,8 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Brush,
 } from 'recharts'
+import OnboardingTour from '../components/OnboardingTour'
+import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -553,6 +555,12 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         ))}
       </div>
 
+      {/* ── Onboarding (للتجار الجدد) ── */}
+      <OnboardingTour merchantCode={merchant?.merchant_code} />
+
+      {/* ── AI Inline Hints ── */}
+      <DashboardHints merchantCode={merchant?.merchant_code} />
+
       {/* ── Restock Recommendations ── */}
       <RestockWidget merchantCode={merchant?.merchant_code} />
 
@@ -1052,4 +1060,9 @@ function HeatmapWidget({ data }: { data: any[] }) {
       </div>
     </div>
   )
+}
+
+function DashboardHints({ merchantCode }: { merchantCode?: string }) {
+  const hints = useGeneratedHints(merchantCode)
+  return <InsightHint hints={hints} />
 }

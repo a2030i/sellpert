@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
+import { Pagination, Tooltip } from '../components/UI'
 
 interface AdRow {
   id: string
@@ -29,6 +30,8 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const [platformFilter, setPlatformFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [groupBy, setGroupBy] = useState<'campaign' | 'sku' | 'query'>('campaign')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 50
 
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
 
@@ -81,8 +84,9 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       map[key].spend       += Number(r.spend) || 0
       map[key].revenue     += Number(r.revenue) || 0
     }
-    return Object.values(map).sort((a, b) => b.spend - a.spend).slice(0, 200)
+    return Object.values(map).sort((a, b) => b.spend - a.spend)
   }, [filteredRows, groupBy])
+  const pagedGrouped = useMemo(() => grouped.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [grouped, page])
 
   const platforms = useMemo(() => Array.from(new Set(rows.map(r => r.platform))), [rows])
 
@@ -129,7 +133,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={18} />} />
         <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={18} />} />
-        <Kpi label="ROAS" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
+        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان: كم ريال يجيب كل ريال إنفاق إعلاني"><span>ROAS ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
         <Kpi label="CTR" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
         <Kpi label="معدل التحويل" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="#4cc9f0" />
       </div>
@@ -203,7 +207,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
               </tr>
             </thead>
             <tbody>
-              {grouped.map((g, i) => {
+              {pagedGrouped.map((g, i) => {
                 const r = g.spend > 0 ? g.revenue / g.spend : 0
                 const ct = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0
                 const color = PLATFORM_COLORS[g.platform] || '#7c6bff'
@@ -224,16 +228,17 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageSize={PAGE_SIZE} total={grouped.length} onPage={setPage} />
       </div>
     </div>
   )
 }
 
-function Kpi({ label, value, sub, color, icon }: { label: string; value: string; sub?: string; color: string; icon?: React.ReactNode }) {
+function Kpi({ label, labelNode, value, sub, color, icon }: { label: string; labelNode?: React.ReactNode; value: string; sub?: string; color: string; icon?: React.ReactNode }) {
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, borderLeft: `3px solid ${color}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{labelNode || label}</span>
         {icon && <span style={{ color, opacity: 0.85 }}>{icon}</span>}
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: '-0.5px' }}>{value}</div>
