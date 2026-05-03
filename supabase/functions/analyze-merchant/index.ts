@@ -104,13 +104,15 @@ ${reportText}
 - الأرقام دائماً numbers وليست strings
 - إذا كانت هناك عملات غير SAR حوّلها إذا أمكن أو اذكر ذلك في parse_warnings`
 
-      const aiRes = await callOpenRouter(openrouterKey, prompt, 1500, PARSE_MODEL)
+      const aiRes = await callOpenRouter(openrouterKey, prompt, 2000, PARSE_MODEL)
       if (!aiRes.ok) return json({ error: 'OpenRouter error: ' + await aiRes.text() }, 500)
       const aiJson = await aiRes.json()
       const rawContent = aiJson.choices?.[0]?.message?.content || '{}'
       let parsed: Record<string, unknown>
-      try { parsed = JSON.parse(rawContent) }
-      catch { return json({ error: 'لم يتمكن AI من قراءة التقرير — تأكد أن النص واضح وكامل' }, 500) }
+      try {
+        const cleaned = rawContent.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+        parsed = JSON.parse(cleaned)
+      } catch { return json({ error: 'لم يتمكن AI من قراءة التقرير — تأكد أن النص واضح وكامل' }, 500) }
 
       return json({ ok: true, parsed })
     }
@@ -261,7 +263,7 @@ ${JSON.stringify(dataSummary, null, 2)}
   "low_stock_alert": ["منتج1"]
 }`
 
-  const aiRes = await callOpenRouter(openrouterKey, prompt, 1500)
+  const aiRes = await callOpenRouter(openrouterKey, prompt, 3000)
   if (!aiRes.ok) {
     const errText = await aiRes.text()
     return { error: 'OpenRouter error: ' + errText }
@@ -270,8 +272,12 @@ ${JSON.stringify(dataSummary, null, 2)}
   const aiJson = await aiRes.json()
   const rawContent = aiJson.choices?.[0]?.message?.content || '{}'
   let content: Record<string, unknown>
-  try { content = JSON.parse(rawContent) }
-  catch { content = { summary: rawContent, recommendations: [] } }
+  try {
+    const cleaned = rawContent.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+    content = JSON.parse(cleaned)
+  } catch {
+    content = { summary: 'تعذّر تحليل البيانات — يرجى الضغط على تحديث مجدداً.', recommendations: [] }
+  }
 
   const { data: saved } = await adminClient.from('ai_insights').insert({
     merchant_code: merchantCode,
