@@ -208,6 +208,25 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           </div>
 
+          {/* Data mismatch warning — منصات فيها إنفاق إعلاني بدون مبيعات */}
+          {(() => {
+            const mismatched = Object.entries(byPlatform).filter(([_, d]) => d.ad > 0 && d.revenue === 0)
+            if (mismatched.length === 0) return null
+            return (
+              <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 10,
+                background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.3)',
+                display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+                <div style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 700, color: '#ff9900', marginBottom: 4 }}>تنبيه: تقارير ناقصة لهذا الشهر</div>
+                  <div style={{ color: 'var(--text2)' }}>
+                    {mismatched.map(([p]) => PLATFORM_META[p]?.label || p).join(' و')} فيها إنفاق إعلاني <b>بدون مبيعات مسجّلة</b> — قد يكون تقرير المبيعات الفعلي لم يُرفع بعد. الأرقام السالبة في "الصافي" بسبب هذا التشوّه.
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Per-platform table */}
           {Object.keys(byPlatform).length > 0 && (
             <div style={{ ...S.card, marginBottom: 20, overflow: 'hidden', padding: 0 }}>
@@ -227,9 +246,13 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                     {Object.entries(byPlatform).map(([p, d]) => {
                       const net = d.revenue - d.fees - d.ad - d.returns
                       const meta = PLATFORM_META[p]
+                      const isMismatched = d.ad > 0 && d.revenue === 0
                       return (
                         <tr key={p} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={S.td}><span style={{ color: meta?.color, fontWeight: 700 }}>{meta?.label || p}</span></td>
+                          <td style={S.td}>
+                            <span style={{ color: meta?.color, fontWeight: 700 }}>{meta?.label || p}</span>
+                            {isMismatched && <span title="إنفاق إعلاني بدون مبيعات — قد ينقص تقرير" style={{ marginRight: 6, fontSize: 11, color: '#ff9900' }}>⚠</span>}
+                          </td>
                           <td style={{ ...S.td, color: 'var(--accent)', fontWeight: 700 }}>{fmt(d.revenue)}</td>
                           <td style={{ ...S.td, color: '#ff4d6d' }}>{d.fees > 0 ? fmt(d.fees) : '—'}</td>
                           <td style={{ ...S.td, color: '#ff4d6d' }}>{d.ad > 0 ? fmt(d.ad) : '—'}</td>
