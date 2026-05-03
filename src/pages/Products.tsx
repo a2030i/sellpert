@@ -299,7 +299,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
                 return (
-                  <div key={prod.id} style={S.mobileCard}>
+                  <div key={prod.id} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => {
+                    window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
+                    window.dispatchEvent(new PopStateEvent('popstate'))
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{prod.name}</div>
@@ -345,7 +348,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
                     return (
-                      <tr key={prod.id} style={S.tr}>
+                      <tr key={prod.id} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => {
+                        window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
+                        window.dispatchEvent(new PopStateEvent('popstate'))
+                      }}>
                         <td style={S.td}>
                           <div style={{ fontWeight: 600 }}>{prod.name}</div>
                           {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}

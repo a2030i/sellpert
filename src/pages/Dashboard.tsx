@@ -556,6 +556,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       {/* ── Restock Recommendations ── */}
       <RestockWidget merchantCode={merchant?.merchant_code} />
 
+      {/* ── ABC Analysis + Heatmap ── */}
+      <ABCAndHeatmapRow merchantCode={merchant?.merchant_code} />
+
       {/* ── Empty state ── */}
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)', marginBottom: 20 }}>
@@ -930,6 +933,122 @@ function RestockWidget({ merchantCode }: { merchantCode?: string }) {
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ─── ABC + Heatmap Row ────────────────────────────────────────────────────────
+function ABCAndHeatmapRow({ merchantCode }: { merchantCode?: string }) {
+  const [abc, setAbc] = useState<any[]>([])
+  const [heatmap, setHeatmap] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    Promise.all([
+      supabase.from('product_abc_analysis').select('*').eq('merchant_code', merchantCode).order('rank').limit(50),
+      supabase.rpc('sales_heatmap', { p_merchant_code: merchantCode, p_days: 90 }),
+    ]).then(([a, h]) => {
+      setAbc(a.data || [])
+      setHeatmap(h.data || [])
+    })
+  }, [merchantCode])
+
+  if (abc.length === 0 && heatmap.length === 0) return null
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16, marginBottom: 20 }}>
+      {abc.length > 0 && <ABCWidget data={abc} />}
+      {heatmap.length > 0 && <HeatmapWidget data={heatmap} />}
+    </div>
+  )
+}
+
+function ABCWidget({ data }: { data: any[] }) {
+  const counts: any = { A: 0, B: 0, C: 0 }
+  const revenues: any = { A: 0, B: 0, C: 0 }
+  for (const r of data) {
+    counts[r.abc_class]++
+    revenues[r.abc_class] += Number(r.revenue) || 0
+  }
+  const totalRev = revenues.A + revenues.B + revenues.C
+  const colors: any = { A: '#00b894', B: '#ff9900', C: '#a598ff' }
+  const labels: any = { A: 'منتجات أساسية', B: 'متوسطة', C: 'هامشية' }
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>📊 تحليل ABC للمنتجات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>التوزيع حسب مساهمة الإيراد (مبدأ 80/20)</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+        {['A', 'B', 'C'].map(cls => {
+          const pct = totalRev > 0 ? (revenues[cls] / totalRev * 100) : 0
+          return (
+            <div key={cls} style={{ padding: 12, background: 'var(--surface2)', borderRadius: 10, borderTop: `3px solid ${colors[cls]}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: colors[cls] }}>{cls}</span>
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>{labels[cls]}</span>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800 }}>{counts[cls]}</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
+                {pct.toFixed(0)}% من الإيراد
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أبرز منتجات الفئة A</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {data.filter((r: any) => r.abc_class === 'A').slice(0, 5).map((r: any, i: number) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>#{r.rank} · {r.product_name}</span>
+            <span style={{ fontWeight: 700, color: '#00b894' }}>{Math.round(Number(r.revenue)).toLocaleString('ar-SA')} ر.س</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HeatmapWidget({ data }: { data: any[] }) {
+  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+  const max = Math.max(...data.map((d: any) => d.orders), 1)
+  const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
+  for (const d of data) grid[d.day_of_week][d.hour_of_day] = d.orders
+  const peakHour = data.reduce((p: any, c: any) => c.orders > (p?.orders || 0) ? c : p, data[0])
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>🔥 خريطة المبيعات الزمنية</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>آخر 90 يوم</div>
+      {peakHour && (
+        <div style={{ fontSize: 12, color: '#00b894', fontWeight: 700, marginBottom: 12 }}>
+          ⭐ ذروة: {dayNames[peakHour.day_of_week]} الساعة {peakHour.hour_of_day}:00 ({peakHour.orders} طلب)
+        </div>
+      )}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 9 }}>
+          <thead>
+            <tr>
+              <th></th>
+              {Array.from({ length: 24 }).map((_, h) => (
+                <th key={h} style={{ padding: '2px 1px', color: 'var(--text3)', fontWeight: 500, fontSize: 8 }}>{h % 3 === 0 ? h : ''}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dayNames.map((day, di) => (
+              <tr key={di}>
+                <td style={{ padding: '0 8px 0 2px', fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap', textAlign: 'left' }}>{day}</td>
+                {Array.from({ length: 24 }).map((_, hi) => {
+                  const v = grid[di][hi]
+                  const intensity = v / max
+                  const color = v === 0 ? 'var(--surface2)' : `rgba(0, 184, 148, ${0.15 + intensity * 0.85})`
+                  return (
+                    <td key={hi} title={`${day} ${hi}:00 — ${v} طلب`} style={{ width: 14, height: 14, background: color, borderRadius: 2, padding: 0 }} />
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

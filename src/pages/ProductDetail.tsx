@@ -1,0 +1,218 @@
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
+import type { Merchant } from '../lib/supabase'
+import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
+import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
+import { ChevronLeft } from 'lucide-react'
+
+export default function ProductDetail({ merchant }: { merchant: Merchant | null }) {
+  const productId = new URLSearchParams(window.location.search).get('id')
+  const [product, setProduct] = useState<any>(null)
+  const [orders, setOrders] = useState<any[]>([])
+  const [returns, setReturns] = useState<any[]>([])
+  const [adMetrics, setAdMetrics] = useState<any[]>([])
+  const [profitability, setProfitability] = useState<any>(null)
+  const [inventory, setInventory] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!productId || !merchant) return
+    Promise.all([
+      supabase.from('products').select('*').eq('id', productId).maybeSingle(),
+      supabase.from('product_profitability').select('*').eq('product_id', productId).maybeSingle(),
+    ]).then(async ([p, prof]) => {
+      const prod = p.data
+      setProduct(prod)
+      setProfitability(prof.data)
+      if (prod) {
+        const [ord, ret, ads, inv] = await Promise.all([
+          supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('order_date', { ascending: false }).limit(50),
+          supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('return_date', { ascending: false }).limit(20),
+          supabase.from('ad_metrics').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
+          supabase.from('inventory').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku),
+        ])
+        setOrders(ord.data || [])
+        setReturns(ret.data || [])
+        setAdMetrics(ads.data || [])
+        setInventory(inv.data || [])
+      }
+      setLoading(false)
+    })
+  }, [productId, merchant?.merchant_code])
+
+  const adTotals = useMemo(() => ({
+    spend:   adMetrics.reduce((a, r) => a + Number(r.spend), 0),
+    revenue: adMetrics.reduce((a, r) => a + Number(r.revenue), 0),
+    clicks:  adMetrics.reduce((a, r) => a + r.clicks, 0),
+    orders:  adMetrics.reduce((a, r) => a + r.orders, 0),
+  }), [adMetrics])
+
+  function back() {
+    window.history.pushState(null, '', '/products')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" /></div>
+
+  if (!product) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>المنتج غير موجود</div>
+      <button onClick={back} style={btnPrimary}>العودة للمنتجات</button>
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      <button onClick={back} style={{ background: 'transparent', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <ChevronLeft size={16} /> العودة للمنتجات
+      </button>
+
+      {/* Header */}
+      <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
+        {product.image_url && <img src={product.image_url} alt={product.name} style={{ width: 120, height: 120, borderRadius: 12, objectFit: 'cover' }} />}
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{product.name}</h2>
+          <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text3)', flexWrap: 'wrap' }}>
+            {product.sku && <span>SKU: <b style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{product.sku}</b></span>}
+            {product.barcode && <span>باركود: <b style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{product.barcode}</b></span>}
+            {product.brand && <span>الماركة: <b style={{ color: 'var(--text2)' }}>{product.brand}</b></span>}
+            {product.category && <span>الفئة: <b style={{ color: 'var(--text2)' }}>{product.category}</b></span>}
+          </div>
+          {product.description && <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12, lineHeight: 1.7 }}>{String(product.description).slice(0, 280)}{String(product.description).length > 280 ? '…' : ''}</p>}
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
+        <Kpi label="سعر التكلفة" value={fmtCurrency(product.cost_price)} color="#7c6bff" />
+        <Kpi label="سعر البيع المستهدف" value={fmtCurrency(product.target_net_price)} color="#4cc9f0" />
+        <Kpi label="إجمالي الوحدات المباعة" value={fmtNumber(profitability?.units_sold || 0)} color="#00b894" />
+        <Kpi label="الإيرادات" value={fmtCurrency(profitability?.revenue || 0)} color="#00b894" />
+        <Kpi label="صافي الربح" value={fmtCurrency(profitability?.net_profit || 0)} sub={profitability?.profit_margin_pct !== null ? fmtPercent(profitability?.profit_margin_pct) + ' هامش' : undefined} color={(profitability?.net_profit || 0) >= 0 ? '#00b894' : '#e84040'} />
+        <Kpi label="ROAS" value={profitability?.roas ? Number(profitability.roas).toFixed(2) + 'x' : '—'} color="#ff9900" />
+      </div>
+
+      {/* Inventory by platform */}
+      {inventory.length > 0 && (
+        <Section title="📦 المخزون حسب المنصة">
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {inventory.map((i, idx) => {
+              const c = PLATFORM_COLORS[i.platform] || '#7c6bff'
+              return (
+                <div key={idx} style={{ padding: '10px 14px', background: 'var(--surface2)', borderRadius: 10, borderLeft: `3px solid ${c}` }}>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[i.platform] || i.platform}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: c }}>{i.quantity}</div>
+                  {i.fulfillment_channel && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{i.fulfillment_channel}</div>}
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* Ad metrics */}
+      {adMetrics.length > 0 && (
+        <Section title={`📣 الإعلانات (${adMetrics.length})`}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+            <Kpi label="إنفاق إعلاني" value={fmtCurrency(adTotals.spend)} color="#e84040" />
+            <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color="#00b894" />
+            <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color="#7c6bff" />
+            <Kpi label="ROAS الإعلاني" value={adTotals.spend > 0 ? (adTotals.revenue / adTotals.spend).toFixed(2) + 'x' : '—'} color="#ff9900" />
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>{['المنصة','الحملة','كلمة البحث','إنفاق','إيراد','ROAS'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {adMetrics.slice(0, 15).map((a, i) => {
+                  const r = a.spend > 0 ? a.revenue / a.spend : 0
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={td}>{PLATFORM_MAP[a.platform] || a.platform}</td>
+                      <td style={{ ...td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.campaign_name}>{a.campaign_name || '—'}</td>
+                      <td style={td}>{a.search_query || '—'}</td>
+                      <td style={{ ...td, color: '#e84040' }}>{Number(a.spend).toFixed(2)}</td>
+                      <td style={{ ...td, color: '#00b894' }}>{Number(a.revenue).toFixed(2)}</td>
+                      <td style={{ ...td, fontWeight: 700, color: r >= 3 ? '#00b894' : r >= 1 ? '#ff9900' : '#e84040' }}>{r.toFixed(2)}x</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* Returns */}
+      {returns.length > 0 && (
+        <Section title={`↩️ المرتجعات (${returns.length})`}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>{['التاريخ','المنصة','السبب','المبلغ'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {returns.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={td}>{fmtDate(r.return_date)}</td>
+                    <td style={{ ...td, color: PLATFORM_COLORS[r.platform], fontWeight: 700 }}>{PLATFORM_MAP[r.platform] || r.platform}</td>
+                    <td style={td}>{r.reason || '—'}</td>
+                    <td style={{ ...td, color: '#e84040', fontWeight: 700 }}>{fmtCurrency(r.return_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* Recent orders */}
+      {orders.length > 0 && (
+        <Section title={`📦 آخر ${Math.min(orders.length, 50)} طلب`}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>{['التاريخ','المنصة','الكمية','المبلغ','الحالة'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {orders.slice(0, 30).map((o, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={td}>{fmtDate(o.order_date)}</td>
+                    <td style={{ ...td, color: PLATFORM_COLORS[o.platform], fontWeight: 700 }}>{PLATFORM_MAP[o.platform] || o.platform}</td>
+                    <td style={td}>{o.quantity}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{fmtCurrency(o.total_amount)}</td>
+                    <td style={td}><span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: 'var(--surface2)', color: 'var(--text3)' }}>{o.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {orders.length === 0 && returns.length === 0 && adMetrics.length === 0 && (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', background: 'var(--surface)', borderRadius: 12, border: '1px dashed var(--border)' }}>
+          لا توجد بيانات مرتبطة بهذا المنتج بعد
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Kpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: any }) {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 16, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>{title}</div>
+      <div style={{ padding: 14 }}>{children}</div>
+    </div>
+  )
+}
+
+const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }
+const td: React.CSSProperties = { padding: '8px 10px', fontSize: 12 }
+const btnPrimary: React.CSSProperties = { background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }

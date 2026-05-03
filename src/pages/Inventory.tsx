@@ -190,7 +190,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 
       {/* HEALTH PANEL */}
       <InventoryHealthPanel merchant={merchant} />
-
+      {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
 
       {/* ADD FORM */}
       {showAdd && (
@@ -463,4 +463,63 @@ function pill(color: string): React.CSSProperties {
     background: color + '15', color, border: `1px solid ${color}30`,
     fontWeight: 600,
   }
+}
+
+// ─── Inventory Ageing Section ─────────────────────────────────────────────────
+function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    supabase.from('inventory_ageing').select('*').eq('merchant_code', merchantCode).then(({ data }) => setData(data || []))
+  }, [merchantCode])
+
+  const stats = useMemo(() => {
+    const counts: any = { fresh: 0, slow: 0, aging: 0, dead_stock: 0, never_sold: 0 }
+    const capital: any = { fresh: 0, slow: 0, aging: 0, dead_stock: 0, never_sold: 0 }
+    for (const d of data) {
+      counts[d.ageing_class]++
+      capital[d.ageing_class] += Number(d.tied_capital) || 0
+    }
+    return { counts, capital, totalCapital: Object.values(capital).reduce((a: any, b: any) => a + b, 0) }
+  }, [data])
+
+  if (data.length === 0) return null
+  const labels: any = { fresh: 'حديث', slow: 'بطيء (>30 يوم)', aging: 'متقادم (>60 يوم)', dead_stock: 'راكد (>90 يوم)', never_sold: 'لم يُبَع أبداً' }
+  const colors: any = { fresh: '#00b894', slow: '#4cc9f0', aging: '#ff9900', dead_stock: '#e84040', never_sold: '#a598ff' }
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+
+  const dead = data.filter(d => d.ageing_class === 'dead_stock' || d.ageing_class === 'never_sold')
+    .sort((a, b) => Number(b.tied_capital) - Number(a.tied_capital)).slice(0, 6)
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>⏰ تقادم المخزون</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>عمر كل منتج منذ آخر بيعة — لكشف رأس المال المجمّد</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
+        {Object.keys(labels).map(cls => (
+          <div key={cls} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderTop: `3px solid ${colors[cls]}` }}>
+            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{labels[cls]}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: colors[cls] }}>{stats.counts[cls]}</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{fmt(stats.capital[cls])}</div>
+          </div>
+        ))}
+      </div>
+      {dead.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🚨 أكبر رأس مال مجمّد</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dead.map((d, i) => (
+              <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={d.product_name}>{d.product_name}</span>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <span style={{ color: 'var(--text3)' }}>{d.age_days || '—'} يوم</span>
+                  <span style={{ fontWeight: 700, color: '#e84040' }}>{fmt(Number(d.tied_capital))}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }

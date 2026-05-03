@@ -12,6 +12,7 @@ import EntryView from './admin/EntryView'
 import ImportFilesView from './admin/ImportFilesView'
 import InboundView from './admin/InboundView'
 import AdsView from './admin/AdsView'
+import AuditLogView from './admin/AuditLogView'
 import AdminProductsView from './admin/AdminProductsView'
 import AdminRequestsView from './admin/AdminRequestsView'
 import SallaView from './admin/SallaView'
@@ -20,16 +21,16 @@ import RevenueView from './admin/RevenueView'
 import AdminBillingView from './admin/AdminBillingView'
 import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
 import {
-  LayoutDashboard, Users, Tag, Inbox, PenLine, Upload, Truck, Megaphone,
+  LayoutDashboard, Users, Tag, Inbox, PenLine, Upload, Truck, Megaphone, History,
   TrendingUp, CreditCard, Percent, ShoppingBag,
   BarChart2, Key, Sparkles, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -85,7 +86,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: 'system', label: 'النظام', Icon: Server,
-    items: [{ key: 'health', Icon: Activity, label: 'صحة قاعدة البيانات' }],
+    items: [
+      { key: 'health', Icon: Activity, label: 'صحة قاعدة البيانات' },
+      { key: 'audit',  Icon: History,  label: 'سجل التدقيق' },
+    ],
   },
 ]
 
@@ -337,6 +341,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
         {view === 'inbound'     && <InboundView merchants={merchantOnly} />}
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
+        {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'requests'    && <AdminRequestsView merchants={merchantOnly} />}
         {view === 'fees'        && <FeesView />}

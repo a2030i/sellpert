@@ -1,31 +1,41 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useMobile } from './lib/hooks'
 import { isSuspended, getPlan, PLANS, getUpgradePlan } from './lib/subscription'
 import type { PlanKey } from './lib/subscription'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import AdminPanel from './pages/AdminPanel'
-import EmployeePanel from './pages/EmployeePanel'
-import Integrations from './pages/Integrations'
-import Orders from './pages/Orders'
-import Inventory from './pages/Inventory'
-import Settings from './pages/Settings'
-import Products from './pages/Products'
-import Requests from './pages/Requests'
-import Statement from './pages/Statement'
-import Marketing from './pages/Marketing'
-import Notifications from './pages/Notifications'
 import { ToastContainer } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
-import Billing from './pages/Billing'
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications'
+// Lazy-loaded routes (code splitting)
+const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
+const EmployeePanel = lazy(() => import('./pages/EmployeePanel'))
+const Integrations  = lazy(() => import('./pages/Integrations'))
+const Orders        = lazy(() => import('./pages/Orders'))
+const Inventory     = lazy(() => import('./pages/Inventory'))
+const Settings      = lazy(() => import('./pages/Settings'))
+const Products      = lazy(() => import('./pages/Products'))
+const Requests      = lazy(() => import('./pages/Requests'))
+const Statement     = lazy(() => import('./pages/Statement'))
+const Billing       = lazy(() => import('./pages/Billing'))
+const Marketing     = lazy(() => import('./pages/Marketing'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const ProductDetail = lazy(() => import('./pages/ProductDetail'))
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications']
+const PageFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+    <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>
+)
+
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail'
+
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail']
 
 const NAV_ITEMS = [
   { icon: '📊', label: 'الرئيسية',    key: 'dashboard'    as View },
@@ -354,17 +364,20 @@ export default function App() {
       {/* ── Main Content ── */}
       <main style={{ flex: 1, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
         <SubscriptionBanner merchant={activeMerchant} onUpgrade={() => setShowUpgrade(true)} />
-        {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
-        {view === 'products'     && <Products     merchant={activeMerchant} />}
-        {view === 'orders'       && <Orders       merchant={activeMerchant} />}
-        {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
-        {view === 'requests'     && <Requests     merchant={activeMerchant} />}
-        {view === 'statement'    && <Statement    merchant={activeMerchant} />}
-        {view === 'billing'      && <Billing      merchant={activeMerchant} />}
-        {view === 'integrations' && <Integrations merchant={activeMerchant} />}
-        {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
-        {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
-        {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
+        <Suspense fallback={<PageFallback />}>
+          {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
+          {view === 'products'     && <Products     merchant={activeMerchant} />}
+          {view === 'orders'       && <Orders       merchant={activeMerchant} />}
+          {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
+          {view === 'requests'     && <Requests     merchant={activeMerchant} />}
+          {view === 'statement'    && <Statement    merchant={activeMerchant} />}
+          {view === 'billing'      && <Billing      merchant={activeMerchant} />}
+          {view === 'integrations' && <Integrations merchant={activeMerchant} />}
+          {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
+          {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
+          {view === 'product-detail' && <ProductDetail merchant={activeMerchant} />}
+          {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
+        </Suspense>
       </main>
       <ToastContainer />
 
