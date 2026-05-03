@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const ORDER_PAGE_SIZE = 50
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
@@ -19,6 +19,7 @@ function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigi
 
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
+  const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [platform, setPlatform] = useState('all')
   const [status, setStatus] = useState('all')
@@ -30,13 +31,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   useEffect(() => {
     if (!merchant) return
-    supabase
-      .from('orders')
-      .select('*')
-      .eq('merchant_code', merchant.merchant_code)
-      .order('order_date', { ascending: false })
-      .limit(2000)
-      .then(({ data }) => { setOrders(data || []); setLoading(false) })
+    Promise.all([
+      supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).limit(2000),
+      supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol'),
+    ]).then(([o, t]) => {
+      setOrders(o.data || [])
+      setTrendyolSnaps(t.data || [])
+      setLoading(false)
+    })
   }, [merchant])
 
   const filtered = useMemo(() => {
@@ -88,24 +90,34 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }))
   }, [filtered])
 
-  // Compare: per platform
+  // Compare: per platform — يدمج الطلبات + لقطات تراندايول (لأنها aggregate وليست orders)
   const platformCompare = useMemo(() => {
-    const map: Record<string, { revenue: number; count: number; delivered: number; cancelled: number }> = {}
+    const map: Record<string, { revenue: number; count: number; delivered: number; cancelled: number; returned: number }> = {}
     for (const o of filtered) {
-      if (!map[o.platform]) map[o.platform] = { revenue: 0, count: 0, delivered: 0, cancelled: 0 }
+      if (!map[o.platform]) map[o.platform] = { revenue: 0, count: 0, delivered: 0, cancelled: 0, returned: 0 }
       map[o.platform].revenue += o.total_amount
       map[o.platform].count++
       if (o.status === 'delivered') map[o.platform].delivered++
       if (o.status === 'cancelled') map[o.platform].cancelled++
+      if (o.status === 'returned')  map[o.platform].returned++
+    }
+    for (const s of trendyolSnaps) {
+      if (!map['trendyol']) map['trendyol'] = { revenue: 0, count: 0, delivered: 0, cancelled: 0, returned: 0 }
+      map['trendyol'].revenue   += Number(s.gross_sales) || 0
+      map['trendyol'].count     += s.sold || 0
+      map['trendyol'].delivered += s.net_sold || 0
+      map['trendyol'].cancelled += s.cancelled || 0
+      map['trendyol'].returned  += s.returned || 0
     }
     return Object.entries(map).map(([p, v]) => ({
       platform: p, name: PLATFORM_MAP[p] || p,
       revenue: Math.round(v.revenue), count: v.count,
       deliveryRate: v.count > 0 ? ((v.delivered / v.count) * 100).toFixed(1) : '0.0',
       cancelRate:   v.count > 0 ? ((v.cancelled / v.count) * 100).toFixed(1) : '0.0',
+      returnRate:   v.count > 0 ? ((v.returned / v.count) * 100).toFixed(1) : '0.0',
       aov: v.count > 0 ? Math.round(v.revenue / v.count) : 0,
     })).sort((a,b) => b.revenue - a.revenue)
-  }, [filtered])
+  }, [filtered, trendyolSnaps])
 
   const platforms = [...new Set(orders.map(o => o.platform))]
 
@@ -331,7 +343,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                     <Bar dataKey="revenue" radius={[0,6,6,0]}>
                       {platformCompare.map((p,i) => (
-                        <rect key={i} fill={PLATFORM_COLORS[p.platform]||'#7c6bff'} />
+                        <Cell key={i} fill={PLATFORM_COLORS[p.platform]||'#7c6bff'} />
                       ))}
                     </Bar>
                   </BarChart>

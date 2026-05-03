@@ -626,7 +626,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie data={platformData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} dataKey="value" paddingAngle={4} strokeWidth={0}>
-                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || '#7c6bff'} />)}
+                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || ['#7c6bff', '#00b894', '#ff9900', '#e84040', '#4cc9f0', '#a598ff'][i % 6]} />)}
                   </Pie>
                   <Tooltip content={<ChartTooltip />} formatter={(v: number) => [fmt(v), '']} />
                 </PieChart>

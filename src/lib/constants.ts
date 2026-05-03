@@ -11,11 +11,11 @@ export const PLATFORM_MAP: Record<string, string> = {
 }
 
 export const PLATFORM_COLORS: Record<string, string> = {
-  salla:     '#7c6bff',
-  noon:      '#f5c518',
-  amazon:    '#ff9900',
-  trendyol:  '#f27a1a',
-  zid:       '#00b894',
+  salla:     '#00b894',  // أخضر سلة
+  noon:      '#feee00',  // أصفر نون
+  amazon:    '#146eb4',  // أزرق أمازون (الرسمي)
+  trendyol:  '#f27a1a',  // برتقالي تراندايول
+  zid:       '#7c6bff',
   shopify:   '#96bf48',
   other:     '#5a5a7a',
   warehouse: '#4cc9f0',

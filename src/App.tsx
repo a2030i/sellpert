@@ -8,6 +8,11 @@ import Dashboard from './pages/Dashboard'
 import { ToastContainer } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
+import {
+  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown,
+  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 
@@ -37,17 +42,36 @@ export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'sett
 
 const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail']
 
-const NAV_ITEMS = [
-  { icon: '📊', label: 'الرئيسية',    key: 'dashboard'    as View },
-  { icon: '🏷️', label: 'منتجاتي',     key: 'products'     as View },
-  { icon: '📦', label: 'الطلبات',     key: 'orders'       as View },
-  { icon: '📣', label: 'التسويق',     key: 'marketing'    as View },
-  { icon: '🎫', label: 'الدعم',       key: 'requests'     as View },
-  { icon: '📄', label: 'كشف الحساب',  key: 'statement'    as View },
-  { icon: '💳', label: 'الاشتراك',    key: 'billing'      as View },
-  { icon: '🔗', label: 'المنصات',     key: 'integrations' as View },
-  { icon: '⚙️', label: 'الإعدادات',   key: 'settings'     as View },
+type NavItem = { Icon: LucideIcon; label: string; key: View }
+type NavGroup = { key: string; label: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  { key: 'main',      label: 'الرئيسية', items: [
+    { Icon: LayoutDashboard, label: 'لوحة التحكم', key: 'dashboard' },
+  ]},
+  { key: 'sales',     label: 'المبيعات',  items: [
+    { Icon: Package,    label: 'الطلبات',     key: 'orders'    },
+    { Icon: FileText,   label: 'كشف الحساب', key: 'statement' },
+  ]},
+  { key: 'catalog',   label: 'الكاتالوج', items: [
+    { Icon: Tags,       label: 'منتجاتي',  key: 'products'  },
+    { Icon: Boxes,      label: 'المخزون',  key: 'inventory' },
+  ]},
+  { key: 'growth',    label: 'النمو',      items: [
+    { Icon: Megaphone,  label: 'التسويق',  key: 'marketing' },
+  ]},
+  { key: 'support',   label: 'الحساب والدعم', items: [
+    { Icon: LifeBuoy,   label: 'الدعم',      key: 'requests'    },
+    { Icon: CreditCard, label: 'الاشتراك',   key: 'billing'     },
+  ]},
+  { key: 'system',    label: 'النظام',    items: [
+    { Icon: Link2,         label: 'المنصات',    key: 'integrations' },
+    { Icon: SettingsIcon,  label: 'الإعدادات',  key: 'settings'     },
+  ]},
 ]
+
+const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
+const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
@@ -110,7 +134,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 300, maxHeight: 380, overflowY: 'auto', background: '#1e2239', border: '1px solid #2c3356', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340, maxWidth: 'calc(100vw - 32px)', maxHeight: 420, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 10000, color: 'var(--text)' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #2c3356', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4' }}>الإشعارات</span>
             {unread > 0 && (
@@ -321,16 +345,26 @@ export default function App() {
           </div>
 
           {/* Nav */}
-          <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-            {NAV_ITEMS.map(item => (
-              <div key={item.key}
-                className={`nav-item${view === item.key ? ' active' : ''}`}
-                style={S.navItem}
-                onClick={() => goTo(item.key)}
-              >
-                <span style={S.navIcon}>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.label}</span>
-                {view === item.key && <div className="nav-dot" />}
+          <nav style={{ flex: 1, padding: '8px 0 12px', overflowY: 'auto' }}>
+            {NAV_GROUPS.map(group => (
+              <div key={group.key} style={{ padding: '6px 8px 2px' }}>
+                <div style={{ padding: '8px 12px 4px', fontSize: 9, fontWeight: 800, color: '#545d82', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                  {group.label}
+                </div>
+                {group.items.map(item => {
+                  const Icon = item.Icon
+                  return (
+                    <div key={item.key}
+                      className={`nav-item${view === item.key ? ' active' : ''}`}
+                      style={S.navItem}
+                      onClick={() => goTo(item.key)}
+                    >
+                      <Icon size={16} style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{item.label}</span>
+                      {view === item.key && <div className="nav-dot" />}
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </nav>
@@ -397,14 +431,17 @@ export default function App() {
       {/* ── Mobile Bottom Nav ── */}
       {isMobile && (
         <nav style={S.bottomNav}>
-          {NAV_ITEMS.map(item => (
-            <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: view === item.key ? 'var(--accent)' : 'var(--text3)' }}>
-              <span style={{ fontSize: 20 }}>{item.icon}</span>
-              <span style={{ fontSize: 9, marginTop: 1 }}>{item.label}</span>
-            </button>
-          ))}
+          {NAV_ITEMS.slice(0, 5).map(item => {
+            const Icon = item.Icon
+            return (
+              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: view === item.key ? 'var(--accent)' : 'var(--text3)' }}>
+                <Icon size={20} />
+                <span style={{ fontSize: 9, marginTop: 1 }}>{item.label}</span>
+              </button>
+            )
+          })}
           <button style={{ ...S.bottomNavBtn, color: 'var(--text3)' }} onClick={() => supabase.auth.signOut()}>
-            <span style={{ fontSize: 20 }}>🚪</span>
+            <LogOut size={20} />
             <span style={{ fontSize: 9, marginTop: 1 }}>خروج</span>
           </button>
         </nav>

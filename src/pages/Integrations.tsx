@@ -88,7 +88,7 @@ function ManagedPlatformCard({ merchant, platform, lastUpload }: { merchant: Mer
             </div>
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>
               {isLinked
-                ? <>آخر تحديث: <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{relativeTime(lastUpload!.uploaded_at)}</span> · {lastUpload!.detected_report}</>
+                ? <>آخر تحديث: <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{relativeTime(lastUpload!.uploaded_at)}</span></>
                 : 'فريق Sellpert يستلم تقاريرك ويحدّث بياناتك يدوياً'
               }
             </div>
