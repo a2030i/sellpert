@@ -1,8 +1,28 @@
 import { useState, useMemo } from 'react'
+import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive } from 'lucide-react'
+
+// ─── Expand zip → file list ──────────────────────────────────────────────────
+async function expandIfZip(file: File): Promise<File[]> {
+  if (!/\.zip$/i.test(file.name)) return [file]
+  try {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer())
+    const out: File[] = []
+    for (const entry of Object.values(zip.files)) {
+      if (entry.dir) continue
+      if (!/\.(csv|xlsx|xls|txt|tsv)$/i.test(entry.name)) continue
+      const blob = await entry.async('blob')
+      const cleanName = entry.name.split('/').pop() || entry.name
+      out.push(new File([blob], cleanName, { type: blob.type }))
+    }
+    return out
+  } catch {
+    return [file]
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Merchant = { merchant_code: string; name: string; role: string }
@@ -168,11 +188,19 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const allValid = files.length > 0 && files.every(f => f.validation?.ok)
   const anyParsing = files.some(f => f.stage === 'parsing' || f.stage === 'validating')
 
-  // ── Add files (parse + validate) ───────────────────────────────────────────
+  // ── Add files (parse + validate) — يفك ZIP تلقائياً ────────────────────────
   async function onAddFiles(picked: FileList | null) {
     if (!picked || !merchantCode) return
-    const fileArr = Array.from(picked)
-    const newEntries: FileEntry[] = fileArr.map((file, i) => ({
+    const expanded: File[] = []
+    for (const f of Array.from(picked)) {
+      const inner = await expandIfZip(f)
+      expanded.push(...inner)
+    }
+    if (expanded.length === 0) {
+      setGlobalMsg({ type: 'err', text: 'لا توجد ملفات صالحة (CSV/Excel) داخل الـ ZIP' })
+      return
+    }
+    const newEntries: FileEntry[] = expanded.map((file, i) => ({
       id: `${Date.now()}-${i}`, file, stage: 'parsing', progress: 0,
     }))
     setFiles(p => [...p, ...newEntries])
@@ -310,7 +338,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             }}>
               <Upload size={14} />
               اختيار الملفات
-              <input type="file" multiple accept=".csv,.xlsx,.xls,.txt"
+              <input type="file" multiple accept=".csv,.xlsx,.xls,.txt,.tsv,.zip"
                 style={{ display: 'none' }} disabled={busy}
                 onChange={e => { onAddFiles(e.target.files); e.target.value = '' }} />
             </label>
@@ -402,9 +430,12 @@ function DropZone({ color, onDrop, disabled }: { color: string; onDrop: (files: 
         background: drag ? color + '08' : 'var(--surface2)',
         transition: 'all 0.15s', cursor: disabled ? 'not-allowed' : 'pointer',
       }}>
-      <FileSpreadsheet size={36} color={drag ? color : 'var(--text3)' as any} style={{ marginBottom: 10 }} />
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 10 }}>
+        <FileSpreadsheet size={32} color={drag ? color : 'var(--text3)' as any} />
+        <Archive size={32} color={drag ? color : 'var(--text3)' as any} />
+      </div>
       <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>اسحب الملفات هنا أو اضغط زر الاختيار</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>CSV / Excel — يمكن رفع عدة ملفات دفعة واحدة</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>CSV / Excel / ZIP — يفك الـ ZIP تلقائياً ويعالج كل ملف داخله</div>
     </div>
   )
 }
