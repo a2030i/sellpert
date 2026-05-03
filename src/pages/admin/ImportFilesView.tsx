@@ -1,15 +1,86 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2 } from 'lucide-react'
 
-// ─── Expand zip → file list ──────────────────────────────────────────────────
+// ─── File guides per platform ────────────────────────────────────────────────
+type Importance = 'critical' | 'recommended' | 'optional'
+interface FileGuide {
+  kind: string
+  label: string
+  icon: string
+  desc: string
+  importance: Importance
+  dependsOn?: string
+  dependsNote?: string
+}
+
+const FILE_GUIDES: Record<string, FileGuide[]> = {
+  noon: [
+    { kind: 'noon_sales',    label: 'تقرير المبيعات',         icon: '💰', desc: 'كل الطلبات المشحونة والمسلّمة — يحدّث جدول الطلبات والإيرادات', importance: 'critical' },
+    { kind: 'noon_products', label: 'تقرير الأصناف Live',     icon: '📦', desc: 'كاتالوج المنتجات + الأسعار + المخزون FBN/Xdock', importance: 'critical' },
+    { kind: 'noon_asn',      label: 'إرسالية للمستودع (ASN)', icon: '🚚', desc: 'ما أرسلته إلى مستودع نون قبل استلامه', importance: 'recommended' },
+    { kind: 'noon_grn',      label: 'تقرير الاستلام (GRN)',   icon: '📥', desc: 'ما استلمه نون فعلياً + الأصناف المرفوضة من الجودة', importance: 'recommended', dependsOn: 'noon_asn', dependsNote: 'يُفضّل رفع ASN قبله ليربط بياناته' },
+    { kind: 'noon_ads',      label: 'تقرير الإعلانات',         icon: '📣', desc: 'أداء حملات الإعلانات (Campaign × SKU × Query)', importance: 'optional' },
+  ],
+  trendyol: [
+    { kind: 'trendyol_sales',     label: 'مبيعات حسب المنتج (Sales by Product)', icon: '💰', desc: 'لقطة دورية للمنتجات + أسباب الإلغاءات والمرتجعات', importance: 'critical' },
+    { kind: 'trendyol_products',  label: 'الكاتالوج (Products)',                  icon: '📦', desc: 'تفاصيل المنتجات + الصور + الأوصاف + المخزون', importance: 'critical' },
+    { kind: 'trendyol_statement', label: 'كشف الحساب (Account Statement)',        icon: '🧾', desc: 'حركة الحساب: عمولات + مدفوعات + خصومات', importance: 'recommended' },
+    { kind: 'trendyol_ads',       label: 'تقرير إعلانات المنتج',                   icon: '📣', desc: 'أداء الحملات الإعلانية على تراندايول', importance: 'optional' },
+    { kind: 'trendyol_deals',     label: 'عروض Super/Mega Deal',                  icon: '🎯', desc: 'فرص الأسعار التنافسية المقترحة من تراندايول', importance: 'optional' },
+  ],
+  amazon: [
+    { kind: 'amazon_transactions', label: 'تقرير المعاملات',          icon: '💰', desc: 'الطلبات والرسوم وصافي المبالغ', importance: 'critical' },
+    { kind: 'amazon_inventory',    label: 'مخزون FBA',                icon: '📦', desc: 'المخزون المتاح في مستودعات أمازون لكل ASIN', importance: 'critical' },
+    { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', icon: '🧾', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
+    { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', icon: '📣', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
+  ],
+}
+
+const IMPORTANCE_META: Record<Importance, { label: string; color: string }> = {
+  critical:    { label: 'أساسي',    color: '#e84040' },
+  recommended: { label: 'موصى به',  color: '#ff9900' },
+  optional:    { label: 'اختياري', color: '#7c6bff' },
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return 'لم يُرفع بعد'
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)   return 'الآن'
+  if (m < 60)  return `قبل ${m} دقيقة`
+  const h = Math.floor(m / 60)
+  if (h < 24)  return `قبل ${h} ساعة`
+  const d = Math.floor(h / 24)
+  if (d < 30)  return `قبل ${d} يوم`
+  const mo = Math.floor(d / 30)
+  return `قبل ${mo} شهر`
+}
+
+// ─── Expand zip → file list — يتحقّق من الامتداد ومن الـ signature ──────────
 async function expandIfZip(file: File): Promise<File[]> {
-  if (!/\.zip$/i.test(file.name)) return [file]
+  const looksLikeZipByName = /\.zip$/i.test(file.name)
+  // Read first 4 bytes to detect PK signature (zip files start with 0x50 0x4B 0x03 0x04)
+  let isZipByContent = false
+  let buf: ArrayBuffer | null = null
   try {
-    const zip = await JSZip.loadAsync(await file.arrayBuffer())
+    buf = await file.arrayBuffer()
+    const sig = new Uint8Array(buf.slice(0, 4))
+    isZipByContent = sig[0] === 0x50 && sig[1] === 0x4B && (sig[2] === 0x03 || sig[2] === 0x05) && (sig[3] === 0x04 || sig[3] === 0x06)
+  } catch { /* ignore */ }
+
+  // xlsx files are also PK-based archives — only treat as zip if extension says so OR if it's a .zip without the proper xlsx structure (we'll validate by trying)
+  if (!looksLikeZipByName && !isZipByContent) return [file]
+  if (!looksLikeZipByName) {
+    // Only check content if extension is missing/wrong; xlsx must NOT be expanded
+    if (/\.(xlsx|xlsm|xltx)$/i.test(file.name)) return [file]
+  }
+
+  try {
+    const zip = await JSZip.loadAsync(buf || await file.arrayBuffer())
     const out: File[] = []
     for (const entry of Object.values(zip.files)) {
       if (entry.dir) continue
@@ -18,7 +89,7 @@ async function expandIfZip(file: File): Promise<File[]> {
       const cleanName = entry.name.split('/').pop() || entry.name
       out.push(new File([blob], cleanName, { type: blob.type }))
     }
-    return out
+    return out.length ? out : [file]
   } catch {
     return [file]
   }
@@ -174,6 +245,29 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [busy, setBusy]                 = useState(false)
   const snapshotDate                    = new Date().toISOString().split('T')[0]
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [lastUploads, setLastUploads]   = useState<Record<string, { uploaded_at: string; status: string; rows_inserted: number }>>({})
+
+  // ── Fetch last upload date per file kind for current merchant + platform ──
+  useEffect(() => {
+    if (!merchantCode || !platform) { setLastUploads({}); return }
+    let cancelled = false
+    supabase.from('platform_file_uploads')
+      .select('file_type, uploaded_at, status, rows_inserted')
+      .eq('merchant_code', merchantCode)
+      .eq('platform', platform)
+      .order('uploaded_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        const map: typeof lastUploads = {}
+        for (const r of data) {
+          const k = (r as any).file_type
+          if (k && !map[k]) map[k] = { uploaded_at: r.uploaded_at, status: r.status, rows_inserted: r.rows_inserted || 0 }
+        }
+        setLastUploads(map)
+      })
+    return () => { cancelled = true }
+  }, [merchantCode, platform, files])
 
   const merchant = useMemo(() => merchants.find(m => m.merchant_code === merchantCode), [merchants, merchantCode])
   const color = PLATFORM_COLORS[platform] || '#7c6bff'
@@ -322,6 +416,11 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         )}
       </div>
 
+      {/* ── Step 2.5: Checklist guide for selected platform ── */}
+      {merchantCode && (
+        <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} />
+      )}
+
       {/* ── Step 3: Upload zone ── */}
       {merchantCode && (
         <div style={{ ...S.formCard, padding: 20, borderColor: color + '30', borderTop: `3px solid ${color}` }}>
@@ -412,6 +511,93 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── File Checklist (per platform) ───────────────────────────────────────────
+function FileChecklist({ platform, color, lastUploads, pendingKinds }: {
+  platform: string; color: string;
+  lastUploads: Record<string, { uploaded_at: string; status: string; rows_inserted: number }>;
+  pendingKinds: string[];
+}) {
+  const guides = FILE_GUIDES[platform] || []
+  if (guides.length === 0) return null
+
+  return (
+    <div style={{ ...S.formCard, padding: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Info size={16} color={color} />
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>الملفات المتوقّعة لهذه المنصة</div>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
+        دليل سريع لكل تقرير: ماذا يفعل، آخر مرة رُفع، وأي ملف يعتمد على ملف آخر
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {guides.map(g => {
+          const last  = lastUploads[g.kind]
+          const isPending = pendingKinds.includes(g.kind)
+          const importance = IMPORTANCE_META[g.importance]
+          const dependsLast = g.dependsOn ? lastUploads[g.dependsOn] : null
+          const dependsMissing = !!g.dependsOn && !dependsLast && !pendingKinds.includes(g.dependsOn)
+
+          return (
+            <div key={g.kind} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+              background: isPending ? color + '08' : 'var(--surface2)',
+              border: `1px solid ${isPending ? color + '30' : 'var(--border)'}`,
+              borderRadius: 10, transition: 'all 0.15s',
+            }}>
+              {/* Status dot */}
+              <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 8,
+                background: last ? '#00b89415' : 'var(--surface)',
+                border: `1px solid ${last ? '#00b89440' : 'var(--border)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+              }}>
+                {last ? <CheckCircle2 size={14} color="#00b894" /> : g.icon}
+              </div>
+
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{g.icon} {g.label}</span>
+                  <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20,
+                    background: importance.color + '15', color: importance.color, border: `1px solid ${importance.color}30`,
+                  }}>{importance.label}</span>
+                  {isPending && (
+                    <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: color + '20', color: color }}>
+                      ⏳ في القائمة
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{g.desc}</div>
+
+                {/* Dependency */}
+                {g.dependsOn && (
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: dependsMissing ? '#ff9900' : 'var(--text3)' }}>
+                    <Link2 size={11} />
+                    <span>{g.dependsNote}</span>
+                    {dependsMissing && <span style={{ color: '#ff9900', fontWeight: 700 }}>⚠ غير مرفوع بعد</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Last upload info */}
+              <div style={{ flexShrink: 0, textAlign: 'left', minWidth: 110 }}>
+                {last ? (
+                  <>
+                    <div style={{ fontSize: 11, color: '#00b894', fontWeight: 700 }}>{relativeTime(last.uploaded_at)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{last.rows_inserted.toLocaleString()} صف</div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic' }}>لم يُرفع بعد</div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
