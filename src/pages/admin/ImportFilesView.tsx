@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2 } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText } from 'lucide-react'
 
 // ─── File guides per platform ────────────────────────────────────────────────
 type Importance = 'critical' | 'recommended' | 'optional'
@@ -44,6 +44,172 @@ const IMPORTANCE_META: Record<Importance, { label: string; color: string }> = {
   critical:    { label: 'أساسي',    color: '#e84040' },
   recommended: { label: 'موصى به',  color: '#ff9900' },
   optional:    { label: 'اختياري', color: '#7c6bff' },
+}
+
+// ─── تقرير PDF بسيط للتاجر ─────────────────────────────────────────────────
+async function generateMerchantReport(merchantCode: string, merchantName: string, savedFiles: { kind: string; label: string; rows: number; platform: string }[]) {
+  // جلب الإجماليات الحالية للتاجر
+  const monthStart = new Date()
+  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+  const monthStartIso = monthStart.toISOString().split('T')[0]
+
+  const [{ data: perfData }, { data: ordersAgg }, { data: invAgg }, { data: returnsCount }] = await Promise.all([
+    supabase.from('performance_data').select('platform, total_sales, order_count, ad_spend, platform_fees').eq('merchant_code', merchantCode).gte('data_date', monthStartIso),
+    supabase.from('orders').select('platform, total_amount, status').eq('merchant_code', merchantCode),
+    supabase.from('inventory').select('platform, quantity').eq('merchant_code', merchantCode),
+    supabase.from('returns').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+  ])
+
+  // إجماليات هذا الشهر
+  const monthTotals = (perfData || []).reduce((a, r) => ({
+    sales: a.sales + (Number(r.total_sales) || 0),
+    orders: a.orders + (r.order_count || 0),
+    adSpend: a.adSpend + (Number(r.ad_spend) || 0),
+    fees: a.fees + (Number(r.platform_fees) || 0),
+  }), { sales: 0, orders: 0, adSpend: 0, fees: 0 })
+
+  const byPlatform: Record<string, { sales: number; orders: number; adSpend: number }> = {}
+  for (const r of perfData || []) {
+    const k = r.platform
+    if (!byPlatform[k]) byPlatform[k] = { sales: 0, orders: 0, adSpend: 0 }
+    byPlatform[k].sales += Number(r.total_sales) || 0
+    byPlatform[k].orders += r.order_count || 0
+    byPlatform[k].adSpend += Number(r.ad_spend) || 0
+  }
+
+  const totalInventory = (invAgg || []).reduce((a, r) => a + (r.quantity || 0), 0)
+  const totalOrders = (ordersAgg || []).length
+  const cancelled = (ordersAgg || []).filter(o => o.status === 'cancelled').length
+  const returnedCount = returnsCount as any
+
+  const roas = monthTotals.adSpend > 0 ? (monthTotals.sales / monthTotals.adSpend).toFixed(2) : '—'
+  const netAfterAds = monthTotals.sales - monthTotals.adSpend - monthTotals.fees
+
+  const monthName = new Date().toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' })
+  const today     = new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const platformRows = Object.entries(byPlatform)
+    .sort(([, a], [, b]) => b.sales - a.sales)
+    .map(([p, v]) => `
+      <tr>
+        <td><b>${PLATFORM_MAP[p] || p}</b></td>
+        <td>${Math.round(v.sales).toLocaleString('ar-SA')} ر.س</td>
+        <td>${v.orders.toLocaleString('ar-SA')}</td>
+        <td>${Math.round(v.adSpend).toLocaleString('ar-SA')} ر.س</td>
+        <td>${v.adSpend > 0 ? (v.sales / v.adSpend).toFixed(2) + 'x' : '—'}</td>
+      </tr>`).join('')
+
+  const filesRows = savedFiles.map(f => `
+    <tr>
+      <td>${f.label}</td>
+      <td><span class="badge ${f.platform}">${PLATFORM_MAP[f.platform] || f.platform}</span></td>
+      <td style="text-align:left">${f.rows.toLocaleString('ar-SA')} صف</td>
+    </tr>`).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تقرير ${merchantName} — ${monthName}</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Tahoma', sans-serif; color: #1d1f2c; margin: 0; padding: 0; line-height: 1.6; }
+  .header { background: linear-gradient(135deg, #7c6bff 0%, #00b894 100%); color: white; padding: 32px 28px; border-radius: 12px; margin-bottom: 24px; }
+  .header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; }
+  .header .sub { font-size: 14px; opacity: 0.92; }
+  .meta { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; }
+  .meta div { font-size: 12px; opacity: 0.9; }
+  .section { margin-bottom: 24px; page-break-inside: avoid; }
+  .section h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7f0; color: #1d1f2c; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi { padding: 14px; border: 1px solid #e5e7f0; border-radius: 10px; background: #fafbff; }
+  .kpi .label { font-size: 11px; color: #6b6f80; font-weight: 600; }
+  .kpi .value { font-size: 20px; font-weight: 800; margin-top: 4px; color: #1d1f2c; }
+  .kpi .sub   { font-size: 11px; color: #8891b4; margin-top: 4px; }
+  .kpi.green .value { color: #00b894; }
+  .kpi.red   .value { color: #e84040; }
+  .kpi.orange .value { color: #f27a1a; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #e5e7f0; }
+  th { background: #f5f6fa; font-weight: 700; font-size: 11px; color: #6b6f80; text-transform: uppercase; }
+  .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; display: inline-block; }
+  .badge.noon     { background: #fff7d9; color: #b8860b; }
+  .badge.trendyol { background: #ffe4d2; color: #c55a14; }
+  .badge.amazon   { background: #fff0d9; color: #b76d00; }
+  .badge.salla    { background: #d2f5e8; color: #006b54; }
+  .footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid #e5e7f0; font-size: 11px; color: #8891b4; text-align: center; }
+  .print-bar { position: fixed; top: 14px; left: 14px; display: flex; gap: 10px; z-index: 1000; }
+  .print-bar button { background: #7c6bff; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .print-bar button.alt { background: #f5f6fa; color: #1d1f2c; border: 1px solid #e5e7f0; }
+  @media print { .print-bar { display: none; } }
+</style>
+</head>
+<body>
+  <div class="print-bar">
+    <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+    <button class="alt" onclick="window.close()">إغلاق</button>
+  </div>
+
+  <div class="header">
+    <h1>📊 تقرير ${merchantName}</h1>
+    <div class="sub">ملخص أداء ${monthName} — مُعدّ بواسطة فريق Sellpert</div>
+    <div class="meta">
+      <div>📅 تاريخ التقرير: <b>${today}</b></div>
+      <div>🏪 رمز التاجر: <b>${merchantCode}</b></div>
+      <div>📁 الملفات المُعالجة: <b>${savedFiles.length}</b></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>💰 الملخص المالي للشهر</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="label">إجمالي المبيعات</div><div class="value">${Math.round(monthTotals.sales).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.orders} طلب</div></div>
+      <div class="kpi orange"><div class="label">الإنفاق الإعلاني</div><div class="value">${Math.round(monthTotals.adSpend).toLocaleString('ar-SA')} ر.س</div><div class="sub">ROAS ${roas}${roas !== '—' ? 'x' : ''}</div></div>
+      <div class="kpi red"><div class="label">رسوم المنصات</div><div class="value">${Math.round(monthTotals.fees).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((monthTotals.fees / monthTotals.sales) * 100).toFixed(1) + '%' : '—'}</div></div>
+      <div class="kpi green"><div class="label">صافي بعد الإعلان والرسوم</div><div class="value">${Math.round(netAfterAds).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((netAfterAds / monthTotals.sales) * 100).toFixed(1) + '% هامش' : '—'}</div></div>
+    </div>
+  </div>
+
+  ${platformRows ? `
+  <div class="section">
+    <h2>🏪 الأداء حسب المنصة</h2>
+    <table>
+      <thead><tr><th>المنصة</th><th>المبيعات</th><th>الطلبات</th><th>الإنفاق الإعلاني</th><th>ROAS</th></tr></thead>
+      <tbody>${platformRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="section">
+    <h2>📦 المخزون والطلبات الحالية</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="label">إجمالي الطلبات</div><div class="value">${totalOrders.toLocaleString('ar-SA')}</div><div class="sub">${cancelled} ملغي</div></div>
+      <div class="kpi"><div class="label">المخزون</div><div class="value">${totalInventory.toLocaleString('ar-SA')}</div><div class="sub">قطعة عبر كل المنصات</div></div>
+      <div class="kpi"><div class="label">المرتجعات</div><div class="value">${(returnedCount?.count ?? 0).toLocaleString('ar-SA')}</div><div class="sub">سجل</div></div>
+      <div class="kpi"><div class="label">عدد المنصات</div><div class="value">${Object.keys(byPlatform).length}</div><div class="sub">قناة بيع نشطة</div></div>
+    </div>
+  </div>
+
+  ${filesRows ? `
+  <div class="section">
+    <h2>📁 الملفات المُعالجة في هذه الدفعة</h2>
+    <table>
+      <thead><tr><th>التقرير</th><th>المنصة</th><th>الصفوف المُعالجة</th></tr></thead>
+      <tbody>${filesRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="footer">
+    تم إعداد هذا التقرير تلقائياً بواسطة <b>Sellpert</b> · للاستفسار تواصل مع فريق الدعم
+  </div>
+
+  <script>setTimeout(() => { try { window.focus(); window.print(); } catch (e) {} }, 600);</script>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=900,height=1100')
+  if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب لطباعة التقرير'); return }
+  win.document.open(); win.document.write(html); win.document.close()
 }
 
 function relativeTime(iso: string | null): string {
@@ -112,6 +278,7 @@ interface FileEntry {
 }
 
 const PLATFORMS = [
+  { value: 'auto',     label: 'كل المنصات (تلقائي)', emoji: '🌐' },
   { value: 'noon',     label: 'نون',         emoji: '🟡' },
   { value: 'trendyol', label: 'تراندايول',   emoji: '🟠' },
   { value: 'amazon',   label: 'أمازون',      emoji: '📦' },
@@ -129,9 +296,9 @@ function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry
     errors.push('نوع الملف غير معروف — تأكد من اسم الملف وأعمدته')
     return { ok: false, warnings, errors }
   }
-  if (parsed.platform !== expectedPlatform) {
-    errors.push(`الملف من منصة "${parsed.platform}" بينما المختار "${expectedPlatform}"`)
-    return { ok: false, warnings, errors }
+  // عند الوضع التلقائي (auto) نقبل أي منصة. غير ذلك نحقّق من المطابقة
+  if (expectedPlatform !== 'auto' && parsed.platform !== expectedPlatform) {
+    warnings.push(`الملف من منصة "${parsed.platform}" — سيُحفظ تحت منصته الفعلية`)
   }
   // Sanity checks per kind
   for (const p of parsed.payloads) {
@@ -346,9 +513,11 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     const allErrors: string[] = []
 
     for (const entry of validFiles) {
+      // المنصة الفعلية من الملف نفسه (لدعم الرفع متعدّد المنصات)
+      const filePlatform = entry.parsed!.platform
       // Insert audit row
       const { data: audit } = await supabase.from('platform_file_uploads').insert({
-        merchant_code: merchantCode, platform, file_name: entry.file.name,
+        merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
         file_type: entry.parsed!.kind, file_size: entry.file.size,
         detected_report: entry.parsed!.label, status: 'processing',
       }).select('id').single()
@@ -519,9 +688,20 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
                 </button>
               )}
               {allDone && !busy && (
-                <span style={{ ...S.btn, background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.3)', color: '#00b894', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
-                  <CheckCircle2 size={14} /> اكتمل
-                </span>
+                <>
+                  <span style={{ ...S.btn, background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.3)', color: '#00b894', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
+                    <CheckCircle2 size={14} /> اكتمل
+                  </span>
+                  <button onClick={() => {
+                    const saved = files.filter(f => f.stage === 'saved' && f.parsed && f.result).map(f => ({
+                      kind: f.parsed!.kind, label: f.parsed!.label, platform: f.parsed!.platform,
+                      rows: f.result!.inserted,
+                    }))
+                    generateMerchantReport(merchantCode, merchant?.name || merchantCode, saved)
+                  }} style={{ ...S.btn, background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FileText size={14} /> تقرير PDF للتاجر
+                  </button>
+                </>
               )}
             </div>
           </div>
