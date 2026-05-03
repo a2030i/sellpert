@@ -182,6 +182,13 @@ async function saveParsedResult(
           onProgress(60 + Math.round((i / itemsToInsert.length) * 35), `حُفظ ${Math.min(i + 500, itemsToInsert.length)}/${itemsToInsert.length}…`)
         }
       }
+      // تحديث سجل التدقيق للـ ASN
+      await supabase.from('platform_file_uploads').update({
+        rows_processed: total, rows_inserted: inserted,
+        status: errors.length ? 'partial' : 'success',
+        error_message: errors.length ? errors.join(' | ').slice(0, 500) : null,
+        finished_at: new Date().toISOString(),
+      }).eq('id', uploadId)
       onProgress(100, 'اكتمل')
       return { inserted, updated, errors }
     }
@@ -365,9 +372,18 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
       } : f))
     }
 
+    // إعادة بناء أداء التاجر بعد الاستيراد
+    if (totalInserted > 0) {
+      try {
+        await supabase.rpc('rebuild_performance_data', { p_merchant_code: merchantCode })
+      } catch (e: any) {
+        allErrors.push(`أداء: ${e.message}`)
+      }
+    }
+
     setBusy(false)
     setGlobalMsg(allErrors.length === 0
-      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف` }
+      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف · تم تحديث الأداء اليومي` }
       : { type: 'err', text: `⚠️ تم حفظ ${totalInserted.toLocaleString()} صف · ${allErrors.length} أخطاء — راجع الملفات أدناه` })
   }
 
