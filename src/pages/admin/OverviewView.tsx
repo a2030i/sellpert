@@ -1,5 +1,7 @@
-﻿import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from './adminShared'
+﻿import { useState, useEffect } from 'react'
+import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from './adminShared'
 import type { Merchant, PerformanceData, SyncLog } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -151,6 +153,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
                       <span style={{ width: 22, height: 22, borderRadius: 6, background: rc + '22', color: rc, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
                       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.name}</span>
+                      <HealthScoreBadge merchantCode={m.merchant_code} />
                       <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{m.merchant_code}</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: rc }}>{fmt(m.gmv)}</span>
                     </div>
@@ -205,3 +208,18 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
   )
 }
 
+
+function HealthScoreBadge({ merchantCode }: { merchantCode: string }) {
+  const [score, setScore] = useState<{ score: number; rating: string } | null>(null)
+  useEffect(() => {
+    supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode })
+      .then(({ data }) => setScore(data))
+  }, [merchantCode])
+  if (!score) return <span style={{ width: 50 }} />
+  const c = score.score >= 80 ? '#00b894' : score.score >= 60 ? '#4cc9f0' : score.score >= 40 ? '#ff9900' : '#e84040'
+  return (
+    <span title={score.rating} style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 12, background: c + '20', color: c, border: `1px solid ${c}40` }}>
+      {score.score}/100
+    </span>
+  )
+}

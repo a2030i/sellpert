@@ -110,17 +110,19 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const platforms = [...new Set(orders.map(o => o.platform))]
 
   function exportCSV() {
-    const h = ['رقم الطلب','المنصة','المنتج','الحالة','الكمية','المبلغ','رسوم المنصة','المدينة','التاريخ']
-    const rows = filtered.map(o => [
-      o.order_id, PLATFORM_MAP[o.platform] || o.platform, o.product_name || '',
-      STATUS_MAP[o.status]?.label || o.status, o.quantity, o.total_amount,
-      o.platform_fee || 0, o.customer_city || '',
-      new Date(o.order_date).toLocaleDateString('ar-SA'),
-    ])
-    const csv = [h, ...rows].map(r => r.join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
-    a.download = `orders-${preset}.csv`; a.click()
+    import('../lib/excel').then(({ exportToExcel }) => {
+      exportToExcel(filtered.map(o => ({
+        'رقم الطلب': o.order_id,
+        'المنصة': PLATFORM_MAP[o.platform] || o.platform,
+        'المنتج': o.product_name || '',
+        'الحالة': STATUS_MAP[o.status]?.label || o.status,
+        'الكمية': o.quantity,
+        'المبلغ': o.total_amount,
+        'رسوم المنصة': o.platform_fee || 0,
+        'المدينة': o.customer_city || '',
+        'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA'),
+      })), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
+    })
   }
 
   if (loading) return (

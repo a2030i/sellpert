@@ -215,6 +215,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
       {/* Profitability panel */}
       <ProfitabilityPanel merchant={merchant} />
+      <InventoryTurnoverCard merchant={merchant} />
+      <PricingSuggestionsPanel merchant={merchant} />
 
 
       {/* Add Product Form */}
@@ -623,4 +625,85 @@ function PKpi({ label, value, sub, color }: { label: string; value: string; sub?
       {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
     </div>
   )
+}
+
+// ─── Inventory Turnover Card ─────────────────────────────────────────────────
+function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any>(null)
+  useEffect(() => {
+    if (!merchant) return
+    supabase.rpc('inventory_turnover', { p_merchant_code: merchant.merchant_code, p_days: 90 })
+      .then(({ data }) => setData(data))
+  }, [merchant?.merchant_code])
+  if (!data || !data.turnover_ratio) return null
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>🔁 معدّل دوران المخزون</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        <div style={kpiBox('#7c6bff')}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>دوران سنوي</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#7c6bff' }}>{Number(data.turnover_ratio).toFixed(1)}×</div>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{Number(data.turnover_ratio) >= 4 ? 'سرعة جيدة' : Number(data.turnover_ratio) >= 2 ? 'متوسط' : 'بطيء'}</div>
+        </div>
+        <div style={kpiBox('#00b894')}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>الإيرادات (90 يوم)</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#00b894' }}>{fmt(Number(data.revenue))}</div>
+        </div>
+        <div style={kpiBox('#ff9900')}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>تكلفة المباع (COGS)</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#ff9900' }}>{fmt(Number(data.cogs))}</div>
+        </div>
+        <div style={kpiBox('#4cc9f0')}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>قيمة المخزون</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#4cc9f0' }}>{fmt(Number(data.avg_inv_value))}</div>
+        </div>
+        <div style={kpiBox('#a598ff')}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>أيام لبيع المخزون</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#a598ff' }}>{data.days_to_sell_all || '—'} يوم</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Pricing Suggestions ─────────────────────────────────────────────────────
+function PricingSuggestionsPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('pricing_suggestions').select('*').eq('merchant_code', merchant.merchant_code).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  const issues = data.filter(d => d.pricing_status !== 'ok')
+  if (issues.length === 0) return null
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>💲 اقتراحات تسعير</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>منتجات سعرها يحتاج مراجعة مقارنة بسعر التاجر</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {issues.slice(0, 8).map((p, i) => {
+          const high = p.pricing_status === 'too_high'
+          const c = high ? '#ff9900' : '#4cc9f0'
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 9 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 12, background: c + '20', color: c, minWidth: 60, textAlign: 'center' }}>
+                {high ? 'مرتفع' : 'منخفض'}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_NAMES[p.platform]} · سعر المنصة {Number(p.platform_price).toFixed(0)} · سعرك {Number(p.my_price).toFixed(0)}</div>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: c }}>
+                {p.deviation_pct > 0 ? '+' : ''}{Number(p.deviation_pct).toFixed(0)}%
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function kpiBox(color: string): React.CSSProperties {
+  return { background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }
 }

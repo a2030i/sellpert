@@ -553,6 +553,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         ))}
       </div>
 
+      {/* ── Restock Recommendations ── */}
+      <RestockWidget merchantCode={merchant?.merchant_code} />
+
       {/* ── Empty state ── */}
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)', marginBottom: 20 }}>
@@ -884,3 +887,50 @@ const S: Record<string, React.CSSProperties> = {
   },
 }
 
+
+// ─── Restock Recommendations Widget ───────────────────────────────────────────
+function RestockWidget({ merchantCode }: { merchantCode?: string }) {
+  const [items, setItems] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    supabase.rpc('restock_recommendations', { p_merchant_code: merchantCode, p_lead_time_days: 14 })
+      .then(({ data }) => setItems((data || []).slice(0, 5)))
+  }, [merchantCode])
+
+  if (items.length === 0) return null
+  const colors: Record<string, string> = { urgent: '#e84040', high: '#ff9900', medium: '#ffd166', low: '#00b894' }
+  const labels: Record<string, string> = { urgent: 'عاجل', high: 'مرتفع', medium: 'متوسط', low: 'منخفض' }
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>🔄 توصيات إعادة التوريد</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>بناءً على سرعة بيعك ومدّة توريد 14 يوم</div>
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text3)' }}>{items.length} منتج</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((it, i) => {
+          const c = colors[it.urgency] || '#7c6bff'
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 10, borderRight: `3px solid ${c}` }}>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 12, background: c + '20', color: c, minWidth: 55, textAlign: 'center' }}>{labels[it.urgency]}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.product_name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                  {it.current_qty} قطعة · سرعة {Number(it.daily_velocity).toFixed(1)}/يوم
+                  {it.days_of_stock !== null && ` · يكفي ${it.days_of_stock} يوم`}
+                </div>
+              </div>
+              <div style={{ textAlign: 'left', flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>اطلب</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: c }}>{it.suggested_order_qty}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

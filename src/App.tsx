@@ -16,6 +16,7 @@ import Requests from './pages/Requests'
 import Statement from './pages/Statement'
 import Marketing from './pages/Marketing'
 import Notifications from './pages/Notifications'
+import { ToastContainer } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import Billing from './pages/Billing'
@@ -365,6 +366,7 @@ export default function App() {
         {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
         {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
       </main>
+      <ToastContainer />
 
       {/* ── Mobile Top Bar ── */}
       {isMobile && (
