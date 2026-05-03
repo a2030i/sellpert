@@ -10,6 +10,8 @@ import ConnectionsView from './admin/ConnectionsView'
 import AiView from './admin/AiView'
 import EntryView from './admin/EntryView'
 import ImportFilesView from './admin/ImportFilesView'
+import InboundView from './admin/InboundView'
+import AdsView from './admin/AdsView'
 import AdminProductsView from './admin/AdminProductsView'
 import AdminRequestsView from './admin/AdminRequestsView'
 import SallaView from './admin/SallaView'
@@ -18,16 +20,16 @@ import RevenueView from './admin/RevenueView'
 import AdminBillingView from './admin/AdminBillingView'
 import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
 import {
-  LayoutDashboard, Users, Tag, Inbox, PenLine, Upload,
+  LayoutDashboard, Users, Tag, Inbox, PenLine, Upload, Truck, Megaphone,
   TrendingUp, CreditCard, Percent, ShoppingBag,
   BarChart2, Key, Sparkles, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -57,6 +59,8 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'requests',  Icon: Inbox,    label: 'طلبات التجار' },
       { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي' },
       { key: 'import',    Icon: Upload,   label: 'استيراد ملفات' },
+      { key: 'inbound',   Icon: Truck,    label: 'الإرساليات والاستلام' },
+      { key: 'ads',       Icon: Megaphone, label: 'أداء الإعلانات' },
     ],
   },
   {
@@ -331,6 +335,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'ai'          && <AiView merchants={merchantOnly} />}
         {view === 'entry'       && <EntryView merchants={merchantOnly} />}
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
+        {view === 'inbound'     && <InboundView merchants={merchantOnly} />}
+        {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'requests'    && <AdminRequestsView merchants={merchantOnly} />}
         {view === 'fees'        && <FeesView />}

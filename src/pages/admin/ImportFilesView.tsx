@@ -372,18 +372,22 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
       } : f))
     }
 
-    // إعادة بناء أداء التاجر بعد الاستيراد
+    // إعادة بناء كل البيانات المشتقّة (طلبات أمازون + أسعار المنصات + المرتجعات + الأداء اليومي)
+    let derivedSummary = ''
     if (totalInserted > 0) {
       try {
-        await supabase.rpc('rebuild_performance_data', { p_merchant_code: merchantCode })
+        const { data: derived } = await supabase.rpc('rebuild_all_derived_data', { p_merchant_code: merchantCode })
+        if (derived) {
+          derivedSummary = ` · ${derived.amazon_orders_derived || 0} طلب أمازون · ${derived.platform_prices_derived || 0} سعر · ${derived.returns_derived || 0} مرتجع`
+        }
       } catch (e: any) {
-        allErrors.push(`أداء: ${e.message}`)
+        allErrors.push(`اشتقاق: ${e.message}`)
       }
     }
 
     setBusy(false)
     setGlobalMsg(allErrors.length === 0
-      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف · تم تحديث الأداء اليومي` }
+      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}` }
       : { type: 'err', text: `⚠️ تم حفظ ${totalInserted.toLocaleString()} صف · ${allErrors.length} أخطاء — راجع الملفات أدناه` })
   }
 

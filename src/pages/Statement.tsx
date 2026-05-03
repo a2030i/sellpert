@@ -267,10 +267,98 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           )}
 
+          {/* Account transactions ledger */}
+          <TransactionsLedger merchant={merchant} month={month} year={year} />
+
           {/* Returns section */}
           <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={load} />
         </>
       )}
+    </div>
+  )
+}
+
+// ── Account Transactions Ledger ──────────────────────────────────────────────
+function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | null; month: number; year: number }) {
+  const [tx, setTx] = useState<any[]>([])
+  const [filter, setFilter] = useState<'all' | 'amazon' | 'trendyol'>('all')
+  const [loading, setLoading] = useState(false)
+  useEffect(() => { if (merchant) loadTx() /* eslint-disable-line */ }, [merchant?.merchant_code, month, year])
+  async function loadTx() {
+    if (!merchant) return
+    setLoading(true)
+    const start = `${year}-${String(month).padStart(2,'0')}-01`
+    const endDate = new Date(year, month, 0)
+    const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}T23:59:59`
+    const { data } = await supabase.from('account_transactions')
+      .select('platform, transaction_date, transaction_type, order_id, description, debit, credit, net_amount, currency, amount_description')
+      .eq('merchant_code', merchant.merchant_code)
+      .gte('transaction_date', start).lte('transaction_date', end)
+      .order('transaction_date', { ascending: false })
+      .limit(500)
+    setTx(data || [])
+    setLoading(false)
+  }
+  const filtered = filter === 'all' ? tx : tx.filter(r => r.platform === filter)
+  const totals = useMemo(() => filtered.reduce((a, r) => ({
+    debit: a.debit + (Number(r.debit) || 0),
+    credit: a.credit + (Number(r.credit) || 0),
+    net: a.net + (Number(r.net_amount) || 0),
+  }), { debit: 0, credit: 0, net: 0 }), [filtered])
+
+  if (loading) return null
+  if (tx.length === 0) return null
+
+  return (
+    <div style={{ ...S.card, marginBottom: 20, overflow: 'hidden', padding: 0 }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>🧾 كشف المعاملات المالية ({filtered.length})</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['all', 'amazon', 'trendyol'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '5px 12px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', background: filter === f ? 'var(--accent)' : 'var(--surface2)',
+              color: filter === f ? '#fff' : 'var(--text2)',
+            }}>
+              {f === 'all' ? 'الكل' : f === 'amazon' ? 'أمازون' : 'تراندايول'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ padding: '12px 20px', display: 'flex', gap: 24, fontSize: 12, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <span>الدائن: <b style={{ color: '#00e5b0' }}>{fmt(totals.credit)}</b></span>
+        <span>المدين: <b style={{ color: '#ff4d6d' }}>{fmt(totals.debit)}</b></span>
+        <span>الصافي: <b style={{ color: totals.net >= 0 ? '#00e5b0' : '#ff4d6d' }}>{fmt(totals.net)}</b></span>
+      </div>
+      <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead style={{ position: 'sticky', top: 0, background: 'var(--surface2)' }}>
+            <tr>
+              {['التاريخ', 'المنصة', 'النوع', 'الوصف', 'رقم الطلب', 'مدين', 'دائن', 'الصافي'].map(h => (
+                <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r, i) => {
+              const d = r.transaction_date ? new Date(r.transaction_date).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) : '—'
+              const meta = PLATFORM_META[r.platform]
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ ...S.td, fontSize: 11, whiteSpace: 'nowrap' }}>{d}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: meta?.color, fontWeight: 700 }}>{meta?.label || r.platform}</td>
+                  <td style={{ ...S.td, fontSize: 11 }}>{r.transaction_type || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text2)' }} title={r.description || ''}>{r.description || r.amount_description || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{r.order_id || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: '#ff4d6d', fontFamily: 'monospace' }}>{r.debit > 0 ? r.debit.toLocaleString() : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: '#00e5b0', fontFamily: 'monospace' }}>{r.credit > 0 ? r.credit.toLocaleString() : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, fontWeight: 700, color: r.net_amount >= 0 ? 'var(--text)' : '#ff4d6d', fontFamily: 'monospace' }}>{Number(r.net_amount || 0).toLocaleString()}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
