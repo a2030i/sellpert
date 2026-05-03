@@ -267,8 +267,17 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           )}
 
+          {/* P&L Statement */}
+          <PnLPanel merchant={merchant} year={year} month={month} />
+
+          {/* Revenue Forecast */}
+          <RevenueForecastPanel merchant={merchant} />
+
           {/* Cash flow forecast */}
           <CashFlowForecast merchant={merchant} />
+
+          {/* Return reasons deep dive */}
+          <ReturnReasonsBreakdown merchant={merchant} />
 
           {/* Account transactions ledger */}
           <TransactionsLedger merchant={merchant} month={month} year={year} />
@@ -685,6 +694,124 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── P&L Statement ────────────────────────────────────────────────────────────
+function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: number; month: number }) {
+  const [data, setData] = useState<any>(null)
+  useEffect(() => {
+    if (!merchant) return
+    supabase.rpc('pnl_statement', { p_merchant_code: merchant.merchant_code, p_year: year, p_month: month })
+      .then(({ data }) => setData(data))
+  }, [merchant?.merchant_code, year, month])
+  if (!data || Number(data.revenue) === 0) return null
+  const lines = [
+    { label: 'الإيرادات', value: Number(data.revenue), bold: true, color: 'var(--text)' },
+    { label: 'تكلفة البضاعة المباعة (COGS)', value: -Number(data.cogs), color: '#ff4d6d' },
+    null,
+    { label: 'الربح الإجمالي', value: Number(data.gross_profit), bold: true, color: 'var(--accent2)', sub: data.gross_margin_pct ? `هامش ${data.gross_margin_pct}%` : '' },
+    { label: 'رسوم المنصات', value: -Number(data.platform_fees), color: '#ff4d6d' },
+    { label: 'الإنفاق الإعلاني', value: -Number(data.ad_spend), color: '#ff4d6d' },
+    { label: 'المرتجعات', value: -Number(data.returns), color: '#ffd166' },
+    null,
+    { label: 'صافي الدخل', value: Number(data.net_income), bold: true, large: true, color: Number(data.net_income) >= 0 ? 'var(--accent2)' : '#ff4d6d', sub: data.net_margin_pct ? `هامش صافي ${data.net_margin_pct}%` : '' },
+  ] as any[]
+  return (
+    <div style={{ ...S.card, padding: 0, marginBottom: 20, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+        💼 قائمة الأرباح والخسائر (P&L)
+      </div>
+      <div style={{ padding: 20 }}>
+        {lines.map((row, i) => row === null ? (
+          <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
+        ) : (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0' }}>
+            <div>
+              <span style={{ fontSize: row.bold ? 13 : 12, fontWeight: row.bold ? 700 : 500, color: row.bold ? 'var(--text)' : 'var(--text2)' }}>{row.label}</span>
+              {row.sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{row.sub}</div>}
+            </div>
+            <span style={{ fontSize: row.large ? 20 : row.bold ? 14 : 13, fontWeight: row.bold ? 800 : 600, color: row.color, fontFamily: 'monospace' }}>
+              {row.value < 0 ? '−' : ''}{fmt(Math.abs(row.value))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Revenue Forecast ─────────────────────────────────────────────────────────
+function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any>(null)
+  useEffect(() => {
+    if (!merchant) return
+    supabase.rpc('revenue_forecast', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data))
+  }, [merchant?.merchant_code])
+  if (!data || !Number(data.avg_daily)) return null
+  const growth = data.growth_rate_pct
+  return (
+    <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📈 توقّع الإيرادات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
+        مبني على المتوسط اليومي للـ 30 يوم الماضية
+        {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? '#00b894' : '#e84040', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+        <ForecastBox label="آخر 30 يوم (فعلي)" value={fmt(Number(data.last_30_sales))} color="#7c6bff" />
+        <ForecastBox label="الـ 30 يوم القادمة" value={fmt(Number(data.forecast_30))} color="#00b894" />
+        <ForecastBox label="الـ 60 يوم القادمة" value={fmt(Number(data.forecast_60))} color="#4cc9f0" />
+        <ForecastBox label="الـ 90 يوم القادمة" value={fmt(Number(data.forecast_90))} color="#a598ff" />
+      </div>
+    </div>
+  )
+}
+
+function ForecastBox({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color, marginTop: 4 }}>{value}</div>
+    </div>
+  )
+}
+
+// ── Return Reasons Deep Dive ──────────────────────────────────────────────────
+function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.rpc('return_reasons_breakdown', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+  const labels: Record<string, string> = {
+    customer: 'ألغاها العميل', trendyol: 'ألغتها المنصة', seller: 'ألغيتها أنت',
+    dislike: 'لم يعجبني', defective: 'منتج معيب', wrong_product: 'منتج خاطئ',
+    changed_mind: 'غيّر رأيه', mismatch: 'لا يطابق الصورة', bad_quality: 'جودة سيئة',
+    too_small: 'صغير جداً', too_large: 'كبير جداً', wrong_order: 'طلب خاطئ',
+    not_delivered: 'لم يُسلَّم', shipping_failed: 'فشل الشحن',
+    transit: 'إرجاع أثناء النقل', no_tracking: 'بدون تتبع',
+    unfulfilled: 'غير مستوفى', late_delivery: 'تأخر التسليم',
+    no_confirm: 'لا تأكيد عميل', compensation: 'تعويضات', other: 'غير ذلك',
+  }
+  return (
+    <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>🔬 تحليل أسباب المرتجعات</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {data.slice(0, 10).map((r, i) => {
+          const pct = Number(r.percentage)
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ minWidth: 130, fontSize: 12, fontWeight: 600 }}>{labels[r.reason] || r.reason}</span>
+              <div style={{ flex: 1, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(pct * 2, 100)}%`, background: '#ff6b6b', borderRadius: 4 }} />
+              </div>
+              <span style={{ minWidth: 60, textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#ff6b6b' }}>{r.count} ({pct}%)</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

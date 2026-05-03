@@ -218,6 +218,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       <InventoryTurnoverCard merchant={merchant} />
       <PricingSuggestionsPanel merchant={merchant} />
       <VariantPerformancePanel merchant={merchant} />
+      <BrandPerformancePanel merchant={merchant} />
+      <SkuLifecyclePanel merchant={merchant} />
 
       {/* Add Product Form */}
       {showAdd && (
@@ -712,6 +714,72 @@ function PricingSuggestionsPanel({ merchant }: { merchant: Merchant | null }) {
 
 function kpiBox(color: string): React.CSSProperties {
   return { background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }
+}
+
+// ─── Brand Performance ────────────────────────────────────────────────────────
+function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('brand_performance').select('*').eq('merchant_code', merchant.merchant_code).order('revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🏷️ أداء الماركات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>أداء كل ماركة عبر المنصات</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr>{['الماركة','المنصة','الوحدات المباعة','الإيراد','صافي الإيراد','نسبة الإرجاع'].map(h => (
+            <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {data.map((b, i) => {
+              const ret = Number(b.return_rate_pct) || 0
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 700 }}>{b.brand}</td>
+                  <td style={{ padding: '8px 12px', color: PLATFORM_COLORS[b.platform] || 'var(--text3)', fontWeight: 600 }}>{PLATFORM_NAMES[b.platform] || b.platform}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: '#00b894' }}>{b.units_sold}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(b.revenue)).toLocaleString('ar-SA')}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: 'var(--text2)' }}>{Math.round(Number(b.net_revenue)).toLocaleString('ar-SA')}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? '#e84040' : ret > 5 ? '#ff9900' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── SKU Lifecycle ────────────────────────────────────────────────────────────
+function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('sku_lifecycle').select('*').eq('merchant_code', merchant.merchant_code).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+  const counts: any = { launching: 0, new_no_sales: 0, growing: 0, mature: 0, dormant: 0, unknown: 0 }
+  for (const d of data) counts[d.lifecycle_stage]++
+  const labels: any = { launching: 'إطلاق ناجح', new_no_sales: 'جديد بدون بيع', growing: 'نامي', mature: 'مُنضج', dormant: 'خامل', unknown: 'غير محدّد' }
+  const colors: any = { launching: '#00b894', new_no_sales: '#ff9900', growing: '#7c6bff', mature: '#4cc9f0', dormant: '#e84040', unknown: '#a598ff' }
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔄 دورة حياة المنتجات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تصنيف منتجاتك حسب العمر والأداء</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+        {Object.keys(labels).filter(k => counts[k] > 0).map(k => (
+          <div key={k} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderTop: `3px solid ${colors[k]}` }}>
+            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{labels[k]}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: colors[k] }}>{counts[k]}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ─── Variant Performance ──────────────────────────────────────────────────────
