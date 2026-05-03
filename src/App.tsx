@@ -30,6 +30,7 @@ const Billing       = lazy(() => import('./pages/Billing'))
 const Marketing     = lazy(() => import('./pages/Marketing'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const ProductDetail = lazy(() => import('./pages/ProductDetail'))
+const ProductCompare = lazy(() => import('./pages/ProductCompare'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -38,9 +39,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
 type NavGroup = { key: string; label: string; items: NavItem[] }
@@ -409,7 +410,8 @@ export default function App() {
           {view === 'integrations' && <Integrations merchant={activeMerchant} />}
           {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
           {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
-          {view === 'product-detail' && <ProductDetail merchant={activeMerchant} />}
+          {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
+          {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
           {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
         </Suspense>
       </main>

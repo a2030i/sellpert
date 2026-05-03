@@ -49,8 +49,10 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
         {isConnected
           ? <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {msg && <span style={{ fontSize: 12, color: '#00b894', fontWeight: 600 }}>{msg}</span>}
-              <button onClick={requestSync} disabled={syncing} style={{ background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.25)', color: '#00b894', padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.6 : 1 }}>
-                {syncing ? '⟳ جارٍ...' : '⟳ مزامنة الآن'}
+              <button onClick={requestSync} disabled={syncing} style={{ background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.25)', color: '#00b894', padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', animation: syncing ? 'spin 0.9s linear infinite' : 'none' }}>⟳</span>
+                {syncing ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
+                <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
               </button>
             </div>
           : <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg,#00b894,#00d4a8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

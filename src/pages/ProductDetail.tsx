@@ -92,6 +92,11 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <Kpi label="ROAS" value={profitability?.roas ? Number(profitability.roas).toFixed(2) + 'x' : '—'} color="#ff9900" />
       </div>
 
+      {/* Profitability Simulator */}
+      {profitability && Number(profitability.units_sold) > 0 && (
+        <ProfitSimulator product={product} profitability={profitability} />
+      )}
+
       {/* Inventory by platform */}
       {inventory.length > 0 && (
         <Section title="📦 المخزون حسب المنصة">
@@ -216,3 +221,79 @@ function Section({ title, children }: { title: string; children: any }) {
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }
 const td: React.CSSProperties = { padding: '8px 10px', fontSize: 12 }
 const btnPrimary: React.CSSProperties = { background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+
+// ─── Profitability Simulator ──────────────────────────────────────────────────
+function ProfitSimulator({ product, profitability }: { product: any; profitability: any }) {
+  const [pricePct, setPricePct] = useState(0)
+  const [adPct, setAdPct] = useState(0)
+  const [costPct, setCostPct] = useState(0)
+  const [demandElasticity] = useState(-1.5)
+
+  const baseRevenue = Number(profitability.revenue) || 0
+  const baseCogs    = Number(profitability.total_cost) || 0
+  const baseAd      = Number(profitability.ad_spend) || 0
+  const baseFees    = Number(profitability.platform_fees) || 0
+  const baseUnits   = Number(profitability.units_sold) || 1
+
+  // Demand response: لو السعر زاد X% الطلب يقل elasticity*X
+  const newUnits = Math.max(0, baseUnits * (1 + (pricePct / 100) * demandElasticity))
+  const unitPrice = (baseRevenue / baseUnits) * (1 + pricePct / 100)
+  const newRevenue = newUnits * unitPrice
+  const newCogs = newUnits * (baseCogs / baseUnits) * (1 + costPct / 100)
+  const newAd = baseAd * (1 + adPct / 100)
+  const newFees = newRevenue * (baseFees / Math.max(baseRevenue, 1))
+  const newProfit = newRevenue - newCogs - newAd - newFees
+  const baseProfit = baseRevenue - baseCogs - baseAd - baseFees
+  const profitDelta = newProfit - baseProfit
+  const profitPct = baseProfit !== 0 ? (profitDelta / Math.abs(baseProfit)) * 100 : 0
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🧪 محاكي الربحية (What-If)</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>جرّب تغيير الأسعار والإعلانات وشوف تأثيرها على الربح (مرونة الطلب: {Math.abs(demandElasticity)}x)</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
+        <SliderInput label="تغيير السعر" value={pricePct} onChange={setPricePct} min={-30} max={50} suffix="%" color="#7c6bff" />
+        <SliderInput label="تغيير الإعلانات" value={adPct} onChange={setAdPct} min={-100} max={100} suffix="%" color="#ff9900" />
+        <SliderInput label="تغيير التكلفة" value={costPct} onChange={setCostPct} min={-30} max={30} suffix="%" color="#4cc9f0" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        <SimBox label="الإيراد الجديد" value={fmtCurrency(newRevenue)} sub={`${newUnits.toFixed(0)} وحدة`} color="#7c6bff" />
+        <SimBox label="الربح الحالي" value={fmtCurrency(baseProfit)} color="var(--text2)" />
+        <SimBox label="الربح الجديد" value={fmtCurrency(newProfit)} color={newProfit >= baseProfit ? '#00b894' : '#e84040'} />
+        <SimBox label="الفرق" value={(profitDelta >= 0 ? '+' : '') + fmtCurrency(Math.abs(profitDelta))} sub={(profitDelta >= 0 ? '▲' : '▼') + ' ' + Math.abs(profitPct).toFixed(0) + '%'} color={profitDelta >= 0 ? '#00b894' : '#e84040'} />
+      </div>
+
+      {(pricePct !== 0 || adPct !== 0 || costPct !== 0) && (
+        <div style={{ marginTop: 14, padding: '10px 14px', background: profitDelta >= 0 ? 'rgba(0,184,148,0.06)' : 'rgba(232,64,64,0.06)', borderRadius: 9, fontSize: 12, color: 'var(--text2)' }}>
+          💡 {profitDelta >= 0
+            ? `بهذا التغيير، ربحك يزيد ${fmtCurrency(profitDelta)} (${profitPct.toFixed(0)}%). جرّب تطبيقه على المنتج.`
+            : `هذا التغيير يخفّض ربحك ${fmtCurrency(Math.abs(profitDelta))}. أعد المحاولة.`}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SliderInput({ label, value, onChange, min, max, suffix, color }: { label: string; value: number; onChange: (n: number) => void; min: number; max: number; suffix?: string; color: string }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color }}>{value > 0 ? '+' : ''}{value}{suffix}</span>
+      </div>
+      <input type="range" min={min} max={max} value={value} step={1} onChange={e => onChange(Number(e.target.value))} style={{ width: '100%', accentColor: color }} />
+    </div>
+  )
+}
+
+function SimBox({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: 'var(--surface2)', borderRadius: 9, padding: 10, borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color, marginTop: 3 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+}

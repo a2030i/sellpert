@@ -21,13 +21,21 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [platform, setPlatform] = useState('all')
-  const [status, setStatus] = useState('all')
-  const [search, setSearch] = useState('')
-  const [preset, setPreset] = useState('last30')
-  const [tab, setTab] = useState<'list' | 'compare' | 'chart'>('list')
+  // Filter persistence — حفظ الفلاتر في localStorage
+  const FK = 'sellpert-orders-filters'
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
+  const [platform, setPlatform] = useState(saved.platform || 'all')
+  const [status, setStatus]     = useState(saved.status   || 'all')
+  const [search, setSearch]     = useState(saved.search   || '')
+  const [preset, setPreset]     = useState(saved.preset   || 'last30')
+  const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const isMobile = useMobile()
+
+  useEffect(() => {
+    localStorage.setItem(FK, JSON.stringify({ platform, status, search, preset, tab }))
+  }, [platform, status, search, preset, tab])
 
   useEffect(() => {
     if (!merchant) return

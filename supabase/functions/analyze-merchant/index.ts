@@ -271,12 +271,24 @@ ${JSON.stringify(dataSummary, null, 2)}
 
   const aiJson = await aiRes.json()
   const rawContent = aiJson.choices?.[0]?.message?.content || '{}'
+  const finishReason = aiJson.choices?.[0]?.finish_reason
   let content: Record<string, unknown>
   try {
     const cleaned = rawContent.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
     content = JSON.parse(cleaned)
-  } catch {
-    content = { summary: 'تعذّر تحليل البيانات — يرجى الضغط على تحديث مجدداً.', recommendations: [] }
+  } catch (parseErr: any) {
+    // سبب واضح للفشل
+    let reason = 'الذكاء الاصطناعي رجّع نص غير صالح'
+    if (finishReason === 'length') reason = 'النص قُطع لأنه طويل (تجاوز الـ tokens) — جرّب تقليل البيانات'
+    else if (finishReason === 'content_filter') reason = 'الذكاء الاصطناعي رفض المحتوى — راجع البيانات'
+    else if (!rawContent || rawContent === '{}') reason = 'الذكاء الاصطناعي ما رجّع شي — قد يكون المفتاح منتهي أو الخدمة موقوفة'
+    else if (rawContent.length < 50) reason = `استجابة قصيرة جداً (${rawContent.length} حرف): ${rawContent.slice(0, 200)}`
+    else reason = `JSON غير صالح: ${parseErr.message?.slice(0, 100) || 'unknown'}. النص: ${rawContent.slice(0, 150)}…`
+    content = {
+      summary: '❌ ' + reason,
+      recommendations: [],
+      _debug: { finish_reason: finishReason, raw_preview: rawContent.slice(0, 300), parse_error: parseErr.message },
+    }
   }
 
   const { data: saved } = await adminClient.from('ai_insights').insert({
