@@ -23,15 +23,30 @@ export const xlsxDate = (v: any): string | null => {
     const d = new Date(Math.round((v - 25569) * 86400 * 1000))
     if (!isNaN(d.getTime())) return d.toISOString()
   }
-  const d = new Date(String(v))
-  if (!isNaN(d.getTime())) return d.toISOString()
-  // dd.mm.yyyy or dd/mm/yyyy
-  const m = String(v).match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})/)
+  const str = String(v).trim()
+
+  // ISO 8601 (yyyy-mm-dd or yyyy-mm-ddThh:mm:ss…) — استخدم Date مباشرة
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(str)) {
+    const d = new Date(str)
+    if (!isNaN(d.getTime())) return d.toISOString()
+  }
+
+  // dd/mm/yyyy أو dd.mm.yyyy أو dd-mm-yyyy (الصيغة العربية/السعودية) — أولوية على Date لتجنب التفسير الأمريكي MM/DD
+  const m = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/)
   if (m) {
-    const y = m[3].length === 2 ? '20' + m[3] : m[3]
-    const dt = new Date(`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`)
+    const day  = m[1].padStart(2, '0')
+    const mon  = m[2].padStart(2, '0')
+    const year = m[3].length === 2 ? '20' + m[3] : m[3]
+    const hh   = (m[4] || '0').padStart(2, '0')
+    const mm   = (m[5] || '0').padStart(2, '0')
+    const ss   = (m[6] || '0').padStart(2, '0')
+    const dt = new Date(`${year}-${mon}-${day}T${hh}:${mm}:${ss}Z`)
     if (!isNaN(dt.getTime())) return dt.toISOString()
   }
+
+  // ملاذ أخير: ثقة في Date (للصيغ الأخرى مثل "Apr 12, 2026")
+  const d = new Date(str)
+  if (!isNaN(d.getTime())) return d.toISOString()
   return null
 }
 
