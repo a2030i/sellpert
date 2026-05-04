@@ -250,7 +250,7 @@ async function expandIfZip(file: File): Promise<File[]> {
     const out: File[] = []
     for (const entry of Object.values(zip.files)) {
       if (entry.dir) continue
-      if (!/\.(csv|xlsx|xls|txt|tsv)$/i.test(entry.name)) continue
+      if (!/\.(csv|xlsx|xlsm|xls|txt|tsv)$/i.test(entry.name)) continue
       const blob = await entry.async('blob')
       const cleanName = entry.name.split('/').pop() || entry.name
       out.push(new File([blob], cleanName, { type: blob.type }))
@@ -648,7 +648,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             }}>
               <Upload size={14} />
               اختيار الملفات
-              <input type="file" multiple accept=".csv,.xlsx,.xls,.txt,.tsv,.zip"
+              <input type="file" multiple accept=".csv,.xlsx,.xlsm,.xls,.txt,.tsv,.zip"
                 style={{ display: 'none' }} disabled={busy}
                 onChange={e => { onAddFiles(e.target.files); e.target.value = '' }} />
             </label>
