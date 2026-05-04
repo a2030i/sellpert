@@ -15,7 +15,6 @@ import AdsView from './admin/AdsView'
 import OperationsView from './admin/OperationsView'
 import TasksBoardView from './admin/TasksBoardView'
 import WhatsAppManagerView from './admin/WhatsAppManagerView'
-import AmazonListingView from './admin/AmazonListingView'
 import AuditLogView from './admin/AuditLogView'
 import AdminProductsView from './admin/AdminProductsView'
 import AdminRequestsView from './admin/AdminRequestsView'
@@ -32,9 +31,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'amazon-listing' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'amazon-listing', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -69,7 +68,6 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'ads',        Icon: Megaphone, label: 'أداء الإعلانات' },
       { key: 'operations', Icon: Truck,     label: 'العمليات والشحن' },
       { key: 'whatsapp',       Icon: Activity,    label: 'إدارة الواتساب' },
-      { key: 'amazon-listing', Icon: ShoppingBag, label: 'مولّد قوائم Amazon' },
     ],
   },
   {
@@ -351,7 +349,6 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'operations'  && <OperationsView merchants={merchantOnly} />}
         {view === 'whatsapp'    && <WhatsAppManagerView merchants={merchantOnly} />}
-        {view === 'amazon-listing' && <AmazonListingView merchants={merchantOnly} />}
         {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
