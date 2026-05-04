@@ -217,6 +217,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       <ProfitabilityPanel merchant={merchant} />
       <InventoryTurnoverCard merchant={merchant} />
       <PricingSuggestionsPanel merchant={merchant} />
+      <BuyBoxWarningsPanel merchant={merchant} />
+      <CrossPlatformPanel merchant={merchant} />
       <VariantPerformancePanel merchant={merchant} />
       <BrandPerformancePanel merchant={merchant} />
       <SkuLifecyclePanel merchant={merchant} />
@@ -816,6 +818,107 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Buy Box Warnings ─────────────────────────────────────────────────────────
+function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('buybox_warnings').select('*').eq('merchant_code', merchant.merchant_code).order('overprice_pct', { ascending: false }).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+  const losing = data.filter(d => d.buybox_status === 'losing')
+  const atRisk = data.filter(d => d.buybox_status === 'at_risk')
+  if (losing.length === 0 && atRisk.length === 0) return null
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📦 تنبيه Buy Box</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>منتجاتك اللي سعرها أعلى من سعر باي بوكس — تخسر الصندوق</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
+        <div style={{ background: 'rgba(232,64,64,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #e84040' }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)' }}>تخسر الصندوق</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#e84040' }}>{losing.length}</div>
+        </div>
+        <div style={{ background: 'rgba(255,153,0,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #ff9900' }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)' }}>على وشك الخسارة</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ff9900' }}>{atRisk.length}</div>
+        </div>
+        <div style={{ background: 'rgba(0,184,148,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #00b894' }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)' }}>تربح الصندوق</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#00b894' }}>{data.length - losing.length - atRisk.length}</div>
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr>{['المنتج','سعرك','سعر باي بوكس','الفرق','الحالة'].map(h => (
+            <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {[...losing, ...atRisk].slice(0, 10).map((p, i) => {
+              const c = p.buybox_status === 'losing' ? '#e84040' : '#ff9900'
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 12px', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Number(p.my_price).toFixed(0)}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: 'var(--text3)' }}>{Number(p.buybox_price).toFixed(0)}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: c }}>+{Number(p.overprice_pct).toFixed(1)}%</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: c + '20', color: c }}>
+                      {p.buybox_status === 'losing' ? '✗ خاسر' : '⚠ خطر'}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Cross-Platform Performance ───────────────────────────────────────────────
+function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchant) return
+    supabase.from('cross_platform_product_perf').select('*').eq('merchant_code', merchant.merchant_code).order('total_revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
+  }, [merchant?.merchant_code])
+  if (data.length === 0) return null
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔀 المنتج عبر المنصات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>المنتجات التي تباع على أكثر من منصة — قارن أين تبيع أحسن</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {data.map((p, i) => {
+          const platforms = p.by_platform as Record<string, any>
+          const best = Object.entries(platforms).reduce((a: any, [k, v]: any) => (v.revenue > (a.rev || 0) ? { platform: k, rev: v.revenue } : a), {})
+          return (
+            <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.product_name}</div>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[best.platform] || '#7c6bff') + '20', color: PLATFORM_COLORS[best.platform] || '#7c6bff', fontWeight: 800, flexShrink: 0 }}>
+                  🏆 {PLATFORM_NAMES[best.platform] || best.platform}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.entries(platforms).map(([plat, v]: any) => (
+                  <div key={plat} style={{ flex: 1, minWidth: 120, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#7c6bff'}` }}>
+                    <div style={{ fontSize: 10, color: PLATFORM_COLORS[plat] || 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[plat] || plat}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, marginTop: 3 }}>{Math.round(v.revenue).toLocaleString('ar-SA')} ر.س</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)' }}>{v.units} وحدة · {Number(v.avg_price).toFixed(0)} متوسط</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

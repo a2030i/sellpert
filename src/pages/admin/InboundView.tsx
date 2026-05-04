@@ -100,6 +100,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
 
           {/* Supply chain health summary */}
           <SupplyChainHealth merchantCode={merchantCode} />
+          <SupplierQualityTrend merchantCode={merchantCode} />
 
           {/* QC alerts */}
           {totals.qcFail > 0 && (
@@ -296,6 +297,70 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
                 <span style={{ fontFamily: 'monospace', color: 'var(--text3)' }}>{f.sku || f.partner_sku}</span>
                 <span style={{ flex: 1, color: 'var(--text2)' }}>{f.reject_reason || '—'}</span>
                 <span style={{ fontWeight: 700, color: '#e84040' }}>{f.grn_quantity} قطعة</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Supplier Quality Trend ───────────────────────────────────────────────────
+function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
+  const [data, setData] = useState<any[]>([])
+  const [topFailing, setTopFailing] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    Promise.all([
+      supabase.from('supplier_quality_over_time').select('*').eq('merchant_code', merchantCode).order('month'),
+      supabase.from('top_failing_skus').select('*').eq('merchant_code', merchantCode).order('total_rejected_qty', { ascending: false }).limit(10),
+    ]).then(([a, b]) => {
+      setData(a.data || [])
+      setTopFailing(b.data || [])
+    })
+  }, [merchantCode])
+  if (data.length === 0 && topFailing.length === 0) return null
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>📊 جودة الموردين عبر الزمن</div>
+      {data.length > 0 && (
+        <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead><tr>{['الشهر','المنصة','إجمالي السطور','مرفوض','إجمالي الكمية','الكمية المرفوضة','معدل الرفض'].map(h => (
+              <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+            ))}</tr></thead>
+            <tbody>
+              {data.map((r, i) => {
+                const rate = Number(r.failure_rate_pct) || 0
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 700 }}>{new Date(r.month).toLocaleDateString('ar-SA-u-ca-gregory', { month: 'short', year: 'numeric' })}</td>
+                    <td style={{ padding: '8px 12px' }}>{r.platform}</td>
+                    <td style={{ padding: '8px 12px' }}>{r.total_lines}</td>
+                    <td style={{ padding: '8px 12px', color: r.failed_lines > 0 ? '#e84040' : 'var(--text3)' }}>{r.failed_lines}</td>
+                    <td style={{ padding: '8px 12px' }}>{r.total_qty}</td>
+                    <td style={{ padding: '8px 12px', color: r.failed_qty > 0 ? '#e84040' : 'var(--text3)' }}>{r.failed_qty}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 700, color: rate > 5 ? '#e84040' : rate > 2 ? '#ff9900' : '#00b894' }}>{rate.toFixed(2)}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {topFailing.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً (top 10)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {topFailing.map((r, i) => (
+              <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text3)' }}>{r.sku || r.partner_sku}</span>
+                <span style={{ flex: 1, color: 'var(--text2)', fontSize: 10 }}>{(r.reasons || []).join(' / ')}</span>
+                <span style={{ display: 'flex', gap: 8 }}>
+                  <span style={{ color: 'var(--text3)' }}>{r.reject_events} مرة</span>
+                  <span style={{ fontWeight: 700, color: '#e84040' }}>{r.total_rejected_qty} قطعة</span>
+                </span>
               </div>
             ))}
           </div>
