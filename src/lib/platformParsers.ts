@@ -101,6 +101,12 @@ export function detectFileKind(input: FileInput): string {
   const wb = input.workbook!
   const sheets = wb.SheetNames
 
+  // --- Amazon Inventory Template (قالب رفع منتجات، ليس بيانات) ---
+  // يحتوي على Sheets: Instructions, Template, Browse data, Valid Values, Dropdown Lists, AttributePTDMAP
+  if (sheets.includes('Template') && sheets.includes('Data Definitions') && sheets.includes('Valid Values')) {
+    return 'amazon_listing_template'
+  }
+
   // --- Noon ASN (products report) ---
   if (sheets.length === 1) {
     const ws = wb.Sheets[sheets[0]]
@@ -895,6 +901,9 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'amazon_transactions':  return parseAmazonTransactions(csvText!, merchantCode)
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
       case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
+      case 'amazon_listing_template':
+        return errResult('amazon_listing_template', 'amazon', file.name,
+          'هذا قالب رفع منتجات Amazon (ليس تقرير بيانات). استخدم صفحة "📤 مولّد قوائم Amazon" في الإدارة لرفع منتجات بهذا القالب.')
       default:                     return errResult('unknown', 'other', file.name, 'نوع الملف غير معروف — تأكد أنه تقرير رسمي من المنصة')
     }
   } catch (e: any) {
