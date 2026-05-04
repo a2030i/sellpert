@@ -13,6 +13,7 @@ import ImportFilesView from './admin/ImportFilesView'
 import InboundView from './admin/InboundView'
 import AdsView from './admin/AdsView'
 import OperationsView from './admin/OperationsView'
+import TasksBoardView from './admin/TasksBoardView'
 import AuditLogView from './admin/AuditLogView'
 import AdminProductsView from './admin/AdminProductsView'
 import AdminRequestsView from './admin/AdminRequestsView'
@@ -29,9 +30,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -58,7 +59,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'merchants', Icon: Users,    label: 'التجار' },
       { key: 'products',  Icon: Tag,      label: 'المنتجات والأسعار' },
-      { key: 'requests',  Icon: Inbox,    label: 'طلبات التجار' },
+      { key: 'tasks',     Icon: Inbox,    label: 'لوحة المهام' },
+      { key: 'requests',  Icon: Inbox,    label: 'طلبات قديمة' },
       { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي' },
       { key: 'import',    Icon: Upload,   label: 'استيراد ملفات' },
       { key: 'inbound',    Icon: Truck,     label: 'الإرساليات والاستلام' },
@@ -344,6 +346,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'inbound'     && <InboundView merchants={merchantOnly} />}
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'operations'  && <OperationsView merchants={merchantOnly} />}
+        {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'requests'    && <AdminRequestsView merchants={merchantOnly} />}

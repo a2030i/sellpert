@@ -219,6 +219,11 @@ export function parseNoonProducts(csv: string, merchantCode: string): ParseResul
       category: c[idx('family_code')] || null,
       msrp: n(c[idx('msrp')]) || null,
       sale_price: n(c[idx('sale_price')]) || null,
+      noon_price_min: n(c[idx('noon_price_min')]) || null,
+      noon_price_max: n(c[idx('noon_price_max')]) || null,
+      seller_price_min: n(c[idx('seller_price_min')]) || null,
+      seller_price_max: n(c[idx('seller_price_max')]) || null,
+      warranty: c[idx('warranty')] || null,
       sale_start_date: xlsxDateOnly(c[idx('sale_start_date')]),
       sale_end_date:   xlsxDateOnly(c[idx('sale_end_date')]),
       status: isLive ? 'active' : 'inactive',
@@ -507,6 +512,12 @@ export function parseTrendyolProducts(wb: XLSX.WorkBook, merchantCode: string): 
       color: s(r[C.color]) || null,
       size: s(r[C.size]) || null,
       msrp: n(r[C.msrp]) || null,
+      sale_price: n(r[C.price]) || null,
+      buybox_price: n(r[ci(h, 'سعر باي بوكس', 'باي بوكس')]) || null,
+      commission_rate: n(r[ci(h, 'معدل العمولة', 'العمولة')]) || null,
+      vat_rate: n(r[ci(h, 'ضريبة القيمة المضافة', 'ضريبة')]) || null,
+      gender: s(r[ci(h, 'نوع الجنس')]) || null,
+      supplier_sku: s(r[ci(h, 'رمز مخزون الموردين')]) || null,
       description: s(r[C.desc]) || null,
       external_url: s(r[C.url]) || null,
       images,
@@ -554,12 +565,25 @@ export function parseTrendyolDeals(wb: XLSX.WorkBook, merchantCode: string): Par
       content_id: s(r[idx('Content Id')]),
     })
   }
+  // حفظ في جدول platform_deals
+  const dealRows = rows.map(r => ({
+    merchant_code: merchantCode, platform: 'trendyol',
+    product_name: r.product_name, model_code: r.model_code, barcode: r.barcode,
+    category: r.category, brand: r.brand,
+    current_stock: r.stock, current_price: r.sale_price || null,
+    super_deal_upper_price: r.super_deal_upper || null,
+    mega_deal_upper_price: r.mega_deal_upper || null,
+    super_deal_commission: r.super_commission || null,
+    mega_deal_commission: r.mega_commission || null,
+    current_commission: r.current_commission || null,
+    end_date: r.end_date ? xlsxDate(r.end_date) : null,
+    content_id: r.content_id,
+    raw: r,
+  }))
   return {
     kind: 'trendyol_deals', platform: 'trendyol', label: 'عروض تراندايول',
     summary: { rows: rows.length },
-    // store as raw JSON in account_transactions raw — or skip writing for now
-    payloads: [],
-    // (الجدول مش معرف بعد — نعرض المعلومات للتاجر فقط)
+    payloads: [{ table: 'platform_deals', rows: dealRows }],
   }
 }
 

@@ -11,7 +11,7 @@ const PLATFORMS = [
   { value: 'amazon',   label: 'أمازون',     color: '#ff9900' },
 ]
 
-type Tab = 'checklist' | 'entry' | 'history'
+type Tab = 'checklist' | 'entry' | 'history' | 'tasks'
 type MerchantOpt = { merchant_code: string; name: string }
 type ProductRow  = { product_id: string | null; name: string; sku: string; qty: string; revenue: string; isCustom?: boolean }
 type EntrySession = { merchant_code: string; platform: string; data_date: string; total_sales: number; record_count: number }
@@ -307,6 +307,7 @@ export default function EmployeePanel({ merchant: employee }: { merchant: Mercha
       {/* Tabs */}
       <div style={S.tabs}>
         {([
+          { key: 'tasks',     label: '📋 مهامي', badge: 0 },
           { key: 'checklist', label: '✅ مهام اليوم', badge: checklistData.filter(m => m.doneCount < m.total).length },
           { key: 'entry',     label: '📝 إدخال بيانات', badge: 0 },
           { key: 'history',   label: '🕐 السجل والتعديل', badge: 0 },
@@ -326,6 +327,9 @@ export default function EmployeePanel({ merchant: employee }: { merchant: Mercha
             <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
           </div>
         )}
+
+        {/* ── TAB: TASKS — مهامي المسندة ── */}
+        {tab === 'tasks' && employee && <EmployeeTasksTab employeeCode={employee.merchant_code} />}
 
         {/* ── TAB: CHECKLIST ── */}
         {tab === 'checklist' && (
@@ -674,4 +678,93 @@ const S: Record<string, React.CSSProperties> = {
   btnSecondary: { background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', padding: '11px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   btnSm: { background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   empty: { padding: '40px 20px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 },
+}
+
+// ─── Employee Tasks Tab ───────────────────────────────────────────────────────
+function EmployeeTasksTab({ employeeCode }: { employeeCode: string }) {
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'done'>('all')
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('merchant_requests').select('*')
+      .eq('assigned_to', employeeCode).order('priority', { ascending: false }).order('created_at', { ascending: false })
+    setTasks(data || [])
+    setLoading(false)
+  }
+  useEffect(() => { load() /* eslint-disable-line */ }, [employeeCode])
+
+  async function updateStatus(id: string, status: string) {
+    await supabase.from('merchant_requests').update({ status, updated_at: new Date().toISOString(),
+      ...(status === 'done' ? { resolved_at: new Date().toISOString() } : {})
+    }).eq('id', id)
+    load()
+  }
+
+  const filtered = filter === 'all' ? tasks : tasks.filter(t => t.status === filter)
+  const STATUSES: any = {
+    pending:     { label: '⏳ بانتظار', color: '#ffd166' },
+    in_progress: { label: '⚙ تنفيذ', color: '#7c6bff' },
+    review:      { label: '👀 مراجعة', color: '#4cc9f0' },
+    blocked:     { label: '⛔ متوقف', color: '#e84040' },
+    done:        { label: '✓ تم', color: '#00b894' },
+  }
+  const PRIORITIES: any = { urgent: '#e84040', high: '#ff9900', medium: '#7c6bff', low: '#888' }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {[
+          { v: 'all',         l: `الكل (${tasks.length})` },
+          { v: 'pending',     l: `بانتظار (${tasks.filter(t => t.status === 'pending').length})` },
+          { v: 'in_progress', l: `قيد التنفيذ (${tasks.filter(t => t.status === 'in_progress').length})` },
+          { v: 'done',        l: `مكتمل (${tasks.filter(t => t.status === 'done').length})` },
+        ].map(b => (
+          <button key={b.v} onClick={() => setFilter(b.v as any)} style={{
+            padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            background: filter === b.v ? 'var(--accent)' : 'var(--surface2)',
+            color: filter === b.v ? '#fff' : 'var(--text2)',
+          }}>{b.l}</button>
+        ))}
+      </div>
+
+      {loading ? null : filtered.length === 0 ? (
+        <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>📭 لا توجد مهام مُسنَدة لك</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(t => {
+            const sm = STATUSES[t.status]
+            const isOverdue = t.due_date && new Date(t.due_date) < new Date() && !['done','rejected'].includes(t.status)
+            return (
+              <div key={t.id} style={{
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
+                padding: 12, borderRight: `3px solid ${PRIORITIES[t.priority] || '#7c6bff'}`,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{t.title || t.note?.slice(0, 60)}</div>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 12, background: sm?.color + '20', color: sm?.color }}>{sm?.label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
+                  {t.merchant_code} {t.platform && ` · ${t.platform}`}
+                  {isOverdue && <span style={{ color: '#e84040', fontWeight: 700, marginRight: 6 }}>⚠ متأخرة</span>}
+                </div>
+                {t.note && <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8, lineHeight: 1.6 }}>{t.note}</div>}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {t.status === 'pending'     && <button onClick={() => updateStatus(t.id, 'in_progress')} style={btnA('#7c6bff')}>▶ ابدأ</button>}
+                  {t.status === 'in_progress' && <button onClick={() => updateStatus(t.id, 'review')}      style={btnA('#4cc9f0')}>👀 للمراجعة</button>}
+                  {(t.status === 'in_progress' || t.status === 'review') && <button onClick={() => updateStatus(t.id, 'done')} style={btnA('#00b894')}>✓ تم</button>}
+                  {t.status !== 'blocked' && t.status !== 'done' && <button onClick={() => updateStatus(t.id, 'blocked')} style={btnA('#e84040')}>⛔ متوقف</button>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function btnA(color: string): React.CSSProperties {
+  return { background: color, border: 'none', color: '#fff', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 }
