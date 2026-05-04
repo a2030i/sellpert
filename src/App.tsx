@@ -8,8 +8,10 @@ import Dashboard from './pages/Dashboard'
 import { ToastContainer } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
+import AIChat from './components/AIChat'
+import ThemeToggle, { applyStoredTheme } from './components/ThemeToggle'
 import {
-  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown,
+  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3,
   type LucideIcon,
 } from 'lucide-react'
@@ -31,6 +33,7 @@ const Marketing     = lazy(() => import('./pages/Marketing'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const ProductDetail = lazy(() => import('./pages/ProductDetail'))
 const ProductCompare = lazy(() => import('./pages/ProductCompare'))
+const Help = lazy(() => import('./pages/Help'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -39,9 +42,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
 type NavGroup = { key: string; label: string; items: NavItem[] }
@@ -63,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
   ]},
   { key: 'support',   label: 'الحساب والدعم', items: [
     { Icon: LifeBuoy,   label: 'الدعم',      key: 'requests'    },
+    { Icon: HelpCircle, label: 'مركز المساعدة', key: 'help' },
     { Icon: CreditCard, label: 'الاشتراك',   key: 'billing'     },
   ]},
   { key: 'system',    label: 'النظام',    items: [
@@ -341,6 +345,7 @@ export default function App() {
                   <div style={{ fontSize: 10, color: '#a598ff', fontWeight: 600 }}>لوحة التاجر</div>
                 </div>
               </div>
+              <ThemeToggle />
               <NotificationBell merchantCode={activeMerchant?.merchant_code} />
             </div>
           </div>
@@ -412,10 +417,12 @@ export default function App() {
           {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
           {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
           {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
+          {view === 'help'            && <Help           merchant={activeMerchant} />}
           {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
         </Suspense>
       </main>
       <ToastContainer />
+      {activeMerchant && <AIChat merchantCode={activeMerchant.merchant_code} />}
 
       {/* ── Mobile Top Bar ── */}
       {isMobile && (
