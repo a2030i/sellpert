@@ -552,6 +552,26 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
       } catch (e: any) {
         allErrors.push(`اشتقاق: ${e.message}`)
       }
+
+      // إرسال تقرير واتساب تلقائي للتاجر بعد الاستيراد
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const filesByPlatform: Record<string, number> = {}
+        for (const f of validFiles) {
+          const p = f.parsed!.platform
+          filesByPlatform[p] = (filesByPlatform[p] || 0) + 1
+        }
+        const summaryText = Object.entries(filesByPlatform).map(([p, n]) => `${PLATFORM_MAP[p] || p}: ${n}`).join(' · ')
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-whatsapp`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session?.access_token}`, 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchant_code: merchantCode,
+            event: 'import_complete',
+            data: { files: validFiles.length, rows: totalInserted, summary: summaryText },
+          }),
+        })
+      } catch { /* silent */ }
     }
 
     setBusy(false)
