@@ -101,10 +101,9 @@ export function detectFileKind(input: FileInput): string {
   const wb = input.workbook!
   const sheets = wb.SheetNames
 
-  // --- Amazon Inventory Template (قالب رفع منتجات، ليس بيانات) ---
-  // يحتوي على Sheets: Instructions, Template, Browse data, Valid Values, Dropdown Lists, AttributePTDMAP
-  if (sheets.includes('Template') && sheets.includes('Data Definitions') && sheets.includes('Valid Values')) {
-    return 'amazon_listing_template'
+  // --- Amazon Inventory Template / Listing (يحتوي على Template + Data Definitions) ---
+  if (sheets.includes('Template') && sheets.includes('Data Definitions')) {
+    return 'amazon_listings'
   }
 
   // --- Noon ASN (products report) ---
@@ -901,9 +900,7 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'amazon_transactions':  return parseAmazonTransactions(csvText!, merchantCode)
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
       case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
-      case 'amazon_listing_template':
-        return errResult('amazon_listing_template', 'amazon', file.name,
-          'هذا قالب رفع منتجات Amazon (ليس تقرير بيانات). استخدم صفحة "📤 مولّد قوائم Amazon" في الإدارة لرفع منتجات بهذا القالب.')
+      case 'amazon_listings':      return parseAmazonListings(workbook!, merchantCode)
       default:                     return errResult('unknown', 'other', file.name, 'نوع الملف غير معروف — تأكد أنه تقرير رسمي من المنصة')
     }
   } catch (e: any) {
@@ -913,4 +910,92 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
 
 function errResult(kind: string, platform: string, label: string, error: string): ParseResult {
   return { kind, platform, label, summary: {}, payloads: [], error }
+}
+
+// === AMAZON: Listings Template (with filled products) ===
+export function parseAmazonListings(wb: XLSX.WorkBook, merchantCode: string): ParseResult {
+  const ws = wb.Sheets['Template']
+  if (!ws) return errResult('amazon_listings', 'amazon', 'Template', 'ورقة Template غير موجودة')
+  const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
+
+  // الصف 3 (index) فيه أسماء الحقول
+  const fieldRow = data[3] || []
+  const idx = (...keys: string[]): number => {
+    for (const k of keys) {
+      const i = fieldRow.findIndex(f => s(f).toLowerCase() === k.toLowerCase())
+      if (i >= 0) return i
+    }
+    return -1
+  }
+
+  const C = {
+    sku: idx('SKU'),
+    productType: idx('Product Type'),
+    action: idx('Listing Action'),
+    parentage: idx('Parentage Level'),
+    name: idx('Item Name'),
+    brand: idx('Brand Name'),
+    idType: idx('Product Id Type'),
+    barcode: idx('Product Id'),
+    browseNode: idx('Recommended Browse Nodes'),
+    manufacturer: idx('Manufacturer'),
+    mainImage: idx('Main Image URL'),
+    description: idx('Product Description'),
+    bullet1: idx('Bullet Point'),
+    keyword1: idx('Generic Keyword'),
+    size: idx('Size'),
+  }
+
+  const products: any[] = []
+  const inventory: any[] = []
+
+  // المنتجات تبدأ بعد صف الفيلدز + صف الحقول الإضافية
+  for (let i = 4; i < data.length; i++) {
+    const r = data[i]; if (!r) continue
+    const sku = s(r[C.sku])
+    const name = s(r[C.name])
+    if (!sku || !name) continue
+    // تخطّي صفوف الـ schema/help (تحتوي 200+ خلية)
+    const filledCount = r.filter(c => c !== '' && c !== null && c !== undefined).length
+    if (filledCount > 100) continue
+
+    products.push({
+      merchant_code: merchantCode,
+      name,
+      sku,
+      barcode: s(r[C.barcode]) || null,
+      brand: s(r[C.brand]) || null,
+      category: s(r[C.browseNode]) || null,
+      description: s(r[C.description]) || null,
+      image_url: s(r[C.mainImage]) || null,
+      images: r[C.mainImage] ? [s(r[C.mainImage])] : [],
+      size: s(r[C.size]) || null,
+      asin: null,  // لا يوجد ASIN في القالب
+      external_id: s(r[C.idType]) || null,
+      status: 'active',
+    })
+
+    inventory.push({
+      merchant_code: merchantCode,
+      platform: 'amazon',
+      sku,
+      product_name: name,
+      asin: null,
+      fulfillment_channel: 'MFN',
+      quantity: 0,
+      is_active: true,
+    })
+  }
+
+  return {
+    kind: 'amazon_listings',
+    platform: 'amazon',
+    label: 'قائمة منتجات أمازون',
+    summary: { products: products.length, has_data: products.length > 0 },
+    payloads: products.length === 0 ? [] : [
+      { table: 'products', rows: products, conflict: 'merchant_code,sku' },
+      { table: 'inventory', rows: inventory, conflict: 'merchant_code,sku,platform' },
+    ],
+    error: products.length === 0 ? 'القالب فاضي — لا توجد منتجات. استخدم "مولّد قوائم Amazon" بدل الاستيراد.' : undefined,
+  }
 }
