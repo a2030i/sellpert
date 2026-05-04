@@ -112,37 +112,68 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 <meta charset="UTF-8">
 <title>تقرير ${merchantName} — ${monthName}</title>
 <style>
-  @page { size: A4; margin: 16mm; }
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Tahoma', sans-serif; color: #1d1f2c; margin: 0; padding: 0; line-height: 1.6; }
-  .header { background: linear-gradient(135deg, #7c6bff 0%, #00b894 100%); color: white; padding: 32px 28px; border-radius: 12px; margin-bottom: 24px; }
-  .header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; }
-  .header .sub { font-size: 14px; opacity: 0.92; }
-  .meta { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; }
-  .meta div { font-size: 12px; opacity: 0.9; }
-  .section { margin-bottom: 24px; page-break-inside: avoid; }
-  .section h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7f0; color: #1d1f2c; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .kpi { padding: 14px; border: 1px solid #e5e7f0; border-radius: 10px; background: #fafbff; }
-  .kpi .label { font-size: 11px; color: #6b6f80; font-weight: 600; }
-  .kpi .value { font-size: 20px; font-weight: 800; margin-top: 4px; color: #1d1f2c; }
-  .kpi .sub   { font-size: 11px; color: #8891b4; margin-top: 4px; }
-  .kpi.green .value { color: #00b894; }
-  .kpi.red   .value { color: #e84040; }
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #1d1f2c; line-height: 1.55; font-size: 12px;
+    background: #fff;
+  }
+  .page { max-width: 186mm; margin: 0 auto; padding: 4mm 0; }
+  .header {
+    background: linear-gradient(135deg, #7c6bff 0%, #00b894 100%);
+    color: white; padding: 22px 24px; border-radius: 10px; margin-bottom: 14px;
+    page-break-after: avoid;
+  }
+  .header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+  .header .sub { font-size: 12px; opacity: 0.95; }
+  .meta { display: flex; gap: 14px; margin-top: 12px; flex-wrap: wrap; font-size: 11px; opacity: 0.95; }
+  .meta div b { color: #fff; }
+  .section { margin-bottom: 14px; page-break-inside: avoid; }
+  .section h2 { font-size: 13px; font-weight: 800; margin: 0 0 8px; padding: 6px 0; border-bottom: 2px solid #e5e7f0; color: #1d1f2c; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kpi { padding: 10px 12px; border: 1px solid #e5e7f0; border-radius: 8px; background: #fafbff; border-right: 3px solid #7c6bff; }
+  .kpi.green  { border-right-color: #00b894; }
+  .kpi.red    { border-right-color: #e84040; }
+  .kpi.orange { border-right-color: #f27a1a; }
+  .kpi .label { font-size: 10px; color: #6b6f80; font-weight: 600; }
+  .kpi .value { font-size: 17px; font-weight: 800; margin-top: 2px; color: #1d1f2c; letter-spacing: -0.3px; }
+  .kpi.green .value  { color: #00b894; }
+  .kpi.red .value    { color: #e84040; }
   .kpi.orange .value { color: #f27a1a; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #e5e7f0; }
-  th { background: #f5f6fa; font-weight: 700; font-size: 11px; color: #6b6f80; text-transform: uppercase; }
-  .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; display: inline-block; }
+  .kpi .sub { font-size: 10px; color: #8891b4; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: avoid; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid #eef0f6; }
+  th { background: #f5f6fa; font-weight: 700; font-size: 10px; color: #6b6f80; text-transform: uppercase; letter-spacing: 0.3px; }
+  tr:nth-child(even) td { background: #fcfcfd; }
+  .badge { padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; display: inline-block; }
   .badge.noon     { background: #fff7d9; color: #b8860b; }
   .badge.trendyol { background: #ffe4d2; color: #c55a14; }
-  .badge.amazon   { background: #fff0d9; color: #b76d00; }
+  .badge.amazon   { background: #ddeefb; color: #146eb4; }
   .badge.salla    { background: #d2f5e8; color: #006b54; }
-  .footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid #e5e7f0; font-size: 11px; color: #8891b4; text-align: center; }
-  .print-bar { position: fixed; top: 14px; left: 14px; display: flex; gap: 10px; z-index: 1000; }
-  .print-bar button { background: #7c6bff; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
-  .print-bar button.alt { background: #f5f6fa; color: #1d1f2c; border: 1px solid #e5e7f0; }
-  @media print { .print-bar { display: none; } }
+  .footer {
+    margin-top: 18px; padding-top: 10px; border-top: 1px solid #e5e7f0;
+    font-size: 10px; color: #8891b4; text-align: center;
+  }
+  .footer b { color: #7c6bff; }
+  .print-bar {
+    position: fixed; top: 14px; left: 14px; display: flex; gap: 8px; z-index: 1000;
+  }
+  .print-bar button {
+    background: #7c6bff; color: white; border: none; padding: 9px 16px;
+    border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
+    font-family: inherit; box-shadow: 0 2px 10px rgba(124,107,255,0.3);
+  }
+  .print-bar button.alt { background: #f5f6fa; color: #1d1f2c; border: 1px solid #e5e7f0; box-shadow: none; }
+  @media print {
+    .print-bar { display: none !important; }
+    .header { box-shadow: none !important; }
+    @page :first { margin-top: 8mm; }
+    .section { break-inside: avoid; }
+    table { break-inside: auto; }
+    tr    { break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -150,7 +181,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
     <button class="alt" onclick="window.close()">إغلاق</button>
   </div>
-
+  <div class="page">
   <div class="header">
     <h1>📊 تقرير ${merchantName}</h1>
     <div class="sub">ملخص أداء ${monthName} — مُعدّ بواسطة فريق Sellpert</div>
@@ -201,6 +232,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 
   <div class="footer">
     تم إعداد هذا التقرير تلقائياً بواسطة <b>Sellpert</b> · للاستفسار تواصل مع فريق الدعم
+  </div>
   </div>
 
   <script>setTimeout(() => { try { window.focus(); window.print(); } catch (e) {} }, 600);</script>
