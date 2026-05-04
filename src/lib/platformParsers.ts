@@ -737,6 +737,12 @@ export function parseAmazonSettlement(wb: XLSX.WorkBook, merchantCode: string): 
       net_amount: n(r[idx('amount')]),
       currency: s(r[idx('currency')]) || 'SAR',
       marketplace: s(r[idx('marketplace-name')]),
+      promotion_id: s(r[idx('promotion-id')]) || null,
+      quantity_purchased: parseInt(s(r[idx('quantity-purchased')])) || null,
+      shipment_id: s(r[idx('shipment-id')]) || null,
+      settlement_period_start: xlsxDateOnly(r[idx('settlement-start-date')]),
+      settlement_period_end:   xlsxDateOnly(r[idx('settlement-end-date')]),
+      deposit_date:            xlsxDateOnly(r[idx('deposit-date')]),
     })
   }
   const totals = rows.reduce((a, r) => a + r.net_amount, 0)
@@ -839,6 +845,12 @@ export function parseAmazonAds(csv: string, merchantCode: string): ParseResult {
       cpc: n(c[idx('التكلفة لكل نقرة')]) || null,
       acos: n(c[idx('acos')]) || null,
       roas: n(c[idx('roas')]) || n(c[idx('عائد الإنفاق')]) || null,
+      default_bid: n(c[idx('عرض الأسعار الافتراضي')]) || null,
+      suggested_bid_low: n(c[idx('عرض الأسعار المقترح (منخفض)')]) || null,
+      suggested_bid_med: n(c[idx('عرض الأسعار المقترح (متوسط)')]) || null,
+      suggested_bid_high: n(c[idx('عرض الأسعار المقترح (مرتفع)')]) || null,
+      keywords_count: parseInt(c[idx('الكلمات الرئيسية')]) || null,
+      products_count: parseInt(c[idx('المنتجات')]) || null,
     })
   }
   return {

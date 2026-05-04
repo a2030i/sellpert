@@ -191,6 +191,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {/* HEALTH PANEL */}
       <InventoryHealthPanel merchant={merchant} />
       {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
+      {merchant && <InventoryPipelinePanel merchantCode={merchant.merchant_code} />}
 
       {/* ADD FORM */}
       {showAdd && (
@@ -520,6 +521,46 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// ─── Inventory Pipeline (ASN → GRN → Sales) ───────────────────────────────────
+function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    supabase.from('inventory_pipeline').select('*').eq('merchant_code', merchantCode).order('asn_sent_at', { ascending: false }).limit(10).then(({ data }) => setData(data || []))
+  }, [merchantCode])
+  if (data.length === 0) return null
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔗 خط أنابيب المخزون: ASN → GRN → مبيعات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تتبّع كل إرسالية من الإرسال حتى البيع</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr>{['ASN','المنصة','أُرسل','استلام (يوم)','متوقع','مُستلم','فقد','رفض QC','بيع بعد','إيراد بعد'].map(h => (
+            <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {data.map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 700 }}>{r.asn_number}</td>
+                <td style={{ padding: '8px 10px' }}>{r.platform}</td>
+                <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.asn_sent_at).toLocaleDateString('ar-SA-u-ca-gregory', { day: 'numeric', month: 'short' })}</td>
+                <td style={{ padding: '8px 10px' }}>{r.days_to_receive ?? '—'}</td>
+                <td style={{ padding: '8px 10px' }}>{r.expected_qty}</td>
+                <td style={{ padding: '8px 10px', color: '#00b894' }}>{r.delivered_qty}</td>
+                <td style={{ padding: '8px 10px', color: r.lost_qty > 0 ? '#e84040' : 'var(--text3)', fontWeight: r.lost_qty > 0 ? 700 : 400 }}>{r.lost_qty || '—'}</td>
+                <td style={{ padding: '8px 10px', color: r.qc_failed_qty > 0 ? '#ff9900' : 'var(--text3)' }}>{r.qc_failed_qty || '—'}</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700 }}>{r.units_sold_after_receive || '—'}</td>
+                <td style={{ padding: '8px 10px', color: '#00b894', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA') : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

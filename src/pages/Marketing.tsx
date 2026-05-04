@@ -129,6 +129,9 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>أداء حملاتك الإعلانية عبر كل المنصات</p>
       </div>
 
+      {/* True ROAS panel */}
+      <TrueAdEffectivenessPanel merchantCode={merchant?.merchant_code} />
+
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={18} />} />
@@ -251,4 +254,49 @@ const spinner: React.CSSProperties = {
   width: 36, height: 36, margin: '0 auto', border: '3px solid var(--border)',
   borderTopColor: 'var(--accent)', borderRadius: '50%',
   animation: 'spin 0.8s linear infinite',
+}
+
+// ─── True Ad Effectiveness (Net ROAS after returns) ──────────────────────────
+function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    supabase.from('true_ad_effectiveness').select('*').eq('merchant_code', merchantCode).order('spend', { ascending: false }).limit(30).then(({ data }) => setData(data || []))
+  }, [merchantCode])
+  if (data.length === 0) return null
+  const losses = data.filter(d => d.net_roas !== null && Number(d.net_roas) < 1)
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 ROAS الحقيقي بعد المرتجعات</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>الإعلانات قد تظهر مربحة لكن المرتجعات تأكل الربح</div>
+      {losses.length > 0 && (
+        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: '#e84040', fontWeight: 600 }}>
+          ⚠️ {losses.length} إعلان خاسر فعلياً بعد احتساب المرتجعات — راجعها أو أوقفها
+        </div>
+      )}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead><tr>{['SKU','الحملة','إنفاق','إيراد إجمالي','مرتجعات','صافي','ROAS إجمالي','ROAS صافي'].map(h => (
+            <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          ))}</tr></thead>
+          <tbody>
+            {data.slice(0, 15).map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</td>
+                <td style={{ padding: '7px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.campaign_name}>{r.campaign_name || '—'}</td>
+                <td style={{ padding: '7px 10px', color: '#e84040' }}>{Number(r.spend).toFixed(0)}</td>
+                <td style={{ padding: '7px 10px' }}>{Number(r.gross_revenue).toFixed(0)}</td>
+                <td style={{ padding: '7px 10px', color: '#ffd166' }}>{r.returned_value > 0 ? Number(r.returned_value).toFixed(0) : '—'}</td>
+                <td style={{ padding: '7px 10px', fontWeight: 700, color: r.net_revenue >= 0 ? '#00b894' : '#e84040' }}>{Number(r.net_revenue).toFixed(0)}</td>
+                <td style={{ padding: '7px 10px' }}>{r.gross_roas ? Number(r.gross_roas).toFixed(2) + 'x' : '—'}</td>
+                <td style={{ padding: '7px 10px', fontWeight: 800, color: !r.net_roas ? 'var(--text3)' : Number(r.net_roas) >= 2 ? '#00b894' : Number(r.net_roas) >= 1 ? '#ff9900' : '#e84040' }}>
+                  {r.net_roas ? Number(r.net_roas).toFixed(2) + 'x' : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
