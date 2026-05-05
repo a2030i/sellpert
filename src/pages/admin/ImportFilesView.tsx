@@ -455,14 +455,15 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [busy, setBusy]                 = useState(false)
   const snapshotDate                    = new Date().toISOString().split('T')[0]
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [lastUploads, setLastUploads]   = useState<Record<string, { uploaded_at: string; status: string; rows_inserted: number }>>({})
+  const [lastUploads, setLastUploads]   = useState<Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>>({})
+  const [refreshTick, setRefreshTick]   = useState(0)
 
   // ── Fetch last upload date per file kind for current merchant + platform ──
   useEffect(() => {
     if (!merchantCode || !platform) { setLastUploads({}); return }
     let cancelled = false
     supabase.from('platform_file_uploads')
-      .select('file_type, uploaded_at, status, rows_inserted')
+      .select('id, file_type, file_name, uploaded_at, status, rows_inserted')
       .eq('merchant_code', merchantCode)
       .eq('platform', platform)
       .order('uploaded_at', { ascending: false })
@@ -472,12 +473,18 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         const map: typeof lastUploads = {}
         for (const r of data) {
           const k = (r as any).file_type
-          if (k && !map[k]) map[k] = { uploaded_at: r.uploaded_at, status: r.status, rows_inserted: r.rows_inserted || 0 }
+          if (k && !map[k]) map[k] = {
+            id: (r as any).id,
+            uploaded_at: r.uploaded_at,
+            status: r.status,
+            rows_inserted: r.rows_inserted || 0,
+            file_name: (r as any).file_name || '',
+          }
         }
         setLastUploads(map)
       })
     return () => { cancelled = true }
-  }, [merchantCode, platform, files])
+  }, [merchantCode, platform, files, refreshTick])
 
   const merchant = useMemo(() => merchants.find(m => m.merchant_code === merchantCode), [merchants, merchantCode])
   const color = PLATFORM_COLORS[platform] || '#7c6bff'
@@ -665,7 +672,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 
       {/* ── Step 2.5: Checklist guide for selected platform ── */}
       {merchantCode && (
-        <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} />
+        <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} onChanged={() => setRefreshTick(t => t + 1)} />
       )}
 
       {/* ── Step 3: Upload zone ── */}
@@ -801,12 +808,30 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 }
 
 // ─── File Checklist (per platform) ───────────────────────────────────────────
-function FileChecklist({ platform, color, lastUploads, pendingKinds }: {
+function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }: {
   platform: string; color: string;
-  lastUploads: Record<string, { uploaded_at: string; status: string; rows_inserted: number }>;
+  lastUploads: Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>;
   pendingKinds: string[];
+  onChanged?: () => void;
 }) {
   const guides = FILE_GUIDES[platform] || []
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  async function deleteOne(uploadId: string, label: string, rows: number) {
+    if (!confirm(`حذف "${label}" وكل بياناته؟\n\n${rows} صف سيُحذف وتُعاد عملية حساب الأداء`)) return
+    setDeleting(uploadId)
+    try {
+      const { error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: uploadId })
+      if (error) throw error
+      const { toastOk } = await import('../../components/Toast')
+      toastOk('✓ تم الحذف وإعادة بناء الأداء')
+      onChanged?.()
+    } catch (e: any) {
+      alert('فشل: ' + e.message)
+    }
+    setDeleting(null)
+  }
+
   if (guides.length === 0) return null
 
   return (
@@ -868,15 +893,26 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds }: {
                 )}
               </div>
 
-              {/* Last upload info */}
-              <div style={{ flexShrink: 0, textAlign: 'left', minWidth: 110 }}>
-                {last ? (
-                  <>
-                    <div style={{ fontSize: 11, color: '#00b894', fontWeight: 700 }}>{relativeTime(last.uploaded_at)}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{last.rows_inserted.toLocaleString()} صف</div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic' }}>لم يُرفع بعد</div>
+              {/* Last upload info + delete */}
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ textAlign: 'left', minWidth: 100 }}>
+                  {last ? (
+                    <>
+                      <div style={{ fontSize: 11, color: '#00b894', fontWeight: 700 }}>{relativeTime(last.uploaded_at)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{last.rows_inserted.toLocaleString()} صف</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic' }}>لم يُرفع بعد</div>
+                  )}
+                </div>
+                {last && (
+                  <button onClick={() => deleteOne(last.id, g.label, last.rows_inserted)} disabled={deleting === last.id}
+                    title="حذف هذا الملف وكل البيانات المرتبطة"
+                    style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', color: '#e84040',
+                      padding: '6px 9px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <X size={11} /> {deleting === last.id ? '...' : 'حذف'}
+                  </button>
                 )}
               </div>
             </div>
@@ -1064,7 +1100,7 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
     setDeletingId(null)
   }
 
-  if (loading || uploads.length === 0) return null
+  if (loading) return null
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginTop: 18 }}>
@@ -1075,6 +1111,11 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
         </div>
         <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
       </div>
+      {uploads.length === 0 && (
+        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)', fontSize: 12, background: 'var(--surface2)', borderRadius: 9 }}>
+          📭 لا توجد رفعات سابقة لهذا التاجر
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
         {uploads.map(u => (
           <div key={u.id} style={{
