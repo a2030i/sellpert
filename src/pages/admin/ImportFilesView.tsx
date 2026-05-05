@@ -357,9 +357,10 @@ async function saveParsedResult(
     const itemsPayload = parsed.payloads.find(p => p.table === 'inbound_shipment_items')
     if (headerPayload && itemsPayload) {
       onProgress(10, 'حفظ بيانات الإرسالية الرئيسية…')
+      const headerRowsTagged = headerPayload.rows.map((r: any) => ({ ...r, upload_id: uploadId }))
       const { data: parentRows, error: pErr } = await supabase
         .from('inbound_shipments')
-        .upsert(headerPayload.rows, { onConflict: headerPayload.conflict, ignoreDuplicates: false })
+        .upsert(headerRowsTagged, { onConflict: headerPayload.conflict, ignoreDuplicates: false })
         .select('id, asn_number')
       if (pErr) errors.push(`الإرسالية: ${pErr.message}`)
       else inserted += parentRows?.length || 0
@@ -367,7 +368,7 @@ async function saveParsedResult(
       const map: Record<string, string> = {}
       for (const r of parentRows || []) map[r.asn_number] = r.id
       const itemsToInsert = itemsPayload.rows
-        .map((it: any) => ({ ...it, shipment_id: map[it._asn_number], _asn_number: undefined }))
+        .map((it: any) => ({ ...it, shipment_id: map[it._asn_number], upload_id: uploadId, _asn_number: undefined }))
         .filter((it: any) => it.shipment_id)
         .map(({ _asn_number, ...rest }: any) => rest)
 
@@ -399,10 +400,13 @@ async function saveParsedResult(
     if (payload.rows.length === 0) continue
     onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)} (${payload.rows.length} صف)…`)
 
-    // Chunked insert
+    // Chunked insert (مع upload_id لتتبّع الرفع)
+    const TAGGABLE = ['orders','products','inventory','account_transactions','ad_metrics','returns','goods_received','product_performance_snapshots','platform_deals']
     const CHUNK = 500
     for (let i = 0; i < payload.rows.length; i += CHUNK) {
-      const slice = payload.rows.slice(i, i + CHUNK)
+      const slice = payload.rows.slice(i, i + CHUNK).map((r: any) =>
+        TAGGABLE.includes(payload.table) ? { ...r, upload_id: uploadId } : r
+      )
       let err: any
       if (payload.conflict) {
         const { error } = await supabase.from(payload.table).upsert(slice, { onConflict: payload.conflict, ignoreDuplicates: false })
@@ -789,6 +793,9 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           </button>
         </div>
       )}
+
+      {/* الرفعات السابقة (مع زر حذف) */}
+      {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} />}
     </div>
   )
 }
@@ -1015,4 +1022,88 @@ function stageMeta(stage: Stage) {
     case 'rejected':  return { label: 'مرفوض',        Icon: AlertTriangle, color: '#e84040', bg: 'rgba(232,64,64,0.04)',                       borderColor: 'rgba(232,64,64,0.2)' }
     case 'failed':    return { label: 'فشل',          Icon: AlertTriangle, color: '#e84040', bg: 'rgba(232,64,64,0.06)',                       borderColor: 'rgba(232,64,64,0.3)' }
   }
+}
+
+// ─── Previous Uploads Panel (with delete) ────────────────────────────────────
+function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
+  const [uploads, setUploads] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('platform_file_uploads')
+      .select('*').eq('merchant_code', merchantCode)
+      .order('uploaded_at', { ascending: false }).limit(50)
+    setUploads(data || [])
+    setLoading(false)
+  }
+  useEffect(() => { load() /* eslint-disable-line */ }, [merchantCode])
+
+  async function deleteUpload(u: any) {
+    if (!confirm(`حذف هذا الملف وكل البيانات المرتبطة به؟\n\n${u.file_name}\n${u.rows_inserted || 0} صف`)) return
+    setDeletingId(u.id)
+    try {
+      const { data, error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: u.id })
+      if (error) throw error
+      const counts: any = data?.deleted || {}
+      const total = Object.values(counts).reduce((a: any, b: any) => Number(a) + Number(b), 0)
+      const summary = Object.entries(counts).filter(([_, v]: any) => v > 0).map(([k, v]: any) => `${arabicTable(k)}: ${v}`).join(' · ')
+      // Toast
+      try {
+        const { toastOk } = await import('../../components/Toast')
+        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}`)
+      } catch { /* */ }
+      load()
+    } catch (e: any) {
+      try {
+        const { toastErr } = await import('../../components/Toast')
+        toastErr('فشل الحذف: ' + e.message)
+      } catch { alert('فشل الحذف: ' + e.message) }
+    }
+    setDeletingId(null)
+  }
+
+  if (loading || uploads.length === 0) return null
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>📋 الرفعات السابقة لهذا التاجر ({uploads.length})</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>الحذف يزيل الملف وكل البيانات اللي رُفعت معه ثم يعيد بناء الأداء</div>
+        </div>
+        <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
+        {uploads.map(u => (
+          <div key={u.id} style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+            background: 'var(--surface2)', borderRadius: 9,
+            borderRight: `3px solid ${u.status === 'success' ? '#00b894' : u.status === 'partial' ? '#ff9900' : u.status === 'failed' ? '#e84040' : 'var(--text3)'}`,
+          }}>
+            <FileText size={16} color="var(--text3)" style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.file_name}</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                {u.detected_report || u.file_type} · {PLATFORM_MAP[u.platform] || u.platform} · {u.rows_inserted || 0} صف · {relativeTime(u.uploaded_at)}
+              </div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12,
+              background: u.status === 'success' ? 'rgba(0,184,148,0.1)' : u.status === 'partial' ? 'rgba(255,153,0,0.1)' : u.status === 'failed' ? 'rgba(232,64,64,0.1)' : 'var(--surface)',
+              color: u.status === 'success' ? '#00b894' : u.status === 'partial' ? '#ff9900' : u.status === 'failed' ? '#e84040' : 'var(--text3)',
+            }}>
+              {u.status === 'success' ? '✓ ناجح' : u.status === 'partial' ? '⚠ جزئي' : u.status === 'failed' ? '✗ فشل' : u.status}
+            </span>
+            <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
+              style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', color: '#e84040',
+                padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 4 }}>
+              <X size={11} /> {deletingId === u.id ? 'حذف...' : 'حذف'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
