@@ -4,6 +4,7 @@ import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
 import { Pagination, Tooltip } from '../components/UI'
+import BudgetAlertsPanel from '../components/BudgetAlertsPanel'
 
 interface AdRow {
   id: string
@@ -131,6 +132,13 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
 
       {/* True ROAS panel */}
       <TrueAdEffectivenessPanel merchantCode={merchant?.merchant_code} />
+
+      {/* Budget alerts */}
+      {merchant?.merchant_code && (
+        <div style={{ marginBottom: 16 }}>
+          <BudgetAlertsPanel merchantCode={merchant.merchant_code} />
+        </div>
+      )}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>

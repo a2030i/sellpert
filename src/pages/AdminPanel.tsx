@@ -22,6 +22,10 @@ import SallaView from './admin/SallaView'
 import DBHealthView from './admin/DBHealthView'
 import RevenueView from './admin/RevenueView'
 import AdminBillingView from './admin/AdminBillingView'
+import TeamDashboardView from './admin/TeamDashboardView'
+import MerchantTimelineView from './admin/MerchantTimelineView'
+import CommandPalette from '../components/CommandPalette'
+import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
 import {
   LayoutDashboard, Users, Tag, Inbox, PenLine, Upload, Truck, Megaphone, History,
@@ -31,9 +35,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'team' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -53,7 +57,10 @@ type NavGroup = {
 const NAV_GROUPS: NavGroup[] = [
   {
     key: 'home', label: 'الرئيسية', Icon: LayoutDashboard,
-    items: [{ key: 'overview', Icon: LayoutDashboard, label: 'نظرة عامة' }],
+    items: [
+      { key: 'overview', Icon: LayoutDashboard, label: 'نظرة عامة' },
+      { key: 'team',     Icon: BarChart2,       label: 'لوحة الفريق' },
+    ],
   },
   {
     key: 'merchants', label: 'التجار', Icon: Users,
@@ -162,6 +169,10 @@ const S: Record<string, React.CSSProperties> = {
 export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: { merchant: Merchant | null; onImpersonate: (m: Merchant) => void }) {
   const [view, setView]         = useState<AdminView>(readAdminView)
   const [mobileMore, setMobileMore] = useState(false)
+  const [timelineCode, setTimelineCode] = useState<string | null>(() => {
+    const p = new URLSearchParams(window.location.search)
+    return p.get('code')
+  })
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const gk = findGroupKey(readAdminView())
     return gk ? new Set([gk]) : new Set()
@@ -186,10 +197,24 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   }
 
   useEffect(() => {
-    const onPop = () => setView(readAdminView())
+    const onPop = () => {
+      setView(readAdminView())
+      const p = new URLSearchParams(window.location.search)
+      setTimelineCode(p.get('code'))
+    }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+
+  function openTimeline(code: string) {
+    setTimelineCode(code)
+    setView('merchants')
+    window.history.pushState(null, '', '/admin/merchants?code=' + code)
+  }
+  function closeTimeline() {
+    setTimelineCode(null)
+    window.history.pushState(null, '', '/admin/merchants')
+  }
 
   const [merchants, setMerchants] = useState<Merchant[]>([])
   const [perfData, setPerfData]   = useState<PerformanceData[]>([])
@@ -339,7 +364,12 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         </div>
 
         {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} merchants={merchants} totalGMV={totalGMV} totalOrders={totalOrders} activeIntegrations={activeIntegrations} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={[]} perfData={perfData} />}
-        {view === 'merchants'   && <MerchantsView merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} />}
+        {view === 'team'        && <TeamDashboardView />}
+        {view === 'merchants'   && (
+          timelineCode
+            ? <MerchantTimelineView merchantCode={timelineCode} onBack={closeTimeline} />
+            : <MerchantsView merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
+        )}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
         {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
         {view === 'ai'          && <AiView merchants={merchantOnly} />}
@@ -359,6 +389,21 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'health'      && <DBHealthView />}
         {view === 'billing'     && <AdminBillingView />}
       </main>
+
+      <PWAInstallPrompt />
+      <CommandPalette
+        isAdmin
+        onNavigate={(path) => {
+          if (path.startsWith('/admin/')) {
+            const part = path.replace('/admin/', '').split('?')[0]
+            const code = new URLSearchParams(path.split('?')[1] || '').get('code')
+            if (code && part === 'merchants') openTimeline(code)
+            else if (ADMIN_VIEWS.includes(part as AdminView)) navTo(part as AdminView)
+          } else {
+            window.location.href = path
+          }
+        }}
+      />
 
       {/* ── Mobile Header ── */}
       {isMobile && (

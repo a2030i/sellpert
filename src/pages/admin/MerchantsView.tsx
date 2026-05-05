@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
+import BulkOpsBar from '../../components/BulkOpsBar'
+import { Activity } from 'lucide-react'
 
-export default function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh, onImpersonate }: any) {
+export default function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh, onImpersonate, onOpenTimeline }: any) {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant', whatsapp_phone: '' })
@@ -11,6 +13,28 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [editRole, setEditRole] = useState<{ id: string; role: string } | null>(null)
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
+
+  function toggleSelect(code: string) {
+    setSelectedCodes(s => {
+      const next = new Set(s)
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
+  }
+  function toggleSelectAll(codes: string[]) {
+    setSelectedCodes(s => {
+      if (codes.every(c => s.has(c))) {
+        const next = new Set(s)
+        codes.forEach(c => next.delete(c))
+        return next
+      }
+      const next = new Set(s)
+      codes.forEach(c => next.add(c))
+      return next
+    })
+  }
 
   const filtered = merchants.filter((m: Merchant) =>
     m.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -131,17 +155,39 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
         ))}
       </div>
 
+      <BulkOpsBar
+        selected={Array.from(selectedCodes)}
+        onClear={() => setSelectedCodes(new Set())}
+        onDone={() => { setSelectedCodes(new Set()); onRefresh() }}
+      />
+
       <div style={S.tableCard}>
         <div style={{ overflowX: 'auto' }}>
           <table style={S.table}>
             <thead>
-              <tr>{['التاجر', 'البريد الإلكتروني', 'الكود', 'الدور', 'العملة', 'تكاملات', 'GMV الكلي', 'تاريخ الانضمام', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>
+                <th style={{ ...S.th, width: 30 }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((m: Merchant) => selectedCodes.has(m.merchant_code))}
+                    onChange={() => toggleSelectAll(filtered.map((m: Merchant) => m.merchant_code))}
+                  />
+                </th>
+                {['التاجر', 'البريد الإلكتروني', 'الكود', 'الدور', 'العملة', 'تكاملات', 'GMV الكلي', 'تاريخ الانضمام', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}
+              </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد نتائج</td></tr>
+                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد نتائج</td></tr>
               ) : filtered.map((m: Merchant) => (
                 <tr key={m.id} style={S.tr}>
+                  <td style={S.td}>
+                    <input
+                      type="checkbox"
+                      checked={selectedCodes.has(m.merchant_code)}
+                      onChange={() => toggleSelect(m.merchant_code)}
+                    />
+                  </td>
                   <td style={S.td}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg,var(--accent),var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{m.name?.[0] || '?'}</div>
@@ -182,6 +228,15 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                       </div>
                     ) : (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {onOpenTimeline && (
+                          <button
+                            style={{ ...S.miniBtn, background: 'rgba(0,184,148,0.1)', color: 'var(--accent2)', border: '1px solid rgba(0,184,148,0.25)' }}
+                            onClick={() => onOpenTimeline(m.merchant_code)}
+                            title="السجل والملاحظات"
+                          >
+                            <Activity size={11} style={{ display: 'inline-block', verticalAlign: 'middle' }} /> السجل
+                          </button>
+                        )}
                         {m.role === 'merchant' || m.role === 'employee' ? (
                           <button
                             style={{ ...S.miniBtn, background: 'rgba(108,92,231,0.1)', color: 'var(--accent)', border: '1px solid rgba(108,92,231,0.25)' }}

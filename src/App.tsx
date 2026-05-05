@@ -11,6 +11,9 @@ import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
 import ThemeToggle, { applyStoredTheme } from './components/ThemeToggle'
 import AccountSwitcher from './components/AccountSwitcher'
+import CommandPalette from './components/CommandPalette'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
+import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3,
@@ -35,6 +38,7 @@ const Notifications = lazy(() => import('./pages/Notifications'))
 const ProductDetail = lazy(() => import('./pages/ProductDetail'))
 const ProductCompare = lazy(() => import('./pages/ProductCompare'))
 const Help = lazy(() => import('./pages/Help'))
+const QuickInventory = lazy(() => import('./pages/QuickInventory'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -43,9 +47,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
 type NavGroup = { key: string; label: string; items: NavItem[] }
@@ -423,10 +427,22 @@ export default function App() {
           {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
           {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
           {view === 'help'            && <Help           merchant={activeMerchant} />}
+          {view === 'quick-inventory' && <QuickInventory  merchant={activeMerchant} />}
           {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
         </Suspense>
       </main>
       <ToastContainer />
+      <PWAInstallPrompt />
+      <CommandPalette
+        isAdmin={false}
+        merchantCode={activeMerchant?.merchant_code}
+        onNavigate={(p) => {
+          const v = p.replace(/^\//, '').split('?')[0].split('/')[0] as View
+          if (VALID_VIEWS.includes(v)) goTo(v)
+          else window.location.href = p
+        }}
+      />
+      {activeMerchant && <NPSWidget merchantCode={activeMerchant.merchant_code} />}
       {activeMerchant && <AIChat merchantCode={activeMerchant.merchant_code} />}
 
       {/* ── Mobile Top Bar ── */}
