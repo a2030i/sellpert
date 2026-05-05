@@ -97,6 +97,9 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <ProfitSimulator product={product} profitability={profitability} />
       )}
 
+      {/* Per-platform listings */}
+      <PerPlatformListings productId={product.id} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={product.images || []} />
+
       {/* Inventory by platform */}
       {inventory.length > 0 && (
         <Section title="📦 المخزون حسب المنصة">
@@ -294,6 +297,106 @@ function SimBox({ label, value, sub, color }: { label: string; value: string; su
       <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 15, fontWeight: 800, color, marginTop: 3 }}>{value}</div>
       {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+}
+
+// ─── Per-Platform Listings ────────────────────────────────────────────────────
+function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDescription, defaultImages }: { productId: string; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[] }) {
+  const PLATFORMS = ['noon', 'trendyol', 'amazon', 'salla']
+  const [listings, setListings] = useState<Record<string, any>>({})
+  const [activePlatform, setActivePlatform] = useState<string>('noon')
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<any>({})
+
+  useEffect(() => {
+    if (!productId) return
+    supabase.from('product_platform_listings').select('*').eq('product_id', productId).then(({ data }) => {
+      const map: any = {}
+      for (const l of data || []) map[l.platform] = l
+      setListings(map)
+    })
+  }, [productId])
+
+  useEffect(() => {
+    const cur = listings[activePlatform] || {}
+    setEditing({
+      title: cur.title ?? defaultTitle ?? '',
+      description: cur.description ?? defaultDescription ?? '',
+      bullet_points: (cur.bullet_points || []).join('\n'),
+      keywords: (cur.keywords || []).join(', '),
+      images: (cur.images || defaultImages || []).join('\n'),
+    })
+  }, [activePlatform, listings])
+
+  async function save() {
+    if (!productId || !merchantCode) return
+    setSaving(true)
+    const { error } = await supabase.from('product_platform_listings').upsert({
+      product_id: productId,
+      merchant_code: merchantCode,
+      platform: activePlatform,
+      title: editing.title || null,
+      description: editing.description || null,
+      bullet_points: editing.bullet_points ? editing.bullet_points.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
+      keywords: editing.keywords ? editing.keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+      images: editing.images ? editing.images.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'product_id,platform' })
+    setSaving(false)
+    if (!error) {
+      const { data } = await supabase.from('product_platform_listings').select('*').eq('product_id', productId)
+      const map: any = {}; for (const l of data || []) map[l.platform] = l
+      setListings(map)
+    }
+  }
+
+  const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }
+  const inp: React.CSSProperties = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>📝 وصف وصور لكل منصة</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>كل منصة تتطلّب صياغة مختلفة (طول الوصف، الكلمات المفتاحية، عدد الصور)</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {PLATFORMS.map(p => {
+          const has = !!listings[p]
+          return (
+            <button key={p} onClick={() => setActivePlatform(p)} style={{
+              padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              background: activePlatform === p ? (PLATFORM_COLORS[p] || 'var(--accent)') : 'var(--surface2)',
+              color: activePlatform === p ? '#fff' : 'var(--text2)',
+            }}>{PLATFORM_MAP[p] || p} {has && '✓'}</button>
+          )
+        })}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+        <div>
+          <label style={fieldLabel}>العنوان</label>
+          <input value={editing.title || ''} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
+        </div>
+        <div>
+          <label style={fieldLabel}>الكلمات المفتاحية</label>
+          <input value={editing.keywords || ''} onChange={e => setEditing({ ...editing, keywords: e.target.value })} style={inp} placeholder="مفصولة بفواصل" />
+        </div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label style={fieldLabel}>الوصف</label>
+        <textarea value={editing.description || ''} onChange={e => setEditing({ ...editing, description: e.target.value })} rows={3} style={{ ...inp, minHeight: 80 }} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label style={fieldLabel}>النقاط (سطر لكل واحدة)</label>
+        <textarea value={editing.bullet_points || ''} onChange={e => setEditing({ ...editing, bullet_points: e.target.value })} rows={4} style={{ ...inp, minHeight: 90 }} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label style={fieldLabel}>روابط الصور (سطر لكل واحدة)</label>
+        <textarea value={editing.images || ''} onChange={e => setEditing({ ...editing, images: e.target.value })} rows={3} style={{ ...inp, minHeight: 70 }} placeholder="https://..." />
+      </div>
+      <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={save} disabled={saving} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {saving ? '...' : '💾 حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
+        </button>
+      </div>
     </div>
   )
 }

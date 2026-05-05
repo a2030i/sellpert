@@ -75,6 +75,51 @@ body.ltr {
   font-family: 'Tajawal', sans-serif;
 }
 
+/* ── Mobile responsive overrides ──────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Tables wrap to scroll horizontally */
+  .responsive-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Default table cells smaller on mobile */
+  table { font-size: 11px; }
+  table th, table td { padding: 6px 8px; }
+
+  /* Modals full-screen on mobile */
+  .mobile-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    max-height: 100vh !important;
+  }
+
+  /* Grids collapse */
+  .grid-mobile-1 { grid-template-columns: 1fr !important; }
+  .grid-mobile-2 { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Hide on mobile */
+  .hide-mobile { display: none !important; }
+
+  /* KPI cards stack better */
+  [data-kpi-grid] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+  button, [role="button"] {
+    min-height: 36px;
+  }
+  input, select, textarea {
+    font-size: 16px !important; /* prevents iOS zoom on focus */
+  }
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

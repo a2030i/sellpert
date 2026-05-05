@@ -10,6 +10,7 @@ import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
 import ThemeToggle, { applyStoredTheme } from './components/ThemeToggle'
+import AccountSwitcher from './components/AccountSwitcher'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3,
@@ -345,6 +346,10 @@ export default function App() {
                   <div style={{ fontSize: 10, color: '#a598ff', fontWeight: 600 }}>لوحة التاجر</div>
                 </div>
               </div>
+              <AccountSwitcher currentCode={activeMerchant?.merchant_code} onSwitch={async (code) => {
+                const { data } = await supabase.from('merchants').select('*').eq('merchant_code', code).maybeSingle()
+                if (data) setMerchant(data)
+              }} />
               <ThemeToggle />
               <NotificationBell merchantCode={activeMerchant?.merchant_code} />
             </div>

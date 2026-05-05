@@ -17,3 +17,22 @@ export function exportMultiSheet(sheets: { name: string; rows: any[] }[], fileNa
   }
   XLSX.writeFile(wb, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`)
 }
+
+// Accounting-friendly export: dual-entry style (Zoho/QuickBooks compatible)
+export function exportAccounting(transactions: Array<{
+  date: string; description: string; debit?: number; credit?: number;
+  account: string; reference?: string; tax?: number; platform?: string
+}>, fileName: string, period: string = '') {
+  const rows = transactions.map(t => ({
+    Date:        t.date,
+    Reference:   t.reference || '',
+    Description: t.description,
+    Account:     t.account,
+    Debit:       t.debit  || 0,
+    Credit:      t.credit || 0,
+    'Tax (15%)': t.tax    || 0,
+    Platform:    t.platform || '',
+  }))
+  exportToExcel(rows, fileName + (period ? '-' + period : ''), 'Transactions')
+}
+
