@@ -267,36 +267,118 @@ const spinner: React.CSSProperties = {
 // ─── True Ad Effectiveness (Net ROAS after returns) ──────────────────────────
 function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
   const [data, setData] = useState<any[]>([])
+  const [summary, setSummary] = useState<any[]>([])
+  const [showDetails, setShowDetails] = useState(false)
+
   useEffect(() => {
     if (!merchantCode) return
-    supabase.from('true_ad_effectiveness').select('*').eq('merchant_code', merchantCode).order('spend', { ascending: false }).limit(30).then(({ data }) => setData(data || []))
+    Promise.all([
+      supabase.from('true_ad_effectiveness').select('*').eq('merchant_code', merchantCode).order('spend', { ascending: false }).limit(30),
+      supabase.from('ad_net_summary').select('*').eq('merchant_code', merchantCode),
+    ]).then(([d, s]) => {
+      setData(d.data || [])
+      setSummary(s.data || [])
+    })
   }, [merchantCode])
+
   if (data.length === 0) return null
+
   const losses = data.filter(d => d.net_roas !== null && Number(d.net_roas) < 1)
+  const inflated = data.filter(d => d.gross_roas && d.net_roas && Number(d.gross_roas) >= 2 && Number(d.net_roas) < 1)
+
+  // Aggregate summary
+  const totalSpend = summary.reduce((s, r) => s + Number(r.total_spend || 0), 0)
+  const totalGross = summary.reduce((s, r) => s + Number(r.total_gross || 0), 0)
+  const totalNet = summary.reduce((s, r) => s + Number(r.total_net || 0), 0)
+  const totalCommission = summary.reduce((s, r) => s + Number(r.total_commission || 0), 0)
+  const totalFba = summary.reduce((s, r) => s + Number(r.total_fba || 0), 0)
+  const totalVat = summary.reduce((s, r) => s + Number(r.total_vat || 0), 0)
+  const totalReturns = summary.reduce((s, r) => s + Number(r.total_returns || 0), 0)
+  const grossRoas = totalSpend > 0 ? totalGross / totalSpend : 0
+  const netRoas = totalSpend > 0 ? totalNet / totalSpend : 0
+  const inflationPct = totalGross > 0 ? ((totalGross - totalNet) / totalGross) * 100 : 0
+
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 ROAS الحقيقي بعد المرتجعات</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>الإعلانات قد تظهر مربحة لكن المرتجعات تأكل الربح</div>
-      {losses.length > 0 && (
-        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: '#e84040', fontWeight: 600 }}>
-          ⚠️ {losses.length} إعلان خاسر فعلياً بعد احتساب المرتجعات — راجعها أو أوقفها
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 ROAS الحقيقي — بعد العمولة والشحن والمرتجعات</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+            تقارير المنصات تعرض GMV الإجمالي. الـ ROAS الحقيقي يخصم عمولة المنصة + رسوم FBA + الضريبة المحجوزة + المرتجعات
+          </div>
+        </div>
+        <button onClick={() => setShowDetails(s => !s)} style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)',
+          padding: '6px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+        }}>
+          {showDetails ? '▲ إخفاء التفاصيل' : '▼ عرض تفاصيل الرسوم'}
+        </button>
+      </div>
+
+      {/* Inflation banner */}
+      {inflationPct > 5 && (
+        <div style={{ marginBottom: 12, padding: '12px 14px', background: 'linear-gradient(135deg,rgba(245,158,11,0.10),rgba(232,64,64,0.10))', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 9, fontSize: 12, color: 'var(--text)' }}>
+          <div style={{ fontWeight: 800, marginBottom: 4 }}>⚠ الـ ROAS اللي تشوفه في تقارير المنصة متضخّم بنسبة {inflationPct.toFixed(0)}%</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+            تقرير المنصة يقول: <strong style={{ color: '#00b894' }}>{grossRoas.toFixed(2)}x ROAS</strong> ·
+            بعد خصم العمولة والرسوم والمرتجعات الفعلي: <strong style={{ color: netRoas >= 1 ? '#00b894' : '#e84040' }}>{netRoas.toFixed(2)}x ROAS</strong>
+          </div>
         </div>
       )}
+
+      {/* KPI breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
+        <MetricCard label="إنفاق إعلاني" value={Math.round(totalSpend).toLocaleString('en-US')} suffix="ر.س" color="#e84040" />
+        <MetricCard label="إيراد إجمالي" value={Math.round(totalGross).toLocaleString('en-US')} suffix="ر.س" sub="حسب تقرير المنصة" />
+        <MetricCard label="عمولة المنصة" value={Math.abs(Math.round(totalCommission)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
+        <MetricCard label="رسوم FBA" value={Math.abs(Math.round(totalFba)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
+        <MetricCard label="ضريبة محجوزة" value={Math.abs(Math.round(totalVat)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
+        <MetricCard label="مرتجعات" value={Math.abs(Math.round(totalReturns)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
+        <MetricCard label="صافي الإيراد" value={Math.round(totalNet).toLocaleString('en-US')} suffix="ر.س" color={totalNet > 0 ? '#00b894' : '#e84040'} bold />
+        <MetricCard label="ROAS الحقيقي" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? '#00b894' : netRoas >= 1 ? '#f59e0b' : '#e84040'} bold sub={`المنصة: ${grossRoas.toFixed(2)}x`} />
+      </div>
+
+      {losses.length > 0 && (
+        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: '#e84040', fontWeight: 600 }}>
+          ⚠️ {losses.length} إعلان خاسر فعلياً بعد احتساب الرسوم والمرتجعات — راجعها أو أوقفها
+        </div>
+      )}
+      {inflated.length > 0 && (
+        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 9, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
+          🚨 {inflated.length} إعلان يبدو مربحاً جداً بـROAS ≥ 2x لكن صافياً خاسر — تنبيه للتضخّم
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-          <thead><tr>{['SKU','الحملة','إنفاق','إيراد إجمالي','مرتجعات','صافي','ROAS إجمالي','ROAS صافي'].map(h => (
-            <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
+          <thead><tr>{(showDetails
+            ? ['SKU/حملة','إنفاق','إجمالي (متضخم)','رسوم منصة','مرتجعات','صافي','ROAS منصة','ROAS حقيقي']
+            : ['SKU/حملة','إنفاق','إجمالي','صافي','ROAS منصة','ROAS حقيقي']
+          ).map(h => (
+            <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
           ))}</tr></thead>
           <tbody>
             {data.slice(0, 15).map((r, i) => (
               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</td>
-                <td style={{ padding: '7px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.campaign_name}>{r.campaign_name || '—'}</td>
+                <td style={{ padding: '7px 10px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.campaign_name || r.sku}>
+                  {r.sku ? <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</span> : (r.campaign_name || '—')}
+                </td>
                 <td style={{ padding: '7px 10px', color: '#e84040' }}>{Number(r.spend).toFixed(0)}</td>
                 <td style={{ padding: '7px 10px' }}>{Number(r.gross_revenue).toFixed(0)}</td>
-                <td style={{ padding: '7px 10px', color: '#ffd166' }}>{r.returned_value > 0 ? Number(r.returned_value).toFixed(0) : '—'}</td>
+                {showDetails && (
+                  <>
+                    <td style={{ padding: '7px 10px', color: '#f59e0b' }}>
+                      {r.est_fees > 0 ? '−' + Number(r.est_fees).toFixed(0) : '—'}
+                      {r.fee_rate && <span style={{ fontSize: 9, color: 'var(--text3)' }}> ({(Number(r.fee_rate) * 100).toFixed(0)}%)</span>}
+                    </td>
+                    <td style={{ padding: '7px 10px', color: '#ffd166' }}>
+                      {r.est_returns > 0 ? '−' + Number(r.est_returns).toFixed(0) : '—'}
+                      {r.return_rate && <span style={{ fontSize: 9, color: 'var(--text3)' }}> ({(Number(r.return_rate) * 100).toFixed(0)}%)</span>}
+                    </td>
+                  </>
+                )}
                 <td style={{ padding: '7px 10px', fontWeight: 700, color: r.net_revenue >= 0 ? '#00b894' : '#e84040' }}>{Number(r.net_revenue).toFixed(0)}</td>
-                <td style={{ padding: '7px 10px' }}>{r.gross_roas ? Number(r.gross_roas).toFixed(2) + 'x' : '—'}</td>
+                <td style={{ padding: '7px 10px', color: 'var(--text3)' }}>{r.gross_roas ? Number(r.gross_roas).toFixed(2) + 'x' : '—'}</td>
                 <td style={{ padding: '7px 10px', fontWeight: 800, color: !r.net_roas ? 'var(--text3)' : Number(r.net_roas) >= 2 ? '#00b894' : Number(r.net_roas) >= 1 ? '#ff9900' : '#e84040' }}>
                   {r.net_roas ? Number(r.net_roas).toFixed(2) + 'x' : '—'}
                 </td>
@@ -305,6 +387,22 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
           </tbody>
         </table>
       </div>
+
+      <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text3)', lineHeight: 1.7, padding: 10, background: 'var(--surface2)', borderRadius: 8 }}>
+        💡 <strong>كيف يحسبها النظام؟</strong> النظام يحلل ملف كشف الحساب الفعلي ويستخرج نسبتين: نسبة الرسوم (عمولة + FBA + ضريبة محجوزة ÷ المبيعات الإجمالية) ونسبة المرتجعات. ثم يطبقهما على الإيراد المعلن من تقارير Ads. كلما رفعت المزيد من ملفات الكشوف (Settlement)، ارتفعت دقة الحساب.
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({ label, value, suffix, color, sub, bold }: any) {
+  return (
+    <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 9, padding: '8px 10px' }}>
+      <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: bold ? 16 : 14, fontWeight: bold ? 800 : 700, color: color || 'var(--text)' }}>
+        {value}{suffix && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginRight: 3 }}> {suffix}</span>}
+      </div>
+      {sub && <div style={{ fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>{sub}</div>}
     </div>
   )
 }
