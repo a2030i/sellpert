@@ -16,7 +16,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
-  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3,
+  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3, Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -39,6 +39,7 @@ const ProductDetail = lazy(() => import('./pages/ProductDetail'))
 const ProductCompare = lazy(() => import('./pages/ProductCompare'))
 const Help = lazy(() => import('./pages/Help'))
 const QuickInventory = lazy(() => import('./pages/QuickInventory'))
+const Team = lazy(() => import('./pages/Team'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -47,9 +48,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
 type NavGroup = { key: string; label: string; items: NavItem[] }
@@ -73,6 +74,9 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: LifeBuoy,   label: 'الدعم',      key: 'requests'    },
     { Icon: HelpCircle, label: 'مركز المساعدة', key: 'help' },
     { Icon: CreditCard, label: 'الاشتراك',   key: 'billing'     },
+  ]},
+  { key: 'team',      label: 'الفريق',    items: [
+    { Icon: Users,      label: 'الموظفون',   key: 'team'        },
   ]},
   { key: 'system',    label: 'النظام',    items: [
     { Icon: Link2,         label: 'المنصات',    key: 'integrations' },
@@ -428,6 +432,7 @@ export default function App() {
           {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
           {view === 'help'            && <Help           merchant={activeMerchant} />}
           {view === 'quick-inventory' && <QuickInventory  merchant={activeMerchant} />}
+          {view === 'team'            && <Team            merchant={activeMerchant} />}
           {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
         </Suspense>
       </main>
