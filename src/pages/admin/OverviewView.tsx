@@ -20,7 +20,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
   const ordersLastMonth = perfData.filter((r: PerformanceData) => (r.data_date || r.created_at.split('T')[0]).startsWith(prevMonthKey)).reduce((s: number, r: PerformanceData) => s + r.order_count, 0)
   const ordersDelta = ordersLastMonth > 0 ? ((ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100 : null
   const avgGMVPerMerchant = merchantOnly.length > 0 ? totalGMV / merchantOnly.length : 0
-  const adminCount = merchants.filter((m: Merchant) => ['admin', 'super_admin'].includes(m.role)).length
+  const adminCount = merchants.filter((m: Merchant) => m.role === 'admin').length
   const employeeCount = merchants.filter((m: Merchant) => m.role === 'employee').length
   const topGMV = topMerchants[0]?.gmv || 1
 

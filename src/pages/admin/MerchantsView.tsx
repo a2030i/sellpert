@@ -73,8 +73,8 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
 
   async function deleteMerchant(id: string) {
     const target = merchants.find((m: Merchant) => m.id === id)
-    if (target && ['admin', 'super_admin'].includes(target.role)) {
-      const adminCount = merchants.filter((m: Merchant) => ['admin', 'super_admin'].includes(m.role)).length
+    if (target && target.role === 'admin') {
+      const adminCount = merchants.filter((m: Merchant) => m.role === 'admin').length
       if (adminCount <= 1) { setMsg({ type: 'err', text: 'لا يمكن حذف آخر مدير' }); setDeleteConfirm(null); return }
     }
     await supabase.from('merchants').delete().eq('id', id)
@@ -223,14 +223,13 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                           <option value="merchant">تاجر</option>
                           <option value="employee">موظف</option>
                           <option value="admin">مدير</option>
-                          <option value="super_admin">Super Admin</option>
                         </select>
                         <button style={{ ...S.miniBtn, background: 'var(--accent)' }} onClick={() => updateRole(m.id, editRole.role)}>✓</button>
                         <button style={S.miniBtn} onClick={() => setEditRole(null)}>✕</button>
                       </div>
                     ) : (
                       <span style={{ ...S.roleBadge, background: m.role === 'merchant' ? 'rgba(0,229,176,0.1)' : m.role === 'employee' ? 'rgba(245,158,11,0.1)' : 'rgba(124,107,255,0.15)', color: m.role === 'merchant' ? 'var(--accent2)' : m.role === 'employee' ? '#f59e0b' : 'var(--accent)', cursor: 'pointer' }} onClick={() => setEditRole({ id: m.id, role: m.role })}>
-                        {m.role === 'merchant' ? 'تاجر' : m.role === 'employee' ? 'موظف' : m.role === 'admin' ? 'مدير' : 'Super Admin'}
+                        {m.role === 'merchant' ? 'تاجر' : m.role === 'employee' ? 'موظف' : 'مدير'}
                       </span>
                     )}
                   </td>

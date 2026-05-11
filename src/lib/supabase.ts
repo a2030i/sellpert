@@ -9,7 +9,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-export type UserRole = 'merchant' | 'admin' | 'super_admin' | 'employee'
+export type UserRole = 'merchant' | 'admin' | 'employee'
 
 export interface Merchant {
   id: string

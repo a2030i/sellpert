@@ -8,7 +8,7 @@ interface Props {
 
 export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
   if (!merchant) return null
-  if (['admin', 'super_admin', 'employee'].includes(merchant.role)) return null
+  if (['admin', 'employee'].includes(merchant.role)) return null
 
   const status = merchant.subscription_status ?? 'active'
   const plan   = (merchant.subscription_plan as PlanKey) ?? 'free'

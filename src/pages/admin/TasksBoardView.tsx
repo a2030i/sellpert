@@ -90,7 +90,7 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
     if (filterPlatform !== 'all') query = query.eq('platform', filterPlatform)
     const [{ data }, staffRes] = await Promise.all([
       query,
-      supabase.from('merchants').select('merchant_code, name, role, email').in('role', ['admin', 'super_admin', 'employee']),
+      supabase.from('merchants').select('merchant_code, name, role, email').in('role', ['admin', 'employee']),
     ])
     setTasks((data as Task[]) || [])
     setStaff((staffRes.data as Merchant[]) || [])

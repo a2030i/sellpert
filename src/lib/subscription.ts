@@ -48,19 +48,19 @@ export type PlanKey = keyof typeof PLANS
 export function isActive(merchant: Merchant | null): boolean {
   if (!merchant) return false
   // Admin/employee always active
-  if (['admin', 'super_admin', 'employee'].includes(merchant.role)) return true
+  if (['admin', 'employee'].includes(merchant.role)) return true
   return (merchant.subscription_status ?? 'active') === 'active'
 }
 
 export function isSuspended(merchant: Merchant | null): boolean {
   if (!merchant) return false
-  if (['admin', 'super_admin', 'employee'].includes(merchant.role)) return false
+  if (['admin', 'employee'].includes(merchant.role)) return false
   return merchant.subscription_status === 'suspended'
 }
 
 export function canAccessChannel(merchant: Merchant | null, channel: string): boolean {
   if (!merchant) return false
-  if (['admin', 'super_admin', 'employee'].includes(merchant.role)) return true
+  if (['admin', 'employee'].includes(merchant.role)) return true
   if (!isActive(merchant)) return false
   const plan = (merchant.subscription_plan as PlanKey) || 'free'
   const cfg  = PLANS[plan] || PLANS.free

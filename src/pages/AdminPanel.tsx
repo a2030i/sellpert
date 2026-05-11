@@ -349,7 +349,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
               <div style={S.adminAvatar}>{adminMerchant?.name?.[0] || 'A'}</div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{adminMerchant?.name || 'مدير النظام'}</div>
-                <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>{adminMerchant?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</div>
+                <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>Admin</div>
               </div>
             </div>
             <button style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '8px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
@@ -420,7 +420,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
             <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,var(--accent),var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>S</div>
             <span style={{ fontSize: 14, fontWeight: 800 }}>Sellpert Admin</span>
           </div>
-          <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>{adminMerchant?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
+          <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>Admin</span>
         </header>
       )}
 
