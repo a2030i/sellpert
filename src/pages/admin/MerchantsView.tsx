@@ -36,11 +36,14 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
     })
   }
 
-  const filtered = merchants.filter((m: Merchant) =>
-    m.name?.toLowerCase().includes(search.toLowerCase()) ||
-    m.email?.toLowerCase().includes(search.toLowerCase()) ||
-    m.merchant_code?.toLowerCase().includes(search.toLowerCase())
-  )
+  // Only show actual merchants (role='merchant') here — staff are in EmployeesView
+  const filtered = merchants
+    .filter((m: Merchant) => m.role === 'merchant')
+    .filter((m: Merchant) =>
+      m.name?.toLowerCase().includes(search.toLowerCase()) ||
+      m.email?.toLowerCase().includes(search.toLowerCase()) ||
+      m.merchant_code?.toLowerCase().includes(search.toLowerCase())
+    )
 
   function credCount(code: string) {
     return credentials.filter((c: PlatformCredential) => c.merchant_code === code && c.is_active).length
@@ -126,7 +129,10 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
 
       {showAdd && (
         <div style={{ ...S.formCard, marginBottom: 16 }}>
-          <div style={S.formTitle}>إضافة تاجر / مدير جديد</div>
+          <div style={S.formTitle}>إضافة تاجر جديد</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: 8, background: 'var(--surface2)', borderRadius: 6 }}>
+            💡 لإضافة موظف أو مدير، اذهب إلى قسم <strong>"الموظفون"</strong>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
             {[
               { key: 'name',           label: 'الاسم الكامل',       placeholder: 'متجر النور',        type: 'text'     },
@@ -147,15 +153,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                 <option value="USD">$ — دولار</option>
               </select>
             </div>
-            <div>
-              <label style={S.label}>الدور</label>
-              <select style={S.input} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })}>
-                <option value="merchant">تاجر</option>
-                <option value="employee">موظف</option>
-                <option value="admin">مدير</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-            </div>
+            {/* الدور دائماً تاجر هنا */}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button style={S.saveBtn} onClick={addMerchant} disabled={saving}>{saving ? '⟳ جاري الإنشاء...' : '✓ إضافة وإنشاء حساب'}</button>
@@ -166,10 +164,9 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         {[
-          { label: 'إجمالي', value: merchants.length, color: 'var(--text)' },
-          { label: 'تجار', value: merchants.filter((m: Merchant) => m.role === 'merchant').length, color: 'var(--accent2)' },
-          { label: 'موظفون', value: merchants.filter((m: Merchant) => m.role === 'employee').length, color: '#f59e0b' },
-          { label: 'مدراء', value: merchants.filter((m: Merchant) => m.role === 'admin' || m.role === 'super_admin').length, color: 'var(--accent)' },
+          { label: 'إجمالي التجار', value: merchants.filter((m: Merchant) => m.role === 'merchant').length, color: 'var(--accent2)' },
+          { label: 'لديهم تكاملات', value: merchants.filter((m: Merchant) => m.role === 'merchant' && credentials.some((c: PlatformCredential) => c.merchant_code === m.merchant_code && c.is_active)).length, color: 'var(--accent)' },
+          { label: 'بدون تكاملات', value: merchants.filter((m: Merchant) => m.role === 'merchant' && !credentials.some((c: PlatformCredential) => c.merchant_code === m.merchant_code && c.is_active)).length, color: '#f59e0b' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 18px', display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</span>

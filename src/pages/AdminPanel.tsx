@@ -24,6 +24,7 @@ import RevenueView from './admin/RevenueView'
 import AdminBillingView from './admin/AdminBillingView'
 import TeamDashboardView from './admin/TeamDashboardView'
 import MerchantTimelineView from './admin/MerchantTimelineView'
+import EmployeesView from './admin/EmployeesView'
 import CommandPalette from '../components/CommandPalette'
 import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
@@ -35,9 +36,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -75,6 +76,12 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'ads',        Icon: Megaphone, label: 'أداء الإعلانات' },
       { key: 'operations', Icon: Truck,     label: 'العمليات والشحن' },
       { key: 'whatsapp',       Icon: Activity,    label: 'إدارة الواتساب' },
+    ],
+  },
+  {
+    key: 'team_mgmt', label: 'الفريق الداخلي', Icon: Users,
+    items: [
+      { key: 'employees', Icon: Users, label: 'الموظفون والمدراء' },
     ],
   },
   {
@@ -370,6 +377,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
             ? <MerchantTimelineView merchantCode={timelineCode} onBack={closeTimeline} />
             : <MerchantsView merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
         )}
+        {view === 'employees'   && <EmployeesView merchants={merchants} onRefresh={() => loadAll(true)} />}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
         {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
         {view === 'ai'          && <AiView merchants={merchantOnly} />}
