@@ -87,6 +87,29 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
     onImpersonate(merchant)
   }
 
+  async function wipeData(m: Merchant) {
+    const ok = confirm(
+      `⚠️ مسح كامل لبيانات ${m.name}؟\n\n` +
+      `سيتم حذف:\n` +
+      `• كل الملفات المرفوعة\n` +
+      `• الطلبات، المنتجات، المخزون\n` +
+      `• المعاملات المالية، الإعلانات، المرتجعات\n` +
+      `• كل البيانات المشتقة\n\n` +
+      `لا يمكن التراجع. اكتب "مسح" للتأكيد.`
+    )
+    if (!ok) return
+    const word = prompt('اكتب "مسح" للتأكيد:')
+    if (word !== 'مسح') { setMsg({ type: 'err', text: 'تم الإلغاء' }); return }
+    setSaving(true)
+    const { data, error } = await supabase.rpc('wipe_merchant_data', { p_merchant_code: m.merchant_code })
+    setSaving(false)
+    if (error) setMsg({ type: 'err', text: error.message })
+    else {
+      setMsg({ type: 'ok', text: `✓ تم مسح بيانات ${m.name} — ${data?.uploads || 0} ملف محذوف` })
+      onRefresh()
+    }
+  }
+
   return (
     <div>
       {msg && (
@@ -246,6 +269,15 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                             👁 عرض
                           </button>
                         ) : null}
+                        {m.role === 'merchant' && (
+                          <button
+                            style={{ ...S.miniBtn, background: 'rgba(232,64,64,0.08)', color: 'var(--red)', border: '1px solid rgba(232,64,64,0.25)' }}
+                            onClick={() => wipeData(m)}
+                            title="مسح كل بيانات الملفات لهذا التاجر"
+                          >
+                            🧹 مسح البيانات
+                          </button>
+                        )}
                         <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>🗑 حذف</button>
                       </div>
                     )}
