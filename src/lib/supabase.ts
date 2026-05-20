@@ -7,7 +7,84 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+// Resilient session storage: prefer localStorage, fall back to sessionStorage,
+// finally to in-memory map. Some browsers (incognito, strict iframe contexts)
+// throw when accessing localStorage.
+function makeStorage(): Storage {
+  try {
+    const t = '__sellpert_test__'
+    window.localStorage.setItem(t, '1')
+    window.localStorage.removeItem(t)
+    return window.localStorage
+  } catch {
+    try {
+      const t = '__sellpert_test__'
+      window.sessionStorage.setItem(t, '1')
+      window.sessionStorage.removeItem(t)
+      return window.sessionStorage
+    } catch {
+      // In-memory fallback (single-tab only)
+      const mem = new Map<string, string>()
+      return {
+        getItem: (k: string) => mem.get(k) ?? null,
+        setItem: (k: string, v: string) => { mem.set(k, v) },
+        removeItem: (k: string) => { mem.delete(k) },
+        clear: () => mem.clear(),
+        key: (i: number) => Array.from(mem.keys())[i] ?? null,
+        get length() { return mem.size },
+      } as Storage
+    }
+  }
+}
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,        // Keep the session in storage across reloads
+    autoRefreshToken: true,      // Refresh JWT before it expires
+    detectSessionInUrl: true,    // Handle magic link / OAuth callbacks
+    storage: makeStorage(),
+    storageKey: 'sellpert-auth-v1',
+    flowType: 'pkce',
+  },
+})
+
+// Heartbeat: while the tab is visible, refresh the session every 30 minutes.
+// Supabase's autoRefreshToken handles this internally too, but having an
+// explicit poll catches edge cases (long-idle tabs, suspended workers).
+if (typeof window !== 'undefined') {
+  let interval: number | null = null
+  const start = () => {
+    if (interval) return
+    interval = window.setInterval(() => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (!data.session) return
+        const expiresAt = data.session.expires_at
+        if (!expiresAt) return
+        const secondsLeft = expiresAt - Math.floor(Date.now() / 1000)
+        // Refresh proactively if less than 10 minutes remain
+        if (secondsLeft < 600) {
+          supabase.auth.refreshSession().catch(() => {})
+        }
+      }).catch(() => {})
+    }, 5 * 60 * 1000)  // every 5 minutes
+  }
+  const stop = () => { if (interval) { clearInterval(interval); interval = null } }
+
+  // Refresh on visibility change (returning to tab)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      supabase.auth.refreshSession().catch(() => {})
+      start()
+    } else {
+      stop()
+    }
+  })
+  // Refresh on online (returning from offline)
+  window.addEventListener('online', () => {
+    supabase.auth.refreshSession().catch(() => {})
+  })
+  start()
+}
 
 export type UserRole = 'merchant' | 'admin' | 'employee'
 

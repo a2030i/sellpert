@@ -224,7 +224,25 @@ export default function App() {
       if (session) fetchMerchant(session.user.email!)
       else setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Ignore transient events that aren't actual login/logout
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+        if (session) setSession(session)
+        return
+      }
+      if (event === 'SIGNED_OUT') {
+        // Double-check before clearing state — sometimes a refresh race triggers
+        // a spurious SIGNED_OUT. If the storage still has a valid session, ignore it.
+        await new Promise(r => setTimeout(r, 250))
+        const { data } = await supabase.auth.getSession()
+        if (data.session) {
+          setSession(data.session)
+          return  // false alarm — session is fine
+        }
+        setSession(null); setMerchant(null); setLoading(false)
+        return
+      }
+      // SIGNED_IN, PASSWORD_RECOVERY
       setSession(session)
       if (session) fetchMerchant(session.user.email!)
       else { setMerchant(null); setLoading(false) }
