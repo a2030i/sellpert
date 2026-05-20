@@ -48,70 +48,106 @@ function readAdminView(): AdminView {
 
 // ── Grouped sidebar navigation ──────────────────────────────────────────────
 
+import type { PermKey } from '../lib/permissions'
+import { hasPermission } from '../lib/permissions'
+
+type NavItem = { key: AdminView; Icon: LucideIcon; label: string; perm?: PermKey | PermKey[]; adminOnly?: boolean }
 type NavGroup = {
   key: string
   label: string
   Icon: LucideIcon
-  items: { key: AdminView; Icon: LucideIcon; label: string }[]
+  items: NavItem[]
 }
 
+// Permission gates per view. If `perm` is set, employees need that permission.
+// If `adminOnly` is true, only admins (managers) can see it.
 const NAV_GROUPS: NavGroup[] = [
   {
     key: 'home', label: 'الرئيسية', Icon: LayoutDashboard,
     items: [
       { key: 'overview', Icon: LayoutDashboard, label: 'نظرة عامة' },
-      { key: 'team',     Icon: BarChart2,       label: 'لوحة الفريق' },
+      { key: 'team',     Icon: BarChart2,       label: 'لوحة الفريق', adminOnly: true },
     ],
   },
   {
     key: 'merchants', label: 'التجار', Icon: Users,
     items: [
-      { key: 'merchants', Icon: Users,    label: 'التجار' },
-      { key: 'products',  Icon: Tag,      label: 'المنتجات والأسعار' },
-      { key: 'tasks',     Icon: Inbox,    label: 'لوحة المهام' },
-      { key: 'requests',  Icon: Inbox,    label: 'طلبات قديمة' },
-      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي' },
-      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات' },
-      { key: 'inbound',    Icon: Truck,     label: 'الإرساليات والاستلام' },
-      { key: 'ads',        Icon: Megaphone, label: 'أداء الإعلانات' },
-      { key: 'operations', Icon: Truck,     label: 'العمليات والشحن' },
-      { key: 'whatsapp',       Icon: Activity,    label: 'إدارة الواتساب' },
+      { key: 'merchants', Icon: Users,    label: 'التجار',                 perm: 'view_merchants' },
+      { key: 'products',  Icon: Tag,      label: 'المنتجات والأسعار',       perm: 'view_merchants' },
+      { key: 'tasks',     Icon: Inbox,    label: 'لوحة المهام',            perm: 'tasks' },
+      { key: 'requests',  Icon: Inbox,    label: 'طلبات قديمة',            perm: 'tasks' },
+      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',             perm: 'upload_files' },
+      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات',           perm: 'upload_files' },
+      { key: 'inbound',   Icon: Truck,    label: 'الإرساليات والاستلام',    perm: 'manage_inbound' },
+      { key: 'ads',       Icon: Megaphone,label: 'أداء الإعلانات',          perm: 'manage_ads' },
+      { key: 'operations',Icon: Truck,    label: 'العمليات والشحن',         perm: 'manage_inbound' },
+      { key: 'whatsapp',  Icon: Activity, label: 'إدارة الواتساب',          perm: ['whatsapp_send', 'whatsapp_bulk'] },
     ],
   },
   {
     key: 'team_mgmt', label: 'الفريق الداخلي', Icon: Users,
     items: [
-      { key: 'employees', Icon: Users, label: 'الموظفون والمدراء' },
+      { key: 'employees', Icon: Users, label: 'الموظفون والمدراء', perm: 'create_staff' },
     ],
   },
   {
     key: 'finance', label: 'المالية', Icon: Wallet,
     items: [
-      { key: 'revenue', Icon: TrendingUp, label: 'إيرادات Sellpert' },
-      { key: 'billing', Icon: CreditCard, label: 'طلبات الدفع' },
-      { key: 'fees',    Icon: Percent,    label: 'الرسوم والعمولات' },
+      { key: 'revenue', Icon: TrendingUp, label: 'إيرادات Sellpert', perm: 'view_revenue' },
+      { key: 'billing', Icon: CreditCard, label: 'طلبات الدفع',      perm: 'edit_billing' },
+      { key: 'fees',    Icon: Percent,    label: 'الرسوم والعمولات', perm: 'view_finance' },
     ],
   },
   {
     key: 'salla', label: 'سلة', Icon: ShoppingBag,
-    items: [{ key: 'salla', Icon: ShoppingBag, label: 'تجار سلة' }],
+    items: [{ key: 'salla', Icon: ShoppingBag, label: 'تجار سلة', adminOnly: true }],
   },
   {
     key: 'ops', label: 'التشغيل', Icon: Settings,
     items: [
-      { key: 'performance',  Icon: BarChart2,  label: 'الأداء' },
-      { key: 'connections',  Icon: Key,        label: 'المفاتيح والربط' },
-      { key: 'ai',           Icon: Sparkles,   label: 'تحليل AI' },
+      { key: 'performance',  Icon: BarChart2,  label: 'الأداء',           perm: 'view_merchants' },
+      { key: 'connections',  Icon: Key,        label: 'المفاتيح والربط',   adminOnly: true },
+      { key: 'ai',           Icon: Sparkles,   label: 'تحليل AI',          perm: 'view_merchants' },
     ],
   },
   {
     key: 'system', label: 'النظام', Icon: Server,
     items: [
-      { key: 'health', Icon: Activity, label: 'صحة قاعدة البيانات' },
-      { key: 'audit',  Icon: History,  label: 'سجل التدقيق' },
+      { key: 'health', Icon: Activity, label: 'صحة قاعدة البيانات', perm: 'view_db_health' },
+      { key: 'audit',  Icon: History,  label: 'سجل التدقيق',         perm: 'view_audit' },
     ],
   },
 ]
+
+// Filter nav for a given user — admins see everything, employees see only allowed items
+function filterNavForUser(user: Merchant | null): NavGroup[] {
+  if (!user) return []
+  if (user.role === 'admin') return NAV_GROUPS  // managers see everything
+  return NAV_GROUPS.map(g => ({
+    ...g,
+    items: g.items.filter(item => {
+      if (item.adminOnly) return false
+      if (!item.perm) return true  // no gate
+      const perms = Array.isArray(item.perm) ? item.perm : [item.perm]
+      return perms.some(p => hasPermission(user, p))
+    }),
+  })).filter(g => g.items.length > 0)
+}
+
+function canAccessView(user: Merchant | null, view: AdminView): boolean {
+  if (!user) return false
+  if (user.role === 'admin') return true
+  if (view === 'overview') return true
+  for (const g of NAV_GROUPS) {
+    const item = g.items.find(i => i.key === view)
+    if (!item) continue
+    if (item.adminOnly) return false
+    if (!item.perm) return true
+    const perms = Array.isArray(item.perm) ? item.perm : [item.perm]
+    return perms.some(p => hasPermission(user, p))
+  }
+  return false
+}
 
 function findGroupKey(v: AdminView): string | undefined {
   return NAV_GROUPS.find(g => g.items.some(i => i.key === v))?.key
@@ -186,7 +222,17 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   })
   const isMobile                = useMobile()
 
+  // Filter navigation by current user's permissions (admins see all, employees see allowed only)
+  const visibleNav = useMemo(() => filterNavForUser(adminMerchant), [adminMerchant])
+  const visibleNavFlat = useMemo(() => visibleNav.flatMap(g => g.items), [visibleNav])
+  const isManager = adminMerchant?.role === 'admin'
+
   function navTo(v: AdminView) {
+    if (!canAccessView(adminMerchant, v)) {
+      // Redirect to first allowed view if employee tries to access blocked
+      const first = visibleNavFlat[0]?.key || 'overview'
+      v = first
+    }
     setView(v)
     setMobileMore(false)
     window.history.pushState(null, '', '/admin/' + v)
@@ -283,7 +329,18 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
     [merchantOnly, gmvByMerchant]
   )
 
-  const currentLabel = NAV_FLAT.find(n => n.key === view)?.label || ''
+  const currentLabel = visibleNavFlat.find(n => n.key === view)?.label || NAV_FLAT.find(n => n.key === view)?.label || ''
+
+  // Auto-redirect if current view is not allowed for this user
+  useEffect(() => {
+    if (!loading && adminMerchant && !canAccessView(adminMerchant, view)) {
+      const first = visibleNavFlat[0]?.key || 'overview'
+      if (view !== first) {
+        setView(first)
+        window.history.replaceState(null, '', '/admin/' + first)
+      }
+    }
+  }, [view, adminMerchant, loading, visibleNavFlat])
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
@@ -310,7 +367,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
           </div>
 
           <nav style={{ flex: 1, padding: '8px 0 0' }}>
-            {NAV_GROUPS.map(group => {
+            {visibleNav.map(group => {
               const isOpen = openGroups.has(group.key)
               const hasActive = group.items.some(i => i.key === view)
               const GIcon = group.Icon
@@ -349,7 +406,9 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
               <div style={S.adminAvatar}>{adminMerchant?.name?.[0] || 'A'}</div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{adminMerchant?.name || 'مدير النظام'}</div>
-                <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>Admin</div>
+                <div style={{ fontSize: 10, color: isManager ? 'var(--accent)' : '#f59e0b', fontWeight: 700 }}>
+                  {isManager ? 'مدير' : `موظف · ${visibleNavFlat.length} صلاحية`}
+                </div>
               </div>
             </div>
             <button style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '8px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
@@ -418,7 +477,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 52, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', zIndex: 150 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,var(--accent),var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>S</div>
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Sellpert Admin</span>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>Sellpert {isManager ? 'Admin' : 'Staff'}</span>
           </div>
           <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>Admin</span>
         </header>
@@ -451,7 +510,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
 
           {mobileMore && (
             <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', zIndex: 199, padding: '8px 0', maxHeight: '60vh', overflowY: 'auto' }}>
-              {NAV_FLAT.filter(n => !['overview', 'merchants', 'entry', 'connections', 'performance'].includes(n.key)).map(item => {
+              {visibleNavFlat.filter(n => !['overview', 'merchants', 'entry', 'connections', 'performance'].includes(n.key)).map(item => {
                 const MIcon = item.Icon
                 return (
                   <div key={item.key} onClick={() => navTo(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', cursor: 'pointer', color: view === item.key ? 'var(--accent)' : 'var(--text)', fontWeight: view === item.key ? 700 : 400, fontSize: 14 }}>

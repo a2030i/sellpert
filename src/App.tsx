@@ -256,9 +256,9 @@ export default function App() {
   )
 
   if (!session) return <Login />
-  if (merchant?.role === 'admin' && !impersonating)
+  // Both admins (managers) and employees use AdminPanel — sidebar filters by permissions
+  if ((merchant?.role === 'admin' || merchant?.role === 'employee') && !impersonating)
     return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} />
-  if (merchant?.role === 'employee') return <EmployeePanel merchant={merchant} />
 
   const activeMerchant = impersonating || merchant
   const suspended = isSuspended(activeMerchant)
