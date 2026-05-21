@@ -86,12 +86,52 @@ export interface FileInput {
   workbook?: XLSX.WorkBook
 }
 
+// Helper: find the header row in a sheet. Headers are usually short snake_case-ish
+// strings; data rows usually contain numbers or long Arabic descriptions. Scan the
+// first few rows and pick the one that most "looks like" headers.
+function findHeaderRow(ws: XLSX.WorkSheet, maxScan = 5): string[] {
+  const rows = (XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]).slice(0, maxScan)
+  let best: any[] = []
+  let bestScore = -Infinity
+  for (const r of rows) {
+    if (!Array.isArray(r) || r.length === 0) continue
+    let score = 0
+    let nonEmpty = 0
+    for (const cell of r) {
+      if (cell === '' || cell == null) continue
+      nonEmpty++
+      const v = String(cell).trim()
+      if (!v) continue
+      // Reward short string cells that look like column names
+      if (typeof cell === 'string' || cell instanceof String) {
+        if (v.length <= 40) score += 2
+        else                score -= 2   // long text → probably data
+        if (/^[a-z][a-z0-9_-]*$/i.test(v)) score += 3  // snake_case or kebab-case
+        if (/\s{2,}/.test(v)) score -= 1               // multiple spaces → probably a sentence
+      } else if (typeof cell === 'number') {
+        score -= 3  // numbers in header row are very unlikely
+      }
+    }
+    if (nonEmpty === 0) continue
+    if (score > bestScore) { best = r; bestScore = score }
+  }
+  // Fallback: if all rows scored negative, take the first non-empty row anyway
+  if (best.length === 0) {
+    for (const r of rows) {
+      if (Array.isArray(r) && r.some(c => c !== '' && c != null)) { best = r; break }
+    }
+  }
+  return best.map(h => String(h ?? '').replace(/^﻿/, '').trim().toLowerCase())
+}
+
 export function detectFileKind(input: FileInput): string {
   // CSV files
   if (input.isCsv) {
-    const firstLine = (input.csvText || '').split(/\r?\n/)[0].toLowerCase()
+    const firstLine = (input.csvText || '').replace(/^﻿/, '').split(/\r?\n/)[0].toLowerCase()
     if (firstLine.includes('id_partner') && firstLine.includes('gmv_lcy'))           return 'noon_sales'
     if (firstLine.includes('psku_code') && firstLine.includes('noon_title'))         return 'noon_products'
+    // Noon ASN sometimes exported as CSV
+    if (firstLine.includes('psku_code') && firstLine.includes('cubic_feet'))         return 'noon_asn'
     if (firstLine.includes('اسم المجموعة الإعلانية') || firstLine.includes('ad_group')) return 'amazon_ads'
     if (firstLine.includes('حالة المعاملة') || firstLine.includes('نوع المعاملة'))    return 'amazon_transactions'
     return 'unknown'
@@ -106,14 +146,35 @@ export function detectFileKind(input: FileInput): string {
     return 'amazon_listings'
   }
 
-  // --- Noon ASN (products report) ---
+  // --- Noon ASN (Advance Shipment Notice — products report from Noon) ---
+  // Detection: any sheet whose headers contain psku_code + (cubic_feet OR storage_type_code OR pbarcode_code)
+  // This handles variations: Arabic file names, slight column changes, multi-sheet ASN exports.
+  for (const sn of sheets) {
+    const hStr = findHeaderRow(wb.Sheets[sn])
+    if (hStr.includes('psku_code') &&
+        (hStr.includes('cubic_feet') || hStr.includes('storage_type_code') || hStr.includes('pbarcode_code'))) {
+      // Make sure it's NOT a noon_products file (which also has psku_code but with noon_title)
+      if (!hStr.includes('noon_title')) return 'noon_asn'
+    }
+  }
+
+  // --- Noon products report (could be xlsx too, not just csv) ---
+  for (const sn of sheets) {
+    const hStr = findHeaderRow(wb.Sheets[sn])
+    if (hStr.includes('psku_code') && hStr.includes('noon_title')) return 'noon_products'
+  }
+
+  // --- Noon sales report (could be xlsx) ---
+  for (const sn of sheets) {
+    const hStr = findHeaderRow(wb.Sheets[sn])
+    if (hStr.includes('id_partner') && hStr.includes('gmv_lcy')) return 'noon_sales'
+  }
+
+  // --- Amazon Inventory / Settlement (single sheet) ---
   if (sheets.length === 1) {
-    const ws = wb.Sheets[sheets[0]]
-    const headers = (XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' })[0] as any[]) || []
-    const hStr = headers.map(h => s(h).toLowerCase())
-    if (hStr.includes('psku_code') && hStr.includes('cubic_feet') && hStr.includes('storage_type_code')) return 'noon_asn'
-    if (hStr.includes('seller-sku') && hStr.includes('fulfillment-channel-sku'))                          return 'amazon_inventory'
-    if (hStr.includes('settlement-id') || hStr.includes('settlement-start-date'))                         return 'amazon_settlement'
+    const hStr = findHeaderRow(wb.Sheets[sheets[0]])
+    if (hStr.includes('seller-sku') && hStr.includes('fulfillment-channel-sku')) return 'amazon_inventory'
+    if (hStr.includes('settlement-id') || hStr.includes('settlement-start-date')) return 'amazon_settlement'
   }
 
   // --- Noon GRN (multi-sheet) ---
@@ -901,7 +962,24 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
       case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
       case 'amazon_listings':      return parseAmazonListings(workbook!, merchantCode)
-      default:                     return errResult('unknown', 'other', file.name, 'نوع الملف غير معروف — تأكد أنه تقرير رسمي من المنصة')
+      default: {
+        // Build a helpful diagnostic so the admin/employee can identify the file
+        let diag = ''
+        if (workbook) {
+          const sheets = workbook.SheetNames
+          diag = ' · أوراق الملف: ' + sheets.slice(0, 5).join(', ')
+          if (sheets.length > 0) {
+            const hStr = findHeaderRow(workbook.Sheets[sheets[0]])
+            const headers = hStr.filter(Boolean).slice(0, 8).join(', ')
+            if (headers) diag += ' · أول الأعمدة: ' + headers
+          }
+        } else if (csvText) {
+          const firstLine = csvText.split(/\r?\n/)[0].slice(0, 200)
+          diag = ' · أول سطر: ' + firstLine
+        }
+        return errResult('unknown', 'other', file.name,
+          'نوع الملف غير معروف — تأكد أنه تقرير رسمي من المنصة' + diag)
+      }
     }
   } catch (e: any) {
     return errResult(kind, 'other', file.name, 'خطأ في التحليل: ' + e.message)
