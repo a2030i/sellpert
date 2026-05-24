@@ -339,6 +339,22 @@ function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry
   return { ok: errors.length === 0, warnings, errors }
 }
 
+// Dedupe rows by the conflict key. Postgres refuses to update the same row
+// twice in one ON CONFLICT DO UPDATE statement ("cannot affect row a second
+// time"), so duplicates in the input would crash the whole batch. Last write
+// wins — for inventory that means the last row's quantity for a SKU is kept.
+// Returns { rows, dropped } so the caller can surface a warning.
+function dedupeByConflict(rows: any[], conflictKey: string): { rows: any[]; dropped: number } {
+  const keys = conflictKey.split(',').map(k => k.trim()).filter(Boolean)
+  if (keys.length === 0) return { rows, dropped: 0 }
+  const map = new Map<string, any>()
+  for (const r of rows) {
+    const k = keys.map(c => String(r?.[c] ?? '')).join('|')
+    map.set(k, r)
+  }
+  return { rows: Array.from(map.values()), dropped: rows.length - map.size }
+}
+
 // ─── Save logic with progress callback ───────────────────────────────────────
 async function saveParsedResult(
   parsed: ParseResult,
@@ -357,7 +373,10 @@ async function saveParsedResult(
     const itemsPayload = parsed.payloads.find(p => p.table === 'inbound_shipment_items')
     if (headerPayload && itemsPayload) {
       onProgress(10, 'حفظ بيانات الإرسالية الرئيسية…')
-      const headerRowsTagged = headerPayload.rows.map((r: any) => ({ ...r, upload_id: uploadId }))
+      const dedupedHeaders = headerPayload.conflict
+        ? dedupeByConflict(headerPayload.rows, headerPayload.conflict).rows
+        : headerPayload.rows
+      const headerRowsTagged = dedupedHeaders.map((r: any) => ({ ...r, upload_id: uploadId }))
       const { data: parentRows, error: pErr } = await supabase
         .from('inbound_shipments')
         .upsert(headerRowsTagged, { onConflict: headerPayload.conflict, ignoreDuplicates: false })
@@ -398,13 +417,26 @@ async function saveParsedResult(
   let processed = 0
   for (const payload of parsed.payloads) {
     if (payload.rows.length === 0) continue
-    onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)} (${payload.rows.length} صف)…`)
+
+    // For upserts, dedupe by conflict key first — Postgres refuses to update
+    // the same row twice in one ON CONFLICT statement, so duplicates would
+    // crash the whole batch ("cannot affect row a second time").
+    let rowsToSave = payload.rows
+    if (payload.conflict) {
+      const { rows: deduped, dropped } = dedupeByConflict(payload.rows, payload.conflict)
+      rowsToSave = deduped
+      if (dropped > 0) {
+        onProgress(Math.round((processed / total) * 95), `دُمج ${dropped} صف مكرر في ${arabicTable(payload.table)}…`)
+      }
+    }
+
+    onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)} (${rowsToSave.length} صف)…`)
 
     // Chunked insert (مع upload_id لتتبّع الرفع)
     const TAGGABLE = ['orders','products','inventory','account_transactions','ad_metrics','returns','goods_received','product_performance_snapshots','platform_deals']
     const CHUNK = 500
-    for (let i = 0; i < payload.rows.length; i += CHUNK) {
-      const slice = payload.rows.slice(i, i + CHUNK).map((r: any) =>
+    for (let i = 0; i < rowsToSave.length; i += CHUNK) {
+      const slice = rowsToSave.slice(i, i + CHUNK).map((r: any) =>
         TAGGABLE.includes(payload.table) ? { ...r, upload_id: uploadId } : r
       )
       let err: any
