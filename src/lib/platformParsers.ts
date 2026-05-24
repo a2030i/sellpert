@@ -859,26 +859,43 @@ export function parseAmazonTransactions(csv: string, merchantCode: string): Pars
 }
 
 // === AMAZON: Inventory ===
+// Amazon's "All Listings" / FBA inventory reports can have multiple rows per
+// seller-sku — same SKU listed under different condition-type (New, Used-Good)
+// or different fulfillment-channel (DEFAULT/MFN vs AMAZON_*/FBA). The DB
+// conflict key is (merchant_code, sku, platform) which collapses these, so we
+// aggregate up front: SUM the quantities and keep the highest-quantity row's
+// metadata (ASIN, condition). This way total stock is preserved and the
+// upsert doesn't hit "ON CONFLICT cannot affect row a second time".
 export function parseAmazonInventory(wb: XLSX.WorkBook, merchantCode: string): ParseResult {
   const ws = wb.Sheets[wb.SheetNames[0]]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
   const idx = (k: string) => h.indexOf(k.toLowerCase())
-  const rows: any[] = []
+  const bySku = new Map<string, any>()
   for (let i = 1; i < data.length; i++) {
     const r = data[i]; if (!r || r.every((c: any) => !c)) continue
     const sku = s(r[idx('seller-sku')])
     if (!sku) continue
-    rows.push({
-      merchant_code: merchantCode, platform: 'amazon',
-      sku, asin: s(r[idx('asin')]),
-      product_name: sku,
-      condition_type: s(r[idx('condition-type')]),
-      fulfillment_channel: 'FBA',
-      quantity: parseInt(s(r[idx('quantity available')])) || 0,
-      is_active: true,
-    })
+    const qty = parseInt(s(r[idx('quantity available')])) || 0
+    const existing = bySku.get(sku)
+    if (existing) {
+      existing.quantity += qty
+      // Prefer non-empty ASIN/condition if the existing one was blank
+      if (!existing.asin) existing.asin = s(r[idx('asin')])
+      if (!existing.condition_type) existing.condition_type = s(r[idx('condition-type')])
+    } else {
+      bySku.set(sku, {
+        merchant_code: merchantCode, platform: 'amazon',
+        sku, asin: s(r[idx('asin')]),
+        product_name: sku,
+        condition_type: s(r[idx('condition-type')]),
+        fulfillment_channel: 'FBA',
+        quantity: qty,
+        is_active: true,
+      })
+    }
   }
+  const rows = Array.from(bySku.values())
   return {
     kind: 'amazon_inventory', platform: 'amazon', label: 'مخزون أمازون',
     summary: { rows: rows.length, totalStock: rows.reduce((a, r) => a + r.quantity, 0) },
