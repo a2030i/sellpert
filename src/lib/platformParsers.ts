@@ -8,6 +8,17 @@ import * as XLSX from 'xlsx'
 export const n = (v: any): number => parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')) || 0
 export const s = (v: any): string => String(v ?? '').trim()
 
+// مفتاح إزالة تكرار الإعلانات: إعادة رفع نفس التقرير في نفس اليوم تستبدل بدل أن
+// تضاعف الإنفاق. كل أعمدة المفتاح يجب أن تكون '' (لا null) ليطابقها الفهرس الفريد.
+const AD_CONFLICT = 'merchant_code,platform,report_date,campaign_name,ad_group_name,sku,search_query'
+function adKeyDefaults(row: any) {
+  return {
+    ...row,
+    campaign_name: s(row.campaign_name), ad_group_name: s(row.ad_group_name),
+    sku: s(row.sku), search_query: s(row.search_query),
+  }
+}
+
 const ci = (headers: string[], ...keys: string[]): number => {
   for (const k of keys) {
     const i = headers.findIndex(h => h.toLowerCase().includes(k.toLowerCase()))
@@ -133,6 +144,8 @@ export function detectFileKind(input: FileInput): string {
     // Noon ASN sometimes exported as CSV
     if (firstLine.includes('psku_code') && firstLine.includes('cubic_feet'))         return 'noon_asn'
     if (firstLine.includes('اسم المجموعة الإعلانية') || firstLine.includes('ad_group')) return 'amazon_ads'
+    // تقرير حملات أمازون (مستوى الحملة) — يحتوي اسم الحملة + ميزانية/إستراتيجية بدل اسم المجموعة الإعلانية
+    if (firstLine.includes('اسم الحملة') && (firstLine.includes('ميزانية الحملة') || firstLine.includes('إستراتيجية عرض') || firstLine.includes('استراتيجية عرض'))) return 'amazon_campaigns'
     if (firstLine.includes('حالة المعاملة') || firstLine.includes('نوع المعاملة'))    return 'amazon_transactions'
     return 'unknown'
   }
@@ -202,6 +215,13 @@ export function detectFileKind(input: FileInput): string {
 
   // --- Trendyol Ads ---
   if (sheets.includes('Reklam Raporu')) return 'trendyol_ads'
+
+  // --- Trendyol Campaign coverage (selected products in a campaign) ---
+  if (sheets.includes('CampaignProducts')) return 'trendyol_campaign_products'
+  for (const sn of sheets) {
+    const hStr = findHeaderRow(wb.Sheets[sn])
+    if (hStr.includes('campaign product id') && hStr.includes('barcode') && hStr.includes('product code')) return 'trendyol_campaign_products'
+  }
 
   return 'unknown'
 }
@@ -489,7 +509,7 @@ export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string): ParseResu
   return {
     kind: 'noon_ads', platform: 'noon', label: 'إعلانات نون',
     summary: { rows: rows.length, spend: Math.round(totSpend), revenue: Math.round(totRev), roas: totSpend > 0 ? +(totRev/totSpend).toFixed(2) : 0 },
-    payloads: [{ table: 'ad_metrics', rows }],
+    payloads: [{ table: 'ad_metrics', rows: rows.map(adKeyDefaults), conflict: AD_CONFLICT }],
   }
 }
 
@@ -659,6 +679,10 @@ export function parseTrendyolAds(wb: XLSX.WorkBook, merchantCode: string): Parse
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x))
   const idx = (...keys: string[]) => ci(h, ...keys)
+  // "إجمالي المبيعات" يتكرر مرتين: الأولى = عدد المبيعات، الثانية = قيمة الإيراد.
+  // نأخذ آخر تطابق للإيراد ("عائد الإنفاق الإعلاني" يقع بعده مباشرة).
+  const lastIdx = (key: string) => { let f = -1; h.forEach((x, i) => { if (x.includes(key)) f = i }); return f }
+  const revenueIdx = lastIdx('إجمالي المبيعات')
   const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < data.length; i++) {
@@ -676,15 +700,15 @@ export function parseTrendyolAds(wb: XLSX.WorkBook, merchantCode: string): Parse
       cpc: n(r[idx('تكلفة النقرة المحققة')]) || null,
       clicks: parseInt(s(r[idx('عدد النقرات')])) || 0,
       impressions: parseInt(s(r[idx('من المشاهدات')])) || 0,
-      revenue: n(r[idx('إجمالي المبيعات')]),
+      revenue: revenueIdx >= 0 ? n(r[revenueIdx]) : 0,
       roas: n(r[idx('عائد الإنفاق الإعلاني')]) || null,
     })
   }
   const totSpend = rows.reduce((a, r) => a + r.spend, 0)
   return {
     kind: 'trendyol_ads', platform: 'trendyol', label: 'إعلانات تراندايول',
-    summary: { rows: rows.length, spend: Math.round(totSpend) },
-    payloads: [{ table: 'ad_metrics', rows }],
+    summary: { rows: rows.length, spend: Math.round(totSpend), revenue: Math.round(rows.reduce((a, r) => a + r.revenue, 0)) },
+    payloads: [{ table: 'ad_metrics', rows: rows.map(adKeyDefaults), conflict: AD_CONFLICT }],
   }
 }
 
@@ -777,6 +801,97 @@ export function parseTrendyolSales(wb: XLSX.WorkBook, merchantCode: string, snap
       { table: 'products', rows: products, conflict: 'merchant_code,sku' },
       { table: 'inventory', rows: inventory, conflict: 'merchant_code,sku,platform' },
     ],
+  }
+}
+
+// === AMAZON: Sponsored Products CAMPAIGN report CSV (campaign-level) ===
+// عناوين عربية: الولاية(=المحفظة), اسم الحملة, الحالة, النوع, الاستهداف, إستراتيجية عرض أسعار الحملة,
+// تاريخ بداية الحملة, تاريخ انتهاء الحملة, مبلغ ميزانية الحملة, مرات الظهور, النقرات, إجمالي التكلفة, المشتريات, المبيعات, ACOS, ROAS
+export function parseAmazonCampaigns(csv: string, merchantCode: string): ParseResult {
+  const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return errResult('amazon_campaigns','amazon','حملات أمازون','الملف فارغ')
+  const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
+  const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
+  const idx = (k: string) => h.findIndex(x => x.includes(k.toLowerCase()))
+  const today = new Date().toISOString().split('T')[0]
+  const rows: any[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const c = parseLine(lines[i])
+    if (c.every(x => !x)) continue
+    const name = c[idx('اسم الحملة')] || ''
+    if (!name) continue
+    rows.push({
+      merchant_code: merchantCode, platform: 'amazon', report_date: today,
+      campaign_name: name,
+      ad_status: c[idx('الحالة')] || '',
+      impressions: parseInt(c[idx('مرات الظهور')]) || 0,
+      clicks: parseInt(c[idx('النقرات')]) || 0,
+      orders: parseInt(c[idx('المشتريات')]) || 0,
+      spend: n(c[idx('إجمالي التكلفة')]) || n(c[idx('التكلفة')]),
+      revenue: n(c[idx('المبيعات (sar)')]) || n(c[idx('المبيعات')]),
+      ctr: n(c[idx('معدل النقر')]) || null,
+      cpc: n(c[idx('التكلفة لكل نقرة')]) || null,
+      acos: n(c[idx('acos')]) || null,
+      roas: n(c[idx('عائد الإنفاق')]) || n(c[idx('roas')]) || null,
+      budget_daily: n(c[idx('مبلغ ميزانية الحملة')]) || null,
+      currency: 'SAR',
+    })
+  }
+  const totSpend = rows.reduce((a, r) => a + r.spend, 0)
+  const totRev   = rows.reduce((a, r) => a + r.revenue, 0)
+  return {
+    kind: 'amazon_campaigns', platform: 'amazon', label: 'حملات أمازون',
+    summary: { rows: rows.length, spend: Math.round(totSpend), revenue: Math.round(totRev), roas: totSpend > 0 ? +(totRev/totSpend).toFixed(2) : 0 },
+    payloads: [{ table: 'ad_metrics', rows: rows.map(adKeyDefaults), conflict: AD_CONFLICT }],
+  }
+}
+
+// === TRENDYOL: Campaign coverage (selected products in a campaign) ===
+// أعمدة: campaign product id, barcode, product name, product code, category, brand, color, size
+// لا يحوي أرقام أداء — قائمة المنتجات المشمولة بحملة/عرض. نحفظها في platform_deals كتغطية.
+export function parseTrendyolCampaignProducts(wb: XLSX.WorkBook, merchantCode: string): ParseResult {
+  const sn = wb.SheetNames.includes('CampaignProducts') ? 'CampaignProducts' : wb.SheetNames[0]
+  const ws = wb.Sheets[sn]
+  const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
+  if (data.length < 2) return errResult('trendyol_campaign_products','trendyol','تغطية حملة تراندايول','الملف فارغ')
+  const h = (data[0] || []).map(x => s(x))
+  const idx = (...keys: string[]) => ci(h, ...keys)
+  const C = {
+    cpid:    idx('campaign product id'),
+    barcode: idx('barcode'),
+    name:    idx('product name'),
+    code:    idx('product code', 'model code'),
+    cat:     idx('category'),
+    brand:   idx('brand'),
+    color:   idx('color'),
+    size:    idx('size'),
+  }
+  // إزالة تكرار الباركود داخل الملف (platform_deals بلا قيد فريد، فالإدراج مباشر)
+  const seen = new Set<string>()
+  const rows: any[] = []
+  for (let i = 1; i < data.length; i++) {
+    const r = data[i]; if (!r || r.every((c: any) => !c)) continue
+    const barcode = s(r[C.barcode])
+    const name = s(r[C.name])
+    if (!barcode && !name) continue
+    const key = barcode || name
+    if (seen.has(key)) continue
+    seen.add(key)
+    rows.push({
+      merchant_code: merchantCode, platform: 'trendyol',
+      product_name: name,
+      model_code: s(r[C.code]) || null,
+      barcode: barcode || null,
+      category: s(r[C.cat]) || null,
+      brand: s(r[C.brand]) || null,
+      content_id: s(r[C.cpid]) || null,
+      raw: { color: s(r[C.color]), size: s(r[C.size]), source: 'campaign_coverage' },
+    })
+  }
+  return {
+    kind: 'trendyol_campaign_products', platform: 'trendyol', label: 'تغطية حملة تراندايول',
+    summary: { products: rows.length },
+    payloads: [{ table: 'platform_deals', rows }],
   }
 }
 
@@ -939,7 +1054,7 @@ export function parseAmazonAds(csv: string, merchantCode: string): ParseResult {
   return {
     kind: 'amazon_ads', platform: 'amazon', label: 'إعلانات أمازون',
     summary: { rows: rows.length, spend: rows.reduce((a, r) => a + r.spend, 0) },
-    payloads: [{ table: 'ad_metrics', rows }],
+    payloads: [{ table: 'ad_metrics', rows: rows.map(adKeyDefaults), conflict: AD_CONFLICT }],
   }
 }
 
@@ -978,7 +1093,9 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'amazon_transactions':  return parseAmazonTransactions(csvText!, merchantCode)
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
       case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
+      case 'amazon_campaigns':     return parseAmazonCampaigns(csvText!, merchantCode)
       case 'amazon_listings':      return parseAmazonListings(workbook!, merchantCode)
+      case 'trendyol_campaign_products': return parseTrendyolCampaignProducts(workbook!, merchantCode)
       default: {
         // Build a helpful diagnostic so the admin/employee can identify the file
         let diag = ''

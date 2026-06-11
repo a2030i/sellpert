@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { n, s, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales } from '../platformParsers'
+import { n, s, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns } from '../platformParsers'
 
 describe('n (تحويل رقمي متسامح)', () => {
   it('يحلل الأرقام داخل نصوص بعملات وفواصل', () => {
@@ -89,5 +89,39 @@ describe('parseNoonSales (تحليل مبيعات نون)', () => {
   it('يتجاهل الصفوف الفارغة ويرفض الملف الفارغ', () => {
     const r = parseNoonSales('item_nr,gmv_lcy\n', 'M-TEST')
     expect(r.error).toBeTruthy()
+  })
+})
+
+describe('detectFileKind — الأنواع الجديدة (حملات أمازون + تغطية ترنديول)', () => {
+  it('يكشف تقرير حملات أمازون (مستوى الحملة)', () => {
+    const csv = 'الولاية,اسم الحملة,البلد,الحالة,النوع,الاستهداف,إستراتيجية عرض أسعار الحملة,مبلغ ميزانية الحملة,مرات الظهور,النقرات,إجمالي التكلفة,المشتريات,المبيعات,ACOS,ROAS\nP,حملة1,SA,نشط,تلقائي,تلقائي,ديناميكي,50,1000,40,30,5,200,0.15,6.6'
+    expect(detectFileKind({ name: 'Campaign_Jun_11_2026.csv', isCsv: true, csvText: csv })).toBe('amazon_campaigns')
+  })
+  it('لا يخلط حملة أمازون مع تقرير المجموعة الإعلانية', () => {
+    const adgroup = 'الولاية,اسم المجموعة الإعلانية,الحالة,مرات الظهور\nP,مجموعة1,نشط,100'
+    expect(detectFileKind({ name: 'AdGroup.csv', isCsv: true, csvText: adgroup })).toBe('amazon_ads')
+  })
+})
+
+describe('parseAmazonCampaigns', () => {
+  const csv = [
+    'الولاية,اسم الحملة,الحالة,إستراتيجية عرض أسعار الحملة,مبلغ ميزانية الحملة,مرات الظهور,النقرات,إجمالي التكلفة,المشتريات,المبيعات,ACOS,ROAS',
+    'محفظة,حملة الصيف,نشط,ديناميكي,50,220146,1448,206.73,77,2330,0.0887,11.27',
+  ].join('\n')
+  it('يحوّل صفوف الحملة إلى ad_metrics بقيم صحيحة', () => {
+    const r = parseAmazonCampaigns(csv, 'M-TEST')
+    expect(r.kind).toBe('amazon_campaigns')
+    expect(r.error).toBeUndefined()
+    expect(r.payloads[0].table).toBe('ad_metrics')
+    expect(r.payloads[0].conflict).toContain('campaign_name')
+    const row = r.payloads[0].rows[0]
+    expect(row).toMatchObject({ merchant_code: 'M-TEST', platform: 'amazon', campaign_name: 'حملة الصيف' })
+    expect(row.spend).toBeCloseTo(206.73)
+    expect(row.revenue).toBe(2330)
+    expect(row.clicks).toBe(1448)
+    // مفتاح إزالة التكرار: الأعمدة غير المستخدمة تكون '' لا null
+    expect(row.ad_group_name).toBe('')
+    expect(row.sku).toBe('')
+    expect(row.search_query).toBe('')
   })
 })
