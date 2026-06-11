@@ -567,19 +567,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         ))}
       </div>
 
-      {/* ── Onboarding (للتجار الجدد) ── */}
-      <OnboardingTour merchantCode={merchant?.merchant_code} />
-
-      {/* ── AI Inline Hints ── */}
-      <DashboardHints merchantCode={merchant?.merchant_code} />
-
-      {/* ── Restock Recommendations ── */}
-      <RestockWidget merchantCode={merchant?.merchant_code} />
-
-      {/* ── ABC Analysis + Heatmap ── */}
-      <ABCAndHeatmapRow merchantCode={merchant?.merchant_code} />
-
-      {/* ── Empty state ── */}
+      {/* ── Empty state (أول شيء للتاجر بلا بيانات) ── */}
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)', marginBottom: 20 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
@@ -593,6 +581,12 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </button>
         </div>
       )}
+
+      {/* ── أهم إجراءات اليوم (قائمة قرارات قابلة للنقر) ── */}
+      <TopActionsCard merchantCode={merchant?.merchant_code} />
+
+      {/* ── Onboarding (للتجار الجدد) ── */}
+      <OnboardingTour merchantCode={merchant?.merchant_code} />
 
       {/* ── Revenue + Platform ── */}
       {filtered.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -736,6 +730,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         </div>}
       </div>}
 
+      {/* ── Restock + AI hints (إجراءات تشغيلية بعد الأرقام الأساسية) ── */}
+      <RestockWidget merchantCode={merchant?.merchant_code} />
+      <DashboardHints merchantCode={merchant?.merchant_code} />
+
       {/* ── Saudi Arabia Map — يظهر فقط عند وجود بيانات مدن ── */}
       {topCities.length > 0 && (
       <div style={S.card}>
@@ -814,6 +812,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </div>
         )}
       </div>
+
+      {/* ── أدوات تحليل متقدمة (ABC + الخريطة الحرارية) — قرب الأسفل ── */}
+      <ABCAndHeatmapRow merchantCode={merchant?.merchant_code} />
 
       {/* ── Data Table (collapsible) ── */}
       <div style={{ ...S.card, marginTop: 16 }}>
@@ -912,6 +913,55 @@ const S: Record<string, React.CSSProperties> = {
 
 
 // ─── Restock Recommendations Widget ───────────────────────────────────────────
+// ── أهم إجراءات اليوم: يجمع أعلى قرار من كل مصدر (إعلان خاسر / منتج خاسر / إعادة توريد) ──
+function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
+  const [actions, setActions] = useState<{ icon: string; color: string; text: string; sub: string; path: string }[]>([])
+  useEffect(() => {
+    if (!merchantCode) return
+    let cancelled = false
+    ;(async () => {
+      const [{ data: prof }, { data: restock }] = await Promise.all([
+        supabase.from('product_profitability').select('product_name, net_profit, roas, ad_spend, revenue').eq('merchant_code', merchantCode),
+        supabase.rpc('restock_recommendations', { p_merchant_code: merchantCode, p_lead_time_days: 14 }),
+      ])
+      if (cancelled) return
+      const acts: typeof actions = []
+      const losingAd = (prof || []).filter((p: any) => Number(p.ad_spend) > 0 && p.roas !== null && Number(p.roas) < 1)
+        .sort((a: any, b: any) => Number(a.roas) - Number(b.roas))[0]
+      if (losingAd) acts.push({ icon: '🔴', color: '#e84040', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.roas).toFixed(2)} ر.س فقط`, path: '/marketing' })
+      const losingProduct = (prof || []).filter((p: any) => Number(p.revenue) > 0 && Number(p.net_profit) < 0)
+        .sort((a: any, b: any) => Number(a.net_profit) - Number(b.net_profit))[0]
+      if (losingProduct) acts.push({ icon: '📉', color: '#ff9900', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products' })
+      const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
+        .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
+      if (urgent) acts.push({ icon: '📦', color: '#7c6bff', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
+      setActions(acts.slice(0, 3))
+    })()
+    return () => { cancelled = true }
+  }, [merchantCode])
+
+  if (actions.length === 0) return null
+  const go = (path: string) => { window.history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>✅ أهم إجراءات اليوم</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>قرارات تزيد أرباحك — اضغط للانتقال</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {actions.map((a, i) => (
+          <button key={i} onClick={() => go(a.path)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--surface2)', border: 'none', borderRight: `3px solid ${a.color}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', width: '100%' }}>
+            <span style={{ fontSize: 18 }}>{a.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.text}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{a.sub}</div>
+            </div>
+            <span style={{ fontSize: 18, color: a.color, fontWeight: 800 }}>‹</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function RestockWidget({ merchantCode }: { merchantCode?: string }) {
   const [items, setItems] = useState<any[]>([])
   useEffect(() => {
