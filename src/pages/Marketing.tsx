@@ -360,8 +360,10 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
           <tbody>
             {data.slice(0, 15).map((r, i) => (
               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '7px 10px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.campaign_name || r.sku}>
-                  {r.sku ? <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</span> : (r.campaign_name || '—')}
+                <td style={{ padding: '7px 10px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.product_name || r.campaign_name || r.sku}>
+                  {r.product_name
+                    ? r.product_name
+                    : (r.sku ? <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</span> : (r.campaign_name || '—'))}
                 </td>
                 <td style={{ padding: '7px 10px', color: '#e84040' }}>{Number(r.spend).toFixed(0)}</td>
                 <td style={{ padding: '7px 10px' }}>{Number(r.gross_revenue).toFixed(0)}</td>

@@ -498,11 +498,12 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
+  // صافي الربح هو الرقم الأهم للتاجر — يُعرض أولاً وبإبراز بصري
   const kpis = [
-    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales) },
-    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? '#00e5b0' : '#ff4d6d', sub: 'بعد الرسوم والإعلانات', d: delta(netProfit, prevNet) },
-    { label: 'متوسط الطلب',      value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'AOV', d: delta(aov, prevAov) },
-    { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'هامش الربح', d: null },
+    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? '#00e5b0' : '#ff4d6d', sub: 'بعد الرسوم والإعلانات والمرتجعات', d: delta(netProfit, prevNet), hero: true },
+    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
+    { label: 'متوسط الطلب',      value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'AOV', d: delta(aov, prevAov), hero: false },
+    { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'هامش الربح', d: null, hero: false },
   ]
 
   return (
@@ -542,13 +543,13 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       {/* ── KPI Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
         {kpis.map((k, i) => (
-          <div key={i} style={S.kpiCard}>
-            <div style={{ ...S.kpiBar, background: k.color }} />
+          <div key={i} style={{ ...S.kpiCard, ...(k.hero ? { borderColor: k.color, boxShadow: `0 0 0 1px ${k.color}55, 0 4px 20px ${k.color}22` } : {}) }}>
+            <div style={{ ...S.kpiBar, background: k.color, ...(k.hero ? { height: 5 } : {}) }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{k.label}</span>
+              <span style={{ fontSize: k.hero ? 12 : 11, color: k.hero ? k.color : 'var(--text3)', fontWeight: k.hero ? 800 : 600 }}>{k.label}</span>
               <span style={{ fontSize: 18, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', background: k.color + '22', borderRadius: 9 }}>{k.icon}</span>
             </div>
-            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, lineHeight: 1, marginBottom: 8 }}>{k.value}</div>
+            <div style={{ fontSize: k.hero ? (isMobile ? 26 : 32) : (isMobile ? 20 : 24), fontWeight: 800, lineHeight: 1, marginBottom: 8, color: k.hero ? k.color : 'var(--text)' }}>{k.value}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, color: 'var(--text3)' }}>{k.sub}</span>
               {k.d !== null && (

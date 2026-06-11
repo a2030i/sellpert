@@ -300,6 +300,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Revenue Forecast */}
           <RevenueForecastPanel merchant={merchant} />
 
+          {/* Monthly cashflow (historical) */}
+          <MonthlyCashflowPanel merchant={merchant} />
+
           {/* Cash flow forecast */}
           <CashFlowForecast merchant={merchant} />
 
@@ -406,6 +409,77 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
 }
 
 // ── Cash flow forecast ────────────────────────────────────────────────────────
+// ── التدفق النقدي التاريخي الشهري (كم دخل/خرج فعلياً من كشوف الحسابات) ──────────
+function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
+  const [rows, setRows] = useState<any[]>([])
+  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
+  async function load() {
+    if (!merchant) return
+    const { data } = await supabase.from('monthly_cashflow')
+      .select('*').eq('merchant_code', merchant.merchant_code)
+      .order('month', { ascending: false }).limit(18)
+    setRows(data || [])
+  }
+  // تجميع كل المنصات لكل شهر
+  const byMonth = useMemo(() => {
+    const m: Record<string, { month: string; cash_in: number; cash_out: number; net: number }> = {}
+    for (const r of rows) {
+      const k = String(r.month)
+      if (!m[k]) m[k] = { month: k, cash_in: 0, cash_out: 0, net: 0 }
+      m[k].cash_in += Number(r.cash_in) || 0
+      m[k].cash_out += Number(r.cash_out) || 0
+      m[k].net += Number(r.net) || 0
+    }
+    return Object.values(m).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 6)
+  }, [rows])
+  if (byMonth.length === 0) return null
+  const maxAbs = Math.max(...byMonth.map(m => Math.max(m.cash_in, m.cash_out)), 1)
+  const totalIn = byMonth.reduce((a, m) => a + m.cash_in, 0)
+  const totalOut = byMonth.reduce((a, m) => a + m.cash_out, 0)
+  return (
+    <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+        🏦 التدفق النقدي الفعلي — آخر 6 أشهر
+        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)', marginRight: 8 }}>(من كشوف حسابات المنصات)</span>
+      </div>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <StatCard label="إجمالي الداخل" value={fmt(totalIn)} color="#00b894" />
+          <StatCard label="إجمالي الخارج" value={fmt(totalOut)} color="#e84040" />
+          <StatCard label="صافي النقد" value={fmt(totalIn - totalOut)} color={totalIn - totalOut >= 0 ? '#00b894' : '#e84040'} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {byMonth.map(m => {
+            const label = new Date(m.month).toLocaleDateString('ar-SA-u-ca-gregory', { month: 'long', year: 'numeric' })
+            return (
+              <div key={m.month} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 90, fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>{label}</div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ height: 14, width: `${(m.cash_in / maxAbs) * 100}%`, minWidth: 2, background: '#00b894', borderRadius: 3 }} />
+                    <span style={{ fontSize: 10, color: '#00b894', fontFamily: 'monospace' }}>{fmt(m.cash_in)}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ height: 14, width: `${(m.cash_out / maxAbs) * 100}%`, minWidth: 2, background: '#e84040', borderRadius: 3 }} />
+                    <span style={{ fontSize: 10, color: '#e84040', fontFamily: 'monospace' }}>{fmt(m.cash_out)}</span>
+                  </div>
+                </div>
+                <div style={{ width: 90, textAlign: 'left', fontSize: 13, fontWeight: 800, color: m.net >= 0 ? '#00b894' : '#e84040' }}>
+                  {m.net >= 0 ? '+' : ''}{fmt(m.net)}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text3)', display: 'flex', gap: 16 }}>
+          <span><span style={{ color: '#00b894' }}>▬</span> داخل (مبيعات/إيداعات)</span>
+          <span><span style={{ color: '#e84040' }}>▬</span> خارج (رسوم/خصومات)</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
   const [data, setData] = useState<any[]>([])
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])

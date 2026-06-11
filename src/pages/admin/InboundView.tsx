@@ -5,6 +5,27 @@ import { Truck, PackageCheck, AlertTriangle, Search } from 'lucide-react'
 
 type Merchant = { merchant_code: string; name: string; role: string }
 
+// أسباب رفض نون (QC) — ترجمة الأكواد الخام إلى عربي مفهوم للتاجر
+const REJECT_REASONS_AR: Record<string, string> = {
+  rr_damaged_product: 'منتج تالف',
+  rr_wrong_content: 'محتوى خاطئ',
+  rr_wrong_size: 'مقاس خاطئ',
+  rr_wrong_item: 'صنف خاطئ',
+  rr_extra_item: 'صنف زائد عن المطلوب',
+  rr_missing_item: 'صنف ناقص',
+  rr_unidentified: 'غير محدّد الهوية',
+  rr_expired: 'منتهي الصلاحية',
+  rr_no_barcode: 'بدون باركود',
+  rr_wrong_barcode: 'باركود خاطئ',
+  rr_poor_packaging: 'تغليف رديء',
+  rr_quality_issue: 'مشكلة جودة',
+  rr_counterfeit: 'يُشتبه أنه مقلّد',
+}
+function rejectReasonAr(code?: string | null): string {
+  if (!code) return '—'
+  return REJECT_REASONS_AR[code] || code.replace(/^rr_/, '').replace(/_/g, ' ')
+}
+
 interface Shipment {
   id: string
   asn_number: string
@@ -200,7 +221,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                             {g.qc_status === 'failed' ? '✗ مرفوض' : '✓ مقبول'}
                           </span>
                         </td>
-                        <td style={{ ...S.td, fontSize: 11, color: '#e84040' }}>{g.reject_reason || '—'}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: '#e84040' }}>{g.qc_status === 'failed' ? rejectReasonAr(g.reject_reason) : '—'}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{g.grn_date ? new Date(g.grn_date).toLocaleDateString('ar-SA') : '—'}</td>
                       </tr>
                     ))}
@@ -295,7 +316,7 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
             {topFails.map((f, i) => (
               <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <span style={{ fontFamily: 'monospace', color: 'var(--text3)' }}>{f.sku || f.partner_sku}</span>
-                <span style={{ flex: 1, color: 'var(--text2)' }}>{f.reject_reason || '—'}</span>
+                <span style={{ flex: 1, color: 'var(--text2)' }}>{rejectReasonAr(f.reject_reason)}</span>
                 <span style={{ fontWeight: 700, color: '#e84040' }}>{f.grn_quantity} قطعة</span>
               </div>
             ))}
