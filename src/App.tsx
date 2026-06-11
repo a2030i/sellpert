@@ -16,6 +16,7 @@ import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3, Users,
+  Search, MoreHorizontal, X,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -87,6 +88,9 @@ const NAV_GROUPS: NavGroup[] = [
 
 const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
+
+// تبويبات الجوال الأساسية (الباقي في ورقة «المزيد») — مختارة عمداً لا أول 5
+const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'marketing']
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
@@ -185,6 +189,7 @@ export default function App() {
   const [merchant, setMerchant]             = useState<Merchant | null>(null)
   const [loading, setLoading]               = useState(true)
   const [view, setView]                     = useState<View>(readView)
+  const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showUpgrade, setShowUpgrade]       = useState(false)
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
@@ -383,11 +388,22 @@ export default function App() {
             </div>
           </div>
 
+          {/* Visible search trigger (الـ CommandPalette كان Cmd+K فقط) */}
+          <div style={{ padding: '4px 14px 8px' }}>
+            <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#a3abcc', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
+              <Search size={15} />
+              <span style={{ flex: 1 }}>ابحث عن صفحة أو منتج…</span>
+              <span style={{ fontSize: 10, opacity: 0.7 }}>Ctrl K</span>
+            </button>
+          </div>
+
           {/* Nav */}
           <nav style={{ flex: 1, padding: '8px 0 12px', overflowY: 'auto' }}>
             {NAV_GROUPS.map(group => (
               <div key={group.key} style={{ padding: '6px 8px 2px' }}>
-                <div style={{ padding: '8px 12px 4px', fontSize: 9, fontWeight: 800, color: '#545d82', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                <div style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, color: '#7d86ac', letterSpacing: '0.2px' }}>
                   {group.label}
                 </div>
                 {group.items.map(item => {
@@ -478,15 +494,21 @@ export default function App() {
             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Sellpert</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', padding: 4, display: 'flex' }} aria-label="بحث">
+              <Search size={20} />
+            </button>
             <span style={{ fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
           </div>
         </header>
       )}
 
-      {/* ── Mobile Bottom Nav ── */}
+      {/* ── Mobile Bottom Nav (4 أساسية + المزيد) ── */}
       {isMobile && (
         <nav style={S.bottomNav}>
-          {NAV_ITEMS.slice(0, 5).map(item => {
+          {MOBILE_PRIMARY.map(key => {
+            const item = NAV_ITEMS.find(n => n.key === key)
+            if (!item) return null
             const Icon = item.Icon
             return (
               <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: view === item.key ? 'var(--accent)' : 'var(--text3)' }}>
@@ -495,11 +517,40 @@ export default function App() {
               </button>
             )
           })}
-          <button style={{ ...S.bottomNavBtn, color: 'var(--text3)' }} onClick={() => supabase.auth.signOut()}>
-            <LogOut size={20} />
-            <span style={{ fontSize: 9, marginTop: 1 }}>خروج</span>
+          <button style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text3)' }} onClick={() => setMobileMore(true)}>
+            <MoreHorizontal size={20} />
+            <span style={{ fontSize: 9, marginTop: 1 }}>المزيد</span>
           </button>
         </nav>
+      )}
+
+      {/* ── Mobile "المزيد" sheet (كل الوجهات المتبقية) ── */}
+      {isMobile && mobileMore && (
+        <div onClick={() => setMobileMore(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--surface)', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '16px 14px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontSize: 15, fontWeight: 800 }}>كل الصفحات</span>
+              <button onClick={() => setMobileMore(false)} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: 'var(--text2)', display: 'flex' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {NAV_ITEMS.filter(n => !MOBILE_PRIMARY.includes(n.key)).map(item => {
+                const Icon = item.Icon
+                return (
+                  <button key={item.key} onClick={() => { goTo(item.key); setMobileMore(false) }}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: view === item.key ? 'var(--accent)15' : 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: view === item.key ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
+                    <Icon size={20} />
+                    <span>{item.label}</span>
+                  </button>
+                )
+              })}
+              <button onClick={() => supabase.auth.signOut()}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: '#e84040', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
+                <LogOut size={20} />
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

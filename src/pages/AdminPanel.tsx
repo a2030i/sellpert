@@ -244,6 +244,9 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   // Filter navigation by current user's permissions (admins see all, employees see allowed only)
   const visibleNav = useMemo(() => filterNavForUser(adminMerchant), [adminMerchant])
   const visibleNavFlat = useMemo(() => visibleNav.flatMap(g => g.items), [visibleNav])
+  // تبويبات الجوال الأساسية = أول 4 شاشات مسموحة للمستخدم (لا قائمة ثابتة تتجاهل الصلاحيات)
+  const mobileTabs = useMemo(() => visibleNavFlat.slice(0, 4), [visibleNavFlat])
+  const mobileTabKeys = useMemo(() => mobileTabs.map(t => t.key), [mobileTabs])
   const isManager = adminMerchant?.role === 'admin'
 
   function navTo(v: AdminView) {
@@ -512,13 +515,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
       {isMobile && (
         <>
           <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 60, background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'flex', zIndex: 200 }}>
-            {([
-              { key: 'overview',    Icon: LayoutDashboard, label: 'نظرة'  },
-              { key: 'merchants',   Icon: Users,           label: 'التجار' },
-              { key: 'entry',       Icon: PenLine,         label: 'إدخال'  },
-              { key: 'connections', Icon: Key,             label: 'الربط'  },
-              { key: 'performance', Icon: BarChart2,       label: 'الأداء' },
-            ] as { key: AdminView; Icon: LucideIcon; label: string }[]).map(item => {
+            {mobileTabs.map(item => {
               const BIcon = item.Icon
               return (
                 <button key={item.key} onClick={() => navTo(item.key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: view === item.key ? 'var(--accent)' : 'var(--text3)', fontFamily: 'inherit', cursor: 'pointer', padding: '4px 0' }}>
@@ -535,7 +532,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
 
           {mobileMore && (
             <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', zIndex: 199, padding: '8px 0', maxHeight: '60vh', overflowY: 'auto' }}>
-              {visibleNavFlat.filter(n => !['overview', 'merchants', 'entry', 'connections', 'performance'].includes(n.key)).map(item => {
+              {visibleNavFlat.filter(n => !mobileTabKeys.includes(n.key)).map(item => {
                 const MIcon = item.Icon
                 return (
                   <div key={item.key} onClick={() => navTo(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', cursor: 'pointer', color: view === item.key ? 'var(--accent)' : 'var(--text)', fontWeight: view === item.key ? 700 : 400, fontSize: 14 }}>
