@@ -21,6 +21,29 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
   try {
+    // ── التحقق من سر الـ webhook (إغلاق آمن) — بدون توقيع يمكن تزوير
+    // طلبات وإيرادات بمجرد معرفة supplierId. السر في app_settings
+    // (مفتاح TRENDYOL_WEBHOOK_SECRET) أو env، ويُمرر من ترندیول عبر
+    // ترويسة x-webhook-secret أو ?secret= في رابط الـ webhook.
+    let expectedSecret = Deno.env.get('TRENDYOL_WEBHOOK_SECRET') || ''
+    if (!expectedSecret) {
+      const { data: s } = await admin.from('app_settings')
+        .select('value').eq('key', 'TRENDYOL_WEBHOOK_SECRET').maybeSingle()
+      expectedSecret = s?.value || ''
+    }
+    if (!expectedSecret) {
+      console.error('[trendyol-webhook] TRENDYOL_WEBHOOK_SECRET not configured — rejecting (fail closed)')
+      return json({ error: 'Webhook not configured' }, 401)
+    }
+    const authHeader = req.headers.get('Authorization') || ''
+    const provided = req.headers.get('x-webhook-secret')
+      || new URL(req.url).searchParams.get('secret')
+      || (authHeader.startsWith('Basic ') ? (atob(authHeader.slice(6)).split(':')[1] || '') : '')
+      || ''
+    if (!timingSafeEqual(provided, expectedSecret)) {
+      return json({ error: 'Invalid webhook secret' }, 401)
+    }
+
     const body = await req.json()
 
     const supplierId = String(body.supplierId || body.supplier_id || '')
@@ -124,6 +147,15 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: e.message }, 500)
   }
 })
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a)
+  const eb = new TextEncoder().encode(b)
+  if (ea.length !== eb.length) return false
+  let diff = 0
+  for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i]
+  return diff === 0
+}
 
 function mapStatus(raw: string): string {
   const r = raw?.toLowerCase()

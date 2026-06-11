@@ -73,13 +73,14 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
     if (changes.length === 0) return
     setSaving(true)
 
-    let succeeded = 0
-    for (const [id, p] of changes) {
-      const { error } = await supabase.from('inventory')
-        .update({ quantity: p.qty, last_updated: new Date().toISOString() })
+    // تحديثات متوازية بدل التسلسل — كل صف بقيمة مختلفة فلا يصلح upsert واحد
+    const now = new Date().toISOString()
+    const results = await Promise.all(changes.map(([id, p]) =>
+      supabase.from('inventory')
+        .update({ quantity: p.qty, last_updated: now })
         .eq('id', id)
-      if (!error) succeeded++
-    }
+    ))
+    const succeeded = results.filter(r => !r.error).length
     setSaving(false)
     if (succeeded === changes.length) {
       toastOk(`تم حفظ ${succeeded} تعديلات`)

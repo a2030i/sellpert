@@ -430,7 +430,9 @@ function EditTaskModal({ task, staff, canEdit, onClose, onSaved, onDelete }: any
   async function addComment() {
     if (!comment.trim()) return
     const { data: user } = await supabase.auth.getUser()
-    const { data: m } = await supabase.from('merchants').select('merchant_code, role').eq('email', user.user?.email!).maybeSingle()
+    const email = user.user?.email
+    if (!email) return
+    const { data: m } = await supabase.from('merchants').select('merchant_code, role').eq('email', email).maybeSingle()
     await supabase.from('task_comments').insert({
       task_id: task.id, body: comment, author_code: m?.merchant_code || 'unknown', author_role: m?.role
     })

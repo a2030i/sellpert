@@ -22,17 +22,21 @@ npm install
 الملف `.env` موجود ومضبوط على مشروعك في Supabase.
 
 ### 3. قاعدة البيانات
-افتح `supabase-schema.sql` والصقه في:
-**Supabase → SQL Editor → Run**
+> ⚠️ ملف `supabase-schema.sql` **قديم** (جدولان فقط بينما القاعدة الحية فيها 45 جدولاً و61 ترحيلاً).
+> مصدر الحقيقة: الترحيلات على المشروع الحي + الأنواع المولّدة في `src/lib/database.types.ts`
+> (أعد توليدها بعد كل ترحيل: `npx supabase gen types typescript --linked`).
+> تقرير التدقيق الشامل وخطة التطوير: [docs/AUDIT-2026-06-11.md](docs/AUDIT-2026-06-11.md)
 
 ### 4. تشغيل المشروع
 ```
 npm run dev
 ```
 
-### 5. البناء للنشر
+### 5. الفحوصات والبناء
 ```
-npm run build
+npm run lint   # ESLint
+npm test       # Vitest (اختبارات المحلّلات)
+npm run build  # tsc + vite (يعمل آلياً في CI على كل push/PR)
 ```
 
 ## المستخدمون

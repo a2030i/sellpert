@@ -5,8 +5,8 @@
  * URL pattern:  GET /functions/v1/salla-oauth-callback?code=XXX&store_id=YYY
  *
  * Flow:
- *  1. Verify request (HMAC or shared secret)
- *  2. Exchange code → Salla access_token + refresh_token
+ *  1. Exchange code → Salla access_token + refresh_token (the code exchange
+ *     against Salla's token endpoint is the trust anchor for this callback)
  *  3. Fetch store info from Salla API
  *  4. Find or create Sellpert merchant account
  *  5. Upsert salla_connections
@@ -248,7 +248,8 @@ Deno.serve(async (req) => {
 
   } catch (e: any) {
     console.error('OAuth callback error:', e)
-    return redirect(`${APP_URL}?error=unexpected&msg=${encodeURIComponent(e.message)}`)
+    // لا نعكس نص الاستثناء الداخلي في الرابط — رمز عام فقط والتفاصيل في السجلات
+    return redirect(`${APP_URL}?error=unexpected`)
   }
 })
 

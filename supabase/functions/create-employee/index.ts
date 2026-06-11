@@ -43,16 +43,31 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const action = body.action || 'create'
 
-    // ── DELETE EMPLOYEE (auth user) ──────────────────────────────────────
+    // ── DELETE EMPLOYEE (auth user + merchants row) ─────────────────────
+    // Ownership is verified HERE because this endpoint is directly callable:
+    // the target row must still exist so we can check who owns it.
     if (action === 'delete_auth') {
       const { auth_id } = body
       if (!auth_id) return json({ error: 'auth_id required' }, 400)
-      // Double-check this auth_id was an employee owned by caller
       const { data: emp } = await adminClient.from('merchants')
-        .select('owner_merchant_code,role').eq('id', auth_id).maybeSingle()
-      // emp may be null because RPC delete_employee already removed the row
-      // but we still need to delete the auth user - safe because the RPC validated ownership
+        .select('id,owner_merchant_code,role').eq('id', auth_id).maybeSingle()
+      if (!emp) return json({ error: 'Forbidden: target not found' }, 403)
+      if (emp.id === caller.id) return json({ error: 'Forbidden: cannot delete own account' }, 403)
+
+      const callerIsAdmin = ['admin', 'super_admin'].includes(callerMerchant.role)
+      const ownsTarget = emp.role === 'employee' && emp.owner_merchant_code === callerMerchant.merchant_code
+      if (!callerIsAdmin && !ownsTarget) return json({ error: 'Forbidden: not your employee' }, 403)
+      if (callerIsAdmin && !['employee', 'admin'].includes(emp.role)) {
+        return json({ error: 'Forbidden: cannot delete this account type' }, 403)
+      }
+      if (emp.role === 'admin') {
+        const { count } = await adminClient.from('merchants')
+          .select('id', { count: 'exact', head: true }).eq('role', 'admin')
+        if ((count || 0) <= 1) return json({ error: 'لا يمكن حذف آخر مدير' }, 403)
+      }
+
       await adminClient.auth.admin.deleteUser(auth_id).catch(() => {})
+      await adminClient.from('merchants').delete().eq('id', auth_id)
       return json({ ok: true })
     }
 

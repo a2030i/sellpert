@@ -590,13 +590,19 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     for (const entry of validFiles) {
       // المنصة الفعلية من الملف نفسه (لدعم الرفع متعدّد المنصات)
       const filePlatform = entry.parsed!.platform
-      // Insert audit row
-      const { data: audit } = await supabase.from('platform_file_uploads').insert({
+      // Insert audit row — فشله يوقف هذا الملف: المتابعة بـ uploadId فارغ
+      // تُفشل كل الإدراجات الموسومة لاحقاً بخطأ uuid غامض
+      const { data: audit, error: auditErr } = await supabase.from('platform_file_uploads').insert({
         merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
         file_type: entry.parsed!.kind, file_size: entry.file.size,
         detected_report: entry.parsed!.label, status: 'processing',
       }).select('id').single()
-      const uploadId = audit?.id || ''
+      if (auditErr || !audit?.id) {
+        allErrors.push(`${entry.file.name}: فشل إنشاء سجل الرفع — ${auditErr?.message || 'صلاحيات غير كافية'}`)
+        setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'failed', progress: 0, finishedAt: Date.now() } : f))
+        continue
+      }
+      const uploadId = audit.id
 
       setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'saving', progress: 5, startedAt: Date.now() } : f))
 

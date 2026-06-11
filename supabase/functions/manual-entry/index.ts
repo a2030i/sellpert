@@ -56,8 +56,30 @@ Deno.serve(async (req) => {
         margin:        Number(r.margin)        || 0,
       }))
 
+      if (validated.some((r: any) => !r.merchant_code || !r.platform || !r.data_date)) {
+        return json({ error: 'كل سجل يجب أن يحتوي التاجر والمنصة والتاريخ' }, 400)
+      }
+
+      // دمج الصفوف المتشاركة في مفتاح التعارض — upsert واحد لا يقبل
+      // نفس المفتاح مرتين (ON CONFLICT cannot affect row a second time)
+      const merged = new Map<string, any>()
+      for (const r of validated) {
+        const k = `${r.merchant_code}|${r.platform}|${r.data_date}`
+        const prev = merged.get(k)
+        if (prev) {
+          prev.total_sales   += r.total_sales
+          prev.order_count   += r.order_count
+          prev.platform_fees += r.platform_fees
+          prev.ad_spend      += r.ad_spend
+          prev.margin        += r.margin
+        } else {
+          merged.set(k, { ...r })
+        }
+      }
+      const deduped = [...merged.values()]
+
       const { error } = await db.from('performance_data')
-        .upsert(validated, { onConflict: 'merchant_code,platform,data_date' })
+        .upsert(deduped, { onConflict: 'merchant_code,platform,data_date' })
       if (error) return json({ error: error.message }, 500)
 
       const combos = [...new Map(

@@ -21,6 +21,11 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await caller.auth.getUser()
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
 
+    // يجب أن يكون للمستدعي حساب في النظام (تاجر أو طاقم) — ليس مجرد توكن صالح
+    const { data: callerRow } = await caller
+      .from('merchants').select('role').eq('email', user.email!).maybeSingle()
+    if (!callerRow) return json({ error: 'Forbidden' }, 403)
+
     const { platform, seller_id, api_key, api_secret, extra } = await req.json()
     if (!platform) return json({ error: 'platform required' }, 400)
 
@@ -45,7 +50,7 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
   }
 
   const auth = btoa(`${apiKey}:${apiSecret}`)
-  const url  = `https://api.trendyol.com/sapigw/suppliers/${sellerId}/addresses`
+  const url  = `https://api.trendyol.com/sapigw/suppliers/${encodeURIComponent(sellerId)}/addresses`
 
   const res = await fetch(url, {
     headers: {

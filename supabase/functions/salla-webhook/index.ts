@@ -53,14 +53,18 @@ Deno.serve(async (req) => {
   // ── Load settings from DB (admin panel) ──────────────────────────────────
   const cfg = await getSettings(admin)
 
-  // ── Verify webhook signature ──────────────────────────────────────────────
-  if (cfg.webhookSecret) {
-    const signature = req.headers.get('X-Salla-Signature') || ''
-    const expected  = await computeHmac(rawBody, cfg.webhookSecret)
-    if (signature !== expected) {
-      console.warn('Invalid webhook signature')
-      return json({ error: 'Invalid signature' }, 401)
-    }
+  // ── Verify webhook signature (fail closed) ────────────────────────────────
+  // بدون سر مضبوط لا نعالج أي حدث — حمولة مزورة تستطيع تعليق تجار أو
+  // تفعيل اشتراكات. اضبط SALLA_WEBHOOK_SECRET في app_settings أو env.
+  if (!cfg.webhookSecret) {
+    console.error('SALLA_WEBHOOK_SECRET not configured — rejecting webhook (fail closed)')
+    return json({ error: 'Webhook secret not configured' }, 401)
+  }
+  const signature = req.headers.get('X-Salla-Signature') || ''
+  const expected  = await computeHmac(rawBody, cfg.webhookSecret)
+  if (!timingSafeEqual(signature, expected)) {
+    console.warn('Invalid webhook signature')
+    return json({ error: 'Invalid signature' }, 401)
   }
   const event    = payload.event    || payload.type || ''
   const storeId  = String(payload.merchant?.id || payload.store_id || '')
@@ -323,6 +327,15 @@ function normalizePlan(raw: string): string {
 
 function planLabel(plan: string): string {
   return { salla: 'باقة سلة', growth: 'باقة النمو', pro: 'باقة المحترف', enterprise: 'المؤسسات' }[plan] || plan
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a)
+  const eb = new TextEncoder().encode(b)
+  if (ea.length !== eb.length) return false
+  let diff = 0
+  for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i]
+  return diff === 0
 }
 
 async function computeHmac(body: string, secret: string): Promise<string> {

@@ -4,8 +4,7 @@ import { useMobile } from './lib/hooks'
 import { isSuspended, getPlan, PLANS, getUpgradePlan } from './lib/subscription'
 import type { PlanKey } from './lib/subscription'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import { ToastContainer } from './components/Toast'
+import { ToastContainer, toastErr } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
@@ -23,8 +22,10 @@ import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 
 // Lazy-loaded routes (code splitting)
+// Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
+// إلى حزمة الدخول التي تُحمَّل حتى في شاشة تسجيل الدخول
+const Dashboard     = lazy(() => import('./pages/Dashboard'))
 const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
-const EmployeePanel = lazy(() => import('./pages/EmployeePanel'))
 const Integrations  = lazy(() => import('./pages/Integrations'))
 const Orders        = lazy(() => import('./pages/Orders'))
 const Inventory     = lazy(() => import('./pages/Inventory'))
@@ -253,7 +254,8 @@ export default function App() {
   }, [])
 
   async function fetchMerchant(email: string) {
-    const { data } = await supabase.from('merchants').select('*').eq('email', email).maybeSingle()
+    const { data, error } = await supabase.from('merchants').select('*').eq('email', email).maybeSingle()
+    if (error) toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
     setMerchant(data)
     setLoading(false)
     if (data && !data.onboarding_done && data.role === 'merchant') setShowOnboarding(true)

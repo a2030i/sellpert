@@ -41,6 +41,22 @@ Deno.serve(async (req) => {
 
     if (!merchant_code || !event) return json({ error: 'merchant_code و event مطلوبان' }, 400)
 
+    // ── المصادقة: مفتاح service (نداء داخلي)، أو JWT لطاقم العمل،
+    // أو JWT للتاجر نفسه (إشعارات حسابه فقط) — منع الإرسال المجهول
+    const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') || ''
+    if (!bearer) return json({ error: 'Unauthorized' }, 401)
+    if (bearer !== SERVICE_KEY) {
+      const { data: { user } } = await db.auth.getUser(bearer)
+      if (!user?.email) return json({ error: 'Unauthorized' }, 401)
+      const { data: callerRow } = await db.from('merchants')
+        .select('role, merchant_code, is_active').eq('email', user.email).maybeSingle()
+      const isStaff = callerRow && ['admin', 'super_admin', 'employee'].includes(callerRow.role)
+      const isSelf  = callerRow?.merchant_code === merchant_code
+      if (!callerRow || callerRow.is_active === false || (!isStaff && !isSelf)) {
+        return json({ error: 'Forbidden' }, 403)
+      }
+    }
+
     // Get Respondly connection
     const { data: conn } = await db
       .from('platform_connections')

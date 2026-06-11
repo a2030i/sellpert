@@ -32,6 +32,12 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { name, email, password, currency = 'SAR', role = 'merchant', whatsapp_phone } = body
 
+    // الدور من جسم الطلب يجب أن يكون ضمن قائمة مسموحة — منع حقن super_admin
+    const ALLOWED_ROLES = ['merchant', 'admin', 'employee']
+    if (!ALLOWED_ROLES.includes(role)) {
+      return json({ error: 'Invalid role' }, 400)
+    }
+
     if (!name?.trim() || !email?.trim() || !password?.trim()) {
       return json({ error: 'name, email, password مطلوبة' }, 400)
     }

@@ -81,8 +81,18 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
       const count = merchants.filter(x => x.role === 'admin').length
       if (count <= 1) { toastErr('لا يمكن حذف آخر مدير'); setDeleteConfirm(null); return }
     }
-    await supabase.from('merchants').delete().eq('id', m.id)
-    setDeleteConfirm(null); onRefresh()
+    // الحذف عبر دالة Edge موثّقة: تحذف مستخدم Auth وصف الموظف معاً —
+    // الحذف المباشر للصف كان يترك مستخدم Auth يتيماً يستطيع تسجيل الدخول
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_auth', auth_id: m.id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setDeleteConfirm(null)
+    if (!res.ok || data.error) { toastErr(data.error || 'فشل الحذف'); return }
+    onRefresh()
     toastOk('تم الحذف')
   }
 

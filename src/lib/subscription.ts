@@ -24,6 +24,13 @@ export const PLANS = {
     color:    '#ff9900',
     features: ['كل الميزات', 'تصدير PDF/Excel', 'مزامنة فورية', '10 مستخدمين'],
   },
+  elite: {
+    label:    'باقة النخبة',
+    price:    799,
+    channels: ['salla', 'amazon', 'noon', 'trendyol'],
+    color:    '#e5c100',
+    features: ['كل ميزات المحترف', 'تقارير متقدمة', 'أولوية دعم'],
+  },
   enterprise: {
     label:    'المؤسسات',
     price:    999,
@@ -74,7 +81,7 @@ export function getPlan(merchant: Merchant | null): typeof PLANS[PlanKey] {
 }
 
 export function getUpgradePlan(current: PlanKey): PlanKey | null {
-  const order: PlanKey[] = ['free', 'salla', 'growth', 'pro', 'enterprise']
+  const order: PlanKey[] = ['free', 'salla', 'growth', 'pro', 'elite', 'enterprise']
   const idx = order.indexOf(current)
   if (idx < 0 || idx >= order.length - 1) return null
   return order[idx + 1]

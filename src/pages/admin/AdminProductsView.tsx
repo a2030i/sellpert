@@ -51,9 +51,10 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
       const selling_price = Math.ceil((p.target_net_price + rate.shipping_fee + rate.other_fees) / (1 - totalFeeRate))
       return { product_id: p.id, merchant_code: p.merchant_code, platform, selling_price, commission_rate: rate.rate }
     })
-    for (const u of updates) {
-      await supabase.from('product_platform_prices').upsert(u, { onConflict: 'product_id,platform' })
-    }
+    // upsert واحد دفعة واحدة بدل طلب لكل منتج
+    const { error: upsertErr } = await supabase.from('product_platform_prices')
+      .upsert(updates, { onConflict: 'product_id,platform' })
+    if (upsertErr) { setMsg({ type: 'err', text: upsertErr.message }); return }
     setMsg({ type: 'ok', text: `✅ تم إعادة حساب أسعار ${platform} لـ ${updates.length} منتج` })
     load()
   }

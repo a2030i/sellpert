@@ -134,11 +134,11 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   async function removeEmployee(e: Employee) {
     if (!confirm(`حذف الموظف ${e.name}؟ سيفقد الوصول فوراً.`)) return
     setBusy(true)
-    const { error } = await supabase.rpc('delete_employee', { p_employee_code: e.merchant_code })
-    if (error) { toastErr(error.message); setBusy(false); return }
-    // Then delete auth user via Edge Function (needs service role)
-    await callFn({ action: 'delete_auth', auth_id: e.id })
+    // delete_auth يتحقق من الملكية ثم يحذف مستخدم Auth وصف الموظف معاً —
+    // يجب ألا يُحذف الصف قبله وإلا تعذّر التحقق من الملكية
+    const data = await callFn({ action: 'delete_auth', auth_id: e.id })
     setBusy(false)
+    if (data.error) { toastErr(data.error); return }
     toastOk('تم حذف الموظف')
     load()
   }

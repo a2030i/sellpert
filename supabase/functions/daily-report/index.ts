@@ -14,6 +14,19 @@ Deno.serve(async (req) => {
   const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
   try {
+    // ── المصادقة: مفتاح service (جدولة) أو JWT لمدير — منع التشغيل المجهول
+    const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') || ''
+    if (!bearer) return json({ error: 'Unauthorized' }, 401)
+    if (bearer !== SERVICE_KEY) {
+      const { data: { user } } = await db.auth.getUser(bearer)
+      if (!user?.email) return json({ error: 'Unauthorized' }, 401)
+      const { data: callerRow } = await db.from('merchants')
+        .select('role').eq('email', user.email).maybeSingle()
+      if (!callerRow || !['admin', 'super_admin'].includes(callerRow.role)) {
+        return json({ error: 'Forbidden' }, 403)
+      }
+    }
+
     // Get all active merchants with WhatsApp numbers
     const { data: merchants } = await db
       .from('merchants')

@@ -1,30 +1,32 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP } from '../lib/constants'
-import FeesView from './FeesView'
-import OverviewView from './admin/OverviewView'
-import MerchantsView from './admin/MerchantsView'
-import PerformanceView from './admin/PerformanceView'
-import ConnectionsView from './admin/ConnectionsView'
-import AiView from './admin/AiView'
-import EntryView from './admin/EntryView'
-import ImportFilesView from './admin/ImportFilesView'
-import InboundView from './admin/InboundView'
-import AdsView from './admin/AdsView'
-import OperationsView from './admin/OperationsView'
-import TasksBoardView from './admin/TasksBoardView'
-import WhatsAppManagerView from './admin/WhatsAppManagerView'
-import AuditLogView from './admin/AuditLogView'
-import AdminProductsView from './admin/AdminProductsView'
-import AdminRequestsView from './admin/AdminRequestsView'
-import SallaView from './admin/SallaView'
-import DBHealthView from './admin/DBHealthView'
-import RevenueView from './admin/RevenueView'
-import AdminBillingView from './admin/AdminBillingView'
-import TeamDashboardView from './admin/TeamDashboardView'
-import MerchantTimelineView from './admin/MerchantTimelineView'
-import EmployeesView from './admin/EmployeesView'
+// كل الشاشات الإدارية lazy: الاستيراد المباشر كان يحمّل 24 شاشة (459KB +
+// سلسلة xlsx 424KB) لكل مستخدم حتى لو كانت صلاحياته شاشتين فقط
+const FeesView            = lazy(() => import('./FeesView'))
+const OverviewView        = lazy(() => import('./admin/OverviewView'))
+const MerchantsView       = lazy(() => import('./admin/MerchantsView'))
+const PerformanceView     = lazy(() => import('./admin/PerformanceView'))
+const ConnectionsView     = lazy(() => import('./admin/ConnectionsView'))
+const AiView              = lazy(() => import('./admin/AiView'))
+const EntryView           = lazy(() => import('./admin/EntryView'))
+const ImportFilesView     = lazy(() => import('./admin/ImportFilesView'))
+const InboundView         = lazy(() => import('./admin/InboundView'))
+const AdsView             = lazy(() => import('./admin/AdsView'))
+const OperationsView      = lazy(() => import('./admin/OperationsView'))
+const TasksBoardView      = lazy(() => import('./admin/TasksBoardView'))
+const WhatsAppManagerView = lazy(() => import('./admin/WhatsAppManagerView'))
+const AuditLogView        = lazy(() => import('./admin/AuditLogView'))
+const AdminProductsView   = lazy(() => import('./admin/AdminProductsView'))
+const AdminRequestsView   = lazy(() => import('./admin/AdminRequestsView'))
+const SallaView           = lazy(() => import('./admin/SallaView'))
+const DBHealthView        = lazy(() => import('./admin/DBHealthView'))
+const RevenueView         = lazy(() => import('./admin/RevenueView'))
+const AdminBillingView    = lazy(() => import('./admin/AdminBillingView'))
+const TeamDashboardView   = lazy(() => import('./admin/TeamDashboardView'))
+const MerchantTimelineView = lazy(() => import('./admin/MerchantTimelineView'))
+const EmployeesView       = lazy(() => import('./admin/EmployeesView'))
 import CommandPalette from '../components/CommandPalette'
 import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
@@ -429,6 +431,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
           </button>
         </div>
 
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}><div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}>
         {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} merchants={merchants} totalGMV={totalGMV} totalOrders={totalOrders} activeIntegrations={activeIntegrations} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={[]} perfData={perfData} />}
         {view === 'team'        && <TeamDashboardView />}
         {view === 'merchants'   && (
@@ -455,6 +458,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'salla'       && <SallaView onRefresh={() => loadAll(true)} />}
         {view === 'health'      && <DBHealthView />}
         {view === 'billing'     && <AdminBillingView />}
+        </Suspense>
       </main>
 
       <PWAInstallPrompt />
