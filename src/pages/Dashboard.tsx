@@ -373,9 +373,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         body: JSON.stringify({ merchant_codes: [merchant?.merchant_code] }),
       })
       const j = await res.json()
-      if (!res.ok || j.error) setAiError(j.error || 'خطأ')
+      if (!res.ok || j.error) setAiError('تعذّر إنشاء التحليل حالياً — حاول مرة أخرى بعد دقيقة')
       else setInsight(j.insight)
-    } catch (e: any) { setAiError(e.message) }
+    } catch { setAiError('تعذّر الاتصال — تأكد من الإنترنت وحاول مرة أخرى') }
     setAiLoading(false)
   }
 
@@ -499,11 +499,12 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   )
 
   // صافي الربح هو الرقم الأهم للتاجر — يُعرض أولاً وبإبراز بصري
+  const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
   const kpis = [
-    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? '#00e5b0' : '#ff4d6d', sub: 'بعد الرسوم والإعلانات والمرتجعات', d: delta(netProfit, prevNet), hero: true },
+    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? '#00e5b0' : '#ff4d6d', sub: 'المبيعات − رسوم المنصات − الإعلانات', d: delta(netProfit, prevNet), hero: true },
     { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
-    { label: 'متوسط الطلب',      value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'AOV', d: delta(aov, prevAov), hero: false },
-    { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'هامش الربح', d: null, hero: false },
+    { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
+    { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'نسبة الربح من المبيعات', d: delta(avgMargin, prevMargin), hero: false },
   ]
 
   return (
@@ -522,7 +523,8 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
 
       {/* ── Filters ── */}
       <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, marginLeft: 4 }}>الفترة:</span>
           {PRESETS.map(p => (
             <button key={p.key} onClick={() => setPreset(p.key)}
               style={{ ...S.chip, ...(preset === p.key ? S.chipActive : {}) }}>
@@ -530,7 +532,8 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, marginLeft: 4 }}>المنصة:</span>
           {[{ key: 'all', label: 'كل المنصات' }, { key: 'trendyol', label: '🟠 تراندايول' }, { key: 'noon', label: '🟡 نون' }, { key: 'amazon', label: '🟡 أمازون' }].map(p => (
             <button key={p.key} onClick={() => setPlatform(p.key)}
               style={{ ...S.chip, fontSize: 11, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
@@ -596,7 +599,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         <div style={S.card}>
           <div style={S.cardHeader}>
             <div>
-              <div style={S.cardTitle}>اتجاه الإيرادات</div>
+              <div style={S.cardTitle}>اتجاه المبيعات</div>
               {trendData.length > 1
                 ? <div style={S.cardSub}>يمكن سحب المنطقة السفلية للتكبير والتصغير</div>
                 : <div style={{ fontSize: 11, color: '#ffd166' }}>⚠️ نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
@@ -788,7 +791,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                     {(insight.content as any).forecast_next_week.amount?.toLocaleString()} ر.س
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                    ثقة: {(insight.content as any).forecast_next_week.confidence} — {(insight.content as any).forecast_next_week.reasoning}
+                    مستوى الثقة: {({ high: 'عالية', medium: 'متوسطة', low: 'منخفضة' } as any)[(insight.content as any).forecast_next_week.confidence] || (insight.content as any).forecast_next_week.confidence} — {(insight.content as any).forecast_next_week.reasoning}
                   </div>
                 </div>
               )}

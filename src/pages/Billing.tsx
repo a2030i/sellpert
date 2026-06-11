@@ -58,7 +58,8 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
       p_period_months: 1,
     })
     if (error || !data?.ok) {
-      setMsg({ type: 'err', text: error?.message || 'حدث خطأ' })
+      console.error('plan upgrade:', error)
+      setMsg({ type: 'err', text: 'تعذّر إتمام العملية الآن — حاول بعد قليل أو تواصل مع الدعم' })
       setSubmitting(false); return
     }
     // Save bank reference details

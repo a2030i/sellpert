@@ -405,7 +405,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, fontSize: 12 }}>
         <span style={pill('#e84040')}>🚨 نفد: <b>{stats.out}</b></span>
         <span style={pill('#ff9900')}>⏳ إعادة طلب قريبة: <b>{stats.reorder}</b></span>
-        <span style={pill('#a598ff')}>🐌 راكد (30+ يوم): <b>{stats.slow}</b></span>
+        <span style={pill('#a598ff')}>🐌 بطيء الحركة (30+ يوم): <b>{stats.slow}</b></span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -429,7 +429,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
         {/* Slow movers */}
         {slowList.length > 0 && (
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#a598ff', marginBottom: 8 }}>🐌 منتجات راكدة (رأس مال مجمّد)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#a598ff', marginBottom: 8 }}>🐌 منتجات بطيئة الحركة (رأس مال مجمّد)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {slowList.map((r, i) => (
                 <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

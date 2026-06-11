@@ -7,9 +7,9 @@ const STEPS = [
   { key: 'has_costs',      label: 'تحديد سعر التكلفة',  desc: 'أدخل تكلفة المنتجات لحساب الربحية', path: '/products' },
   { key: 'has_inventory',  label: 'تسجيل المخزون',      desc: 'سجّل كميات المخزون للحصول على تنبيهات النفاد', path: '/inventory' },
   { key: 'has_orders',     label: 'استقبال الطلبات',    desc: 'تظهر تلقائياً عند رفع تقارير المنصات أو ربط سلة', path: '/orders' },
-  { key: 'has_ad_metrics', label: 'تتبّع الإعلانات',    desc: 'ارفع تقارير الإعلانات لتحليل ROAS', path: '/marketing' },
+  { key: 'has_ad_metrics', label: 'تتبّع الإعلانات',    desc: 'ارفع تقارير الإعلانات لتحليل عائد الإنفاق الإعلاني (ROAS)', path: '/marketing' },
   { key: 'has_salla',      label: 'ربط سلة',            desc: 'ربط متجرك على سلة لمزامنة تلقائية', path: '/integrations' },
-  { key: 'has_ai_insight', label: 'تحليل AI الأول',      desc: 'احصل على تحليل ذكي لمتجرك من Dashboard', path: '/dashboard' },
+  { key: 'has_ai_insight', label: 'التحليل الذكي الأول', desc: 'احصل على تحليل ذكي لمتجرك من لوحة التحكم', path: '/dashboard' },
 ]
 
 export default function OnboardingTour({ merchantCode }: { merchantCode?: string }) {

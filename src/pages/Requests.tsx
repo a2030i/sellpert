@@ -156,7 +156,7 @@ function NewTicketModal({ merchant, onClose, onCreated }: { merchant: Merchant |
       status: 'pending',
     })
     setSaving(false)
-    if (error) toastErr(error.message)
+    if (error) { console.error('create request:', error); toastErr('تعذّر إرسال التذكرة — تأكد من اتصالك وحاول مرة أخرى') }
     else { toastOk('✓ أُرسلت التذكرة'); onCreated() }
   }
 

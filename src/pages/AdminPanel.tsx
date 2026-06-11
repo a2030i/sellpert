@@ -36,6 +36,7 @@ import {
   TrendingUp, CreditCard, Percent, ShoppingBag,
   BarChart2, Key, Sparkles, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
+  ClipboardList, PackageCheck, MessageCircle, FileInput,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -73,18 +74,33 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    key: 'data_entry', label: 'إدخال البيانات', Icon: FileInput,
+    items: [
+      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات',           perm: 'upload_files' },
+      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',             perm: 'upload_files' },
+    ],
+  },
+  {
     key: 'merchants', label: 'التجار', Icon: Users,
     items: [
-      { key: 'merchants', Icon: Users,    label: 'التجار',                 perm: 'view_merchants' },
-      { key: 'products',  Icon: Tag,      label: 'المنتجات والأسعار',       perm: 'view_merchants' },
-      { key: 'tasks',     Icon: Inbox,    label: 'لوحة المهام',            perm: 'tasks' },
-      { key: 'requests',  Icon: Inbox,    label: 'طلبات قديمة',            perm: 'tasks' },
-      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',             perm: 'upload_files' },
-      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات',           perm: 'upload_files' },
-      { key: 'inbound',   Icon: Truck,    label: 'الإرساليات والاستلام',    perm: 'manage_inbound' },
-      { key: 'ads',       Icon: Megaphone,label: 'أداء الإعلانات',          perm: 'manage_ads' },
-      { key: 'operations',Icon: Truck,    label: 'العمليات والشحن',         perm: 'manage_inbound' },
-      { key: 'whatsapp',  Icon: Activity, label: 'إدارة الواتساب',          perm: ['whatsapp_send', 'whatsapp_bulk'] },
+      { key: 'merchants', Icon: Users,         label: 'التجار',           perm: 'view_merchants' },
+      { key: 'products',  Icon: Tag,           label: 'المنتجات والأسعار', perm: 'view_merchants' },
+      { key: 'tasks',     Icon: ClipboardList, label: 'لوحة المهام',      perm: 'tasks' },
+      { key: 'requests',  Icon: Inbox,         label: 'طلبات قديمة',      perm: 'tasks' },
+    ],
+  },
+  {
+    key: 'logistics', label: 'العمليات', Icon: Truck,
+    items: [
+      { key: 'inbound',   Icon: PackageCheck, label: 'الإرساليات والاستلام', perm: 'manage_inbound' },
+      { key: 'operations',Icon: Truck,        label: 'العمليات والشحن',      perm: 'manage_inbound' },
+    ],
+  },
+  {
+    key: 'marketing', label: 'التسويق والتواصل', Icon: Megaphone,
+    items: [
+      { key: 'ads',       Icon: Megaphone,     label: 'أداء الإعلانات', perm: 'manage_ads' },
+      { key: 'whatsapp',  Icon: MessageCircle, label: 'إدارة الواتساب', perm: ['whatsapp_send', 'whatsapp_bulk'] },
     ],
   },
   {
