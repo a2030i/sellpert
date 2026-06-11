@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
@@ -32,21 +33,24 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [{ data: perf }, { data: rets }, { data: tgts }, { data: merch }] = await Promise.all([
-      supabase.from('performance_data').select('*')
+    const [perf, rets, { data: tgts }, { data: merch }] = await Promise.all([
+      // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
+      fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', merchant!.merchant_code)
-        .gte('data_date', start).lte('data_date', end),
-      supabase.from('returns').select('*')
+        .gte('data_date', start).lte('data_date', end)
+        .order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
+      fetchAll<any>((f, t) => supabase.from('returns').select('*')
         .eq('merchant_code', merchant!.merchant_code)
-        .gte('return_date', start).lte('return_date', end),
+        .gte('return_date', start).lte('return_date', end)
+        .order('id').range(f, t), 'المرتجعات'),
       supabase.from('sales_targets').select('*')
         .eq('merchant_code', merchant!.merchant_code)
         .eq('year', year).eq('month', month),
       supabase.from('merchants').select('sellpert_commission_rate')
         .eq('merchant_code', merchant!.merchant_code).maybeSingle(),
     ])
-    setPerfData(perf || [])
-    setReturns(rets || [])
+    setPerfData(perf)
+    setReturns(rets)
     setTargets(tgts || [])
     setCommRate((merch as any)?.sellpert_commission_rate ?? 5)
     setLoading(false)
@@ -458,12 +462,12 @@ function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | nul
   async function load() {
     if (!merchant) return
     setLoading(true)
-    const [{ data: rows }, { count }, { data: rates }] = await Promise.all([
-      supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code),
+    const [rows, { count }, { data: rates }] = await Promise.all([
+      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'المرتجعات'),
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchant.merchant_code),
       supabase.from('platform_commission_rates').select('platform, rate, shipping_fee'),
     ])
-    setData(rows || [])
+    setData(rows)
     setOrderCount(count || 0)
     const cm: Record<string, number> = {}, sh: Record<string, number> = {}
     for (const r of (rates || [])) { cm[r.platform] = Number(r.rate) || 0; sh[r.platform] = Number(r.shipping_fee) || 0 }
@@ -624,8 +628,11 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   async function loadReturns() {
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const end = new Date(year, month, 0).toISOString().split('T')[0]
-    const { data } = await supabase.from('returns').select('*').eq('merchant_code', merchant!.merchant_code).gte('return_date', start).lte('return_date', end).order('created_at', { ascending: false })
-    setReturns(data || [])
+    const rows = await fetchAll<any>((f, t) =>
+      supabase.from('returns').select('*').eq('merchant_code', merchant!.merchant_code)
+        .gte('return_date', start).lte('return_date', end)
+        .order('created_at', { ascending: false }).order('id').range(f, t), 'المرتجعات')
+    setReturns(rows)
   }
 
   async function addReturn() {

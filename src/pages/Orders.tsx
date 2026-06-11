@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
@@ -41,10 +42,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     if (!merchant) return
     Promise.all([
       supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).limit(2000),
-      supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol'),
+      // fetchAll: إحصاءات تراندايول تُجمع من كل اللقطات — بلا حد صامت
+      fetchAll<any>((f, t) =>
+        supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales')
+          .eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
     ]).then(([o, t]) => {
       setOrders(o.data || [])
-      setTrendyolSnaps(t.data || [])
+      setTrendyolSnaps(t)
       setLoading(false)
     })
   }, [merchant])

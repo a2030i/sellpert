@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase, type Merchant, type PerformanceData, type AiInsight } from '../lib/supabase'
+import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP, PLATFORM_COLORS as PLT_COLOR, DATE_PRESETS as PRESETS } from '../lib/constants'
 import {
@@ -341,12 +342,18 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     Promise.all([
-      supabase.from('performance_data').select('*').eq('merchant_code', merchant.merchant_code).order('data_date', { ascending: false }),
-      supabase.from('orders').select('customer_city,order_count,total_amount,platform,order_date').eq('merchant_code', merchant.merchant_code),
+      // fetchAll: الجلب المقسّم يتجاوز سقف الـ 1000 صف الصامت في PostgREST
+      fetchAll<PerformanceData>((f, t) =>
+        supabase.from('performance_data').select('*').eq('merchant_code', merchant.merchant_code)
+          .order('data_date', { ascending: false }).order('platform').range(f, t), 'بيانات الأداء'),
+      // كان يطلب عمود order_count غير الموجود في orders فيفشل بصمت — الصحيح quantity
+      fetchAll<any>((f, t) =>
+        supabase.from('orders').select('customer_city,quantity,total_amount,platform,order_date').eq('merchant_code', merchant.merchant_code)
+          .order('id').range(f, t), 'الطلبات'),
       supabase.from('ai_insights').select('*').eq('merchant_code', merchant.merchant_code).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]).then(([pd, ord, ai]) => {
-      setData(pd.data || [])
-      setOrders(ord.data || [])
+      setData(pd)
+      setOrders(ord)
       if (ai.data) setInsight(ai.data)
       setLoading(false)
     })
@@ -454,7 +461,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     const acc: Record<string, number> = {}
     orders.forEach(o => {
       if (!o.customer_city) return
-      acc[o.customer_city] = (acc[o.customer_city] || 0) + (o.order_count || 1)
+      acc[o.customer_city] = (acc[o.customer_city] || 0) + (o.quantity || 1)
     })
     return acc
   }, [orders])

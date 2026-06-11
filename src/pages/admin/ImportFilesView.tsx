@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
+import { fetchAll } from '../../lib/db'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText } from 'lucide-react'
@@ -53,10 +54,11 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
   const monthStartIso = monthStart.toISOString().split('T')[0]
 
-  const [{ data: perfData }, { data: ordersAgg }, { data: invAgg }, { data: returnsCount }] = await Promise.all([
-    supabase.from('performance_data').select('platform, total_sales, order_count, ad_spend, platform_fees').eq('merchant_code', merchantCode).gte('data_date', monthStartIso),
-    supabase.from('orders').select('platform, total_amount, status').eq('merchant_code', merchantCode),
-    supabase.from('inventory').select('platform, quantity').eq('merchant_code', merchantCode),
+  // fetchAll: إجماليات التقرير تُجمع من هذه الصفوف — بلا اقتطاع صامت عند 1000
+  const [perfData, ordersAgg, invAgg, { data: returnsCount }] = await Promise.all([
+    fetchAll<any>((f, t) => supabase.from('performance_data').select('platform, total_sales, order_count, ad_spend, platform_fees').eq('merchant_code', merchantCode).gte('data_date', monthStartIso).order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
+    fetchAll<any>((f, t) => supabase.from('orders').select('platform, total_amount, status').eq('merchant_code', merchantCode).order('id').range(f, t), 'الطلبات'),
+    fetchAll<any>((f, t) => supabase.from('inventory').select('platform, quantity').eq('merchant_code', merchantCode).order('id').range(f, t), 'المخزون'),
     supabase.from('returns').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
   ])
 
@@ -303,7 +305,7 @@ interface FileEntry {
   stage: Stage
   parsed?: ParseResult
   validation?: { ok: boolean; warnings: string[]; errors: string[] }
-  result?: { inserted: number; updated: number; errors: string[] }
+  result?: { inserted: number; errors: string[] }
   progress: number  // 0..100
   startedAt?: number
   finishedAt?: number
@@ -361,10 +363,9 @@ async function saveParsedResult(
   merchantCode: string,
   uploadId: string,
   onProgress: (pct: number, message: string) => void
-): Promise<{ inserted: number; updated: number; errors: string[] }> {
+): Promise<{ inserted: number; errors: string[] }> {
   const errors: string[] = []
   let inserted = 0
-  const updated = 0
   const total = parsed.payloads.reduce((a, p) => a + p.rows.length, 0) || 1
 
   // Special handling for ASN parent-child relationship
@@ -409,7 +410,7 @@ async function saveParsedResult(
         finished_at: new Date().toISOString(),
       }).eq('id', uploadId)
       onProgress(100, 'اكتمل')
-      return { inserted, updated, errors }
+      return { inserted, errors }
     }
   }
 
@@ -466,7 +467,7 @@ async function saveParsedResult(
   }).eq('id', uploadId)
 
   onProgress(100, errors.length ? 'اكتمل مع تحذيرات' : 'اكتمل بنجاح')
-  return { inserted, updated, errors }
+  return { inserted, errors }
 }
 
 const TABLE_LABELS: Record<string, string> = {

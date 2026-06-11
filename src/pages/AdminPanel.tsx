@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP } from '../lib/constants'
 // كل الشاشات الإدارية lazy: الاستيراد المباشر كان يحمّل 24 شاشة (459KB +
@@ -284,11 +285,15 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
     else setRefreshing(true)
     const [m, p, c] = await Promise.all([
       supabase.from('merchants').select('*').order('created_at', { ascending: false }),
-      supabase.from('performance_data').select('*').order('created_at', { ascending: false }),
+      // fetchAll: GMV الكلي يُجمع من هذا الاستعلام — اقتطاع PostgREST عند
+      // 1000 صف كان يعني أرقام نظرة عامة ناقصة بصمت
+      fetchAll<PerformanceData>((f, t) =>
+        supabase.from('performance_data').select('*')
+          .order('data_date', { ascending: false }).order('merchant_code').order('platform').range(f, t), 'بيانات الأداء'),
       supabase.from('platform_credentials').select('*').order('updated_at', { ascending: false }),
     ])
     setMerchants(m.data || [])
-    setPerfData(p.data || [])
+    setPerfData(p)
     setCredentials(c.data || [])
     setLoading(false)
     setRefreshing(false)
