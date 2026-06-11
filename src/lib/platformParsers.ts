@@ -433,6 +433,7 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
         barcode: s(r[idx('pbarcode canonical')]),
         grn_quantity: parseInt(s(r[idx('grn quantity')])) || 0,
         qc_status: 'passed',
+        reject_reason: '',
       })
     }
   }
@@ -452,7 +453,7 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
         barcode: s(r[idx('pbarcode canonical')]) || s(r[idx('barcode')]),
         grn_quantity: parseInt(s(r[idx('grn quantity')])) || 0,
         qc_status: 'failed',
-        reject_reason: s(r[idx('reject reason')]),
+        reject_reason: s(r[idx('reject reason')]) || '',
       })
     }
   }
@@ -469,7 +470,7 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
     summary: { asn: asnNumber, expected, delivered, variance, qcFailed: rows.filter(r => r.qc_status === 'failed').length },
     payloads: [
       ...(headerUpsert.length ? [{ table: 'inbound_shipments', rows: headerUpsert, conflict: 'merchant_code,platform,asn_number' }] : []),
-      { table: 'goods_received', rows },
+      { table: 'goods_received', rows, conflict: 'merchant_code,platform,asn_number,sku,qc_status,reject_reason' },
     ],
   }
 }

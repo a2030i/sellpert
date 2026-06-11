@@ -390,7 +390,8 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const totalFees   = filtered.reduce((s, r) => s + toSAR(r.platform_fees || 0, r.platform), 0)
   const totalAds    = filtered.reduce((s, r) => s + toSAR(r.ad_spend, r.platform), 0)
   const netProfit   = totalSales - totalFees - totalAds
-  const avgMargin   = filtered.length ? filtered.reduce((s, r) => s + r.margin, 0) / filtered.length : 0
+  // الهامش يُشتق من الإجماليات: عمود performance_data.margin لا يُكتب أبداً (يبقى 0)
+  const avgMargin   = totalSales > 0 ? (netProfit / totalSales) * 100 : 0
   const aov         = totalOrders > 0 ? totalSales / totalOrders : 0
 
   const prevSales   = prev.reduce((s, r) => s + toSAR(r.total_sales, r.platform), 0)
