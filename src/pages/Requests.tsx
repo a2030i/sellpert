@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { fmtRelative } from '../lib/formatters'
 import { toastOk, toastErr } from '../components/Toast'
-import { EmptyState } from '../components/UI'
+import { EmptyState, PageTabs } from '../components/UI'
 import { Plus, MessageCircle, Send, X } from 'lucide-react'
 
 const CATEGORIES: { key: string; label: string; icon: string; needsPlatform?: boolean; needsAmount?: boolean }[] = [
@@ -56,6 +56,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+      <PageTabs tabs={[{ label: 'تذاكر الدعم', path: '/requests' }, { label: 'الأسئلة الشائعة', path: '/help' }]} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 22 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>🎫 تذاكر الدعم</h2>

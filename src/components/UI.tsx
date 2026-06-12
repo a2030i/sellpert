@@ -26,6 +26,35 @@ export function CardSkeleton({ rows = 3 }: { rows?: number }) {
   )
 }
 
+// ─── PageTabs ─────────────────────────────────────────────────────────────────
+// شريط تبويبات يدمج صفحتين متلازمتين تحت قسم واحد (الطلبات/الكشف، المنتجات/المخزون).
+// كل تبويب ينتقل عبر مسار مستقل فتبقى الروابط العميقة تعمل.
+export function PageTabs({ tabs }: { tabs: { label: string; path: string }[] }) {
+  const current = '/' + window.location.pathname.replace(/^\//, '').split('/')[0]
+  const go = (path: string) => {
+    if (path === current) return
+    window.history.pushState(null, '', path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+  return (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+      {tabs.map(t => {
+        const active = current === t.path
+        return (
+          <button key={t.path} onClick={() => go(t.path)}
+            style={{
+              padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+              color: active ? 'var(--accent)' : 'var(--text3)', fontSize: 14, fontWeight: active ? 800 : 600,
+              cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', marginBottom: -1,
+            }}>
+            {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   const [show, setShow] = useState(false)

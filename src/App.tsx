@@ -61,21 +61,16 @@ const NAV_GROUPS: NavGroup[] = [
   { key: 'main',      label: 'الرئيسية', items: [
     { Icon: LayoutDashboard, label: 'لوحة التحكم', key: 'dashboard' },
   ]},
-  { key: 'sales',     label: 'المبيعات',  items: [
-    { Icon: Package,    label: 'الطلبات',     key: 'orders'    },
-    { Icon: FileText,   label: 'كشف الحساب', key: 'statement' },
-  ]},
-  { key: 'catalog',   label: 'الكاتالوج', items: [
-    { Icon: Tags,       label: 'منتجاتي',  key: 'products'  },
-    { Icon: Boxes,      label: 'المخزون',  key: 'inventory' },
+  { key: 'sales',     label: 'المبيعات والمنتجات',  items: [
+    { Icon: Package,    label: 'المبيعات والمستحقات', key: 'orders'   },
+    { Icon: Tags,       label: 'المنتجات',           key: 'products' },
   ]},
   { key: 'growth',    label: 'النمو',      items: [
     { Icon: Megaphone,  label: 'التسويق',  key: 'marketing' },
   ]},
   { key: 'support',   label: 'الحساب والدعم', items: [
-    { Icon: LifeBuoy,   label: 'الدعم',      key: 'requests'    },
-    { Icon: HelpCircle, label: 'مركز المساعدة', key: 'help' },
-    { Icon: CreditCard, label: 'الاشتراك',   key: 'billing'     },
+    { Icon: LifeBuoy,   label: 'الدعم والمساعدة', key: 'requests' },
+    { Icon: CreditCard, label: 'الاشتراك',        key: 'billing'  },
   ]},
   { key: 'team',      label: 'الفريق',    items: [
     { Icon: Users,      label: 'الموظفون',   key: 'team'        },

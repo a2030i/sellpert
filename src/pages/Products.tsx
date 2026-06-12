@@ -19,6 +19,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
   const [showAdd, setShowAdd]           = useState(false)
+  const [tab, setTab]                   = useState<'catalog' | 'analytics'>('catalog')
   const [showRequest, setShowRequest]   = useState<Product | null>(null)
   const [editProduct, setEditProduct]   = useState<Product | null>(null)
   const [editForm, setEditForm]         = useState({ cost_price: '', target_net_price: '' })
@@ -185,11 +186,13 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={S.wrap}>
       {/* Page Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
-        <button style={{ background: 'none', border: 'none', borderBottom: '2px solid var(--accent)', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
-          🏷️ كتالوج المنتجات
-        </button>
-        <button onClick={goInventory} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit' }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0, overflowX: 'auto' }}>
+        {([['catalog', '🏷️ الكتالوج'], ['analytics', '📊 الربحية والتحليلات']] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -2, padding: '8px 18px', fontSize: 14, fontWeight: tab === k ? 800 : 500, color: tab === k ? 'var(--accent)' : 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            {lbl}
+          </button>
+        ))}
+        <button onClick={goInventory} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 18px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
           🗃️ المخزون
         </button>
       </div>
@@ -200,7 +203,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           <h2 style={S.title}>المنتجات</h2>
           <p style={S.sub}>{products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة</p>
         </div>
-        <button style={S.addBtn} onClick={() => setShowAdd(v => !v)}>
+        <button style={S.addBtn} onClick={() => { setTab('catalog'); setShowAdd(v => !v) }}>
           {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
         </button>
       </div>
@@ -213,7 +216,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* Profitability panel */}
+      {/* تبويب الربحية والتحليلات (8 لوحات) */}
+      {tab === 'analytics' && (<>
       <ProfitabilityPanel merchant={merchant} />
       <InventoryTurnoverCard merchant={merchant} />
       <PricingSuggestionsPanel merchant={merchant} />
@@ -222,7 +226,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       <VariantPerformancePanel merchant={merchant} />
       <BrandPerformancePanel merchant={merchant} />
       <SkuLifecyclePanel merchant={merchant} />
+      </>)}
 
+      {/* تبويب الكتالوج (نموذج الإضافة + قائمة المنتجات) */}
+      {tab === 'catalog' && (<>
       {/* Add Product Form */}
       {showAdd && (
         <div style={S.formCard}>
@@ -501,6 +508,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }

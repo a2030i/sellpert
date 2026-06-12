@@ -2,6 +2,7 @@
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
+import { PageTabs } from '../components/UI'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
@@ -173,6 +174,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={S.wrap}>
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
       {/* TOPBAR */}
       <div style={S.topbar}>
         <div>

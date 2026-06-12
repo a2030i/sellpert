@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { Search, ChevronDown, MessageCircle, BookOpen } from 'lucide-react'
+import { PageTabs } from '../components/UI'
 
 const FAQ = [
   {
@@ -49,6 +50,7 @@ export default function Help({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+      <PageTabs tabs={[{ label: 'تذاكر الدعم', path: '/requests' }, { label: 'الأسئلة الشائعة', path: '/help' }]} />
       <div style={{ marginBottom: 22 }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>📚 مركز المساعدة</h2>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>إجابات على الأسئلة الشائعة + شرح المصطلحات</p>

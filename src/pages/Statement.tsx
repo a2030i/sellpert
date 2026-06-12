@@ -2,6 +2,7 @@
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
+import { PageTabs } from '../components/UI'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
@@ -124,6 +125,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px 32px', maxWidth: 960, margin: '0 auto' }}>
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
 
       {/* Header + month nav */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
