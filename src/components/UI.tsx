@@ -26,6 +26,41 @@ export function CardSkeleton({ rows = 3 }: { rows?: number }) {
   )
 }
 
+// ─── مكوّنات مشتركة (للتبنّي التدريجي بدل تكرار الأنماط في كل صفحة) ──────────────
+export function Card({ children, style, flat }: { children: ReactNode; style?: CSSProperties; flat?: boolean }) {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, boxShadow: flat ? 'none' : 'var(--shadow)', ...style }}>
+      {children}
+    </div>
+  )
+}
+
+export function SectionTitle({ title, subtitle, info, action }: { title: string; subtitle?: string; info?: string; action?: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: subtitle ? 14 : 10 }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>
+          {title}{info && <InfoIcon text={info} />}
+        </div>
+        {subtitle && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{subtitle}</div>}
+      </div>
+      {action}
+    </div>
+  )
+}
+
+const BADGE_TONES: Record<string, { bg: string; fg: string }> = {
+  green: { bg: 'rgba(0,184,148,0.12)', fg: 'var(--green)' },
+  red:   { bg: 'rgba(232,64,64,0.12)', fg: 'var(--red)' },
+  amber: { bg: 'rgba(255,153,0,0.12)', fg: '#ff9900' },
+  accent:{ bg: 'var(--accent-glow)',   fg: 'var(--accent)' },
+  gray:  { bg: 'var(--surface2)',      fg: 'var(--text3)' },
+}
+export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?: keyof typeof BADGE_TONES }) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.gray
+  return <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: t.bg, color: t.fg, whiteSpace: 'nowrap' }}>{children}</span>
+}
+
 // ─── PageTabs ─────────────────────────────────────────────────────────────────
 // شريط تبويبات يدمج صفحتين متلازمتين تحت قسم واحد (الطلبات/الكشف، المنتجات/المخزون).
 // كل تبويب ينتقل عبر مسار مستقل فتبقى الروابط العميقة تعمل.
@@ -56,18 +91,21 @@ export function PageTabs({ tabs }: { tabs: { label: string; path: string }[] }) 
 }
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
+// يفتح بالـ hover (سطح المكتب) وبالنقر (الجوال)، والنص يلتفّ بدل أن يفيض خارج الشاشة
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   const [show, setShow] = useState(false)
   return (
     <span style={{ position: 'relative', display: 'inline-flex', cursor: 'help' }}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+      onClick={(e) => { e.stopPropagation(); setShow(s => !s) }}
+      onBlur={() => setShow(false)} tabIndex={0}>
       {children}
       {show && (
         <span style={{
           position: 'absolute', bottom: 'calc(100% + 6px)', right: '50%', transform: 'translateX(50%)',
-          background: 'var(--text)', color: 'var(--surface)', padding: '6px 10px', borderRadius: 6,
-          fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1000,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
+          background: 'var(--text)', color: 'var(--surface)', padding: '8px 12px', borderRadius: 8,
+          fontSize: 11.5, fontWeight: 600, whiteSpace: 'normal', width: 'max-content', maxWidth: 240, lineHeight: 1.6,
+          textAlign: 'right', zIndex: 1000, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
         }}>
           {text}
           <span style={{ position: 'absolute', top: '100%', right: '50%', transform: 'translateX(50%)',
@@ -83,7 +121,7 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
 export function InfoIcon({ text }: { text: string }) {
   return (
     <Tooltip text={text}>
-      <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--text3)', color: 'var(--surface)', fontSize: 9, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>ⓘ</span>
+      <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--text3)', color: 'var(--surface)', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginInlineEnd: 4, flexShrink: 0 }}>ⓘ</span>
     </Tooltip>
   )
 }
