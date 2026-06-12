@@ -144,9 +144,9 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={18} />} />
         <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={18} />} />
-        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان: كم ريال يجيب كل ريال إنفاق إعلاني"><span>ROAS ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
-        <Kpi label="CTR" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
-        <Kpi label="معدل التحويل" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="#4cc9f0" />
+        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان (ROAS): كم ريال مبيعات يجيب كل ريال إنفاق إعلاني. 3x فأعلى ممتاز"><span>عائد الإعلان (ROAS) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
+        <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
+        <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="#4cc9f0" />
       </div>
 
       {/* Recommendations */}

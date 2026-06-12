@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
+import { InfoIcon } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 
@@ -536,11 +537,14 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔗 خط أنابيب المخزون: ASN → GRN → مبيعات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, display: 'inline-flex', alignItems: 'center' }}>
+        📦 رحلة بضاعتك: الإرسال ← الاستلام ← البيع
+        <InfoIcon text="الإرسالية (ASN) = ما أرسلته لمستودع المنصة. تقرير الاستلام (GRN) = ما استلمه المستودع فعلياً. الفحص (QC) = الكمية المرفوضة لعيب أو تلف." />
+      </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تتبّع كل إرسالية من الإرسال حتى البيع</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead><tr>{['ASN','المنصة','أُرسل','استلام (يوم)','متوقع','مُستلم','فقد','رفض QC','بيع بعد','إيراد بعد'].map(h => (
+          <thead><tr>{['الإرسالية','المنصة','أُرسل','أيام للاستلام','متوقع','مُستلم','مفقود','مرفوض بالفحص','بيع بعد','إيراد بعد'].map(h => (
             <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
           ))}</tr></thead>
           <tbody>

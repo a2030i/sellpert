@@ -20,7 +20,6 @@ const TasksBoardView      = lazy(() => import('./admin/TasksBoardView'))
 const WhatsAppManagerView = lazy(() => import('./admin/WhatsAppManagerView'))
 const AuditLogView        = lazy(() => import('./admin/AuditLogView'))
 const AdminProductsView   = lazy(() => import('./admin/AdminProductsView'))
-const AdminRequestsView   = lazy(() => import('./admin/AdminRequestsView'))
 const SallaView           = lazy(() => import('./admin/SallaView'))
 const DBHealthView        = lazy(() => import('./admin/DBHealthView'))
 const RevenueView         = lazy(() => import('./admin/RevenueView'))
@@ -85,8 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'merchants', Icon: Users,         label: 'التجار',           perm: 'view_merchants' },
       { key: 'products',  Icon: Tag,           label: 'المنتجات والأسعار', perm: 'view_merchants' },
-      { key: 'tasks',     Icon: ClipboardList, label: 'لوحة المهام',      perm: 'tasks' },
-      { key: 'requests',  Icon: Inbox,         label: 'طلبات قديمة',      perm: 'tasks' },
+      { key: 'tasks',     Icon: ClipboardList, label: 'لوحة المهام والطلبات', perm: 'tasks' },
     ],
   },
   {
@@ -476,7 +474,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
-        {view === 'requests'    && <AdminRequestsView merchants={merchantOnly} />}
+        {/* 'requests' كان شاشة مكررة على نفس جدول merchant_requests — يوجَّه للوحة المهام الموحّدة */}
+        {view === 'requests'    && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'fees'        && <FeesView />}
         {view === 'revenue'     && <RevenueView merchants={merchantOnly} perfData={perfData} />}
         {view === 'salla'       && <SallaView onRefresh={() => loadAll(true)} />}
