@@ -120,7 +120,7 @@ export default function NPSWidget({ merchantCode }: Props) {
                   background: 'var(--surface2)', color: 'var(--text)', marginBottom: 10,
                 }} />
               <button onClick={submit} disabled={submitting} style={{
-                width: '100%', background: submitting ? 'var(--surface3)' : 'linear-gradient(135deg,#6c5ce7,#9f8fff)',
+                width: '100%', background: submitting ? 'var(--surface3)' : 'var(--grad-accent)',
                 border: 'none', color: '#fff', padding: 10, borderRadius: 9,
                 fontSize: 13, fontWeight: 700, cursor: submitting ? 'wait' : 'pointer',
                 fontFamily: 'inherit',

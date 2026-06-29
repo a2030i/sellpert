@@ -55,16 +55,16 @@ export function fmtRelative(iso: string | Date | null | undefined): string {
 
 export function fmtDelta(v: number | null | undefined, decimals = 1): { text: string; color: string; arrow: '▲' | '▼' | '—' } {
   if (v === null || v === undefined || isNaN(v)) return { text: '—', color: 'var(--text3)', arrow: '—' }
-  if (v > 0)  return { text: `+${v.toFixed(decimals)}%`, color: '#00b894', arrow: '▲' }
-  if (v < 0)  return { text: `${v.toFixed(decimals)}%`, color: '#e84040', arrow: '▼' }
+  if (v > 0)  return { text: `+${v.toFixed(decimals)}%`, color: 'var(--success-text)', arrow: '▲' }
+  if (v < 0)  return { text: `${v.toFixed(decimals)}%`, color: 'var(--danger-text)', arrow: '▼' }
   return { text: '0%', color: 'var(--text3)', arrow: '—' }
 }
 
-// Status colors for KPIs
+// ألوان دلالية للمؤشّرات — رموز CSS تستجيب للوضع الداكن وتمر AA (لا قيم مثبّتة)
 export const semanticColor = {
-  good:    '#00b894',
-  warn:    '#ff9900',
-  bad:     '#e84040',
-  info:    '#7c6bff',
-  neutral: '#4cc9f0',
+  good:    'var(--success-text)',
+  warn:    'var(--warning-text)',
+  bad:     'var(--danger-text)',
+  info:    'var(--info-text)',
+  neutral: 'var(--text3)',
 }

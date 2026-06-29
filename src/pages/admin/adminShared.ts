@@ -32,14 +32,14 @@ export const S: Record<string, React.CSSProperties> = {
   },
   logoIcon: {
     width: 40, height: 40, borderRadius: 12,
-    background: 'linear-gradient(135deg,#6c5ce7,#00b894)',
+    background: 'var(--grad-brand)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
   },
   logoText: { fontSize: 17, fontWeight: 800, color: '#e2e6f4', lineHeight: 1.2 },
   logoBadge: {
     fontSize: 10, fontWeight: 700, color: '#a598ff',
-    background: 'rgba(108,92,231,0.2)', padding: '2px 7px',
+    background: 'var(--accent-12)', padding: '2px 7px',
     borderRadius: 20, marginTop: 3, display: 'inline-block',
   },
   navItem: {
@@ -49,7 +49,7 @@ export const S: Record<string, React.CSSProperties> = {
     transition: 'all 0.15s', fontSize: 13, fontWeight: 500,
     borderRadius: 10,
   },
-  navActive: { color: '#a598ff', background: 'rgba(108,92,231,0.18)', fontWeight: 700 },
+  navActive: { color: 'var(--accent-soft)', background: 'rgba(124,107,255,0.18)', fontWeight: 700 },
   navIcon: { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' as const },
   groupHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -61,7 +61,7 @@ export const S: Record<string, React.CSSProperties> = {
   adminInfo: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   adminAvatar: {
     width: 36, height: 36, borderRadius: 10,
-    background: 'linear-gradient(135deg,#6c5ce7,#00b894)',
+    background: 'var(--grad-brand)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
   },
@@ -114,9 +114,9 @@ export const S: Record<string, React.CSSProperties> = {
     padding: '10px 14px', borderRadius: 10, fontSize: 13, outline: 'none',
   },
   addBtn: {
-    background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff',
+    background: 'linear-gradient(135deg,var(--accent-strong),var(--accent))', border: 'none', color: '#fff',
     padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-    boxShadow: '0 4px 16px rgba(124,107,255,0.3)', cursor: 'pointer',
+    boxShadow: 'var(--e-accent)', cursor: 'pointer',
   },
   formCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 },
   formTitle: { fontSize: 14, fontWeight: 700, marginBottom: 16 },
@@ -127,7 +127,7 @@ export const S: Record<string, React.CSSProperties> = {
     fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const,
   },
   saveBtn: {
-    background: 'var(--accent)', border: 'none', color: '#fff',
+    background: 'var(--accent-strong)', border: 'none', color: '#fff',
     padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
   },
   btn: {
@@ -147,7 +147,7 @@ export const S: Record<string, React.CSSProperties> = {
     padding: '7px 14px', border: '1px solid var(--border)', background: 'var(--surface)',
     color: 'var(--text2)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
   },
-  presetActive: { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' },
+  presetActive: { background: 'var(--accent-strong)', borderColor: 'var(--accent-strong)', color: '#fff' },
   tabBtn:    { padding: '10px 20px', background: 'transparent', border: 'none', color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: -1 },
   tabActive: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
   msgBox: { borderRadius: 10, padding: '12px 16px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },

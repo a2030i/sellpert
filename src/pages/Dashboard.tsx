@@ -677,7 +677,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                 {dayData.map((entry, i) => {
                   const max = Math.max(...dayData.map(d => d.المبيعات))
                   const isTop = entry.المبيعات === max && max > 0
-                  return <Cell key={i} fill={isTop ? '#6c5ce7' : '#e2e8f2'} />
+                  return <Cell key={i} fill={isTop ? 'var(--accent)' : 'var(--border)'} />
                 })}
               </Bar>
             </BarChart>

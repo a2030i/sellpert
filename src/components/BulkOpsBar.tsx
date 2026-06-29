@@ -90,7 +90,7 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
     <>
       <div style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'linear-gradient(135deg,#6c5ce7,#9f8fff)', color: '#fff',
+        background: 'var(--grad-accent)', color: '#fff',
         padding: '10px 14px', borderRadius: 10, marginBottom: 12,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 8,

@@ -161,7 +161,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#6c5ce7,#00b894)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--grad-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Users size={20} color="#fff" />
           </div>
           <div>
@@ -234,7 +234,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
             return (
               <div key={e.id} style={{ ...cardStyle, opacity: e.is_active ? 1 : 0.55 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'linear-gradient(135deg,#6c5ce7,#9f8fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--grad-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
                     {e.name?.[0]?.toUpperCase() || '?'}
                   </div>
                   <div style={{ flex: 1, minWidth: 200 }}>
@@ -371,7 +371,7 @@ function Field({ label, Icon, children }: any) {
 const cardStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 12 }
 const cardTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 12, marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit' }
-const primaryBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg,#6c5ce7,#9f8fff)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+const primaryBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, background: 'var(--grad-accent)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 const secondaryBtn: React.CSSProperties = { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }
 const iconBtnStyle: React.CSSProperties = { width: 30, height: 30, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit' }
 const permChip: React.CSSProperties = { fontSize: 10, padding: '3px 8px', background: 'rgba(108,92,231,0.12)', color: 'var(--accent)', borderRadius: 5, fontWeight: 700 }

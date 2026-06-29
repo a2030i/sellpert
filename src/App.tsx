@@ -308,7 +308,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => setShowUpgrade(false)} style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: 12, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>لاحقاً</button>
             <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer"
-              style={{ flex: 2, background: 'linear-gradient(135deg,var(--accent),#9f8fff)', border: 'none', color: '#fff', padding: 12, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(108,92,231,0.35)' }}>
+              style={{ flex: 2, background: 'var(--grad-accent)', border: 'none', color: '#fff', padding: 12, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--e-accent)' }}>
               ترقية من متجر سلة →
             </a>
           </div>
@@ -532,7 +532,7 @@ export default function App() {
                 const Icon = item.Icon
                 return (
                   <button key={item.key} onClick={() => { goTo(item.key); setMobileMore(false) }}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: view === item.key ? 'var(--accent)15' : 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: view === item.key ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: view === item.key ? 'var(--accent-12)' : 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: view === item.key ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
                     <Icon size={20} />
                     <span>{item.label}</span>
                   </button>
@@ -565,13 +565,13 @@ const S: Record<string, React.CSSProperties> = {
   },
   logoIcon: {
     width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-    background: 'linear-gradient(135deg, #6c5ce7, #00b894)',
+    background: 'var(--grad-brand)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16, fontWeight: 800, color: '#fff',
   },
   logoIconSm: {
     width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-    background: 'linear-gradient(135deg, #6c5ce7, #00b894)',
+    background: 'var(--grad-brand)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13, fontWeight: 800, color: '#fff',
   },
@@ -586,7 +586,7 @@ const S: Record<string, React.CSSProperties> = {
   merchantCard:  { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   merchantAvatar: {
     width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-    background: 'linear-gradient(135deg, #6c5ce7, #00b894)',
+    background: 'var(--grad-brand)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13, fontWeight: 700, color: '#fff',
   },

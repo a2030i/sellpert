@@ -62,7 +62,7 @@ export default function PWAInstallPrompt() {
       boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
       animation: 'pwaSlide 0.35s ease',
     }}>
-      <div style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg,#6c5ce7,#00b894)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--grad-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <Download size={20} color="#fff" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -70,7 +70,7 @@ export default function PWAInstallPrompt() {
         <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>وصول أسرع وعمل بدون إنترنت</div>
       </div>
       <button onClick={install} style={{
-        background: 'linear-gradient(135deg,#6c5ce7,#9f8fff)', border: 'none', color: '#fff',
+        background: 'var(--grad-accent)', border: 'none', color: '#fff',
         padding: '8px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700,
         cursor: 'pointer', fontFamily: 'inherit',
       }}>تثبيت</button>

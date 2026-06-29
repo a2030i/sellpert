@@ -110,7 +110,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
     <div style={{ padding: '16px', maxWidth: 1200, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#6c5ce7,#00b894)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--grad-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Zap size={20} color="#fff" />
         </div>
         <div>
@@ -153,10 +153,10 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
       {pendingCount > 0 && (
         <div style={{
           position: 'sticky', top: 0, zIndex: 10,
-          background: 'linear-gradient(135deg,#6c5ce7,#9f8fff)', color: '#fff',
+          background: 'var(--grad-accent)', color: '#fff',
           padding: '10px 14px', borderRadius: 10, marginBottom: 12,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          boxShadow: '0 4px 20px rgba(108,92,231,0.3)',
+          boxShadow: 'var(--e-accent)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertCircle size={16} />
@@ -169,7 +169,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
               cursor: 'pointer', fontFamily: 'inherit',
             }}>تراجع</button>
             <button onClick={saveAll} disabled={saving} style={{
-              background: '#fff', border: 'none', color: '#6c5ce7',
+              background: '#fff', border: 'none', color: 'var(--accent)',
               padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 800,
               cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
               fontFamily: 'inherit',

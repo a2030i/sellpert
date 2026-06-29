@@ -4,8 +4,15 @@
   padding: 0;
 }
 
+/*
+ * عقد الألوان (Color contract) — مصدر القيم المرجعي: src/lib/theme.ts
+ *  • اللون الأساس (--accent/--green/--red/--gold) = للتعبئة/الحدود/الأرقام الكبيرة.
+ *  • النسخة «-text» = للنص < 16px (تمر WCAG AA على السطح). النسخة «-bg» = خلفية خفيفة.
+ *  • قاعدة: أي نص صغير ملوّن يجب أن يستخدم رمز «-text»، لا اللون الأساس.
+ */
 /* ── Light theme (main content) ──────────────────────────────────── */
 :root {
+  color-scheme: light;
   --bg:       #f0f3f9;
   --bg2:      #e6eaf4;
   --surface:  #ffffff;
@@ -14,26 +21,54 @@
   --border:   #e2e8f2;
   --border2:  #cdd5e8;
 
-  --accent:  #7c6bff; /* موحّد مع اللون المستخدم فعلياً في كل الواجهة */
-  --accent-soft: #a594ff;
-  --accent-glow: rgba(124,107,255,0.3);
+  --accent:        #7c6bff; /* العلامة — للتوهّج/الحدود/الأسطح الكبيرة */
+  --accent-soft:   #a594ff;
+  --accent-strong: #6450d8; /* تعبئة الأزرار — أبيض عليه 6.38:1 (يمر AA) */
+  --accent-glow:   rgba(124,107,255,0.3);
+  --accent-12:     rgba(124,107,255,0.12); /* تظليل خفيف للعنصر النشط */
+  --on-accent:     #ffffff;
   --accent2: #00b894;
   --accent3: #ff6b6b;
+
+  /* تدرّجات العلامة — مصدر واحد يتبع --accent تلقائياً (لا ألوان مثبّتة) */
+  --grad-brand:  linear-gradient(135deg, var(--accent), var(--accent2));
+  --grad-accent: linear-gradient(135deg, var(--accent), var(--accent-soft));
+
   --gold:    #f0a800;
-  --text:    #1a1e30;
-  --text2:   #5a6480;
-  --text3:   #94a0b8;
   --green:   #00b894;
   --red:     #e84040;
 
+  /* ألوان دلالية: -text يمر AA كنص، -bg خلفية الشرائح */
+  --success-text: #0a8f6e; --success-bg: rgba(0,184,148,0.12);
+  --warning-text: #b07400; --warning-bg: rgba(240,168,0,0.14);
+  --danger-text:  #d12f3f; --danger-bg:  rgba(232,64,64,0.12);
+  --info:         #2563eb; --info-text:  #2563eb; --info-bg: rgba(37,99,235,0.12);
+  --overlay:      rgba(8,10,20,0.55);
+
+  --text:       #1a1e30;
+  --text2:      #5a6480;
+  --text3:      #6b7694; /* كان #94a0b8 (2.63:1 فشل) → 4.52:1 يمر AA */
+  --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
+
+  /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
+  --t-micro:10px; --t-cap:11px; --t-label:12px; --t-sm:13px; --t-base:14px; --t-title:20px; --t-h2:24px; --t-hero:32px;
+  --w-regular:500; --w-medium:600; --w-bold:700; --w-heavy:800;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
+  --lh-base:1.7; --lh-tight:1.25;
+
   --radius:    16px;
   --radius-sm: 10px;
+  --r-sm:8px; --r-md:10px; --r-lg:14px; --r-pill:999px;
+
   --shadow:    0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.07);
   --shadow-md: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.04);
+  --e-1: var(--shadow); --e-2: var(--shadow-md);
+  --e-3: 0 24px 64px rgba(0,0,0,0.18); --e-accent: 0 4px 16px var(--accent-glow);
 }
 
 /* ── Dark theme (full app) ───────────────────────────────────────── */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg:       #0f1220;
   --bg2:      #161a2c;
   --surface:  #1e2239;
@@ -43,9 +78,17 @@
   --border2:  #3a4268;
   --text:     #e2e6f4;
   --text2:    #b3bcd9;
-  --text3:    #7a85a8;
+  --text3:    #8a95b8; /* كان #7a85a8 (4.28) → ~5.4:1 */
+  --text-faint:#7a85a8;
+  /* دلالي للوضع الداكن: أفتح ليمر على الأسطح الداكنة */
+  --success-text: #2ee0a8; --success-bg: rgba(46,224,168,0.14);
+  --warning-text: #f5c452; --warning-bg: rgba(245,196,82,0.14);
+  --danger-text:  #ff6b81; --danger-bg:  rgba(255,107,129,0.14);
+  --info:         #6ea8ff; --info-text:  #6ea8ff; --info-bg: rgba(110,168,255,0.14);
+  --overlay:      rgba(0,0,0,0.6);
   --shadow:    0 1px 4px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 24px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.25);
+  --e-3: 0 24px 64px rgba(0,0,0,0.5);
 }
 
 /* ── Dark sidebar scope ───────────────────────────────────────────── */
@@ -59,23 +102,28 @@
   --border2:  #3a4268;
   --text:     #e2e6f4;
   --text2:    #8891b4;
-  --text3:    #545d82;
+  --text3:    #818bab; /* كان #545d82 (2.43:1 غير مرئي) → 4.63:1 */
 }
 
 /* ── Base ─────────────────────────────────────────────────────────── */
 body {
-  font-family: 'Cairo', sans-serif;
+  font-family: 'Cairo', 'Segoe UI', 'Tahoma', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  font-size: 14px;
+  font-size: var(--t-base);
+  line-height: var(--lh-base);
   direction: rtl;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body.ltr {
   direction: ltr;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'Tajawal', 'Segoe UI', system-ui, sans-serif;
 }
+
+/* أرقام العملة تصطفّ عمودياً في الجداول */
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ── Mobile responsive overrides ──────────────────────────────────── */
 @media (max-width: 768px) {
@@ -138,6 +186,16 @@ body.ltr {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* احترام تفضيل تقليل الحركة (وصول + إحساس أهدأ لمنتج مالي يومي) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Nav hover (sidebar-dark context) ───────────────────────────── */
 .sidebar-dark .nav-item {
   border-radius: 10px;
@@ -149,8 +207,8 @@ body.ltr {
   color: #c8d0ee;
 }
 .sidebar-dark .nav-item.active {
-  background: rgba(108,92,231,0.18);
-  color: #a598ff;
+  background: rgba(124,107,255,0.18);
+  color: var(--accent-soft);
   font-weight: 700;
 }
 .sidebar-dark .nav-item.active .nav-dot {
