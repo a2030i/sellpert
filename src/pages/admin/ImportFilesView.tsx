@@ -324,6 +324,47 @@ async function fileFingerprint(file: File): Promise<string> {
   } catch { return '' }
 }
 
+// ─── الطبقة 2: حقول حرجة لكل نوع — تحوّل الفقد الصامت (عمود أُعيدت تسميته) إلى خطأ مرئي ──
+// لكل نوع ملف العمود «الحامل» (معرّف أو مبلغ). إن كانت كل قيمه فارغة رغم وجود صفوف،
+// فالأرجح أن المنصة غيّرت اسم العمود — نرفض الحفظ برسالة واضحة بدل حفظ أصفار.
+type CritField = { table: string; field: string; label: string; kind: 'id' | 'amount' }
+const CRITICAL_FIELDS: Record<string, CritField[]> = {
+  noon_sales:                 [{ table: 'orders', field: 'order_id', label: 'رقم الطلب (item_nr)', kind: 'id' }, { table: 'orders', field: 'total_amount', label: 'قيمة المبيعات (gmv_lcy)', kind: 'amount' }],
+  noon_products:              [{ table: 'products', field: 'sku', label: 'رمز المنتج (partner_sku)', kind: 'id' }],
+  noon_asn:                   [{ table: 'inbound_shipment_items', field: 'sku', label: 'SKU', kind: 'id' }],
+  noon_grn:                   [{ table: 'goods_received', field: 'sku', label: 'SKU', kind: 'id' }],
+  noon_ads:                   [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الحملة (Campaign Name)', kind: 'id' }],
+  trendyol_sales:             [{ table: 'product_performance_snapshots', field: 'sku', label: 'الباركود/رمز الموديل', kind: 'id' }],
+  trendyol_statement:         [{ table: 'account_transactions', field: 'transaction_no', label: 'Transaction No', kind: 'id' }],
+  trendyol_products:          [{ table: 'products', field: 'sku', label: 'رمز الموديل/الباركود', kind: 'id' }],
+  trendyol_deals:             [{ table: 'platform_deals', field: 'barcode', label: 'الباركود (Barcode)', kind: 'id' }],
+  trendyol_ads:               [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الإعلان', kind: 'id' }],
+  trendyol_campaign_products: [{ table: 'platform_deals', field: 'barcode', label: 'barcode', kind: 'id' }],
+  amazon_settlement:          [{ table: 'account_transactions', field: 'settlement_id', label: 'settlement-id', kind: 'id' }],
+  amazon_transactions:        [{ table: 'account_transactions', field: 'transaction_date', label: 'التاريخ', kind: 'id' }, { table: 'account_transactions', field: 'net_amount', label: 'الإجمالي', kind: 'amount' }],
+  amazon_inventory:           [{ table: 'inventory', field: 'sku', label: 'seller-sku', kind: 'id' }],
+  amazon_ads:                 [{ table: 'ad_metrics', field: 'ad_group_name', label: 'اسم المجموعة الإعلانية', kind: 'id' }],
+  amazon_campaigns:           [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الحملة', kind: 'id' }],
+  amazon_listings:            [{ table: 'products', field: 'sku', label: 'SKU', kind: 'id' }],
+  amazon_sales_dashboard:     [{ table: 'amazon_daily_sales', field: 'total_sales', label: 'مبيعات المنتج المطلوب', kind: 'amount' }],
+}
+function checkCriticalFields(parsed: ParseResult): string[] {
+  const errs: string[] = []
+  for (const spec of CRITICAL_FIELDS[parsed.kind] || []) {
+    const payload = parsed.payloads.find(p => p.table === spec.table)
+    if (!payload || payload.rows.length < 3) continue  // عيّنة صغيرة لا نحكم عليها
+    const total = payload.rows.length
+    const missing = payload.rows.filter(r => {
+      const v = r[spec.field]
+      return spec.kind === 'amount' ? (!v || Number(v) === 0) : (v == null || String(v).trim() === '')
+    }).length
+    if (missing / total > 0.95) {
+      errs.push(`العمود «${spec.label}» لم يُقرأ — كل القيم فارغة (${missing}/${total}). الأرجح أن صيغة التقرير تغيّرت أو أُعيدت تسمية الأعمدة؛ تواصل مع الدعم قبل الحفظ.`)
+    }
+  }
+  return errs
+}
+
 // ─── Utility: validate that detected kind matches expected platform ──────────
 function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry['validation'] {
   const warnings: string[] = []
@@ -340,9 +381,15 @@ function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry
   if (expectedPlatform !== 'auto' && parsed.platform !== expectedPlatform) {
     warnings.push(`الملف من منصة "${parsed.platform}" — سيُحفظ تحت منصته الفعلية`)
   }
-  // Sanity checks per kind
-  for (const p of parsed.payloads) {
-    if (p.rows.length === 0) warnings.push(`جدول ${p.table}: لا توجد صفوف`)
+  // الحقول الحرجة: عمود حامل فارغ بالكامل = صيغة تغيّرت → خطأ يمنع الحفظ
+  errors.push(...checkCriticalFields(parsed))
+  // كل الجداول فارغة لنوع معروف = لم يُستخرج شيء → خطأ لا مجرد تحذير
+  if (parsed.payloads.length > 0 && parsed.payloads.every(p => p.rows.length === 0)) {
+    errors.push('لم يُستخرج أي صف من الملف — تأكد أنه يحتوي بيانات وأن صيغته لم تتغيّر')
+  } else {
+    for (const p of parsed.payloads) {
+      if (p.rows.length === 0) warnings.push(`جدول ${arabicTable(p.table)}: لا توجد صفوف`)
+    }
   }
   return { ok: errors.length === 0, warnings, errors }
 }
