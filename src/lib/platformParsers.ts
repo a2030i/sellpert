@@ -19,6 +19,20 @@ function adKeyDefaults(row: any) {
   }
 }
 
+// يمنح كل صف مفتاحاً ثابتاً فريداً داخل الملف: بادئة طبيعية + ترتيب التكرار عند
+// التطابق. إعادة رفع نفس الملف تنتج نفس المفاتيح (تستبدل عبر upsert)، والسطور
+// المتطابقة فعلاً (مثل رسمين متماثلين في التسوية) تبقى متمايزة (#1، #2...).
+function stampLineKeys(rows: any[], prefixes: string[], field = 'transaction_no'): any[] {
+  const occ = new Map<string, number>()
+  rows.forEach((row, i) => {
+    const p = prefixes[i]
+    const c = occ.get(p) ?? 0
+    occ.set(p, c + 1)
+    row[field] = c === 0 ? p : `${p}#${c}`
+  })
+  return rows
+}
+
 const ci = (headers: string[], ...keys: string[]): number => {
   for (const k of keys) {
     const i = headers.findIndex(h => h.toLowerCase().includes(k.toLowerCase()))
@@ -652,10 +666,11 @@ export function parseTrendyolDeals(wb: XLSX.WorkBook, merchantCode: string): Par
       content_id: s(r[idx('Content Id')]),
     })
   }
-  // حفظ في جدول platform_deals
+  // حفظ في جدول platform_deals — barcode/content_id إلى '' (لا null) ليطابقها الفهرس الفريد
   const dealRows = rows.map(r => ({
     merchant_code: merchantCode, platform: 'trendyol',
-    product_name: r.product_name, model_code: r.model_code, barcode: r.barcode,
+    product_name: r.product_name, model_code: r.model_code,
+    barcode: r.barcode || '',
     category: r.category, brand: r.brand,
     current_stock: r.stock, current_price: r.sale_price || null,
     super_deal_upper_price: r.super_deal_upper || null,
@@ -664,13 +679,13 @@ export function parseTrendyolDeals(wb: XLSX.WorkBook, merchantCode: string): Par
     mega_deal_commission: r.mega_commission || null,
     current_commission: r.current_commission || null,
     end_date: r.end_date ? xlsxDate(r.end_date) : null,
-    content_id: r.content_id,
+    content_id: r.content_id || r.model_code || r.product_name || '',
     raw: r,
   }))
   return {
     kind: 'trendyol_deals', platform: 'trendyol', label: 'عروض تراندايول',
     summary: { rows: rows.length },
-    payloads: [{ table: 'platform_deals', rows: dealRows }],
+    payloads: [{ table: 'platform_deals', rows: dealRows, conflict: 'merchant_code,platform,barcode,content_id' }],
   }
 }
 
@@ -798,7 +813,7 @@ export function parseTrendyolSales(wb: XLSX.WorkBook, merchantCode: string, snap
     kind: 'trendyol_sales', platform: 'trendyol', label: 'مبيعات تراندايول',
     summary: { products: snapshots.length, gross: snapshots.reduce((a, r) => a + r.gross_sales, 0) },
     payloads: [
-      { table: 'product_performance_snapshots', rows: snapshots },
+      { table: 'product_performance_snapshots', rows: snapshots, conflict: 'merchant_code,platform,snapshot_date,sku' },
       { table: 'products', rows: products, conflict: 'merchant_code,sku' },
       { table: 'inventory', rows: inventory, conflict: 'merchant_code,sku,platform' },
     ],
@@ -882,17 +897,17 @@ export function parseTrendyolCampaignProducts(wb: XLSX.WorkBook, merchantCode: s
       merchant_code: merchantCode, platform: 'trendyol',
       product_name: name,
       model_code: s(r[C.code]) || null,
-      barcode: barcode || null,
+      barcode: barcode || '',
       category: s(r[C.cat]) || null,
       brand: s(r[C.brand]) || null,
-      content_id: s(r[C.cpid]) || null,
+      content_id: s(r[C.cpid]) || s(r[C.code]) || name || '',
       raw: { color: s(r[C.color]), size: s(r[C.size]), source: 'campaign_coverage' },
     })
   }
   return {
     kind: 'trendyol_campaign_products', platform: 'trendyol', label: 'تغطية حملة تراندايول',
     summary: { products: rows.length },
-    payloads: [{ table: 'platform_deals', rows }],
+    payloads: [{ table: 'platform_deals', rows, conflict: 'merchant_code,platform,barcode,content_id' }],
   }
 }
 
@@ -903,11 +918,14 @@ export function parseAmazonSettlement(wb: XLSX.WorkBook, merchantCode: string): 
   const h = (data[0] || []).map(x => s(x).toLowerCase())
   const idx = (k: string) => h.indexOf(k.toLowerCase())
   const rows: any[] = []
+  const prefixes: string[] = []
   for (let i = 1; i < data.length; i++) {
     const r = data[i]; if (!r || r.every((c: any) => !c)) continue
+    const settlementId  = s(r[idx('settlement-id')])
+    const orderItemCode = s(r[idx('order-item-code')])
     rows.push({
       merchant_code: merchantCode, platform: 'amazon',
-      settlement_id: s(r[idx('settlement-id')]),
+      settlement_id: settlementId,
       transaction_date: xlsxDate(r[idx('settlement-start-date')]),
       posted_date: xlsxDate(r[idx('posted-date-time')] >= 0 ? r[idx('posted-date-time')] : r[idx('posted-date')]),
       transaction_type: s(r[idx('transaction-type')]) || s(r[idx('amount-type')]),
@@ -926,12 +944,18 @@ export function parseAmazonSettlement(wb: XLSX.WorkBook, merchantCode: string): 
       settlement_period_end:   xlsxDateOnly(r[idx('settlement-end-date')]),
       deposit_date:            xlsxDateOnly(r[idx('deposit-date')]),
     })
+    // مفتاح السطر: order-item-code فريد لكل سطر طلب؛ سطور الرسوم العامة (بلا كود)
+    // تُميَّز بترتيب تكرارها داخل الملف لتبقى السطور المتطابقة منفصلة.
+    prefixes.push(orderItemCode
+      ? `s|${settlementId}|${orderItemCode}`
+      : `s|${settlementId}|f|${s(r[idx('amount-type')])}|${s(r[idx('amount-description')])}|${s(r[idx('sku')])}|${n(r[idx('amount')])}`)
   }
+  stampLineKeys(rows, prefixes)
   const totals = rows.reduce((a, r) => a + r.net_amount, 0)
   return {
     kind: 'amazon_settlement', platform: 'amazon', label: 'تسوية أمازون',
     summary: { rows: rows.length, total: Math.round(totals * 100) / 100 },
-    payloads: [{ table: 'account_transactions', rows }],
+    payloads: [{ table: 'account_transactions', rows, conflict: 'merchant_code,platform,transaction_no' }],
   }
 }
 
@@ -951,10 +975,11 @@ export function parseAmazonTransactions(csv: string, merchantCode: string): Pars
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
   const idx = (k: string) => h.findIndex(x => x.includes(k.toLowerCase()))
   const rows: any[] = []
+  const prefixes: string[] = []
   for (let i = 1; i < lines.length; i++) {
     const c = parseLine(lines[i])
     if (c.every(x => !x)) continue
-    rows.push({
+    const row = {
       merchant_code: merchantCode, platform: 'amazon',
       transaction_date: xlsxDate(c[idx('التاريخ')]),
       transaction_type: c[idx('نوع المعاملة')] || '',
@@ -965,12 +990,16 @@ export function parseAmazonTransactions(csv: string, merchantCode: string): Pars
       credit: n(c[idx('إجمالي رسوم المنتج')]),
       net_amount: n(c[idx('الإجمالي')]),
       currency: 'SAR',
-    })
+    }
+    rows.push(row)
+    // لا يوجد معرّف سطر في ملف المعاملات، فالمفتاح من الحقول المميِّزة + ترتيب التكرار
+    prefixes.push(`t|${row.transaction_date || ''}|${row.transaction_type}|${row.order_id || ''}|${row.amount_description}|${row.net_amount}|${row.debit}|${row.credit}`)
   }
+  stampLineKeys(rows, prefixes)
   return {
     kind: 'amazon_transactions', platform: 'amazon', label: 'معاملات أمازون',
     summary: { rows: rows.length, total: rows.reduce((a, r) => a + r.net_amount, 0) },
-    payloads: [{ table: 'account_transactions', rows }],
+    payloads: [{ table: 'account_transactions', rows, conflict: 'merchant_code,platform,transaction_no' }],
   }
 }
 

@@ -309,6 +309,18 @@ interface FileEntry {
   progress: number  // 0..100
   startedAt?: number
   finishedAt?: number
+  fingerprint?: string
+  dup?: { uploadId: string; uploadedAt: string; fileName: string; rows: number }  // رفعة سابقة مطابقة بالبصمة
+  dupAction?: 'skip' | 'replace' | 'keep'  // قرار الموظف عند التكرار (افتراضي skip)
+}
+
+// بصمة الملف: SHA-256 لمحتواه الخام — إعادة رفع نفس الملف تنتج نفس البصمة
+async function fileFingerprint(file: File): Promise<string> {
+  try {
+    const buf = await file.arrayBuffer()
+    const hash = await crypto.subtle.digest('SHA-256', buf)
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch { return '' }
 }
 
 // ─── Utility: validate that detected kind matches expected platform ──────────
@@ -389,7 +401,8 @@ async function saveParsedResult(
         onProgress(60, `حفظ ${itemsToInsert.length} صنف داخل الإرسالية…`)
         for (let i = 0; i < itemsToInsert.length; i += 500) {
           const slice = itemsToInsert.slice(i, i + 500)
-          const { error: iErr } = await supabase.from('inbound_shipment_items').insert(slice)
+          // upsert على (shipment_id,sku) فإعادة رفع نفس الإرسالية تستبدل الأصناف بدل أن تضاعفها
+          const { error: iErr } = await supabase.from('inbound_shipment_items').upsert(slice, { onConflict: 'shipment_id,sku', ignoreDuplicates: false })
           if (iErr) errors.push(`الأصناف: ${iErr.message}`)
           else inserted += slice.length
           onProgress(60 + Math.round((i / itemsToInsert.length) * 35), `حُفظ ${Math.min(i + 500, itemsToInsert.length)}/${itemsToInsert.length}…`)
@@ -550,8 +563,19 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         const parsed = await parsePlatformFile(entry.file, merchantCode, snapshotDate)
         const validation = validateMatch(parsed, platform)
         const isOk = validation?.ok ?? false
+        // بصمة + كشف رفعة سابقة مطابقة لنفس التاجر
+        const fingerprint = await fileFingerprint(entry.file)
+        let dup: FileEntry['dup'] = undefined
+        if (fingerprint && isOk) {
+          const { data: prev } = await supabase.from('platform_file_uploads')
+            .select('id, uploaded_at, file_name, rows_inserted')
+            .eq('merchant_code', merchantCode).eq('fingerprint', fingerprint)
+            .order('uploaded_at', { ascending: false }).limit(1).maybeSingle()
+          if (prev) dup = { uploadId: prev.id, uploadedAt: prev.uploaded_at, fileName: (prev as any).file_name || '', rows: prev.rows_inserted || 0 }
+        }
         setFiles(p => p.map(f => f.id === entry.id ? {
-          ...f, parsed, validation,
+          ...f, parsed, validation, fingerprint, dup,
+          dupAction: dup ? 'skip' : undefined,
           stage: isOk ? 'parsed' : 'rejected',
           progress: isOk ? 5 : 0,
         } : f))
@@ -561,6 +585,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         } : f))
       }
     }
+  }
+
+  function setDupAction(id: string, action: 'skip' | 'replace' | 'keep') {
+    setFiles(p => p.map(f => f.id === id ? { ...f, dupAction: action } : f))
   }
 
   function removeFile(id: string) {
@@ -577,19 +605,27 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     if (!merchantCode || files.length === 0) return
     setBusy(true); setGlobalMsg(null)
 
-    const validFiles = files.filter(f => f.validation?.ok && f.parsed)
+    // تخطّي الملفات المكررة التي اختار الموظف تخطّيها
+    const validFiles = files.filter(f => f.validation?.ok && f.parsed && !(f.dup && (f.dupAction ?? 'skip') === 'skip'))
+    const skipped = files.filter(f => f.validation?.ok && f.dup && (f.dupAction ?? 'skip') === 'skip').length
     let totalInserted = 0
     const allErrors: string[] = []
 
     for (const entry of validFiles) {
       // المنصة الفعلية من الملف نفسه (لدعم الرفع متعدّد المنصات)
       const filePlatform = entry.parsed!.platform
+      // عند اختيار «استبدال»: احذف الرفعة السابقة المطابقة وبياناتها أولاً
+      if (entry.dup && entry.dupAction === 'replace') {
+        const { error: delErr } = await supabase.rpc('delete_upload_with_data', { p_upload_id: entry.dup.uploadId })
+        if (delErr) allErrors.push(`${entry.file.name}: تعذّر حذف الرفعة السابقة — ${delErr.message}`)
+      }
       // Insert audit row — فشله يوقف هذا الملف: المتابعة بـ uploadId فارغ
       // تُفشل كل الإدراجات الموسومة لاحقاً بخطأ uuid غامض
       const { data: audit, error: auditErr } = await supabase.from('platform_file_uploads').insert({
         merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
         file_type: entry.parsed!.kind, file_size: entry.file.size,
         detected_report: entry.parsed!.label, status: 'processing',
+        fingerprint: entry.fingerprint || null,
       }).select('id').single()
       if (auditErr || !audit?.id) {
         allErrors.push(`${entry.file.name}: فشل إنشاء سجل الرفع — ${auditErr?.message || 'صلاحيات غير كافية'}`)
@@ -650,9 +686,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     }
 
     setBusy(false)
+    const skippedNote = skipped > 0 ? ` · تُخطّي ${skipped} ملف مكرر` : ''
     setGlobalMsg(allErrors.length === 0
-      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}` }
-      : { type: 'err', text: `⚠️ تم حفظ ${totalInserted.toLocaleString()} صف · ${allErrors.length} أخطاء — راجع الملفات أدناه` })
+      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}${skippedNote}` }
+      : { type: 'err', text: `⚠️ تم حفظ ${totalInserted.toLocaleString()} صف · ${allErrors.length} أخطاء${skippedNote} — راجع الملفات أدناه` })
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -731,7 +768,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           {/* File list */}
           {files.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {files.map(f => <FileCard key={f.id} entry={f} color={color} onRemove={removeFile} canRemove={!busy} />)}
+              {files.map(f => <FileCard key={f.id} entry={f} color={color} onRemove={removeFile} canRemove={!busy} onDupAction={setDupAction} />)}
             </div>
           )}
 
@@ -988,10 +1025,16 @@ function DropZone({ color, onDrop, disabled }: { color: string; onDrop: (files: 
   )
 }
 
-function FileCard({ entry, color, onRemove, canRemove }: { entry: FileEntry; color: string; onRemove: (id: string) => void; canRemove: boolean }) {
+function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: FileEntry; color: string; onRemove: (id: string) => void; canRemove: boolean; onDupAction?: (id: string, a: 'skip' | 'replace' | 'keep') => void }) {
   const v = entry.validation
   const p = entry.parsed
   const stageInfo = stageMeta(entry.stage)
+  const act = entry.dupAction ?? 'skip'
+  const dupChoices: { k: 'skip' | 'replace' | 'keep'; label: string }[] = [
+    { k: 'skip', label: 'تخطّي' },
+    { k: 'replace', label: 'استبدال السابق' },
+    { k: 'keep', label: 'رفع كنسخة جديدة' },
+  ]
 
   return (
     <div style={{
@@ -1044,6 +1087,33 @@ function FileCard({ entry, color, onRemove, canRemove }: { entry: FileEntry; col
       {v && v.warnings.length > 0 && (
         <div style={{ marginTop: 6, fontSize: 11, color: '#ff9900' }}>
           {v.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+        </div>
+      )}
+
+      {/* تحذير التكرار: نفس الملف مرفوع مسبقاً — اختر الإجراء */}
+      {entry.dup && (entry.stage === 'parsed') && (
+        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.3)' }}>
+          <div style={{ fontSize: 12, color: '#d97a00', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <AlertTriangle size={13} /> هذا الملف مرفوع مسبقاً — رُفع {relativeTime(entry.dup.uploadedAt)} · {entry.dup.rows.toLocaleString()} صف
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {dupChoices.map(c => (
+              <button key={c.k} onClick={() => onDupAction?.(entry.id, c.k)} disabled={!canRemove}
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1px solid ${act === c.k ? color : 'var(--border)'}`,
+                  background: act === c.k ? color : 'var(--surface)',
+                  color: act === c.k ? '#fff' : 'var(--text2)',
+                }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>
+            {act === 'skip' && 'لن يُحفظ هذا الملف (الافتراضي الآمن).'}
+            {act === 'replace' && 'سيُحذف الرفع السابق وبياناته ثم يُحفظ هذا الملف محلّه.'}
+            {act === 'keep' && 'سيُحفظ كنسخة جديدة — قد تتكرر صفوف الجداول غير المحميّة.'}
+          </div>
         </div>
       )}
 
