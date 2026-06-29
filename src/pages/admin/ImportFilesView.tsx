@@ -311,13 +311,6 @@ interface FileEntry {
   finishedAt?: number
 }
 
-const PLATFORMS = [
-  { value: 'auto',     label: 'كل المنصات (تلقائي)', emoji: '🌐' },
-  { value: 'noon',     label: 'نون',         emoji: '🟡' },
-  { value: 'trendyol', label: 'تراندايول',   emoji: '🟠' },
-  { value: 'amazon',   label: 'أمازون',      emoji: '📦' },
-]
-
 // ─── Utility: validate that detected kind matches expected platform ──────────
 function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry['validation'] {
   const warnings: string[] = []
@@ -483,7 +476,8 @@ function arabicTable(t: string) { return TABLE_LABELS[t] || t }
 // ─── Main ────────────────────────────────────────────────────────────────────
 export default function ImportFilesView({ merchants }: { merchants: Merchant[] }) {
   const [merchantCode, setMerchantCode] = useState<string>('')
-  const [platform, setPlatform]         = useState<string>('noon')
+  // الوضع التلقائي افتراضي: المنصة تُكتشف من محتوى كل ملف، فلا حاجة لاختيارها يدوياً
+  const [platform]                      = useState<string>('auto')
   const [files, setFiles]               = useState<FileEntry[]>([])
   const [busy, setBusy]                 = useState(false)
   const snapshotDate                    = new Date().toISOString().split('T')[0]
@@ -491,15 +485,15 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [lastUploads, setLastUploads]   = useState<Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>>({})
   const [refreshTick, setRefreshTick]   = useState(0)
 
-  // ── Fetch last upload date per file kind for current merchant + platform ──
+  // ── Fetch last upload per file kind for current merchant (كل المنصات) ──
   useEffect(() => {
-    if (!merchantCode || !platform) { setLastUploads({}); return }
+    if (!merchantCode) { setLastUploads({}); return }
     let cancelled = false
-    supabase.from('platform_file_uploads')
+    let q = supabase.from('platform_file_uploads')
       .select('id, file_type, file_name, uploaded_at, status, rows_inserted')
       .eq('merchant_code', merchantCode)
-      .eq('platform', platform)
-      .order('uploaded_at', { ascending: false })
+    if (platform !== 'auto') q = q.eq('platform', platform)  // file_type فريد عالمياً فلا حاجة لفلتر المنصة
+    q.order('uploaded_at', { ascending: false })
       .limit(100)
       .then(({ data }) => {
         if (cancelled || !data) return
@@ -520,8 +514,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   }, [merchantCode, platform, files, refreshTick])
 
   const merchant = useMemo(() => merchants.find(m => m.merchant_code === merchantCode), [merchants, merchantCode])
-  const color = PLATFORM_COLORS[platform] || '#7c6bff'
-  const platformObj = PLATFORMS.find(p => p.value === platform)
+  const color = PLATFORM_COLORS[platform] || 'var(--accent)'
 
   // Progress for the whole batch
   const overallProgress = useMemo(() => {
@@ -667,14 +660,14 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1100, margin: '0 auto' }}>
       <div>
         <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📥 استيراد ملفات المنصات</h3>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>اختر التاجر والمنصة ثم ارفع الملفات الرسمية المُصدّرة من بوابة البائع</p>
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>اختر التاجر ثم ارفع أي ملف Excel/CSV — نتعرّف على نوعه ومنصته تلقائياً</p>
       </div>
 
-      {/* ── Step 1+2: Merchant & Platform ── */}
+      {/* ── Step 1: التاجر فقط (المنصة تُكتشف تلقائياً) ── */}
       <div style={{ ...S.formCard, padding: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, alignItems: 'end' }}>
           <div>
-            <label style={S.label}>1️⃣ التاجر</label>
+            <label style={S.label}>التاجر</label>
             <select value={merchantCode} onChange={e => { setMerchantCode(e.target.value); clearAll() }}
               style={{ ...S.input, fontSize: 13 }}>
               <option value="">— اختر التاجر —</option>
@@ -686,15 +679,6 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             </select>
           </div>
           <div>
-            <label style={S.label}>2️⃣ المنصة</label>
-            <select value={platform} onChange={e => { setPlatform(e.target.value); clearAll() }}
-              style={{ ...S.input, fontSize: 13, color: color, fontWeight: 700 }}>
-              {PLATFORMS.map(p => (
-                <option key={p.value} value={p.value}>{p.emoji} {p.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label style={S.label}>تاريخ الرفع</label>
             <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)', display: 'flex', alignItems: 'center' }}>
               📅 {new Date().toLocaleDateString('ar-SA')}
@@ -702,26 +686,29 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           </div>
         </div>
 
-        {!merchantCode && (
-          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(255,153,0,0.06)', border: '1px solid rgba(255,153,0,0.2)', color: '#ff9900', fontSize: 12 }}>
-            ⚠️ اختر التاجر أولاً قبل رفع الملفات
-          </div>
-        )}
+        {!merchantCode
+          ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(255,153,0,0.06)', border: '1px solid rgba(255,153,0,0.2)', color: '#ff9900', fontSize: 12 }}>
+              ⚠️ اختر التاجر أولاً قبل رفع الملفات
+            </div>
+          : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(124,107,255,0.06)', border: '1px solid rgba(124,107,255,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              🌐 ارفع أي ملف من نون أو أمازون أو تراندايول (حتى ملفات متعددة دفعة واحدة، أو ملف ZIP) — يُصنَّف كل ملف تلقائياً حسب محتواه
+            </div>
+        }
       </div>
 
-      {/* ── Step 2.5: Checklist guide for selected platform ── */}
+      {/* ── دليل الملفات المتوقّعة (اختياري، يشمل كل المنصات في الوضع التلقائي) ── */}
       {merchantCode && (
         <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} onChanged={() => setRefreshTick(t => t + 1)} />
       )}
 
-      {/* ── Step 3: Upload zone ── */}
+      {/* ── Step 2: Upload zone ── */}
       {merchantCode && (
         <div style={{ ...S.formCard, padding: 20, borderColor: color + '30', borderTop: `3px solid ${color}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>3️⃣ ارفع الملفات</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>ارفع الملفات</div>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                {merchant?.name} · {platformObj?.emoji} {platformObj?.label} · يتم اكتشاف نوع كل ملف تلقائياً
+                {merchant?.name} · يُكتشف نوع ومنصة كل ملف تلقائياً
               </div>
             </div>
             <label style={{
@@ -853,8 +840,13 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
   pendingKinds: string[];
   onChanged?: () => void;
 }) {
-  const guides = FILE_GUIDES[platform] || []
+  // الوضع التلقائي: نعرض ملفات كل المنصات مجموعة، وإلا منصة واحدة
+  const groups: [string, FileGuide[]][] = platform === 'auto'
+    ? Object.entries(FILE_GUIDES)
+    : [[platform, FILE_GUIDES[platform] || []]]
+  const totalGuides = groups.reduce((a, [, g]) => a + g.length, 0)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [open, setOpen] = useState(platform !== 'auto')  // مطوي افتراضياً في الوضع التلقائي (قائمة طويلة)
 
   async function deleteOne(uploadId: string, label: string, rows: number) {
     if (!confirm(`حذف "${label}" وكل بياناته؟\n\n${rows} صف سيُحذف وتُعاد عملية حساب الأداء`)) return
@@ -871,19 +863,26 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
     setDeleting(null)
   }
 
-  if (guides.length === 0) return null
+  if (totalGuides === 0) return null
 
   return (
     <div style={{ ...S.formCard, padding: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 14 : 0, cursor: 'pointer' }}>
         <Info size={16} color={color} />
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>الملفات المتوقّعة لهذه المنصة</div>
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
-        دليل سريع لكل تقرير: ماذا يفعل، آخر مرة رُفع، وأي ملف يعتمد على ملف آخر
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
+          الملفات المتوقّعة <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— دليل اختياري لكل تقرير وآخر مرة رُفع</span>
+        </div>
+        <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {open && groups.map(([pf, guides]) => {
+        const gColor = PLATFORM_COLORS[pf] || color
+        return (
+        <div key={pf} style={{ marginBottom: 12 }}>
+          {platform === 'auto' && (
+            <div style={{ fontSize: 12, fontWeight: 800, color: gColor, margin: '6px 0 8px' }}>{PLATFORM_MAP[pf] || pf}</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {guides.map(g => {
           const last  = lastUploads[g.kind]
           const isPending = pendingKinds.includes(g.kind)
@@ -894,8 +893,8 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
           return (
             <div key={g.kind} style={{
               display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
-              background: isPending ? color + '08' : 'var(--surface2)',
-              border: `1px solid ${isPending ? color + '30' : 'var(--border)'}`,
+              background: isPending ? gColor + '08' : 'var(--surface2)',
+              border: `1px solid ${isPending ? gColor + '30' : 'var(--border)'}`,
               borderRadius: 10, transition: 'all 0.15s',
             }}>
               {/* Status dot */}
@@ -957,7 +956,10 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
             </div>
           )
         })}
-      </div>
+          </div>
+        </div>
+        )
+      })}
     </div>
   )
 }
