@@ -8,6 +8,20 @@ import * as XLSX from 'xlsx'
 export const n = (v: any): number => parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')) || 0
 export const s = (v: any): string => String(v ?? '').trim()
 
+// تطبيع العناوين: يجعل المطابقة صامدة أمام إعادة التسمية الطفيفة واختلاف اللغة/التشكيل.
+// يزيل: التطويل (ـ)، التشكيل، علامات الاتجاه (RTL/LTR)، يوحّد المسافات، يحوّل
+// الفواصل/الأقواس/الشرطات إلى مسافة، ويصغّر الأحرف اللاتينية.
+export function normalize(v: any): string {
+  return String(v ?? '')
+    .replace(/^﻿/, '')
+    .replace(/[‎‏‪-‮]/g, '')   // علامات الاتجاه
+    .replace(/[ؐ-ًؚ-ْٰـ]/g, '')  // تشكيل + تطويل
+    .replace(/[()\[\]{}_\-./\\،,:|]+/g, ' ')        // فواصل شائعة → مسافة
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 // مفتاح إزالة تكرار الإعلانات: إعادة رفع نفس التقرير في نفس اليوم تستبدل بدل أن
 // تضاعف الإنفاق. كل أعمدة المفتاح يجب أن تكون '' (لا null) ليطابقها الفهرس الفريد.
 const AD_CONFLICT = 'merchant_code,platform,report_date,campaign_name,ad_group_name,sku,search_query'
@@ -33,9 +47,15 @@ function stampLineKeys(rows: any[], prefixes: string[], field = 'transaction_no'
   return rows
 }
 
+// مطابقة عنوان مرنة: تطبيع الطرفين، ثم مطابقة تامة مطبَّعة أولاً (الأدق) ثم احتواء.
+// تقبل عدة مرادفات؛ تُرجع موضع أول تطابق أو -1.
 const ci = (headers: string[], ...keys: string[]): number => {
+  const norm = headers.map(normalize)
   for (const k of keys) {
-    const i = headers.findIndex(h => h.toLowerCase().includes(k.toLowerCase()))
+    const nk = normalize(k)
+    let i = norm.indexOf(nk)
+    if (i >= 0) return i
+    i = norm.findIndex(h => h.includes(nk))
     if (i >= 0) return i
   }
   return -1
@@ -251,7 +271,7 @@ export function parseNoonSales(csv: string, merchantCode: string): ParseResult {
   const sep = ','
   const parse = (l: string) => l.split(sep).map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parse(lines[0]).map(c => c.toLowerCase())
-  const idx = (k: string) => h.indexOf(k)
+  const idx = (...k: string[]) => ci(h, ...k)
 
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -295,7 +315,7 @@ export function parseNoonProducts(csv: string, merchantCode: string): ParseResul
   const sep = ','
   const parse = (l: string) => l.split(sep).map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parse(lines[0]).map(c => c.toLowerCase())
-  const idx = (k: string) => h.indexOf(k)
+  const idx = (...k: string[]) => ci(h, ...k)
 
   const products: any[] = []
   const inventory: any[] = []
@@ -370,7 +390,7 @@ export function parseNoonAsn(wb: XLSX.WorkBook, merchantCode: string, fileName: 
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   if (data.length < 2) return errResult('noon_asn','noon','إرسالية نون','الملف فارغ')
   const headers = data[0].map(h => s(h).toLowerCase())
-  const idx = (k: string) => headers.indexOf(k)
+  const idx = (...k: string[]) => ci(headers, ...k)
 
   // ASN number from filename like "A05083804PN products..."
   const asnMatch = fileName.match(/([A-Z0-9]{8,})/i)
@@ -436,7 +456,7 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
   if (details) {
     const dd = XLSX.utils.sheet_to_json<any[]>(details, { header: 1, defval: '' }) as any[][]
     const h = (dd[0] || []).map(x => s(x).toLowerCase())
-    const idx = (k: string) => h.indexOf(k.toLowerCase())
+    const idx = (...k: string[]) => ci(h, ...k)
     for (let i = 1; i < dd.length; i++) {
       const r = dd[i]; if (!r || r.every((c: any) => !c)) continue
       rows.push({
@@ -456,7 +476,7 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
   if (qc) {
     const qd = XLSX.utils.sheet_to_json<any[]>(qc, { header: 1, defval: '' }) as any[][]
     const h = (qd[0] || []).map(x => s(x).toLowerCase())
-    const idx = (k: string) => h.indexOf(k.toLowerCase())
+    const idx = (...k: string[]) => ci(h, ...k)
     for (let i = 1; i < qd.length; i++) {
       const r = qd[i]; if (!r || r.every((c: any) => !c)) continue
       rows.push({
@@ -497,7 +517,7 @@ export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string): ParseResu
   const ws = wb.Sheets[sheetName]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
-  const idx = (k: string) => h.indexOf(k.toLowerCase())
+  const idx = (...k: string[]) => ci(h, ...k)
 
   const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
@@ -536,7 +556,7 @@ export function parseTrendyolStatement(wb: XLSX.WorkBook, merchantCode: string):
   if (!ws) return errResult('trendyol_statement','trendyol','كشف حساب تراندايول','ورقة Detail غير موجودة')
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
-  const idx = (k: string) => h.indexOf(k.toLowerCase())
+  const idx = (...k: string[]) => ci(h, ...k)
 
   const rows: any[] = []
   for (let i = 1; i < data.length; i++) {
@@ -830,7 +850,7 @@ export function parseAmazonCampaigns(csv: string, merchantCode: string): ParseRe
   if (lines.length < 2) return errResult('amazon_campaigns','amazon','حملات أمازون','الملف فارغ')
   const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
-  const idx = (k: string) => h.findIndex(x => x.includes(k.toLowerCase()))
+  const idx = (...k: string[]) => ci(h, ...k)
   const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -918,7 +938,7 @@ export function parseAmazonSettlement(wb: XLSX.WorkBook, merchantCode: string): 
   const ws = wb.Sheets[wb.SheetNames[0]]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
-  const idx = (k: string) => h.indexOf(k.toLowerCase())
+  const idx = (...k: string[]) => ci(h, ...k)
   const rows: any[] = []
   const prefixes: string[] = []
   for (let i = 1; i < data.length; i++) {
@@ -1021,7 +1041,7 @@ export function parseAmazonTransactions(csv: string, merchantCode: string): Pars
     out.push(cur); return out.map(x => x.trim())
   }
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
-  const idx = (k: string) => h.findIndex(x => x.includes(k.toLowerCase()))
+  const idx = (...k: string[]) => ci(h, ...k)
   const rows: any[] = []
   const prefixes: string[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -1063,7 +1083,7 @@ export function parseAmazonInventory(wb: XLSX.WorkBook, merchantCode: string): P
   const ws = wb.Sheets[wb.SheetNames[0]]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
-  const idx = (k: string) => h.indexOf(k.toLowerCase())
+  const idx = (...k: string[]) => ci(h, ...k)
   const bySku = new Map<string, any>()
   for (let i = 1; i < data.length; i++) {
     const r = data[i]; if (!r || r.every((c: any) => !c)) continue
@@ -1102,7 +1122,7 @@ export function parseAmazonAds(csv: string, merchantCode: string): ParseResult {
   if (lines.length < 2) return errResult('amazon_ads','amazon','إعلانات أمازون','الملف فارغ')
   const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
-  const idx = (k: string) => h.findIndex(x => x.includes(k.toLowerCase()))
+  const idx = (...k: string[]) => ci(h, ...k)
   const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
