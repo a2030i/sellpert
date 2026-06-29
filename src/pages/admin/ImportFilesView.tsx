@@ -627,12 +627,27 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           stage: isOk ? 'parsed' : 'rejected',
           progress: isOk ? 5 : 0,
         } : f))
+        if (!isOk) logDiagnostic(entry.file.name, parsed, (validation?.errors || []).join(' · '))
       } catch (e: any) {
         setFiles(p => p.map(f => f.id === entry.id ? {
           ...f, stage: 'failed', validation: { ok: false, warnings: [], errors: [e.message] },
         } : f))
+        logDiagnostic(entry.file.name, undefined, 'خطأ في التحليل: ' + e.message)
       }
     }
+  }
+
+  // رصد: سجّل كل ملف لم يُقبل لاكتشاف انحراف الصيغ استباقياً (إطلاق دون انتظار)
+  function logDiagnostic(fileName: string, parsed: ParseResult | undefined, reasonText: string) {
+    const kind = parsed?.kind || 'unknown'
+    const reason = kind === 'unknown' ? 'unknown'
+      : /لم يُقرأ|تسمية الأعمدة/.test(reasonText) ? 'missing_column'
+      : /لم يُستخرج أي صف|لا توجد صفوف/.test(reasonText) ? 'empty'
+      : 'parse_error'
+    supabase.from('import_diagnostics').insert({
+      merchant_code: merchantCode || null, file_name: fileName,
+      detected_kind: kind, reason, diagnostic: reasonText.slice(0, 1000),
+    }).then(() => setRefreshTick(t => t + 1), () => {})
   }
 
   function setDupAction(id: string, action: 'skip' | 'replace' | 'keep') {
@@ -914,6 +929,47 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 
       {/* الرفعات السابقة (مع زر حذف) */}
       {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} />}
+
+      {/* رصد: ملفات لم تُقبل مؤخراً (لاكتشاف صيغ جديدة/متغيّرة) */}
+      <RecentRejectionsPanel refreshTick={refreshTick} />
+    </div>
+  )
+}
+
+// ─── رصد الملفات المرفوضة مؤخراً ───────────────────────────────────────────────
+const REJECT_REASON_AR: Record<string, string> = {
+  unknown: 'نوع غير معروف', missing_column: 'عمود ناقص (صيغة متغيّرة)', empty: 'بلا صفوف', parse_error: 'خطأ تحليل',
+}
+function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
+  const [rows, setRows] = useState<any[]>([])
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    supabase.from('import_diagnostics').select('file_name, detected_kind, reason, diagnostic, created_at')
+      .order('created_at', { ascending: false }).limit(15)
+      .then(({ data }) => setRows(data || []))
+  }, [refreshTick])
+  if (rows.length === 0) return null
+  return (
+    <div style={{ ...S.formCard, padding: 14, borderColor: 'rgba(232,64,64,0.2)' }}>
+      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <AlertTriangle size={15} color="#e84040" />
+        <div style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
+          ملفات لم تُقبل مؤخراً <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— راجعها؛ قد تكون صيغة تقرير تغيّرت</span>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: 'rgba(232,64,64,0.12)', color: '#e84040' }}>{rows.length}</span>
+        <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
+              <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.diagnostic || ''}>{r.file_name}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(232,64,64,0.1)', color: '#e84040', flexShrink: 0 }}>{REJECT_REASON_AR[r.reason] || r.reason}</span>
+              <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>{relativeTime(r.created_at)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
