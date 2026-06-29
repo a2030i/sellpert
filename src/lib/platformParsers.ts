@@ -1144,6 +1144,9 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
   try {
     if (isCsv) {
       csvText = await file.text()
+      // ابنِ workbook من نص الـ CSV أيضاً، حتى تعمل المحلّلات المبنية على Excel
+      // (مثل إرسالية نون ASN) عندما تُصدَّر تقاريرها بصيغة CSV بدل xlsx.
+      try { workbook = XLSX.read(csvText, { type: 'string' }) } catch { /* تبقى المحلّلات النصية تعمل على csvText */ }
     } else {
       const buf = await file.arrayBuffer()
       workbook = XLSX.read(buf, { type: 'array' })
