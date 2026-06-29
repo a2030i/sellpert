@@ -38,6 +38,7 @@ const FILE_GUIDES: Record<string, FileGuide[]> = {
     { kind: 'amazon_inventory',    label: 'مخزون FBA',                icon: '📦', desc: 'المخزون المتاح في مستودعات أمازون لكل ASIN', importance: 'critical' },
     { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', icon: '🧾', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
     { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', icon: '📣', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
+    { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', icon: '📈', desc: 'بديل بسيط: إجماليات المبيعات اليومية. تُملأ بها الأيام التي لا يوجد لها تقرير معاملات', importance: 'optional' },
   ],
 }
 
@@ -440,7 +441,7 @@ async function saveParsedResult(
     onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)} (${rowsToSave.length} صف)…`)
 
     // Chunked insert (مع upload_id لتتبّع الرفع)
-    const TAGGABLE = ['orders','products','inventory','account_transactions','ad_metrics','returns','goods_received','product_performance_snapshots','platform_deals']
+    const TAGGABLE = ['orders','products','inventory','account_transactions','ad_metrics','returns','goods_received','product_performance_snapshots','platform_deals','amazon_daily_sales']
     const CHUNK = 500
     for (let i = 0; i < rowsToSave.length; i += CHUNK) {
       const slice = rowsToSave.slice(i, i + CHUNK).map((r: any) =>

@@ -153,6 +153,8 @@ export function detectFileKind(input: FileInput): string {
   // CSV files
   if (input.isCsv) {
     const firstLine = (input.csvText || '').replace(/^﻿/, '').split(/\r?\n/)[0].toLowerCase()
+    // لوحة مبيعات أمازون الملخّصة (إجماليات يومية، ليست تقريراً تفصيلياً)
+    if (firstLine.includes('اللوحة الرئيسية للمبيعات'))                              return 'amazon_sales_dashboard'
     if (firstLine.includes('id_partner') && firstLine.includes('gmv_lcy'))           return 'noon_sales'
     if (firstLine.includes('psku_code') && firstLine.includes('noon_title'))         return 'noon_products'
     // Noon ASN sometimes exported as CSV
@@ -959,6 +961,52 @@ export function parseAmazonSettlement(wb: XLSX.WorkBook, merchantCode: string): 
   }
 }
 
+// === AMAZON: Sales Dashboard (ملخّص إجماليات يومية) ===
+// ليست تقريراً تفصيلياً — لوحة جاهزة فيها سلسلة يومية (التاريخ، المبيعات، الوحدات).
+// تُحفظ في amazon_daily_sales وتُستخدم كمصدر احتياطي يملأ الأيام التي لا تقرير معاملات لها.
+export function parseAmazonSalesDashboard(csv: string, merchantCode: string): ParseResult {
+  const lines = csv.replace(/^﻿/, '').split(/\r?\n/)
+  const parseLine = (l: string): string[] => {
+    const out: string[] = []; let cur = '', q = false
+    for (const ch of l) {
+      if (ch === '"') q = !q
+      else if (ch === ',' && !q) { out.push(cur); cur = '' }
+      else cur += ch
+    }
+    out.push(cur); return out.map(x => x.trim())
+  }
+  // ابحث عن رأس السلسلة اليومية (يبدأ بعمود "التوقيت")
+  let start = -1
+  for (let i = 0; i < lines.length; i++) {
+    const first = parseLine(lines[i])[0] || ''
+    if (first.replace(/^﻿/, '').trim() === 'التوقيت') { start = i + 1; break }
+  }
+  if (start < 0) return errResult('amazon_sales_dashboard', 'amazon', 'لوحة مبيعات أمازون', 'تعذّر إيجاد سلسلة المبيعات اليومية في الملف')
+
+  const rows: any[] = []
+  for (let i = start; i < lines.length; i++) {
+    const c = parseLine(lines[i])
+    const dateRaw = c[0] || ''
+    // نتوقف عند نهاية القسم (سطر لا يبدأ بتاريخ ISO)
+    if (!/^\d{4}-\d{2}-\d{2}/.test(dateRaw)) break
+    const dataDate = dateRaw.slice(0, 10)  // تاريخ فقط — بلا تحويل منطقة زمنية يزيح اليوم
+    const totalSales = n(c[1])   // مبيعات المنتج المطلوبة (النطاق المحدد)
+    const units = parseInt(s(c[2])) || 0
+    if (!dataDate) continue
+    if (totalSales <= 0 && units <= 0) continue  // تجاهل الأيام بلا مبيعات
+    rows.push({ merchant_code: merchantCode, data_date: dataDate, total_sales: totalSales, units })
+  }
+  const total = rows.reduce((a, r) => a + r.total_sales, 0)
+  return {
+    kind: 'amazon_sales_dashboard', platform: 'amazon', label: 'لوحة مبيعات أمازون (ملخّص يومي)',
+    summary: { days: rows.length, totalSales: Math.round(total) },
+    payloads: rows.length === 0
+      ? []
+      : [{ table: 'amazon_daily_sales', rows, conflict: 'merchant_code,data_date' }],
+    error: rows.length === 0 ? 'لا توجد أيام بمبيعات في الملف' : undefined,
+  }
+}
+
 // === AMAZON: Transactions CSV ===
 export function parseAmazonTransactions(csv: string, merchantCode: string): ParseResult {
   const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
@@ -1121,6 +1169,7 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'trendyol_ads':         return parseTrendyolAds(workbook!, merchantCode)
       case 'amazon_settlement':    return parseAmazonSettlement(workbook!, merchantCode)
       case 'amazon_transactions':  return parseAmazonTransactions(csvText!, merchantCode)
+      case 'amazon_sales_dashboard': return parseAmazonSalesDashboard(csvText!, merchantCode)
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
       case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
       case 'amazon_campaigns':     return parseAmazonCampaigns(csvText!, merchantCode)
