@@ -63,9 +63,10 @@ function filterByPreset(data: PerformanceData[], preset: string) {
   const now  = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const ago = (d: number) => { const f = new Date(today); f.setDate(f.getDate() - d); return f }
-  if (preset === 'last7')     return data.filter(r => recordDate(r) >= ago(7))
-  if (preset === 'last30')    return data.filter(r => recordDate(r) >= ago(30))
-  if (preset === 'last90')    return data.filter(r => recordDate(r) >= ago(90))
+  // > ago(n) (لا >=) حتى تكون النافذة n يوماً بالضبط وتتكافأ مع نافذة getPrev — كانت 31/30 فتنحاز أسهم النمو ~3%
+  if (preset === 'last7')     return data.filter(r => recordDate(r) > ago(7))
+  if (preset === 'last30')    return data.filter(r => recordDate(r) > ago(30))
+  if (preset === 'last90')    return data.filter(r => recordDate(r) > ago(90))
   if (preset === 'thisMonth') return data.filter(r => recordDate(r) >= new Date(now.getFullYear(), now.getMonth(), 1))
   if (preset === 'lastMonth') {
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -78,19 +79,21 @@ function filterByPreset(data: PerformanceData[], preset: string) {
 function getPrev(data: PerformanceData[], preset: string) {
   const now  = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const range = (from: Date, to: Date) => data.filter(r => { const d = recordDate(r); return d >= from && d < to })
+  const range = (from: Date, to: Date) => data.filter(r => { const d = recordDate(r); return d > from && d <= to })
   const ago = (d: number) => { const f = new Date(today); f.setDate(f.getDate() - d); return f }
   if (preset === 'last7')  return range(ago(14), ago(7))
   if (preset === 'last30') return range(ago(60), ago(30))
   if (preset === 'last90') return range(ago(180), ago(90))
-  if (preset === 'thisMonth') return range(new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 1))
-  if (preset === 'lastMonth') return range(new Date(now.getFullYear(), now.getMonth() - 2, 1), new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  // حدود الأشهر بدلالة (> from && <= to): من آخر يوم بالشهر السابق للحد إلى آخر يوم بالشهر المطلوب
+  if (preset === 'thisMonth') return range(new Date(now.getFullYear(), now.getMonth() - 1, 0), new Date(now.getFullYear(), now.getMonth(), 0))
+  if (preset === 'lastMonth') return range(new Date(now.getFullYear(), now.getMonth() - 2, 0), new Date(now.getFullYear(), now.getMonth() - 1, 0))
   return []
 }
 
 function delta(curr: number, prev: number) {
   if (!prev) return null
-  return Math.round(((curr - prev) / prev) * 100)
+  // Math.abs للمقام: لو كانت الفترة السابقة خسارة (سالبة) فالتحسن يظهر موجباً لا معكوس الإشارة
+  return Math.round(((curr - prev) / Math.abs(prev)) * 100)
 }
 
 function fmt(v: number, type: 'currency' | 'number' | 'percent' = 'currency') {
@@ -414,7 +417,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     return Object.entries(byDate)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({
-        date: new Date(date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }),
+        date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }),
         المبيعات: Math.round(v.sales),
         الطلبات: v.orders,
         الرسوم: Math.round(v.fees),
@@ -428,34 +431,37 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     return Object.entries(acc).map(([k, v]) => ({ name: PLATFORM_MAP[k] || k, value: Math.round(v), platform: k }))
   }, [filtered])
 
-  // Day of week
+  // Day of week — القسمة على عدد التواريخ المميزة لا عدد الصفوف (يوم متعدد المنصات كان يُبخس حتى 3x)
   const dayData = useMemo(() => {
-    const acc: Record<number, { sales: number; count: number }> = {}
+    const acc: Record<number, { sales: number; dates: Set<string> }> = {}
     filtered.forEach(r => {
+      const dateStr = String(r.data_date || r.created_at).slice(0, 10)
       const d = new Date(r.data_date || r.created_at).getDay()
-      if (!acc[d]) acc[d] = { sales: 0, count: 0 }
+      if (!acc[d]) acc[d] = { sales: 0, dates: new Set() }
       acc[d].sales += toSAR(r.total_sales, r.platform)
-      acc[d].count++
+      acc[d].dates.add(dateStr)
     })
     return DAY_NAMES.map((name, i) => ({
       name,
-      المبيعات: Math.round((acc[i]?.sales || 0) / Math.max(acc[i]?.count || 1, 1)),
+      المبيعات: Math.round((acc[i]?.sales || 0) / Math.max(acc[i]?.dates.size || 1, 1)),
     }))
   }, [filtered])
 
-  // Top products
-  const topProducts = useMemo(() => {
-    const acc: Record<string, { sales: number; orders: number }> = {}
-    filtered.forEach(r => {
-      if (!r.product_name) return
-      if (!acc[r.product_name]) acc[r.product_name] = { sales: 0, orders: 0 }
-      acc[r.product_name].sales  += toSAR(r.total_sales, r.platform)
-      acc[r.product_name].orders += r.order_count
-    })
-    return Object.entries(acc)
-      .map(([name, v]) => ({ name, sales: Math.round(v.sales), orders: v.orders }))
-      .sort((a, b) => b.sales - a.sales)
-  }, [filtered])
+  // Top products — من product_profitability (performance_data تجميع يومي للمنصة ولا يحمل أسماء منتجات أصلاً)
+  const [topProducts, setTopProducts] = useState<{ name: string; sales: number; orders: number }[]>([])
+  useEffect(() => {
+    const code = merchant?.merchant_code
+    if (!code) return
+    supabase.from('product_profitability')
+      .select('product_name, revenue, units_sold')
+      .eq('merchant_code', code)
+      .gt('revenue', 0)
+      .order('revenue', { ascending: false })
+      .limit(8)
+      .then(({ data }) => setTopProducts((data || []).map(r => ({
+        name: r.product_name || '—', sales: Math.round(r.revenue || 0), orders: r.units_sold || 0,
+      }))))
+  }, [merchant?.merchant_code])
 
   // City data from orders
   const cityData = useMemo(() => {
@@ -476,6 +482,13 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     [cityData]
   )
 
+  // الهامش يُشتق صفياً (عمود margin في الجدول لا يُكتب أبداً — كان يصدّر 0% دائماً)
+  const rowMargin = (r: PerformanceData) => {
+    const sales = toSAR(r.total_sales, r.platform)
+    if (!sales) return null
+    return ((sales - toSAR(r.platform_fees || 0, r.platform) - toSAR(r.ad_spend || 0, r.platform)) / sales) * 100
+  }
+
   function exportCSV() {
     const rows = filtered.map(r => [
       r.data_date || r.created_at.slice(0, 10),
@@ -484,7 +497,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       r.order_count,
       Math.round(toSAR(r.total_sales, r.platform)),
       Math.round(toSAR(r.platform_fees || 0, r.platform)),
-      r.margin,
+      rowMargin(r) === null ? '' : (rowMargin(r) as number).toFixed(1) + '%',
     ])
     const csv = [['التاريخ', 'المنصة', 'المنتج', 'الطلبات', 'المبيعات', 'الرسوم', 'الهامش'], ...rows].map(r => r.join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -515,7 +528,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         <div>
           <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, margin: 0 }}>لوحة التحكم</h2>
           <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
-            مرحباً {merchant?.name} — {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            مرحباً {merchant?.name} — {new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
         {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>}
@@ -573,11 +586,11 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
           <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات في هذه الفترة</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.7 }}>
-            ارفع تقرير تراندايول أو نون أو أمازون من صفحة المنصات<br />لتبدأ في رؤية أداء متجرك هنا
+            فريق Sellpert يستلم تقارير منصاتك (تراندايول، نون، أمازون) ويرفعها لك<br />بمجرد وصول أول تقرير ستظهر بيانات متجرك هنا
           </div>
-          <button onClick={() => { window.history.pushState(null,'','/integrations'); window.dispatchEvent(new PopStateEvent('popstate')) }}
-            style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            🔗 ربط المنصات
+          <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+            style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            📨 تواصل مع الفريق
           </button>
         </div>
       )}
@@ -731,7 +744,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       </div>}
 
       {/* ── Restock + AI hints (إجراءات تشغيلية بعد الأرقام الأساسية) ── */}
-      <RestockWidget merchantCode={merchant?.merchant_code} />
+      {/* أزيل RestockWidget: كان يكرر نفس توصيات «أهم إجراءات اليوم» بنداء RPC ثانٍ — التفاصيل الكاملة في صفحة المخزون */}
       <DashboardHints merchantCode={merchant?.merchant_code} />
 
       {/* ── Saudi Arabia Map — يظهر فقط عند وجود بيانات مدن ── */}
@@ -847,7 +860,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                     <td style={S.td}>{r.order_count.toLocaleString()}</td>
                     <td style={{ ...S.td, fontWeight: 600 }}>{fmt(toSAR(r.total_sales, r.platform))}</td>
                     <td style={S.td}>{fmt(toSAR(r.platform_fees || 0, r.platform))}</td>
-                    <td style={{ ...S.td, color: r.margin >= 0 ? '#00e5b0' : '#ff4d6d', fontWeight: 600 }}>{fmt(r.margin, 'percent')}</td>
+                    <td style={{ ...S.td, color: (rowMargin(r) ?? 0) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 600 }}>{rowMargin(r) === null ? '—' : fmt(rowMargin(r) as number, 'percent')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -921,17 +934,18 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
     let cancelled = false
     ;(async () => {
       const [{ data: prof }, { data: restock }] = await Promise.all([
-        supabase.from('product_profitability').select('product_name, net_profit, roas, ad_spend, revenue').eq('merchant_code', merchantCode),
+        supabase.from('product_profitability').select('product_name, net_profit, ad_roas, ad_spend, revenue').eq('merchant_code', merchantCode),
         supabase.rpc('restock_recommendations', { p_merchant_code: merchantCode, p_lead_time_days: 14 }),
       ])
       if (cancelled) return
       const acts: typeof actions = []
-      const losingAd = (prof || []).filter((p: any) => Number(p.ad_spend) > 0 && p.roas !== null && Number(p.roas) < 1)
-        .sort((a: any, b: any) => Number(a.roas) - Number(b.roas))[0]
-      if (losingAd) acts.push({ icon: '🔴', color: '#e84040', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.roas).toFixed(2)} ر.س فقط`, path: '/marketing' })
+      // ad_roas = عائد الإعلانات وحدها (لا المبيعات العضوية) — كان roas المخلوط يمنع التوصية من الانطلاق أبداً
+      const losingAd = (prof || []).filter((p: any) => Number(p.ad_spend) > 0 && p.ad_roas !== null && Number(p.ad_roas) < 1)
+        .sort((a: any, b: any) => Number(a.ad_roas) - Number(b.ad_roas))[0]
+      if (losingAd) acts.push({ icon: '🔴', color: '#e84040', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
       const losingProduct = (prof || []).filter((p: any) => Number(p.revenue) > 0 && Number(p.net_profit) < 0)
         .sort((a: any, b: any) => Number(a.net_profit) - Number(b.net_profit))[0]
-      if (losingProduct) acts.push({ icon: '📉', color: '#ff9900', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products' })
+      if (losingProduct) acts.push({ icon: '📉', color: '#ff9900', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
       if (urgent) acts.push({ icon: '📦', color: '#7c6bff', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })

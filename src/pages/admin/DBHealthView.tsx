@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 
@@ -79,7 +79,7 @@ export default function DBHealthView() {
         <div>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>🩺 صحة قاعدة البيانات</h3>
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-            آخر تحديث: {lastRefresh.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            آخر تحديث: {lastRefresh.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

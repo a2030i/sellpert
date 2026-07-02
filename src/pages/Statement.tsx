@@ -96,7 +96,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       if (d) map[d] = (map[d] || 0) + r.total_sales
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, rev]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }),
+      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' }),
       rev: Math.round(rev),
     }))
   }, [perfData])
@@ -388,7 +388,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
           </thead>
           <tbody>
             {filtered.map((r, i) => {
-              const d = r.transaction_date ? new Date(r.transaction_date).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) : '—'
+              const d = r.transaction_date ? new Date(r.transaction_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' }) : '—'
               const meta = PLATFORM_META[r.platform]
               return (
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -527,9 +527,10 @@ function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
 }
 
 // ── Returns analytics ─────────────────────────────────────────────────────────
-function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | null; grossRevenue: number }) {
+function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenue?: number }) {
   const [data, setData] = useState<any[]>([])
   const [orderCount, setOrderCount] = useState(0)
+  const [allTimeRevenue, setAllTimeRevenue] = useState(0)
   const [commissionByPlatform, setCommissionByPlatform] = useState<Record<string, number>>({})
   const [shippingByPlatform, setShippingByPlatform] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
@@ -538,13 +539,17 @@ function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | nul
   async function load() {
     if (!merchant) return
     setLoading(true)
-    const [rows, { count }, { data: rates }] = await Promise.all([
+    const [rows, { count }, { data: rates }, perfRows] = await Promise.all([
       fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'المرتجعات'),
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchant.merchant_code),
       supabase.from('platform_commission_rates').select('platform, rate, shipping_fee'),
+      // إيراد كل الفترات: المرتجعات هنا تاريخية كاملة، فيجب أن يكون مقام النسبة تاريخياً كاملاً أيضاً
+      // (كانت تُقسم على إيراد الشهر المعروض فقط → نسب عبثية مثل 911%)
+      fetchAll<any>((f, t) => supabase.from('performance_data').select('total_sales').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'الإيراد الكلي'),
     ])
     setData(rows)
     setOrderCount(count || 0)
+    setAllTimeRevenue(perfRows.reduce((a: number, r: any) => a + (Number(r.total_sales) || 0), 0))
     const cm: Record<string, number> = {}, sh: Record<string, number> = {}
     for (const r of (rates || [])) { cm[r.platform] = Number(r.rate) || 0; sh[r.platform] = Number(r.shipping_fee) || 0 }
     setCommissionByPlatform(cm); setShippingByPlatform(sh)
@@ -556,7 +561,7 @@ function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | nul
     const count = data.length
     const refunded = data.filter(r => r.status === 'refunded' || r.status === 'processed').length
     const pending  = data.filter(r => r.status === 'pending').length
-    const rateOfRevenue = grossRevenue > 0 ? (total / grossRevenue) * 100 : 0
+    const rateOfRevenue = allTimeRevenue > 0 ? (total / allTimeRevenue) * 100 : 0
     const rateOfOrders  = orderCount > 0 ? (count / orderCount) * 100 : 0
 
     // الخسائر المتكبدة = العمولات + الشحن على القيم المرتجعة
@@ -571,7 +576,7 @@ function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | nul
     }
     const lossTotal = lossFees + lossShipping
     return { total, count, refunded, pending, rateOfRevenue, rateOfOrders, lossFees, lossShipping, lossTotal }
-  }, [data, grossRevenue, orderCount, commissionByPlatform, shippingByPlatform])
+  }, [data, allTimeRevenue, orderCount, commissionByPlatform, shippingByPlatform])
 
   const byPlatform = useMemo(() => {
     const m: Record<string, { count: number; amount: number }> = {}
@@ -615,7 +620,7 @@ function ReturnsAnalytics({ merchant, grossRevenue }: { merchant: Merchant | nul
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="#ffd166" />
           <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? '#e84040' : stats.rateOfOrders > 5 ? '#ff9900' : '#00b894'} />
-          <StatCard label="القيمة المرتجعة" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من الإيراد'} color="#e84040" />
+          <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="#e84040" />
           <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="#ff4d6d" />
           <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#7c6bff" />
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 
@@ -45,7 +45,7 @@ function RequestCard({ req, onConfirm, onReject }: { req: any; onConfirm: () => 
           <div><span style={{ color: 'var(--text3)' }}>رقم الحوالة: </span><span style={{ fontFamily: 'monospace', color: 'var(--text)', fontWeight: 600 }}>{req.bank_reference}</span></div>
         )}
         {req.transfer_date && (
-          <div><span style={{ color: 'var(--text3)' }}>تاريخ التحويل: </span>{new Date(req.transfer_date).toLocaleDateString('ar-SA')}</div>
+          <div><span style={{ color: 'var(--text3)' }}>تاريخ التحويل: </span>{new Date(req.transfer_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</div>
         )}
         <div><span style={{ color: 'var(--text3)' }}>تاريخ الطلب: </span>{new Date(req.created_at).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}</div>
         {req.notes && (

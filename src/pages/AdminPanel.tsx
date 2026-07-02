@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+﻿import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
@@ -45,6 +45,9 @@ const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
+  // بادئة /admin إلزامية: مسارات التاجر (/products، /team، /billing...) كانت تتصادم مع مفاتيح
+  // الشاشات الإدارية فيتبدّل السياق صامتاً عند التحديث أثناء الانتحال
+  if (parts[1] !== 'admin') return 'overview'
   const last = parts[parts.length - 1] as AdminView
   return ADMIN_VIEWS.includes(last) ? last : 'overview'
 }
@@ -337,7 +340,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
       map[d] = (map[d] || 0) + r.total_sales
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, gmv]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }),
+      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }),
       gmv: Math.round(gmv),
     }))
   }, [perfData])
@@ -446,7 +449,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
           <div>
             <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{currentLabel}</h2>
-            {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
+            {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
           </div>
           <button style={S.refreshBtn} onClick={() => loadAll(true)} disabled={refreshing}>
             {refreshing ? '⟳' : '⟳ تحديث'}

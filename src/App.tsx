@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+﻿import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useMobile } from './lib/hooks'
 import { isSuspended, getPlan, PLANS, getUpgradePlan } from './lib/subscription'
@@ -264,7 +264,16 @@ export default function App() {
   function goTo(v: View) {
     setView(v)
     window.history.pushState(null, '', '/' + (v === 'dashboard' ? '' : v))
+    window.scrollTo(0, 0)
   }
+
+  // خريطة ابن→أب: تمييز «أين أنا» في القائمة يبقى مضاءً على المسارات الثانوية (كشف/مساعدة/مخزون...)
+  const NAV_PARENT: Record<string, View> = {
+    statement: 'orders', help: 'requests', inventory: 'products',
+    'quick-inventory': 'products', 'product-detail': 'products', 'product-compare': 'products',
+    notifications: 'dashboard',
+  }
+  const isActiveNav = (key: View) => view === key || NAV_PARENT[view] === key
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
@@ -405,13 +414,13 @@ export default function App() {
                   const Icon = item.Icon
                   return (
                     <div key={item.key}
-                      className={`nav-item${view === item.key ? ' active' : ''}`}
+                      className={`nav-item${isActiveNav(item.key) ? ' active' : ''}`}
                       style={S.navItem}
                       onClick={() => goTo(item.key)}
                     >
                       <Icon size={16} style={{ flexShrink: 0 }} />
                       <span style={{ flex: 1 }}>{item.label}</span>
-                      {view === item.key && <div className="nav-dot" />}
+                      {isActiveNav(item.key) && <div className="nav-dot" />}
                     </div>
                   )
                 })}
@@ -506,7 +515,7 @@ export default function App() {
             if (!item) return null
             const Icon = item.Icon
             return (
-              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: view === item.key ? 'var(--accent)' : 'var(--text3)' }}>
+              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text3)' }}>
                 <Icon size={20} />
                 <span style={{ fontSize: 9, marginTop: 1 }}>{item.label}</span>
               </button>

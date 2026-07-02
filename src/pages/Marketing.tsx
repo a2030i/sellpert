@@ -36,14 +36,28 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
 
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
 
+  // إجماليات المؤشرات من الخادم: limit(5000) بترتيب الإنفاق كان يُسقط صفوف الظهور صفرية-الإنفاق
+  // فيتضخم CTR (1.11% معروض مقابل 0.73% حقيقي). الجدول التفصيلي يبقى على أعلى الصفوف إنفاقاً.
+  const [serverTotals, setServerTotals] = useState<Record<string, { spend: number; revenue: number; clicks: number; impressions: number; orders: number }>>({})
+
   async function load() {
     if (!merchant) return
     setLoading(true)
-    const { data } = await supabase.from('ad_metrics')
-      .select('*')
-      .eq('merchant_code', merchant.merchant_code)
-      .order('spend', { ascending: false })
-      .limit(5000)
+    const [{ data }, ...sums] = await Promise.all([
+      supabase.from('ad_metrics')
+        .select('*')
+        .eq('merchant_code', merchant.merchant_code)
+        .order('spend', { ascending: false })
+        .limit(5000),
+      ...['all', 'amazon', 'noon', 'trendyol'].map(p =>
+        supabase.rpc('ad_kpi_summary', { p_merchant_code: merchant.merchant_code, p_days: 36500, p_platform: p === 'all' ? null : p })),
+    ])
+    const st: typeof serverTotals = {}
+    ;['all', 'amazon', 'noon', 'trendyol'].forEach((p, i) => {
+      const s: any = sums[i]?.data || {}
+      st[p] = { spend: +s.spend || 0, revenue: +s.revenue || 0, clicks: +s.clicks || 0, impressions: +s.impressions || 0, orders: +s.orders || 0 }
+    })
+    setServerTotals(st)
     setRows((data as AdRow[]) || [])
     setLoading(false)
   }
@@ -62,13 +76,18 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
     return r
   }, [rows, platformFilter, search])
 
-  const totals = useMemo(() => ({
-    spend: filteredRows.reduce((a, r) => a + (Number(r.spend) || 0), 0),
-    revenue: filteredRows.reduce((a, r) => a + (Number(r.revenue) || 0), 0),
-    impressions: filteredRows.reduce((a, r) => a + r.impressions, 0),
-    clicks: filteredRows.reduce((a, r) => a + r.clicks, 0),
-    orders: filteredRows.reduce((a, r) => a + r.orders, 0),
-  }), [filteredRows])
+  // المؤشرات العلوية من إجماليات الخادم الكاملة (دقيقة)؛ البحث النصي يرجع لتجميع الصفوف المحمّلة
+  const totals = useMemo(() => {
+    const server = serverTotals[platformFilter === 'all' ? 'all' : platformFilter]
+    if (server && !search) return server
+    return {
+      spend: filteredRows.reduce((a, r) => a + (Number(r.spend) || 0), 0),
+      revenue: filteredRows.reduce((a, r) => a + (Number(r.revenue) || 0), 0),
+      impressions: filteredRows.reduce((a, r) => a + r.impressions, 0),
+      clicks: filteredRows.reduce((a, r) => a + r.clicks, 0),
+      orders: filteredRows.reduce((a, r) => a + r.orders, 0),
+    }
+  }, [filteredRows, serverTotals, platformFilter, search])
 
   const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0
   const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0

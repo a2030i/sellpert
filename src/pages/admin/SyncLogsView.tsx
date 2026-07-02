@@ -32,7 +32,7 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
       if (l.status === 'error') byDay[d].error++
     }
     return Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).slice(-14).map(([date, v]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }), ...v,
+      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }), ...v,
     }))
   })()
 

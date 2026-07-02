@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 
@@ -381,7 +381,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                     </td>
                     <td style={S.td}>{(c.orders_synced || 0).toLocaleString()}</td>
                     <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>
-                      {new Date(c.installed_at).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {new Date(c.installed_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </td>
                     <td style={S.td}>
                       <div style={{ display: 'flex', gap: 6 }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { Truck, PackageCheck, AlertTriangle, Search } from 'lucide-react'
@@ -161,7 +161,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                           <td style={{ ...S.td, fontFamily: 'monospace', fontWeight: 700 }}>{s.asn_number}</td>
                           <td style={{ ...S.td, color, fontWeight: 700 }}>{PLATFORM_MAP[s.platform] || s.platform}</td>
                           <td style={S.td}>{s.warehouse_code || '—'}</td>
-                          <td style={{ ...S.td, fontSize: 12, color: 'var(--text3)' }}>{s.delivery_date || new Date(s.created_at).toLocaleDateString('ar-SA')}</td>
+                          <td style={{ ...S.td, fontSize: 12, color: 'var(--text3)' }}>{s.delivery_date || new Date(s.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                           <td style={S.td}>{s.expected_qty.toLocaleString()}</td>
                           <td style={S.td}>{s.delivered_qty.toLocaleString()}</td>
                           <td style={{ ...S.td, color: s.variance < 0 ? '#e84040' : s.variance > 0 ? '#ff9900' : 'var(--text3)', fontWeight: 700 }}>
@@ -222,7 +222,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                           </span>
                         </td>
                         <td style={{ ...S.td, fontSize: 11, color: '#e84040' }}>{g.qc_status === 'failed' ? rejectReasonAr(g.reject_reason) : '—'}</td>
-                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{g.grn_date ? new Date(g.grn_date).toLocaleDateString('ar-SA') : '—'}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{g.grn_date ? new Date(g.grn_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn') : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

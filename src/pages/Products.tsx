@@ -19,7 +19,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
   const [showAdd, setShowAdd]           = useState(false)
-  const [tab, setTab]                   = useState<'catalog' | 'analytics'>('catalog')
+  // ?tab=analytics يفتح تبويب التحليلات مباشرة (روابط «منتج يبيع بخسارة» من اللوحة)
+  const [tab, setTab]                   = useState<'catalog' | 'analytics'>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'analytics' ? 'analytics' : 'catalog')
   const [showRequest, setShowRequest]   = useState<Product | null>(null)
   const [editProduct, setEditProduct]   = useState<Product | null>(null)
   const [editForm, setEditForm]         = useState({ cost_price: '', target_net_price: '' })
@@ -220,7 +222,6 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       {tab === 'analytics' && (<>
       <ProfitabilityPanel merchant={merchant} />
       <InventoryTurnoverCard merchant={merchant} />
-      <PricingSuggestionsPanel merchant={merchant} />
       <BuyBoxWarningsPanel merchant={merchant} />
       <CrossPlatformPanel merchant={merchant} />
       <VariantPerformancePanel merchant={merchant} />
@@ -579,9 +580,17 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
 
   if (loading || stats.sold.length === 0) return null
   const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  // إن كانت تكاليف الشراء غير مسجلة فالأرقام «قبل تكلفة البضاعة» — ننبّه بدل عرضها كصافٍ نهائي
+  const withCost = data.filter(r => Number(r.cost_price) > 0).length
+  const costMissing = data.length > 0 && withCost / data.length < 0.2
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      {costMissing && (
+        <div style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+          ⚠ الأرقام أدناه قبل خصم تكلفة البضاعة — أدخل تكلفة الشراء لمنتجاتك (زر التعديل في الكتالوج) ليظهر الصافي الحقيقي
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800 }}>💎 ربحية المنتجات</div>
         <button onClick={() => setShow(v => !v)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -685,42 +694,8 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
   )
 }
 
-// ─── Pricing Suggestions ─────────────────────────────────────────────────────
-function PricingSuggestionsPanel({ merchant }: { merchant: Merchant | null }) {
-  const [data, setData] = useState<any[]>([])
-  useEffect(() => {
-    if (!merchant) return
-    supabase.from('pricing_suggestions').select('*').eq('merchant_code', merchant.merchant_code).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
-  const issues = data.filter(d => d.pricing_status !== 'ok')
-  if (issues.length === 0) return null
-  return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>💲 اقتراحات تسعير</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>منتجات سعرها يحتاج مراجعة مقارنة بسعر التاجر</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {issues.slice(0, 8).map((p, i) => {
-          const high = p.pricing_status === 'too_high'
-          const c = high ? '#ff9900' : '#4cc9f0'
-          return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 9 }}>
-              <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 12, background: c + '20', color: c, minWidth: 60, textAlign: 'center' }}>
-                {high ? 'مرتفع' : 'منخفض'}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_NAMES[p.platform]} · سعر المنصة {Number(p.platform_price).toFixed(0)} · سعرك {Number(p.my_price).toFixed(0)}</div>
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: c }}>
-                {p.deviation_pct > 0 ? '+' : ''}{Number(p.deviation_pct).toFixed(0)}%
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+// (حُذفت لوحة «اقتراحات التسعير»: كانت تستعلم جدول pricing_suggestions غير الموجود أصلاً
+//  فتفشل بصمت ولا تظهر أبداً — تُعاد متى بُني مصدر البيانات فعلياً)
 
 function kpiBox(color: string): React.CSSProperties {
   return { background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }

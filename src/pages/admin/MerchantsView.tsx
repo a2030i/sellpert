@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
@@ -238,7 +238,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                     <span style={{ fontSize: 13, fontWeight: 700, color: credCount(m.merchant_code) > 0 ? 'var(--accent2)' : 'var(--text3)' }}>{credCount(m.merchant_code)} / 3</span>
                   </td>
                   <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent2)' }}>{fmt(gmvByMerchant[m.merchant_code] || 0)}</td>
-                  <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(m.created_at).toLocaleDateString('ar-SA')}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(m.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                   <td style={S.td}>
                     {deleteConfirm === m.id ? (
                       <div style={{ display: 'flex', gap: 6 }}>

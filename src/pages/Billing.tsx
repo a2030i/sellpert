@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 
@@ -169,7 +169,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
             <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {periodEnd && (
                 <span>📅 تنتهي في: <strong style={{ color: remaining <= 7 ? '#ffd166' : 'var(--text)' }}>
-                  {new Date(periodEnd).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {new Date(periodEnd).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' })}
                   {remaining <= 30 && ` (${remaining} يوم)`}
                 </strong></span>
               )}
@@ -309,7 +309,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-                      {new Date(inv.created_at).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {new Date(inv.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </td>
                   </tr>
                 ))}

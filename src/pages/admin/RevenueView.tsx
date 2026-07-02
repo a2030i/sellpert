@@ -71,7 +71,7 @@ export default function RevenueView({ merchants, perfData }: { merchants: Mercha
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([k, v]) => {
       const [yr, mo] = k.split('-')
-      return { month: new Date(+yr, +mo - 1, 1).toLocaleDateString('ar-SA', { month: 'short', year: '2-digit' }), rev: v }
+      return { month: new Date(+yr, +mo - 1, 1).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', year: '2-digit' }), rev: v }
     })
   }, [merchants, perfData, rates])
 

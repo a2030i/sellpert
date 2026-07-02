@@ -42,7 +42,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
       map[d] = (map[d] || 0) + r.total_sales
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, sales]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }),
+      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }),
       sales: Math.round(sales),
     }))
   }, [filtered])
@@ -141,7 +141,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
                 <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد بيانات</td></tr>
               ) : pageRows.map((r: PerformanceData) => (
                 <tr key={r.id} style={S.tr}>
-                  <td style={{ ...S.td, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString('ar-SA')}</td>
+                  <td style={{ ...S.td, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                   <td style={{ ...S.td, fontSize: 12 }}>{r.merchant_code}</td>
                   <td style={S.td}>
                     <span style={{ ...S.platformTag, background: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[r.platform] || '#5a5a7a' }}>

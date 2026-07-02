@@ -42,13 +42,15 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     Promise.all([
-      supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).limit(2000),
-      // fetchAll: إحصاءات تراندايول تُجمع من كل اللقطات — بلا حد صامت
+      // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales')
+        supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+      // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
+      fetchAll<any>((f, t) =>
+        supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
           .eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
     ]).then(([o, t]) => {
-      setOrders(o.data || [])
+      setOrders(o)
       setTrendyolSnaps(t)
       setLoading(false)
     })
@@ -98,7 +100,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       map[d].count++
     }
     return Object.entries(map).sort(([a],[b]) => a.localeCompare(b)).slice(-30).map(([date, v]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }),
+      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }),
       revenue: Math.round(v.revenue), count: v.count,
     }))
   }, [filtered])
@@ -114,7 +116,18 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       if (o.status === 'cancelled') map[o.platform].cancelled++
       if (o.status === 'returned')  map[o.platform].returned++
     }
-    for (const s of trendyolSnaps) {
+    // لقطات تراندايول تخضع لنفس فلتر الفترة المختار (كانت تدخل بأرقامها التاريخية كلها)
+    const now2 = Date.now()
+    const snapInRange = (s: any) => {
+      if (!s.snapshot_date) return true
+      const t2 = new Date(s.snapshot_date).getTime()
+      if (preset === 'today')     return new Date(s.snapshot_date).toDateString() === new Date().toDateString()
+      if (preset === 'last7')     return t2 >= now2 - 7 * 86400000
+      if (preset === 'last30')    return t2 >= now2 - 30 * 86400000
+      if (preset === 'thisMonth') { const st = new Date(); st.setDate(1); st.setHours(0,0,0,0); return t2 >= st.getTime() }
+      return true
+    }
+    for (const s of trendyolSnaps.filter(snapInRange)) {
       if (!map['trendyol']) map['trendyol'] = { revenue: 0, count: 0, delivered: 0, cancelled: 0, returned: 0 }
       map['trendyol'].revenue   += Number(s.gross_sales) || 0
       map['trendyol'].count     += s.sold || 0
@@ -130,7 +143,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       returnRate:   v.count > 0 ? ((v.returned / v.count) * 100).toFixed(1) : '0.0',
       aov: v.count > 0 ? Math.round(v.revenue / v.count) : 0,
     })).sort((a,b) => b.revenue - a.revenue)
-  }, [filtered, trendyolSnaps])
+  }, [filtered, trendyolSnaps, preset])
 
   const platforms = [...new Set(orders.map(o => o.platform))]
 
@@ -145,7 +158,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         'المبلغ': o.total_amount,
         'رسوم المنصة': o.platform_fee || 0,
         'المدينة': o.customer_city || '',
-        'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA'),
+        'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn'),
       })), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
     })
   }
@@ -157,18 +170,23 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
-  if (orders.length === 0) return (
-    <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
-      <div style={{ fontSize:56, marginBottom:16 }}>📦</div>
-      <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
-      <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
-        لم يتم استيراد أي طلبات حتى الآن.<br />
-        اذهب إلى <strong>المنصات</strong> وارفع ملف طلباتك من نون أو أمازون لتبدأ في تتبع مبيعاتك.
-      </p>
-      <button onClick={() => { window.history.pushState(null,'','/integrations'); window.dispatchEvent(new PopStateEvent('popstate')) }}
-        style={{ background:'var(--accent)', border:'none', color:'#fff', padding:'12px 28px', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-        🔗 ربط المنصات وإستيراد الطلبات
-      </button>
+  // التبويبات قبل الحالة الفارغة: تاجر تراندايول-فقط (بياناته لقطات لا طلبات) كان يفقد
+  // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
+  if (orders.length === 0 && trendyolSnaps.length === 0) return (
+    <div style={S.wrap}>
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
+      <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
+        <div style={{ fontSize:56, marginBottom:16 }}>📦</div>
+        <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
+        <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
+          فريق Sellpert يستلم تقارير منصاتك ويرفعها لك — بمجرد وصول أول تقرير ستظهر طلباتك هنا.<br />
+          أرسل تقاريرك للفريق أو افتح طلب دعم وسنتولى الباقي.
+        </p>
+        <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+          style={{ background:'var(--accent-strong)', border:'none', color:'#fff', padding:'12px 28px', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          📨 تواصل مع الفريق
+        </button>
+      </div>
     </div>
   )
 
@@ -283,7 +301,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       </span>
                     </td>
                     <td style={{ ...S.td, fontSize:11, color:'var(--text3)' }}>
-                      {new Date(o.order_date).toLocaleDateString('ar-SA')}
+                      {new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                     </td>
                   </tr>
                 ))}

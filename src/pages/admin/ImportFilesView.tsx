@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+﻿import { useState, useMemo, useEffect } from 'react'
 import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { fetchAll } from '../../lib/db'
@@ -88,8 +88,8 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   const roas = monthTotals.adSpend > 0 ? (monthTotals.sales / monthTotals.adSpend).toFixed(2) : '—'
   const netAfterAds = monthTotals.sales - monthTotals.adSpend - monthTotals.fees
 
-  const monthName = new Date().toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' })
-  const today     = new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' })
+  const monthName = new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' })
+  const today     = new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' })
 
   const platformRows = Object.entries(byPlatform)
     .sort(([, a], [, b]) => b.sales - a.sales)
@@ -781,7 +781,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           <div>
             <label style={S.label}>تاريخ الرفع</label>
             <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)', display: 'flex', alignItems: 'center' }}>
-              📅 {new Date().toLocaleDateString('ar-SA')}
+              📅 {new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
             </div>
           </div>
         </div>

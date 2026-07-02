@@ -5,16 +5,17 @@ import {
 } from 'lucide-react'
 import { fmtCurrency, fmtNumber } from '../../lib/formatters'
 
+// الأسماء مطابقة لمخرجات دالة team_dashboard_kpis الفعلية (كان عدم التطابق يجعل 4 مؤشرات صفراً دائماً)
 interface KPIs {
   total_merchants: number
-  active_30d: number
+  active_merchants_30d: number
   pending_tasks: number
   overdue_tasks: number
-  avg_health: number
+  avg_health_score: number
   nps_avg: number | null
-  promoters: number
-  passives: number
-  detractors: number
+  nps_promoters: number
+  nps_passives?: number
+  nps_detractors: number
   uploads_30d: number
   gmv_30d: number
   notifications_30d?: number
@@ -46,8 +47,12 @@ export default function TeamDashboardView() {
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>جاري التحميل...</div>
 
+  // مفاتيح الدالة team_dashboard_kpis الفعلية: active_merchants_30d / avg_health_score / nps_promoters / nps_detractors
   const npsScore = k?.nps_avg ?? 0
-  const npsHealth = ((k?.promoters || 0) - (k?.detractors || 0)) / Math.max(((k?.promoters || 0) + (k?.passives || 0) + (k?.detractors || 0)), 1) * 100
+  const promoters = k?.nps_promoters ?? 0
+  const detractors = k?.nps_detractors ?? 0
+  const passives = k?.nps_passives ?? 0
+  const npsHealth = (promoters - detractors) / Math.max(promoters + passives + detractors, 1) * 100
 
   return (
     <div style={{ padding: 16, maxWidth: 1280, margin: '0 auto' }}>
@@ -58,11 +63,11 @@ export default function TeamDashboardView() {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <KPI Icon={Users} label="إجمالي التجار" value={fmtNumber(k?.total_merchants || 0)} color="#7c6bff" sub={`${k?.active_30d || 0} نشطون آخر 30 يوم`} />
+        <KPI Icon={Users} label="إجمالي التجار" value={fmtNumber(k?.total_merchants || 0)} color="#7c6bff" sub={`${k?.active_merchants_30d || 0} نشطون آخر 30 يوم`} />
         <KPI Icon={CheckSquare} label="المهام المعلقة" value={fmtNumber(k?.pending_tasks || 0)} color="#00b894" sub={(k?.overdue_tasks || 0) > 0 ? `${k?.overdue_tasks} متأخرة!` : 'لا متأخرات'} subRed={(k?.overdue_tasks || 0) > 0} />
-        <KPI Icon={Heart} label="متوسط Health" value={(k?.avg_health || 0).toFixed(0) + '%'} color="#f0a800" sub="من 100" />
-        <KPI Icon={Star} label="NPS" value={npsScore ? npsHealth.toFixed(0) : '—'} color="#ff6b6b" sub={`${k?.promoters || 0} مروج · ${k?.detractors || 0} منتقد`} />
-        <KPI Icon={Upload} label="ملفات مرفوعة" value={fmtNumber(k?.uploads_30d || 0)} color="#6c5ce7" sub="آخر 30 يوم" />
+        <KPI Icon={Heart} label="متوسط Health" value={(k?.avg_health_score || 0).toFixed(0) + '%'} color="#f0a800" sub="من 100" />
+        <KPI Icon={Star} label="NPS" value={npsScore ? npsHealth.toFixed(0) : '—'} color="#ff6b6b" sub={`${promoters} مروج · ${detractors} منتقد`} />
+        <KPI Icon={Upload} label="ملفات مرفوعة" value={fmtNumber(k?.uploads_30d || 0)} color="var(--accent)" sub="آخر 30 يوم" />
         <KPI Icon={DollarSign} label="GMV (30 يوم)" value={fmtCurrency(k?.gmv_30d || 0)} color="#00b894" sub="إجمالي المبيعات" />
       </div>
 
