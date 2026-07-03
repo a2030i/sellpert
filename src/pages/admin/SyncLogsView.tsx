@@ -43,7 +43,7 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
           { label: 'إجمالي', value: stats.total, color: 'var(--text)' },
           { label: 'ناجح', value: stats.success, color: 'var(--green)' },
           { label: 'خطأ', value: stats.error, color: 'var(--red)' },
-          { label: 'جاري', value: stats.running, color: '#ffd166' },
+          { label: 'جاري', value: stats.running, color: 'var(--warning-text)' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 20px', display: 'flex', gap: 10, alignItems: 'center' }}>
             <span style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</span>
@@ -75,12 +75,12 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
           <div style={S.chartHeader}><div style={S.chartTitle}>نشاط المزامنات (آخر 14 يوم)</div></div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-              <XAxis dataKey="date" tick={{ fill: '#5a5a7a', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} allowDecimals={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
+              <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} allowDecimals={false} />
               <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)' }} />
-              <Bar dataKey="success" fill="#00e5b0" radius={[3, 3, 0, 0]} name="ناجح" stackId="a" />
-              <Bar dataKey="error" fill="#ff4d6d" radius={[3, 3, 0, 0]} name="خطأ" stackId="a" />
+              <Bar dataKey="success" fill="var(--green)" radius={[3, 3, 0, 0]} name="ناجح" stackId="a" />
+              <Bar dataKey="error" fill="var(--red)" radius={[3, 3, 0, 0]} name="خطأ" stackId="a" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -102,7 +102,7 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
                     <td style={{ ...S.td, fontSize: 12 }}>{l.merchant_code}</td>
                     <td style={S.td}><span style={{ fontSize: 11, fontWeight: 600, color: PLATFORM_COLORS[l.platform] || 'var(--text2)' }}>{PLATFORM_MAP[l.platform] || l.platform}</span></td>
                     <td style={S.td}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: l.status === 'success' ? 'rgba(0,229,176,0.15)' : l.status === 'error' ? 'rgba(255,77,109,0.15)' : 'rgba(255,209,102,0.15)', color: l.status === 'success' ? 'var(--green)' : l.status === 'error' ? 'var(--red)' : '#ffd166' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: l.status === 'success' ? 'var(--success-bg)' : l.status === 'error' ? 'var(--danger-bg)' : 'var(--warning-bg)', color: l.status === 'success' ? 'var(--green)' : l.status === 'error' ? 'var(--red)' : 'var(--warning-text)' }}>
                         {l.status === 'success' ? '✓ نجح' : l.status === 'error' ? '✕ خطأ' : '⟳ جاري'}
                       </span>
                     </td>

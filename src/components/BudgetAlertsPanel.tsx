@@ -159,7 +159,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
                     }} title={a.is_active ? 'إيقاف' : 'تفعيل'}>
                       {a.is_active ? '🔔' : '🔕'}
                     </button>
-                    <button onClick={() => remove(a.id)} style={{ ...iconBtnStyle, color: '#e84040' }}>
+                    <button onClick={() => remove(a.id)} style={{ ...iconBtnStyle, color: 'var(--danger-text)' }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -194,7 +194,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 10, color: 'var(--text3)', marginBottom: 4, fontWeight: 600 }
 const inputStyle: React.CSSProperties = { width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }
-const addBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--accent)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
-const saveBtnStyle: React.CSSProperties = { background: 'var(--accent)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+const addBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+const saveBtnStyle: React.CSSProperties = { background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 const cancelBtnStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '7px 14px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }
 const iconBtnStyle: React.CSSProperties = { width: 26, height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }

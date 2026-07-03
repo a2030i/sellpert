@@ -28,7 +28,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
     if (v === null) return <span style={{ fontSize: 11, color: 'var(--text3)' }}>—</span>
     const up = v >= 0
     return (
-      <span style={{ fontSize: 11, fontWeight: 700, color: up ? 'var(--accent2)' : 'var(--red)', background: up ? 'rgba(0,229,176,0.12)' : 'rgba(255,77,109,0.12)', padding: '2px 7px', borderRadius: 20 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: up ? 'var(--accent2)' : 'var(--red)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', padding: '2px 7px', borderRadius: 20 }}>
         {up ? '▲' : '▼'} {Math.abs(v).toFixed(1)}%
       </span>
     )
@@ -76,15 +76,15 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
               <AreaChart data={gmvTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="adminGmvGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7c6bff" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#7c6bff" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="date" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
                 <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)', fontSize: 12 }} formatter={(v: number) => [fmt(v), 'الإيرادات']} />
-                <Area type="monotone" dataKey="gmv" stroke="#7c6bff" strokeWidth={2.5} fill="url(#adminGmvGrad)" dot={false} />
+                <Area type="monotone" dataKey="gmv" stroke="var(--accent)" strokeWidth={2.5} fill="url(#adminGmvGrad)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -179,7 +179,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
               {syncLogs.map((l: SyncLog, i: number) => {
                 const isSuccess = l.status === 'success'
                 const isError = l.status === 'error'
-                const dotColor = isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : '#ffd166'
+                const dotColor = isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--gold)'
                 return (
                   <div key={l.id} style={{ display: 'flex', gap: 12, paddingBottom: i < syncLogs.length - 1 ? 12 : 0, marginBottom: i < syncLogs.length - 1 ? 12 : 0, borderBottom: i < syncLogs.length - 1 ? '1px solid var(--border)' : 'none' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flexShrink: 0 }}>
@@ -191,7 +191,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{l.merchant_code}</span>
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>·</span>
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[l.platform] || l.platform}</span>
-                        <span style={{ marginRight: 'auto', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: isSuccess ? 'rgba(0,229,176,0.12)' : isError ? 'rgba(255,77,109,0.12)' : 'rgba(255,209,102,0.12)', color: isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : '#ffd166' }}>
+                        <span style={{ marginRight: 'auto', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: isSuccess ? 'var(--success-bg)' : isError ? 'var(--danger-bg)' : 'var(--warning-bg)', color: isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--warning-text)' }}>
                           {isSuccess ? 'نجح' : isError ? 'خطأ' : 'جاري'}
                         </span>
                       </div>

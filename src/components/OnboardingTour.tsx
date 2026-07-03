@@ -53,7 +53,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{completed} من {total} خطوات</div>
         </div>
         <div style={{ flex: 1, maxWidth: 220, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #7c6bff, #00b894)', borderRadius: 4, transition: 'width 0.6s' }} />
+          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #7c6bff, var(--green))', borderRadius: 4, transition: 'width 0.6s' }} />
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
@@ -61,14 +61,14 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
           const done = !!activation[s.key]
           return (
             <div key={s.key} onClick={() => !done && go(s.path)} style={{
-              background: done ? 'rgba(0,184,148,0.06)' : 'var(--surface2)',
+              background: done ? 'var(--success-bg)' : 'var(--surface2)',
               border: `1px solid ${done ? 'rgba(0,184,148,0.2)' : 'var(--border)'}`,
               borderRadius: 9, padding: '10px 12px',
               display: 'flex', alignItems: 'flex-start', gap: 10,
               cursor: done ? 'default' : 'pointer',
               opacity: done ? 0.7 : 1,
             }}>
-              {done ? <CheckCircle2 size={16} color="#00b894" style={{ flexShrink: 0, marginTop: 2 }} /> : <Circle size={16} color="var(--text3)" style={{ flexShrink: 0, marginTop: 2 }} />}
+              {done ? <CheckCircle2 size={16} color="var(--success-text)" style={{ flexShrink: 0, marginTop: 2 }} /> : <Circle size={16} color="var(--text3)" style={{ flexShrink: 0, marginTop: 2 }} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--text2)' : 'var(--text)', textDecoration: done ? 'line-through' : 'none' }}>{s.label}</div>
                 <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{s.desc}</div>

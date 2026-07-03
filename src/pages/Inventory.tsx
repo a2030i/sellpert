@@ -149,7 +149,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {(stats.low > 0 || stats.out > 0) && (
             <button
-              style={{ ...S.addBtn, background: 'rgba(255,209,102,0.15)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', boxShadow: 'none' }}
+              style={{ ...S.addBtn, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', boxShadow: 'none' }}
               onClick={sendLowStockAlert} disabled={alertSending}
             >
               {alertSending ? '⟳ جاري...' : `📲 تنبيه واتساب (${stats.low + stats.out})`}
@@ -258,7 +258,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
             const isLow    = skuItems.some(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
             const isOut    = skuItems.every(i => i.quantity === 0)
             return (
-              <div key={sku} style={{ ...S.card, borderRight:isOut ? '3px solid #ff4d6d' : isLow ? '3px solid #ffd166' : '3px solid transparent' }}>
+              <div key={sku} style={{ ...S.card, borderRight:isOut ? '3px solid var(--red)' : isLow ? '3px solid var(--gold)' : '3px solid transparent' }}>
                 {/* SKU Header */}
                 <div style={{ padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
@@ -272,13 +272,13 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:16 }}>
                     <div style={{ textAlign:'center' }}>
-                      <div style={{ fontSize:22, fontWeight:800, color: isOut?'#ff4d6d' : isLow?'#ffd166' : 'var(--accent2)' }}>
+                      <div style={{ fontSize:22, fontWeight:800, color: isOut?'var(--danger-text)' : isLow?'var(--warning-text)' : 'var(--accent2)' }}>
                         {totalQty.toLocaleString()}
                       </div>
                       <div style={{ fontSize:10, color:'var(--text3)' }}>إجمالي</div>
                     </div>
                     {(isLow || isOut) && (
-                      <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20, background:isOut?'rgba(255,77,109,0.15)':'rgba(255,209,102,0.15)', color:isOut?'#ff4d6d':'#ffd166' }}>
+                      <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20, background:isOut?'var(--danger-bg)':'var(--warning-bg)', color:isOut?'var(--danger-text)':'var(--warning-text)' }}>
                         {isOut ? '🚨 نفذ المخزون' : '⚠️ مخزون منخفض'}
                       </span>
                     )}
@@ -287,15 +287,15 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                 {/* Platform rows */}
                 <div>
                   {skuItems.map(item => (
-                    <div key={item.id} style={{ padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', background: item.quantity===0 ? 'rgba(255,77,109,0.04)' : item.quantity <= item.low_stock_threshold ? 'rgba(255,209,102,0.04)' : 'transparent' }}>
+                    <div key={item.id} style={{ padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', background: item.quantity===0 ? 'var(--danger-bg)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-bg)' : 'transparent' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:14, flex:1 }}>
-                        <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:6, background:(PLATFORM_COLORS[item.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[item.platform]||'#5a5a7a', minWidth:70, textAlign:'center' }}>
+                        <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:6, background:(PLATFORM_COLORS[item.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[item.platform]||'var(--text3)', minWidth:70, textAlign:'center' }}>
                           {PLATFORM_MAP[item.platform] || item.platform}
                         </span>
                         <div style={{ display:'flex', gap:24, fontSize:12, color:'var(--text2)' }}>
                           <span>حد التنبيه: <strong style={{ color:'var(--text)' }}>{item.low_stock_threshold}</strong></span>
                           {item.cost_price ? <span>التكلفة: <strong style={{ color:'var(--text)' }}>{item.cost_price} ر.س</strong></span> : null}
-                          {item.reserved_quantity > 0 ? <span>محجوز: <strong style={{ color:'#ffd166' }}>{item.reserved_quantity}</strong></span> : null}
+                          {item.reserved_quantity > 0 ? <span>محجوز: <strong style={{ color:'var(--warning-text)' }}>{item.reserved_quantity}</strong></span> : null}
                         </div>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -308,14 +308,14 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                               onChange={e => setEditQty(Number(e.target.value))}
                               min={0}
                             />
-                            <button style={{ ...S.miniBtn, background:'var(--accent)', color:'#fff' }} onClick={() => updateQty(item.id)} disabled={saving}>
+                            <button style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }} onClick={() => updateQty(item.id)} disabled={saving}>
                               {saving ? '...' : '✓'}
                             </button>
                             <button style={S.miniBtn} onClick={() => setEditId(null)}>✕</button>
                           </>
                         ) : (
                           <>
-                            <span style={{ fontSize:20, fontWeight:800, color: item.quantity===0?'#ff4d6d':item.quantity<=item.low_stock_threshold?'#ffd166':'var(--text)', minWidth:40, textAlign:'center' }}>
+                            <span style={{ fontSize:20, fontWeight:800, color: item.quantity===0?'var(--danger-text)':item.quantity<=item.low_stock_threshold?'var(--warning-text)':'var(--text)', minWidth:40, textAlign:'center' }}>
                               {item.quantity.toLocaleString()}
                             </span>
                             <button
@@ -347,14 +347,14 @@ const S: Record<string, React.CSSProperties> = {
   card:      { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' },
   label:     { display:'block', fontSize:11, fontWeight:700, color:'var(--text2)', marginBottom:5, textTransform:'uppercase' as const, letterSpacing:'0.5px' },
   input:     { width:'100%', padding:'9px 12px', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:9, color:'var(--text)', fontSize:13, outline:'none', fontFamily:'inherit', boxSizing:'border-box' as const },
-  saveBtn:   { background:'var(--accent)', border:'none', color:'#fff', padding:'10px 24px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' },
+  saveBtn:   { background:'var(--accent-strong)', border:'none', color:'#fff', padding:'10px 24px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' },
   miniBtn:   { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'5px 12px', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
   pill:      { padding:'6px 14px', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer' },
-  pillActive:{ background:'var(--accent)', borderColor:'var(--accent)', color:'#fff' },
+  pillActive:{ background:'var(--accent-strong)', borderColor:'var(--accent)', color:'#fff' },
   badge:     { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text2)', fontSize:11, padding:'3px 10px', borderRadius:20, fontFamily:'monospace' },
   msgBox:    { borderRadius:10, padding:'12px 16px', fontSize:13, display:'flex', alignItems:'center', justifyContent:'space-between' },
-  msgOk:     { background:'rgba(0,229,176,0.1)', border:'1px solid rgba(0,229,176,0.3)', color:'var(--green)' },
-  msgErr:    { background:'rgba(255,77,109,0.1)', border:'1px solid rgba(255,77,109,0.3)', color:'var(--red)' },
+  msgOk:     { background:'var(--success-bg)', border:'1px solid var(--success-bg)', color:'var(--green)' },
+  msgErr:    { background:'var(--danger-bg)', border:'1px solid var(--danger-bg)', color:'var(--red)' },
 }
 
 // ─── Inventory Health Panel ──────────────────────────────────────────────────
@@ -397,9 +397,9 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
       {/* Value KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
         <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#7c6bff" />
-        <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="#00b894" />
-        <HKpi label="هامش متوقّع" value={fmt(stats.sumRetail - stats.sumCost)} sub={stats.sumCost > 0 ? (((stats.sumRetail - stats.sumCost)/stats.sumCost)*100).toFixed(0)+'%' : '—'} color="#4cc9f0" />
-        <HKpi label="خسائر النفاد المتوقّعة" value={fmt(stats.stockoutCost)} sub="30 يوم" color="#e84040" />
+        <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="var(--green)" />
+        <HKpi label="هامش متوقّع" value={fmt(stats.sumRetail - stats.sumCost)} sub={stats.sumCost > 0 ? (((stats.sumRetail - stats.sumCost)/stats.sumCost)*100).toFixed(0)+'%' : '—'} color="var(--info-text)" />
+        <HKpi label="خسائر النفاد المتوقّعة" value={fmt(stats.stockoutCost)} sub="30 يوم" color="var(--red)" />
       </div>
 
       {/* Status counts */}
@@ -413,14 +413,14 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
         {/* Reorder soon */}
         {reorderList.length > 0 && (
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#ff9900', marginBottom: 8 }}>⏳ إعادة طلب قريبة</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning-text)', marginBottom: 8 }}>⏳ إعادة طلب قريبة</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {reorderList.map((r, i) => (
                 <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>{r.product_name}</span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ color: 'var(--text3)', fontSize: 11 }}>{r.quantity} قطعة</span>
-                    <span style={{ fontWeight: 700, color: '#ff9900' }}>{r.days_of_stock} يوم</span>
+                    <span style={{ fontWeight: 700, color: 'var(--warning-text)' }}>{r.days_of_stock} يوم</span>
                   </div>
                 </div>
               ))}
@@ -487,7 +487,7 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
 
   if (data.length === 0) return null
   const labels: any = { fresh: 'حديث', slow: 'بطيء (>30 يوم)', aging: 'متقادم (>60 يوم)', dead_stock: 'راكد (>90 يوم)', never_sold: 'لم يُبَع أبداً' }
-  const colors: any = { fresh: '#00b894', slow: '#4cc9f0', aging: '#ff9900', dead_stock: '#e84040', never_sold: '#a598ff' }
+  const colors: any = { fresh: 'var(--green)', slow: 'var(--info-text)', aging: 'var(--warning-text)', dead_stock: 'var(--red)', never_sold: '#a598ff' }
   const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
 
   const dead = data.filter(d => d.ageing_class === 'dead_stock' || d.ageing_class === 'never_sold')
@@ -508,14 +508,14 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
       </div>
       {dead.length > 0 && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🚨 أكبر رأس مال مجمّد</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🚨 أكبر رأس مال مجمّد</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {dead.map((d, i) => (
               <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={d.product_name}>{d.product_name}</span>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <span style={{ color: 'var(--text3)' }}>{d.age_days || '—'} يوم</span>
-                  <span style={{ fontWeight: 700, color: '#e84040' }}>{fmt(Number(d.tied_capital))}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{fmt(Number(d.tied_capital))}</span>
                 </div>
               </div>
             ))}
@@ -555,11 +555,11 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
                 <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.asn_sent_at).toLocaleDateString('ar-SA-u-ca-gregory', { day: 'numeric', month: 'short' })}</td>
                 <td style={{ padding: '8px 10px' }}>{r.days_to_receive ?? '—'}</td>
                 <td style={{ padding: '8px 10px' }}>{r.expected_qty}</td>
-                <td style={{ padding: '8px 10px', color: '#00b894' }}>{r.delivered_qty}</td>
-                <td style={{ padding: '8px 10px', color: r.lost_qty > 0 ? '#e84040' : 'var(--text3)', fontWeight: r.lost_qty > 0 ? 700 : 400 }}>{r.lost_qty || '—'}</td>
-                <td style={{ padding: '8px 10px', color: r.qc_failed_qty > 0 ? '#ff9900' : 'var(--text3)' }}>{r.qc_failed_qty || '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'var(--success-text)' }}>{r.delivered_qty}</td>
+                <td style={{ padding: '8px 10px', color: r.lost_qty > 0 ? 'var(--danger-text)' : 'var(--text3)', fontWeight: r.lost_qty > 0 ? 700 : 400 }}>{r.lost_qty || '—'}</td>
+                <td style={{ padding: '8px 10px', color: r.qc_failed_qty > 0 ? 'var(--warning-text)' : 'var(--text3)' }}>{r.qc_failed_qty || '—'}</td>
                 <td style={{ padding: '8px 10px', fontWeight: 700 }}>{r.units_sold_after_receive || '—'}</td>
-                <td style={{ padding: '8px 10px', color: '#00b894', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA') : '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA') : '—'}</td>
               </tr>
             ))}
           </tbody>

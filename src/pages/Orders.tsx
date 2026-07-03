@@ -9,12 +9,12 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 
 const ORDER_PAGE_SIZE = 50
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
-  pending:    { label: 'معلق',      color: '#ffd166', bg: 'rgba(255,209,102,0.15)' },
-  processing: { label: 'قيد التنفيذ', color: '#4cc9f0', bg: 'rgba(76,201,240,0.15)' },
+  pending:    { label: 'معلق',      color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
+  processing: { label: 'قيد التنفيذ', color: 'var(--info-text)', bg: 'var(--info-bg)' },
   shipped:    { label: 'تم الشحن',  color: '#7c6bff', bg: 'rgba(124,107,255,0.15)' },
-  delivered:  { label: 'تم التسليم', color: '#00e5b0', bg: 'rgba(0,229,176,0.15)' },
-  cancelled:  { label: 'ملغي',      color: '#ff4d6d', bg: 'rgba(255,77,109,0.15)' },
-  returned:   { label: 'مُرتجع',   color: '#ff9900', bg: 'rgba(255,153,0,0.15)' },
+  delivered:  { label: 'تم التسليم', color: 'var(--success-text)', bg: 'var(--success-bg)' },
+  cancelled:  { label: 'ملغي',      color: 'var(--danger-text)', bg: 'var(--danger-bg)' },
+  returned:   { label: 'مُرتجع',   color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
 }
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
@@ -236,10 +236,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>
         {[
           { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'💰', color:'#7c6bff' },
-          { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'📦', color:'#00e5b0' },
-          { label:'متوسط الطلب',      value: fmt(aov),                         icon:'🛒', color:'#ff9900' },
-          { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'✅', color:'#00e5b0' },
-          { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'❌', color:'#ff4d6d' },
+          { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'📦', color:'var(--success-text)' },
+          { label:'متوسط الطلب',      value: fmt(aov),                         icon:'🛒', color:'var(--warning-text)' },
+          { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'✅', color:'var(--success-text)' },
+          { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'❌', color:'var(--danger-text)' },
         ].map((k,i) => (
           <div key={i} style={S.kpiCard}>
             <div style={{ ...S.kpiBar, background:k.color }} />
@@ -369,8 +369,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>مقارنة الإيراد بين المنصات</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={platformCompare} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" horizontal={false} />
-                    <XAxis type="number" tick={{ fill:'#5a5a7a', fontSize:11 }} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : String(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                    <XAxis type="number" tick={{ fill:'var(--text3)', fontSize:11 }} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : String(v)} />
                     <YAxis type="category" dataKey="name" tick={{ fill:'var(--text)', fontSize:12 }} width={70} />
                     <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                     <Bar dataKey="revenue" radius={[0,6,6,0]}>
@@ -396,9 +396,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-                  <XAxis dataKey="date" tick={{ fill:'#5a5a7a', fontSize:10 }} />
-                  <YAxis tick={{ fill:'#5a5a7a', fontSize:10 }} tickFormatter={v => v>=1000?(v/1000).toFixed(0)+'k':v} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" tick={{ fill:'var(--text3)', fontSize:10 }} />
+                  <YAxis tick={{ fill:'var(--text3)', fontSize:10 }} tickFormatter={v => v>=1000?(v/1000).toFixed(0)+'k':v} />
                   <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                   <Line type="monotone" dataKey="revenue" stroke="#7c6bff" strokeWidth={2.5} dot={false} />
                 </LineChart>
@@ -412,11 +412,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-                  <XAxis dataKey="date" tick={{ fill:'#5a5a7a', fontSize:10 }} />
-                  <YAxis tick={{ fill:'#5a5a7a', fontSize:10 }} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" tick={{ fill:'var(--text3)', fontSize:10 }} />
+                  <YAxis tick={{ fill:'var(--text3)', fontSize:10 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [v, 'طلب']} />
-                  <Bar dataKey="count" fill="#00e5b0" radius={[4,4,0,0]} />
+                  <Bar dataKey="count" fill="var(--green)" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -435,7 +435,7 @@ const S: Record<string, React.CSSProperties> = {
   exportBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' },
   filtersRow: { display:'flex', flexDirection:'column', gap:10, marginBottom:20 },
   pill:       { padding:'7px 16px', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer' },
-  pillActive: { background:'var(--accent)', borderColor:'var(--accent)', color:'#fff' },
+  pillActive: { background:'var(--accent-strong)', borderColor:'var(--accent)', color:'#fff' },
   select:     { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'8px 12px', borderRadius:9, fontSize:12, outline:'none', cursor:'pointer' },
   kpisGrid:   { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14, marginBottom:22 },
   kpiCard:    { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:16, position:'relative', overflow:'hidden' },

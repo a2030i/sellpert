@@ -28,15 +28,15 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
   if (loading) return null
 
   return (
-    <div style={{ background: isConnected ? 'linear-gradient(135deg,rgba(0,184,148,0.06),rgba(94,204,138,0.04))' : 'var(--surface)', border: `1px solid ${isConnected ? 'rgba(0,184,148,0.25)' : 'var(--border)'}`, borderRadius: 16, padding: '20px 24px', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-      <div style={{ position: 'absolute', top: 0, right: 0, left: 0, height: 3, background: isConnected ? 'linear-gradient(90deg,#5ecc8a,#00b894)' : 'var(--border2)', borderRadius: '16px 16px 0 0' }} />
+    <div style={{ background: isConnected ? 'linear-gradient(135deg,var(--success-bg),rgba(94,204,138,0.04))' : 'var(--surface)', border: `1px solid ${isConnected ? 'var(--success-bg)' : 'var(--border)'}`, borderRadius: 16, padding: '20px 24px', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, left: 0, height: 3, background: isConnected ? 'linear-gradient(90deg,#5ecc8a,var(--green))' : 'var(--border2)', borderRadius: '16px 16px 0 0' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>🟢</div>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--success-bg)', border: '1px solid var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>🟢</div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>سلة</span>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: isConnected ? 'rgba(0,184,148,0.1)' : 'rgba(232,64,64,0.08)', color: isConnected ? '#00b894' : '#e84040', border: `1px solid ${isConnected ? 'rgba(0,184,148,0.25)' : 'rgba(232,64,64,0.15)'}` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: isConnected ? 'var(--success-bg)' : 'var(--danger-bg)', color: isConnected ? 'var(--success-text)' : 'var(--danger-text)', border: `1px solid ${isConnected ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
                 {isConnected ? '✓ متصل' : 'غير مربوط'}
               </span>
             </div>
@@ -48,14 +48,14 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
         </div>
         {isConnected
           ? <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {msg && <span style={{ fontSize: 12, color: '#00b894', fontWeight: 600 }}>{msg}</span>}
-              <button onClick={requestSync} disabled={syncing} style={{ background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.25)', color: '#00b894', padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {msg && <span style={{ fontSize: 12, color: 'var(--success-text)', fontWeight: 600 }}>{msg}</span>}
+              <button onClick={requestSync} disabled={syncing} style={{ background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)', padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', animation: syncing ? 'spin 0.9s linear infinite' : 'none' }}>⟳</span>
                 {syncing ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
                 <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
               </button>
             </div>
-          : <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg,#00b894,#00d4a8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          : <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg,var(--green),#00d4a8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               🟢 تثبيت التطبيق في سلة
             </a>
         }
@@ -82,9 +82,9 @@ function ManagedPlatformCard({ merchant, platform, lastUpload }: { merchant: Mer
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{label}</span>
               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
-                background: isLinked ? 'rgba(0,184,148,0.1)' : 'var(--surface2)',
-                color: isLinked ? '#00b894' : 'var(--text3)',
-                border: `1px solid ${isLinked ? 'rgba(0,184,148,0.25)' : 'var(--border)'}` }}>
+                background: isLinked ? 'var(--success-bg)' : 'var(--surface2)',
+                color: isLinked ? 'var(--success-text)' : 'var(--text3)',
+                border: `1px solid ${isLinked ? 'var(--success-bg)' : 'var(--border)'}` }}>
                 {isLinked ? '✓ يتم تحديثه' : 'بانتظار التفعيل'}
               </span>
             </div>

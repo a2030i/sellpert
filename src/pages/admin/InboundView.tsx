@@ -125,11 +125,11 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
 
           {/* QC alerts */}
           {totals.qcFail > 0 && (
-            <div style={{ ...S.formCard, padding: 18, borderColor: 'rgba(232,64,64,0.3)', background: 'rgba(232,64,64,0.04)' }}>
+            <div style={{ ...S.formCard, padding: 18, borderColor: 'var(--danger-bg)', background: 'var(--danger-bg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <AlertTriangle size={20} color="#e84040" />
+                <AlertTriangle size={20} color="var(--danger-text)" />
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#e84040' }}>تنبيه فحص الجودة</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--danger-text)' }}>تنبيه فحص الجودة</div>
                   <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
                     {totals.qcFail} صنف رُفض ({totals.qcFailQty} قطعة) — راجع الأسباب أدناه
                   </div>
@@ -154,7 +154,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                   </thead>
                   <tbody>
                     {shipments.map(s => {
-                      const color = PLATFORM_COLORS[s.platform] || '#7c6bff'
+                      const color = PLATFORM_COLORS[s.platform] || 'var(--accent)'
                       const variancePct = s.expected_qty > 0 ? Math.round((s.variance / s.expected_qty) * 100) : 0
                       return (
                         <tr key={s.id} style={S.tr}>
@@ -164,11 +164,11 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                           <td style={{ ...S.td, fontSize: 12, color: 'var(--text3)' }}>{s.delivery_date || new Date(s.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                           <td style={S.td}>{s.expected_qty.toLocaleString()}</td>
                           <td style={S.td}>{s.delivered_qty.toLocaleString()}</td>
-                          <td style={{ ...S.td, color: s.variance < 0 ? '#e84040' : s.variance > 0 ? '#ff9900' : 'var(--text3)', fontWeight: 700 }}>
+                          <td style={{ ...S.td, color: s.variance < 0 ? 'var(--danger-text)' : s.variance > 0 ? 'var(--warning-text)' : 'var(--text3)', fontWeight: 700 }}>
                             {s.variance > 0 ? '+' : ''}{s.variance} {variancePct !== 0 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({variancePct}%)</span>}
                           </td>
                           <td style={S.td}>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.status === 'received' ? 'rgba(0,184,148,0.1)' : 'rgba(255,153,0,0.1)', color: s.status === 'received' ? '#00b894' : '#ff9900' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.status === 'received' ? 'var(--success-bg)' : 'var(--warning-bg)', color: s.status === 'received' ? 'var(--success-text)' : 'var(--warning-text)' }}>
                               {s.status === 'received' ? '✓ مُستلم' : 'قيد الإرسال'}
                             </span>
                           </td>
@@ -215,13 +215,13 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                         <td style={{ ...S.td, fontWeight: 700 }}>{g.grn_quantity.toLocaleString()}</td>
                         <td style={S.td}>
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                            background: g.qc_status === 'failed' ? 'rgba(232,64,64,0.1)' : 'rgba(0,184,148,0.1)',
-                            color: g.qc_status === 'failed' ? '#e84040' : '#00b894',
+                            background: g.qc_status === 'failed' ? 'var(--danger-bg)' : 'var(--success-bg)',
+                            color: g.qc_status === 'failed' ? 'var(--danger-text)' : 'var(--success-text)',
                           }}>
                             {g.qc_status === 'failed' ? '✗ مرفوض' : '✓ مقبول'}
                           </span>
                         </td>
-                        <td style={{ ...S.td, fontSize: 11, color: '#e84040' }}>{g.qc_status === 'failed' ? rejectReasonAr(g.reject_reason) : '—'}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)' }}>{g.qc_status === 'failed' ? rejectReasonAr(g.reject_reason) : '—'}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{g.grn_date ? new Date(g.grn_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn') : '—'}</td>
                       </tr>
                     ))}
@@ -292,15 +292,15 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
           <tbody>
             {data.map((r, i) => {
               const lossRate = Number(r.loss_rate_pct) || 0
-              const color = PLATFORM_COLORS[r.platform] || '#7c6bff'
+              const color = PLATFORM_COLORS[r.platform] || 'var(--accent)'
               return (
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '8px 12px', color, fontWeight: 700 }}>{PLATFORM_MAP[r.platform] || r.platform}</td>
                   <td style={{ padding: '8px 12px' }}>{r.shipments}</td>
                   <td style={{ padding: '8px 12px' }}>{Number(r.total_expected).toLocaleString()}</td>
-                  <td style={{ padding: '8px 12px', color: '#00b894' }}>{Number(r.total_delivered).toLocaleString()}</td>
-                  <td style={{ padding: '8px 12px', color: '#e84040' }}>{Number(r.total_variance).toLocaleString()}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: lossRate > 5 ? '#e84040' : lossRate > 2 ? '#ff9900' : '#00b894' }}>{lossRate.toFixed(2)}%</td>
+                  <td style={{ padding: '8px 12px', color: 'var(--success-text)' }}>{Number(r.total_delivered).toLocaleString()}</td>
+                  <td style={{ padding: '8px 12px', color: 'var(--danger-text)' }}>{Number(r.total_variance).toLocaleString()}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: lossRate > 5 ? 'var(--danger-text)' : lossRate > 2 ? 'var(--warning-text)' : 'var(--success-text)' }}>{lossRate.toFixed(2)}%</td>
                   <td style={{ padding: '8px 12px' }}>{r.qc_failures} ({Number(r.qc_failed_qty)} قطعة)</td>
                 </tr>
               )
@@ -311,13 +311,13 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
 
       {topFails.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً في فحص الجودة</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً في فحص الجودة</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {topFails.map((f, i) => (
               <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <span style={{ fontFamily: 'monospace', color: 'var(--text3)' }}>{f.sku || f.partner_sku}</span>
                 <span style={{ flex: 1, color: 'var(--text2)' }}>{rejectReasonAr(f.reject_reason)}</span>
-                <span style={{ fontWeight: 700, color: '#e84040' }}>{f.grn_quantity} قطعة</span>
+                <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{f.grn_quantity} قطعة</span>
               </div>
             ))}
           </div>
@@ -359,10 +359,10 @@ function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
                     <td style={{ padding: '8px 12px', fontWeight: 700 }}>{new Date(r.month).toLocaleDateString('ar-SA-u-ca-gregory', { month: 'short', year: 'numeric' })}</td>
                     <td style={{ padding: '8px 12px' }}>{r.platform}</td>
                     <td style={{ padding: '8px 12px' }}>{r.total_lines}</td>
-                    <td style={{ padding: '8px 12px', color: r.failed_lines > 0 ? '#e84040' : 'var(--text3)' }}>{r.failed_lines}</td>
+                    <td style={{ padding: '8px 12px', color: r.failed_lines > 0 ? 'var(--danger-text)' : 'var(--text3)' }}>{r.failed_lines}</td>
                     <td style={{ padding: '8px 12px' }}>{r.total_qty}</td>
-                    <td style={{ padding: '8px 12px', color: r.failed_qty > 0 ? '#e84040' : 'var(--text3)' }}>{r.failed_qty}</td>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: rate > 5 ? '#e84040' : rate > 2 ? '#ff9900' : '#00b894' }}>{rate.toFixed(2)}%</td>
+                    <td style={{ padding: '8px 12px', color: r.failed_qty > 0 ? 'var(--danger-text)' : 'var(--text3)' }}>{r.failed_qty}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 700, color: rate > 5 ? 'var(--danger-text)' : rate > 2 ? 'var(--warning-text)' : 'var(--success-text)' }}>{rate.toFixed(2)}%</td>
                   </tr>
                 )
               })}
@@ -372,7 +372,7 @@ function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
       )}
       {topFailing.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً (top 10)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً (top 10)</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {topFailing.map((r, i) => (
               <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
@@ -380,7 +380,7 @@ function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
                 <span style={{ flex: 1, color: 'var(--text2)', fontSize: 10 }}>{(r.reasons || []).join(' / ')}</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <span style={{ color: 'var(--text3)' }}>{r.reject_events} مرة</span>
-                  <span style={{ fontWeight: 700, color: '#e84040' }}>{r.total_rejected_qty} قطعة</span>
+                  <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{r.total_rejected_qty} قطعة</span>
                 </span>
               </div>
             ))}

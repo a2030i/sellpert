@@ -40,7 +40,7 @@ const NOTE_TYPES = [
   { value: 'call', label: 'مكالمة', Icon: Phone, color: '#00b894' },
   { value: 'email', label: 'بريد', Icon: Mail, color: '#f0a800' },
   { value: 'whatsapp', label: 'واتساب', Icon: MessageSquare, color: '#25d366' },
-  { value: 'meeting', label: 'اجتماع', Icon: Calendar, color: '#6c5ce7' },
+  { value: 'meeting', label: 'اجتماع', Icon: Calendar, color: 'var(--accent)' },
   { value: 'issue', label: 'مشكلة', Icon: AlertCircle, color: '#e84040' },
   { value: 'win', label: 'إنجاز', Icon: Trophy, color: '#f0a800' },
 ]
@@ -247,7 +247,7 @@ function TimelineEntry({ item, onDelete, onTogglePin }: {
                 <button onClick={() => onTogglePin(item.ref_id, item.pinned)} style={miniBtnStyle} title={item.pinned ? 'إلغاء التثبيت' : 'تثبيت'}>
                   <Pin size={11} />
                 </button>
-                <button onClick={() => onDelete(item.ref_id)} style={{ ...miniBtnStyle, color: '#e84040' }} title="حذف">
+                <button onClick={() => onDelete(item.ref_id)} style={{ ...miniBtnStyle, color: 'var(--danger-text)' }} title="حذف">
                   <Trash2 size={11} />
                 </button>
               </>

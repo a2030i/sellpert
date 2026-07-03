@@ -117,7 +117,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'border-color 0.2s',
   },
   error: {
-    background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.3)',
+    background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)',
     color: 'var(--red)', borderRadius: 8, padding: '10px 14px',
     fontSize: 12, marginBottom: 12,
   },

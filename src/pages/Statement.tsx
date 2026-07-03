@@ -169,9 +169,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#7c6bff', icon: '💰', sub: `${summary.totalOrders} طلب` },
-              { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: '#ff4d6d', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
+              { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'عمولة Sellpert',     value: fmt(summary.sellpertComm), color: '#f27a1a', icon: '🏷️', sub: `${commRate}% من الإيراد` },
-              { label: 'الصافي للتحويل',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? '#00e5b0' : '#ff4d6d', icon: '✅', sub: `هامش ${summary.margin.toFixed(1)}%` },
+              { label: 'الصافي للتحويل',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '✅', sub: `هامش ${summary.margin.toFixed(1)}%` },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -193,14 +193,14 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             <div style={{ padding: '20px' }}>
               {[
                 { label: 'إجمالي المبيعات الخام',   value: summary.grossRevenue,  color: 'var(--accent)', sign: '' },
-                { label: 'رسوم المنصات',              value: -summary.platformFees, color: '#ff4d6d', sign: '−' },
-                { label: 'الإنفاق الإعلاني',          value: -summary.adSpend,      color: '#ff4d6d', sign: '−' },
-                { label: 'قيمة المرتجعات',            value: -summary.totalReturns, color: '#ffd166', sign: '−' },
+                { label: 'رسوم المنصات',              value: -summary.platformFees, color: 'var(--danger-text)', sign: '−' },
+                { label: 'الإنفاق الإعلاني',          value: -summary.adSpend,      color: 'var(--danger-text)', sign: '−' },
+                { label: 'قيمة المرتجعات',            value: -summary.totalReturns, color: 'var(--warning-text)', sign: '−' },
                 null, // divider
                 { label: 'الإيراد قبل عمولة Sellpert', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 { label: `عمولة Sellpert (${commRate}%)`, value: -summary.sellpertComm, color: '#f27a1a', sign: '−' },
                 null,
-                { label: 'الصافي المستحق للتحويل',    value: summary.netPayout,     color: summary.netPayout >= 0 ? 'var(--accent2)' : '#ff4d6d', sign: '', bold: true, large: true },
+                { label: 'الصافي المستحق للتحويل',    value: summary.netPayout,     color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
                 <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
               ) : (
@@ -220,11 +220,11 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             if (mismatched.length === 0) return null
             return (
               <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 10,
-                background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.3)',
+                background: 'var(--warning-bg)', border: '1px solid rgba(255,153,0,0.3)',
                 display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <span style={{ fontSize: 18 }}>⚠️</span>
                 <div style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}>
-                  <div style={{ fontWeight: 700, color: '#ff9900', marginBottom: 4 }}>تنبيه: تقارير ناقصة لهذا الشهر</div>
+                  <div style={{ fontWeight: 700, color: 'var(--warning-text)', marginBottom: 4 }}>تنبيه: تقارير ناقصة لهذا الشهر</div>
                   <div style={{ color: 'var(--text2)' }}>
                     {mismatched.map(([p]) => PLATFORM_META[p]?.label || p).join(' و')} فيها إنفاق إعلاني <b>بدون مبيعات مسجّلة</b> — قد يكون تقرير المبيعات الفعلي لم يُرفع بعد. الأرقام السالبة في "الصافي" بسبب هذا التشوّه.
                   </div>
@@ -257,14 +257,14 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                         <tr key={p} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={S.td}>
                             <span style={{ color: meta?.color, fontWeight: 700 }}>{meta?.label || p}</span>
-                            {isMismatched && <span title="إنفاق إعلاني بدون مبيعات — قد ينقص تقرير" style={{ marginRight: 6, fontSize: 11, color: '#ff9900' }}>⚠</span>}
+                            {isMismatched && <span title="إنفاق إعلاني بدون مبيعات — قد ينقص تقرير" style={{ marginRight: 6, fontSize: 11, color: 'var(--warning-text)' }}>⚠</span>}
                           </td>
                           <td style={{ ...S.td, color: 'var(--accent)', fontWeight: 700 }}>{fmt(d.revenue)}</td>
-                          <td style={{ ...S.td, color: '#ff4d6d' }}>{d.fees > 0 ? fmt(d.fees) : '—'}</td>
-                          <td style={{ ...S.td, color: '#ff4d6d' }}>{d.ad > 0 ? fmt(d.ad) : '—'}</td>
-                          <td style={{ ...S.td, color: '#ffd166' }}>{d.returns > 0 ? fmt(d.returns) : '—'}</td>
+                          <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.fees > 0 ? fmt(d.fees) : '—'}</td>
+                          <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.ad > 0 ? fmt(d.ad) : '—'}</td>
+                          <td style={{ ...S.td, color: 'var(--warning-text)' }}>{d.returns > 0 ? fmt(d.returns) : '—'}</td>
                           <td style={S.td}>{d.orders.toLocaleString()}</td>
-                          <td style={{ ...S.td, color: net >= 0 ? 'var(--accent2)' : '#ff4d6d', fontWeight: 700 }}>{fmt(net)}</td>
+                          <td style={{ ...S.td, color: net >= 0 ? 'var(--accent2)' : 'var(--danger-text)', fontWeight: 700 }}>{fmt(net)}</td>
                         </tr>
                       )
                     })}
@@ -286,10 +286,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                       <stop offset="95%" stopColor="#7c6bff" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v} />
-                  <Tooltip contentStyle={{ background: '#12121f', border: '1px solid #2d2d4a', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [fmt(v), 'المبيعات']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v} />
+                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text)' }} formatter={(v: number) => [fmt(v), 'المبيعات']} />
                   <Area type="monotone" dataKey="rev" stroke="#7c6bff" strokeWidth={2.5} fill="url(#stmtGrad)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -364,7 +364,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
           {(['all', 'amazon', 'trendyol'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
               padding: '5px 12px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, fontWeight: 700,
-              cursor: 'pointer', background: filter === f ? 'var(--accent)' : 'var(--surface2)',
+              cursor: 'pointer', background: filter === f ? 'var(--accent-strong)' : 'var(--surface2)',
               color: filter === f ? '#fff' : 'var(--text2)',
             }}>
               {f === 'all' ? 'الكل' : f === 'amazon' ? 'أمازون' : 'تراندايول'}
@@ -373,9 +373,9 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
         </div>
       </div>
       <div style={{ padding: '12px 20px', display: 'flex', gap: 24, fontSize: 12, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-        <span>الدائن: <b style={{ color: '#00e5b0' }}>{fmt(totals.credit)}</b></span>
-        <span>المدين: <b style={{ color: '#ff4d6d' }}>{fmt(totals.debit)}</b></span>
-        <span>الصافي: <b style={{ color: totals.net >= 0 ? '#00e5b0' : '#ff4d6d' }}>{fmt(totals.net)}</b></span>
+        <span>الدائن: <b style={{ color: 'var(--success-text)' }}>{fmt(totals.credit)}</b></span>
+        <span>المدين: <b style={{ color: 'var(--danger-text)' }}>{fmt(totals.debit)}</b></span>
+        <span>الصافي: <b style={{ color: totals.net >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{fmt(totals.net)}</b></span>
       </div>
       <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -397,9 +397,9 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
                   <td style={{ ...S.td, fontSize: 11 }}>{r.transaction_type || '—'}</td>
                   <td style={{ ...S.td, fontSize: 11, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text2)' }} title={r.description || ''}>{r.description || r.amount_description || '—'}</td>
                   <td style={{ ...S.td, fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{r.order_id || '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, color: '#ff4d6d', fontFamily: 'monospace' }}>{r.debit > 0 ? r.debit.toLocaleString() : '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, color: '#00e5b0', fontFamily: 'monospace' }}>{r.credit > 0 ? r.credit.toLocaleString() : '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, fontWeight: 700, color: r.net_amount >= 0 ? 'var(--text)' : '#ff4d6d', fontFamily: 'monospace' }}>{Number(r.net_amount || 0).toLocaleString()}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{r.debit > 0 ? r.debit.toLocaleString() : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.credit > 0 ? r.credit.toLocaleString() : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, fontWeight: 700, color: r.net_amount >= 0 ? 'var(--text)' : 'var(--danger-text)', fontFamily: 'monospace' }}>{Number(r.net_amount || 0).toLocaleString()}</td>
                 </tr>
               )
             })}
@@ -446,9 +446,9 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
-          <StatCard label="إجمالي الداخل" value={fmt(totalIn)} color="#00b894" />
-          <StatCard label="إجمالي الخارج" value={fmt(totalOut)} color="#e84040" />
-          <StatCard label="صافي النقد" value={fmt(totalIn - totalOut)} color={totalIn - totalOut >= 0 ? '#00b894' : '#e84040'} />
+          <StatCard label="إجمالي الداخل" value={fmt(totalIn)} color="var(--success-text)" />
+          <StatCard label="إجمالي الخارج" value={fmt(totalOut)} color="var(--danger-text)" />
+          <StatCard label="صافي النقد" value={fmt(totalIn - totalOut)} color={totalIn - totalOut >= 0 ? 'var(--success-text)' : 'var(--danger-text)'} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {byMonth.map(m => {
@@ -458,15 +458,15 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ width: 90, fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>{label}</div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ height: 14, width: `${(m.cash_in / maxAbs) * 100}%`, minWidth: 2, background: '#00b894', borderRadius: 3 }} />
-                    <span style={{ fontSize: 10, color: '#00b894', fontFamily: 'monospace' }}>{fmt(m.cash_in)}</span>
+                    <div style={{ height: 14, width: `${(m.cash_in / maxAbs) * 100}%`, minWidth: 2, background: 'var(--green)', borderRadius: 3 }} />
+                    <span style={{ fontSize: 10, color: 'var(--success-text)', fontFamily: 'monospace' }}>{fmt(m.cash_in)}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ height: 14, width: `${(m.cash_out / maxAbs) * 100}%`, minWidth: 2, background: '#e84040', borderRadius: 3 }} />
-                    <span style={{ fontSize: 10, color: '#e84040', fontFamily: 'monospace' }}>{fmt(m.cash_out)}</span>
+                    <div style={{ height: 14, width: `${(m.cash_out / maxAbs) * 100}%`, minWidth: 2, background: 'var(--red)', borderRadius: 3 }} />
+                    <span style={{ fontSize: 10, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{fmt(m.cash_out)}</span>
                   </div>
                 </div>
-                <div style={{ width: 90, textAlign: 'left', fontSize: 13, fontWeight: 800, color: m.net >= 0 ? '#00b894' : '#e84040' }}>
+                <div style={{ width: 90, textAlign: 'left', fontSize: 13, fontWeight: 800, color: m.net >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
                   {m.net >= 0 ? '+' : ''}{fmt(m.net)}
                 </div>
               </div>
@@ -474,8 +474,8 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
           })}
         </div>
         <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text3)', display: 'flex', gap: 16 }}>
-          <span><span style={{ color: '#00b894' }}>▬</span> داخل (مبيعات/إيداعات)</span>
-          <span><span style={{ color: '#e84040' }}>▬</span> خارج (رسوم/خصومات)</span>
+          <span><span style={{ color: 'var(--green)' }}>▬</span> داخل (مبيعات/إيداعات)</span>
+          <span><span style={{ color: 'var(--red)' }}>▬</span> خارج (رسوم/خصومات)</span>
         </div>
       </div>
     </div>
@@ -501,9 +501,9 @@ function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 14 }}>
-          <StatCard label="مستحقات قادمة" value={fmt(totalIn)} color="#00b894" />
-          <StatCard label="مدفوعات قادمة" value={fmt(totalOut)} color="#e84040" />
-          <StatCard label="الصافي المتوقّع" value={fmt(net)} color={net >= 0 ? '#00b894' : '#e84040'} />
+          <StatCard label="مستحقات قادمة" value={fmt(totalIn)} color="var(--success-text)" />
+          <StatCard label="مدفوعات قادمة" value={fmt(totalOut)} color="var(--danger-text)" />
+          <StatCard label="الصافي المتوقّع" value={fmt(net)} color={net >= 0 ? 'var(--success-text)' : 'var(--danger-text)'} />
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -513,9 +513,9 @@ function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ ...S.td, fontWeight: 700 }}>{r.bucket}</td>
                   <td style={S.td}>{r.count}</td>
-                  <td style={{ ...S.td, color: '#00b894', fontFamily: 'monospace' }}>{fmt(Number(r.expected_in))}</td>
-                  <td style={{ ...S.td, color: '#e84040', fontFamily: 'monospace' }}>{fmt(Number(r.expected_out))}</td>
-                  <td style={{ ...S.td, fontWeight: 700, color: r.net >= 0 ? '#00b894' : '#e84040' }}>{fmt(Number(r.net))}</td>
+                  <td style={{ ...S.td, color: 'var(--success-text)', fontFamily: 'monospace' }}>{fmt(Number(r.expected_in))}</td>
+                  <td style={{ ...S.td, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{fmt(Number(r.expected_out))}</td>
+                  <td style={{ ...S.td, fontWeight: 700, color: r.net >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{fmt(Number(r.net))}</td>
                 </tr>
               ))}
             </tbody>
@@ -618,10 +618,10 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
       <div style={{ padding: 20 }}>
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
-          <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="#ffd166" />
-          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? '#e84040' : stats.rateOfOrders > 5 ? '#ff9900' : '#00b894'} />
-          <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="#e84040" />
-          <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="#ff4d6d" />
+          <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="var(--warning-text)" />
+          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? 'var(--danger-text)' : stats.rateOfOrders > 5 ? 'var(--warning-text)' : 'var(--success-text)'} />
+          <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="var(--danger-text)" />
+          <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="var(--danger-text)" />
           <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#7c6bff" />
         </div>
 
@@ -659,7 +659,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.name}>{p.name}</span>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <span style={{ color: 'var(--text3)' }}>{p.count}×</span>
-                      <span style={{ fontWeight: 700, color: '#e84040' }}>{fmt(p.amount)}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{fmt(p.amount)}</span>
                     </div>
                   </div>
                 ))}
@@ -674,7 +674,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
                 {topReasons.map((r, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
                     <span>{r.reason}</span>
-                    <span style={{ fontWeight: 700, color: '#ffd166' }}>{r.count}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--warning-text)' }}>{r.count}</span>
                   </div>
                 ))}
               </div>
@@ -744,7 +744,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <span style={{ fontWeight: 700, fontSize: 14 }}>↩️ المرتجعات</span>
-          {returns.length > 0 && <span style={{ fontSize: 12, color: '#ffd166', marginRight: 10 }}>إجمالي: {fmt(totalReturns)}</span>}
+          {returns.length > 0 && <span style={{ fontSize: 12, color: 'var(--warning-text)', marginRight: 10 }}>إجمالي: {fmt(totalReturns)}</span>}
         </div>
         <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? '✕ إلغاء' : '+ إضافة مرتجع'}</button>
       </div>
@@ -774,7 +774,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
               </div>
             ))}
           </div>
-          <button style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }} onClick={addReturn} disabled={saving}>
+          <button style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }} onClick={addReturn} disabled={saving}>
             {saving ? '...' : '✓ حفظ المرتجع'}
           </button>
         </div>
@@ -793,9 +793,9 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
                   <td style={{ ...S.td, color: PLATFORM_META[r.platform]?.color, fontWeight: 700 }}>{PLATFORM_META[r.platform]?.label || r.platform}</td>
                   <td style={{ ...S.td, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.product_name || '—'}</td>
                   <td style={S.td}>{r.quantity}</td>
-                  <td style={{ ...S.td, color: '#ffd166', fontWeight: 700 }}>{fmt(r.return_amount)}</td>
+                  <td style={{ ...S.td, color: 'var(--warning-text)', fontWeight: 700 }}>{fmt(r.return_amount)}</td>
                   <td style={S.td}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.status === 'refunded' ? 'rgba(0,229,176,0.12)' : r.status === 'approved' ? 'rgba(124,107,255,0.12)' : 'rgba(255,209,102,0.12)', color: r.status === 'refunded' ? 'var(--accent2)' : r.status === 'approved' ? 'var(--accent)' : '#ffd166' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.status === 'refunded' ? 'var(--success-bg)' : r.status === 'approved' ? 'rgba(124,107,255,0.12)' : 'var(--warning-bg)', color: r.status === 'refunded' ? 'var(--accent2)' : r.status === 'approved' ? 'var(--accent)' : 'var(--warning-text)' }}>
                       {r.status === 'refunded' ? 'مسترد' : r.status === 'approved' ? 'موافق' : 'قيد المراجعة'}
                     </span>
                   </td>
@@ -820,14 +820,14 @@ function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: 
   if (!data || Number(data.revenue) === 0) return null
   const lines = [
     { label: 'الإيرادات', value: Number(data.revenue), bold: true, color: 'var(--text)' },
-    { label: 'تكلفة البضاعة المباعة (COGS)', value: -Number(data.cogs), color: '#ff4d6d' },
+    { label: 'تكلفة البضاعة المباعة (COGS)', value: -Number(data.cogs), color: 'var(--danger-text)' },
     null,
     { label: 'الربح الإجمالي', value: Number(data.gross_profit), bold: true, color: 'var(--accent2)', sub: data.gross_margin_pct ? `هامش ${data.gross_margin_pct}%` : '' },
-    { label: 'رسوم المنصات', value: -Number(data.platform_fees), color: '#ff4d6d' },
-    { label: 'الإنفاق الإعلاني', value: -Number(data.ad_spend), color: '#ff4d6d' },
-    { label: 'المرتجعات', value: -Number(data.returns), color: '#ffd166' },
+    { label: 'رسوم المنصات', value: -Number(data.platform_fees), color: 'var(--danger-text)' },
+    { label: 'الإنفاق الإعلاني', value: -Number(data.ad_spend), color: 'var(--danger-text)' },
+    { label: 'المرتجعات', value: -Number(data.returns), color: 'var(--warning-text)' },
     null,
-    { label: 'صافي الدخل', value: Number(data.net_income), bold: true, large: true, color: Number(data.net_income) >= 0 ? 'var(--accent2)' : '#ff4d6d', sub: data.net_margin_pct ? `هامش صافي ${data.net_margin_pct}%` : '' },
+    { label: 'صافي الدخل', value: Number(data.net_income), bold: true, large: true, color: Number(data.net_income) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sub: data.net_margin_pct ? `هامش صافي ${data.net_margin_pct}%` : '' },
   ] as any[]
   return (
     <div style={{ ...S.card, padding: 0, marginBottom: 20, overflow: 'hidden' }}>
@@ -867,12 +867,12 @@ function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📈 توقّع الإيرادات</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
         مبني على المتوسط اليومي للـ 30 يوم الماضية
-        {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? '#00b894' : '#e84040', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}
+        {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
         <ForecastBox label="آخر 30 يوم (فعلي)" value={fmt(Number(data.last_30_sales))} color="#7c6bff" />
-        <ForecastBox label="الـ 30 يوم القادمة" value={fmt(Number(data.forecast_30))} color="#00b894" />
-        <ForecastBox label="الـ 60 يوم القادمة" value={fmt(Number(data.forecast_60))} color="#4cc9f0" />
+        <ForecastBox label="الـ 30 يوم القادمة" value={fmt(Number(data.forecast_30))} color="var(--success-text)" />
+        <ForecastBox label="الـ 60 يوم القادمة" value={fmt(Number(data.forecast_60))} color="var(--info-text)" />
         <ForecastBox label="الـ 90 يوم القادمة" value={fmt(Number(data.forecast_90))} color="#a598ff" />
       </div>
     </div>
@@ -934,6 +934,6 @@ const S: Record<string, React.CSSProperties> = {
   td:     { padding: '11px 16px', fontSize: 13 },
   label:  { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase' as const },
   input:  { width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', color: 'var(--text)', fontSize: 12, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit' },
-  addBtn: { background: 'var(--accent)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+  addBtn: { background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
 }
 

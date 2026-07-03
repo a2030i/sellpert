@@ -8,10 +8,10 @@ const TYPE_LABELS: Record<string, string> = {
   remove_product: 'إيقاف منتج', update_info: 'تعديل معلومات', other: 'أخرى',
 }
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  pending:     { label: 'بانتظار المراجعة', color: '#ffd166', bg: 'rgba(255,209,102,0.15)' },
-  in_progress: { label: 'قيد التنفيذ',       color: '#4cc9f0', bg: 'rgba(76,201,240,0.15)'  },
-  done:        { label: 'تم التنفيذ',         color: '#00e5b0', bg: 'rgba(0,229,176,0.15)'   },
-  rejected:    { label: 'مرفوض',             color: '#ff4d6d', bg: 'rgba(255,77,109,0.15)'  },
+  pending:     { label: 'بانتظار المراجعة', color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
+  in_progress: { label: 'قيد التنفيذ',       color: 'var(--info-text)', bg: 'var(--info-bg)'  },
+  done:        { label: 'تم التنفيذ',         color: 'var(--success-text)', bg: 'var(--success-bg)'   },
+  rejected:    { label: 'مرفوض',             color: 'var(--danger-text)', bg: 'var(--danger-bg)'  },
 }
 
 export default function AdminRequestsView({ merchants }: { merchants: Merchant[] }) {
@@ -61,7 +61,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
   return (
     <div>
       {msg && (
-        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}` }}>
+        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
           <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
         </div>
@@ -72,7 +72,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
           <button key={k} style={{ padding: '9px 16px', background: 'transparent', border: 'none', color: filter === k ? 'var(--accent)' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer', borderBottom: `2px solid ${filter === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1, display: 'flex', alignItems: 'center', gap: 6 }}
             onClick={() => setFilter(k)}>
             {k === 'all' ? 'الكل' : STATUS_META[k].label}
-            {counts[k] > 0 && <span style={{ background: k === 'pending' ? '#ff4d6d' : 'var(--surface2)', color: k === 'pending' ? '#fff' : 'var(--text3)', padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 800 }}>{counts[k]}</span>}
+            {counts[k] > 0 && <span style={{ background: k === 'pending' ? 'var(--red)' : 'var(--surface2)', color: k === 'pending' ? '#fff' : 'var(--text3)', padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 800 }}>{counts[k]}</span>}
           </button>
         ))}
       </div>

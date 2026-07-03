@@ -72,7 +72,7 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
   return (
     <div>
       {msg && (
-        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}` }}>
+        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
           <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
         </div>
@@ -130,7 +130,7 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
                       return <td key={p} style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: PLT_COLORS[p] }}>{pr ? pr.toLocaleString() + ' ر.س' : <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>}</td>
                     })}
                     <td style={{ padding: '10px 14px' }}>
-                      <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: prod.status === 'active' ? 'rgba(0,229,176,0.12)' : 'var(--surface2)', color: prod.status === 'active' ? 'var(--accent2)' : 'var(--text3)' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: prod.status === 'active' ? 'var(--success-bg)' : 'var(--surface2)', color: prod.status === 'active' ? 'var(--accent2)' : 'var(--text3)' }}>
                         {prod.status === 'active' ? 'نشط' : prod.status === 'out_of_stock' ? 'نفد' : 'موقوف'}
                       </span>
                     </td>

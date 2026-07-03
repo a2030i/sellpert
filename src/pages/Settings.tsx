@@ -64,9 +64,9 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       {msg && (
         <div style={{
           padding: '12px 16px', borderRadius: 10, marginBottom: 20, fontSize: 13, fontWeight: 600,
-          background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)',
+          background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)',
           color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)',
-          border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}`,
+          border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}`,
         }}>{msg.text}</div>
       )}
 
@@ -120,11 +120,11 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{
             padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700,
-            background: merchant?.subscription_plan === 'elite' ? 'rgba(255,209,102,0.15)' :
+            background: merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
                         merchant?.subscription_plan === 'pro'   ? 'rgba(124,107,255,0.15)' : 'var(--surface2)',
-            color: merchant?.subscription_plan === 'elite' ? '#ffd166' :
+            color: merchant?.subscription_plan === 'elite' ? 'var(--warning-text)' :
                    merchant?.subscription_plan === 'pro'   ? 'var(--accent)' : 'var(--text2)',
-            border: `1px solid ${merchant?.subscription_plan === 'elite' ? 'rgba(255,209,102,0.3)' :
+            border: `1px solid ${merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
                                   merchant?.subscription_plan === 'pro'   ? 'rgba(124,107,255,0.3)' : 'var(--border)'}`,
           }}>
             {merchant?.subscription_plan === 'elite' ? '👑 Elite' :
@@ -156,7 +156,7 @@ const S: Record<string, React.CSSProperties> = {
     color: '#fff', overflow: 'hidden', border: '1px solid var(--border)',
   },
   uploadBtn: {
-    background: 'var(--accent)', color: '#fff', border: 'none',
+    background: 'var(--accent-strong)', color: '#fff', border: 'none',
     padding: '9px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
   },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 },

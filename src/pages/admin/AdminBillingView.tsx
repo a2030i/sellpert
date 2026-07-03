@@ -14,14 +14,14 @@ function RequestCard({ req, onConfirm, onReject }: { req: any; onConfirm: () => 
   const planLabel = PLAN_LABELS[req.plan] || req.plan
   const planColor = PLAN_COLORS[req.plan] || '#888'
   const statusStyles: Record<string, React.CSSProperties> = {
-    pending:  { background: 'rgba(255,153,0,0.1)',  border: '1px solid rgba(255,153,0,0.3)',  color: '#ff9900' },
-    approved: { background: 'rgba(0,229,176,0.1)',  border: '1px solid rgba(0,229,176,0.3)',  color: '#00e5b0' },
-    rejected: { background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.3)', color: '#ff4d6d' },
+    pending:  { background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)' },
+    approved: { background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)' },
+    rejected: { background: 'var(--danger-bg)',  border: '1px solid var(--danger-bg)',  color: 'var(--danger-text)' },
   }
   const statusLabel: Record<string, string> = { pending: '⏳ معلق', approved: '✅ مؤكد', rejected: '❌ مرفوض' }
 
   return (
-    <div style={{ background: 'var(--surface)', border: `1px solid ${req.status === 'pending' ? 'rgba(255,153,0,0.3)' : 'var(--border)'}`, borderRadius: 16, padding: 20 }}>
+    <div style={{ background: 'var(--surface)', border: `1px solid ${req.status === 'pending' ? 'var(--warning-bg)' : 'var(--border)'}`, borderRadius: 16, padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -52,14 +52,14 @@ function RequestCard({ req, onConfirm, onReject }: { req: any; onConfirm: () => 
           <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text3)' }}>ملاحظات التاجر: </span>{req.notes}</div>
         )}
         {req.admin_note && (
-          <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text3)' }}>ملاحظة المدير: </span><span style={{ color: req.status === 'rejected' ? '#ff4d6d' : '#00e5b0' }}>{req.admin_note}</span></div>
+          <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text3)' }}>ملاحظة المدير: </span><span style={{ color: req.status === 'rejected' ? 'var(--danger-text)' : 'var(--success-text)' }}>{req.admin_note}</span></div>
         )}
       </div>
 
       {req.status === 'pending' && (
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onReject} style={{ ...S.miniBtn, color: '#ff4d6d', borderColor: 'rgba(255,77,109,0.3)' }}>❌ رفض</button>
-          <button onClick={onConfirm} style={{ flex: 1, background: 'linear-gradient(135deg,#00e5b0,#00b88a)', border: 'none', color: '#0a1628', padding: '9px', borderRadius: 9, fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>
+          <button onClick={onReject} style={{ ...S.miniBtn, color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }}>❌ رفض</button>
+          <button onClick={onConfirm} style={{ flex: 1, background: 'linear-gradient(135deg,var(--green),#00b88a)', border: 'none', color: '#0a1628', padding: '9px', borderRadius: 9, fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>
             ✅ تأكيد استلام الدفع وتفعيل الاشتراك
           </button>
         </div>
@@ -138,9 +138,9 @@ export default function AdminBillingView() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
         {[
-          { label: 'معلقة',   value: requests.filter(r => r.status === 'pending').length,  color: '#ff9900' },
-          { label: 'مؤكدة',  value: requests.filter(r => r.status === 'approved').length, color: '#00e5b0' },
-          { label: 'مرفوضة', value: requests.filter(r => r.status === 'rejected').length, color: '#ff4d6d' },
+          { label: 'معلقة',   value: requests.filter(r => r.status === 'pending').length,  color: 'var(--warning-text)' },
+          { label: 'مؤكدة',  value: requests.filter(r => r.status === 'approved').length, color: 'var(--success-text)' },
+          { label: 'مرفوضة', value: requests.filter(r => r.status === 'rejected').length, color: 'var(--danger-text)' },
           { label: 'إجمالي', value: requests.length,                                       color: 'var(--accent)' },
         ].map(k => (
           <div key={k.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', textAlign: 'center' }}>
@@ -151,7 +151,7 @@ export default function AdminBillingView() {
       </div>
 
       {pendingCount > 0 && (
-        <div style={{ background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.3)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#ff9900', fontWeight: 600 }}>
+        <div style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: 'var(--warning-text)', fontWeight: 600 }}>
           ⚠️ يوجد {pendingCount} طلب{pendingCount > 1 ? 'ات' : ''} دفع تنتظر المراجعة
         </div>
       )}
@@ -196,7 +196,7 @@ export default function AdminBillingView() {
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => setConfirmId(null)} style={{ flex: 1, ...S.miniBtn }}>إلغاء</button>
             <button onClick={() => confirm(confirmId)} disabled={saving}
-              style={{ flex: 2, background: '#00e5b0', border: 'none', color: '#0a1628', padding: '10px', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>
+              style={{ flex: 2, background: 'var(--green)', border: 'none', color: '#0a1628', padding: '10px', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>
               {saving ? 'جاري التأكيد...' : '✅ تأكيد الاستلام وتفعيل الاشتراك'}
             </button>
           </div>
@@ -213,7 +213,7 @@ export default function AdminBillingView() {
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => setRejectId(null)} style={{ flex: 1, ...S.miniBtn }}>إلغاء</button>
             <button onClick={() => reject(rejectId)} disabled={saving || !actionNote.trim()}
-              style={{ flex: 2, background: '#ff4d6d', border: 'none', color: '#fff', padding: '10px', borderRadius: 10, fontWeight: 800, cursor: saving || !actionNote.trim() ? 'not-allowed' : 'pointer', opacity: !actionNote.trim() ? 0.5 : 1, fontSize: 13 }}>
+              style={{ flex: 2, background: 'var(--red)', border: 'none', color: '#fff', padding: '10px', borderRadius: 10, fontWeight: 800, cursor: saving || !actionNote.trim() ? 'not-allowed' : 'pointer', opacity: !actionNote.trim() ? 0.5 : 1, fontSize: 13 }}>
               {saving ? 'جاري الرفض...' : '❌ رفض الطلب'}
             </button>
           </div>

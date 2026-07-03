@@ -155,7 +155,7 @@ export default function FeesView() {
   return (
     <div>
       {msg && (
-        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}` }}>
+        <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
           <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
         </div>
@@ -212,7 +212,7 @@ export default function FeesView() {
                         <div style={{ fontSize: 10, color: 'var(--text3)' }}>{cat.category_en}</div>
                       </td>
                       <td style={S.td}>
-                        <span style={{ fontWeight: 800, color: cat.commission_rate >= 15 ? 'var(--red)' : cat.commission_rate >= 10 ? '#ffd166' : 'var(--accent2)', fontSize: 15 }}>
+                        <span style={{ fontWeight: 800, color: cat.commission_rate >= 15 ? 'var(--red)' : cat.commission_rate >= 10 ? 'var(--warning-text)' : 'var(--accent2)', fontSize: 15 }}>
                           {cat.commission_rate}%
                         </span>
                       </td>
@@ -271,7 +271,7 @@ export default function FeesView() {
                         <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>
                           {tier.weight_min_kg}–{tier.weight_max_kg ?? '∞'} كجم
                         </td>
-                        <td style={{ ...S.td, fontWeight: 700, color: '#ffd166' }}>{tier.fee_below_asp} ر.س</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: 'var(--warning-text)' }}>{tier.fee_below_asp} ر.س</td>
                         <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent2)' }}>{tier.fee_above_asp} ر.س</td>
                         <td style={{ ...S.td, color: 'var(--text3)' }}>
                           {tier.extra_per_kg > 0 ? `+${tier.extra_per_kg} ر.س` : '—'}
@@ -291,7 +291,7 @@ export default function FeesView() {
               {pltOther.map(fee => (
                 <div key={fee.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>{fee.fee_label_ar}</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: fee.amount === 0 ? 'var(--accent2)' : '#ffd166' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: fee.amount === 0 ? 'var(--accent2)' : 'var(--warning-text)' }}>
                     {fee.amount === 0 ? '✓ مجاني' : fee.amount}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{fee.unit}</div>
@@ -338,9 +338,9 @@ export default function FeesView() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {[
                       { label: 'سعر البيع', val: calcResult.price.toLocaleString() + ' ر.س', color: 'var(--text)' },
-                      { label: `عمولة المنصة (${calcResult.commRate}%)`, val: '−' + calcResult.commAmt.toLocaleString() + ' ر.س', color: '#ffd166' },
-                      { label: `ضريبة العمولة (${VAT}%)`, val: '−' + calcResult.vatOnComm.toLocaleString() + ' ر.س', color: '#ffd166' },
-                      { label: 'رسوم الشحن', val: calcResult.shippingFee > 0 ? '−' + calcResult.shippingFee.toLocaleString() + ' ر.س' : '—', color: '#ffd166' },
+                      { label: `عمولة المنصة (${calcResult.commRate}%)`, val: '−' + calcResult.commAmt.toLocaleString() + ' ر.س', color: 'var(--warning-text)' },
+                      { label: `ضريبة العمولة (${VAT}%)`, val: '−' + calcResult.vatOnComm.toLocaleString() + ' ر.س', color: 'var(--warning-text)' },
+                      { label: 'رسوم الشحن', val: calcResult.shippingFee > 0 ? '−' + calcResult.shippingFee.toLocaleString() + ' ر.س' : '—', color: 'var(--warning-text)' },
                     ].map((row, i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                         <span style={{ color: 'var(--text3)' }}>{row.label}</span>
@@ -357,7 +357,7 @@ export default function FeesView() {
                 </div>
 
                 {/* Net result prominent */}
-                <div style={{ background: calcResult.netProfit >= 0 ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', border: `1px solid ${calcResult.netProfit >= 0 ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+                <div style={{ background: calcResult.netProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)', border: `1px solid ${calcResult.netProfit >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'}`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>الصافي للبائع</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: calcResult.netProfit >= 0 ? 'var(--accent2)' : 'var(--red)' }}>
                     {calcResult.netProfit.toLocaleString()} ر.س

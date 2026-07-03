@@ -288,7 +288,7 @@ function TopProducts({ items }: { items: { name: string; sales: number; orders: 
         <div key={i}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: i === 0 ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 10, color: i === 0 ? '#ffd166' : 'var(--text3)', fontWeight: 800, minWidth: 16 }}>{i + 1}</span>
+              <span style={{ fontSize: 10, color: i === 0 ? 'var(--warning-text)' : 'var(--text3)', fontWeight: 800, minWidth: 16 }}>{i + 1}</span>
               {item.name.length > 22 ? item.name.slice(0, 22) + '…' : item.name}
             </span>
             <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'monospace', fontWeight: 700 }}>
@@ -514,7 +514,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   // صافي الربح هو الرقم الأهم للتاجر — يُعرض أولاً وبإبراز بصري
   const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
   const kpis = [
-    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? '#00e5b0' : '#ff4d6d', sub: 'المبيعات − رسوم المنصات − الإعلانات', d: delta(netProfit, prevNet), hero: true },
+    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: 'المبيعات − رسوم المنصات − الإعلانات', d: delta(netProfit, prevNet), hero: true },
     { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
     { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
     { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'نسبة الربح من المبيعات', d: delta(avgMargin, prevMargin), hero: false },
@@ -549,7 +549,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, marginLeft: 4 }}>المنصة:</span>
           {[{ key: 'all', label: 'كل المنصات' }, { key: 'trendyol', label: '🟠 تراندايول' }, { key: 'noon', label: '🟡 نون' }, { key: 'amazon', label: '🟡 أمازون' }].map(p => (
             <button key={p.key} onClick={() => setPlatform(p.key)}
-              style={{ ...S.chip, fontSize: 11, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
+              style={{ ...S.chip, fontSize: 11, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent-strong)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
               {p.label}
             </button>
           ))}
@@ -570,8 +570,8 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <span style={{ fontSize: 11, color: 'var(--text3)' }}>{k.sub}</span>
               {k.d !== null && (
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 12,
-                  background: k.d >= 0 ? 'rgba(0,229,176,0.12)' : 'rgba(255,77,109,0.12)',
-                  color: k.d >= 0 ? '#00e5b0' : '#ff4d6d' }}>
+                  background: k.d >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)',
+                  color: k.d >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
                   {k.d >= 0 ? '▲' : '▼'}{Math.abs(k.d)}%
                 </span>
               )}
@@ -609,7 +609,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <div style={S.cardTitle}>اتجاه المبيعات</div>
               {trendData.length > 1
                 ? <div style={S.cardSub}>يمكن سحب المنطقة السفلية للتكبير والتصغير</div>
-                : <div style={{ fontSize: 11, color: '#ffd166' }}>⚠️ نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
+                : <div style={{ fontSize: 11, color: 'var(--warning-text)' }}>⚠️ نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
               }
             </div>
           </div>
@@ -621,11 +621,11 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                   <stop offset="95%" stopColor="#7c6bff" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-              <XAxis dataKey="date" tick={{ fill: '#5a5a7a', fontSize: 10 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
               <Tooltip content={<ChartTooltip />} />
-              <Brush dataKey="date" height={20} stroke="#e2e8f2" fill="#f5f7fc" travellerWidth={6}
+              <Brush dataKey="date" height={20} stroke="var(--border2)" fill="var(--surface2)" travellerWidth={6}
                 style={{ fontSize: 9 }} />
               <Area type="monotone" dataKey="المبيعات" stroke="#7c6bff" strokeWidth={2} fill="url(#areaGrad)" dot={false} activeDot={{ r: 4, fill: '#a594ff' }} />
             </AreaChart>
@@ -645,7 +645,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie data={platformData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} dataKey="value" paddingAngle={4} strokeWidth={0}>
-                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || ['#7c6bff', '#00b894', '#ff9900', '#e84040', '#4cc9f0', '#a598ff'][i % 6]} />)}
+                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || ['#7c6bff', 'var(--green)', '#ff9900', 'var(--red)', '#4cc9f0', '#a598ff'][i % 6]} />)}
                   </Pie>
                   <Tooltip content={<ChartTooltip />} formatter={(v: number) => [fmt(v), '']} />
                 </PieChart>
@@ -682,9 +682,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={dayData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-              <XAxis dataKey="name" tick={{ fill: '#5a5a7a', fontSize: 9 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: '#5a5a7a', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text3)', fontSize: 9 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: 'var(--text3)', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="المبيعات" radius={[6, 6, 0, 0]}>
                 {dayData.map((entry, i) => {
@@ -727,7 +727,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                   <div key={i}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, color: i === 0 ? '#ffd166' : 'var(--text3)', fontWeight: 800, minWidth: 16 }}>{i + 1}</span>
+                        <span style={{ fontSize: 10, color: i === 0 ? 'var(--warning-text)' : 'var(--text3)', fontWeight: 800, minWidth: 16 }}>{i + 1}</span>
                         {c.city}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--accent2)', fontFamily: 'monospace', fontWeight: 700 }}>{c.count.toLocaleString()}</span>
@@ -776,7 +776,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             {aiLoading ? '⟳ جاري...' : insight ? '🔄 تحديث' : '✨ ابدأ التحليل'}
           </button>
         </div>
-        {aiError && <div style={{ color: '#ff4d6d', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
+        {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
         {insight && (
           <div>
             {(insight.content as any).summary && (
@@ -811,7 +811,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                   <div style={S.aiBoxTitle}>📅 أفضل أيام البيع</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                     {(insight.content as any).best_days.map((d: string, i: number) => (
-                      <span key={i} style={{ background: 'rgba(0,229,176,0.15)', color: 'var(--accent2)', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{d}</span>
+                      <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{d}</span>
                     ))}
                   </div>
                 </div>
@@ -893,7 +893,7 @@ const S: Record<string, React.CSSProperties> = {
     color: 'var(--text2)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
     transition: 'all 0.15s',
   },
-  chipActive: { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' },
+  chipActive: { background: 'var(--accent-strong)', borderColor: 'var(--accent)', color: '#fff' },
   exportBtn: {
     background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)',
     padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -942,10 +942,10 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       // ad_roas = عائد الإعلانات وحدها (لا المبيعات العضوية) — كان roas المخلوط يمنع التوصية من الانطلاق أبداً
       const losingAd = (prof || []).filter((p: any) => Number(p.ad_spend) > 0 && p.ad_roas !== null && Number(p.ad_roas) < 1)
         .sort((a: any, b: any) => Number(a.ad_roas) - Number(b.ad_roas))[0]
-      if (losingAd) acts.push({ icon: '🔴', color: '#e84040', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
+      if (losingAd) acts.push({ icon: '🔴', color: 'var(--danger-text)', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
       const losingProduct = (prof || []).filter((p: any) => Number(p.revenue) > 0 && Number(p.net_profit) < 0)
         .sort((a: any, b: any) => Number(a.net_profit) - Number(b.net_profit))[0]
-      if (losingProduct) acts.push({ icon: '📉', color: '#ff9900', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
+      if (losingProduct) acts.push({ icon: '📉', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
       if (urgent) acts.push({ icon: '📦', color: '#7c6bff', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
@@ -1054,7 +1054,7 @@ function ABCWidget({ data }: { data: any[] }) {
     revenues[r.abc_class] += Number(r.revenue) || 0
   }
   const totalRev = revenues.A + revenues.B + revenues.C
-  const colors: any = { A: '#00b894', B: '#ff9900', C: '#a598ff' }
+  const colors: any = { A: 'var(--success-text)', B: 'var(--warning-text)', C: '#a598ff' }
   const labels: any = { A: 'منتجات أساسية', B: 'متوسطة', C: 'هامشية' }
 
   return (
@@ -1083,7 +1083,7 @@ function ABCWidget({ data }: { data: any[] }) {
         {data.filter((r: any) => r.abc_class === 'A').slice(0, 5).map((r: any, i: number) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11 }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>#{r.rank} · {r.product_name}</span>
-            <span style={{ fontWeight: 700, color: '#00b894' }}>{Math.round(Number(r.revenue)).toLocaleString('ar-SA')} ر.س</span>
+            <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>{Math.round(Number(r.revenue)).toLocaleString('ar-SA')} ر.س</span>
           </div>
         ))}
       </div>
@@ -1103,7 +1103,7 @@ function HeatmapWidget({ data }: { data: any[] }) {
       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>🔥 خريطة المبيعات الزمنية</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>آخر 90 يوم</div>
       {peakHour && (
-        <div style={{ fontSize: 12, color: '#00b894', fontWeight: 700, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--success-text)', fontWeight: 700, marginBottom: 12 }}>
           ⭐ ذروة: {dayNames[peakHour.day_of_week]} الساعة {peakHour.hour_of_day}:00 ({peakHour.orders} طلب)
         </div>
       )}

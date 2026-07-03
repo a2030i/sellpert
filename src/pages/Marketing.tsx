@@ -161,11 +161,11 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={18} />} />
-        <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={18} />} />
-        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان (ROAS): كم ريال مبيعات يجيب كل ريال إنفاق إعلاني. 3x فأعلى ممتاز"><span>عائد الإعلان (ROAS) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
+        <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
+        <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
+        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان (ROAS): كم ريال مبيعات يجيب كل ريال إنفاق إعلاني. 3x فأعلى ممتاز"><span>عائد الإعلان (ROAS) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
         <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
-        <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="#4cc9f0" />
+        <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="var(--info-text)" />
       </div>
 
       {/* Recommendations */}
@@ -176,7 +176,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
             {recommendations.map((r, i) => (
               <div key={i} style={{
                 padding: '10px 14px', borderRadius: 9,
-                background: r.type === 'good' ? 'rgba(0,184,148,0.06)' : r.type === 'warn' ? 'rgba(255,153,0,0.06)' : 'rgba(232,64,64,0.06)',
+                background: r.type === 'good' ? 'var(--success-bg)' : r.type === 'warn' ? 'var(--warning-bg)' : 'var(--danger-bg)',
                 border: `1px solid ${r.type === 'good' ? 'rgba(0,184,148,0.2)' : r.type === 'warn' ? 'rgba(255,153,0,0.2)' : 'rgba(232,64,64,0.2)'}`,
               }}>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>{r.title}</div>
@@ -194,7 +194,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
             <button key={p} onClick={() => setPlatformFilter(p)} style={{
               padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit',
-              background: platformFilter === p ? (PLATFORM_COLORS[p] || 'var(--accent)') : 'var(--surface2)',
+              background: platformFilter === p ? (PLATFORM_COLORS[p] || 'var(--accent-strong)') : 'var(--surface2)',
               color: platformFilter === p ? '#fff' : 'var(--text2)',
             }}>
               {p === 'all' ? 'كل المنصات' : (PLATFORM_MAP[p] || p)}
@@ -208,7 +208,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
             <button key={g} onClick={() => setGroupBy(g)} style={{
               padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 11, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit',
-              background: groupBy === g ? 'var(--accent)' : 'var(--surface2)',
+              background: groupBy === g ? 'var(--accent-strong)' : 'var(--surface2)',
               color: groupBy === g ? '#fff' : 'var(--text2)',
             }}>
               {g === 'campaign' ? 'الحملة' : g === 'sku' ? 'المنتج' : 'كلمة البحث'}
@@ -249,9 +249,9 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
                     <td style={{ padding: '8px 12px', fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA')}</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text3)' }}>{ct.toFixed(2)}%</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700 }}>{g.orders}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11, color: '#e84040', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11, color: '#00b894', fontFamily: 'monospace' }}>{g.revenue.toFixed(2)}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 800, color: r >= 3 ? '#00b894' : r >= 1 ? '#ff9900' : '#e84040' }}>{r.toFixed(2)}x</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--success-text)', fontFamily: 'monospace' }}>{g.revenue.toFixed(2)}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 800, color: r >= 3 ? 'var(--success-text)' : r >= 1 ? 'var(--warning-text)' : 'var(--danger-text)' }}>{r.toFixed(2)}x</td>
                   </tr>
                 )
               })}
@@ -336,29 +336,29 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
 
       {/* Inflation banner */}
       {inflationPct > 5 && (
-        <div style={{ marginBottom: 12, padding: '12px 14px', background: 'linear-gradient(135deg,rgba(245,158,11,0.10),rgba(232,64,64,0.10))', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 9, fontSize: 12, color: 'var(--text)' }}>
+        <div style={{ marginBottom: 12, padding: '12px 14px', background: 'linear-gradient(135deg,rgba(245,158,11,0.10),var(--danger-bg))', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 9, fontSize: 12, color: 'var(--text)' }}>
           <div style={{ fontWeight: 800, marginBottom: 4 }}>⚠ الـ ROAS اللي تشوفه في تقارير المنصة متضخّم بنسبة {inflationPct.toFixed(0)}%</div>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-            تقرير المنصة يقول: <strong style={{ color: '#00b894' }}>{grossRoas.toFixed(2)}x ROAS</strong> ·
-            بعد خصم العمولة والرسوم والمرتجعات الفعلي: <strong style={{ color: netRoas >= 1 ? '#00b894' : '#e84040' }}>{netRoas.toFixed(2)}x ROAS</strong>
+            تقرير المنصة يقول: <strong style={{ color: 'var(--success-text)' }}>{grossRoas.toFixed(2)}x ROAS</strong> ·
+            بعد خصم العمولة والرسوم والمرتجعات الفعلي: <strong style={{ color: netRoas >= 1 ? 'var(--success-text)' : 'var(--danger-text)' }}>{netRoas.toFixed(2)}x ROAS</strong>
           </div>
         </div>
       )}
 
       {/* KPI breakdown */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
-        <MetricCard label="إنفاق إعلاني" value={Math.round(totalSpend).toLocaleString('en-US')} suffix="ر.س" color="#e84040" />
+        <MetricCard label="إنفاق إعلاني" value={Math.round(totalSpend).toLocaleString('en-US')} suffix="ر.س" color="var(--danger-text)" />
         <MetricCard label="إيراد إجمالي" value={Math.round(totalGross).toLocaleString('en-US')} suffix="ر.س" sub="حسب تقرير المنصة" />
         <MetricCard label="عمولة المنصة" value={Math.abs(Math.round(totalCommission)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="رسوم FBA" value={Math.abs(Math.round(totalFba)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="ضريبة محجوزة" value={Math.abs(Math.round(totalVat)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="مرتجعات" value={Math.abs(Math.round(totalReturns)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
-        <MetricCard label="صافي الإيراد" value={Math.round(totalNet).toLocaleString('en-US')} suffix="ر.س" color={totalNet > 0 ? '#00b894' : '#e84040'} bold />
-        <MetricCard label="ROAS الحقيقي" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? '#00b894' : netRoas >= 1 ? '#f59e0b' : '#e84040'} bold sub={`المنصة: ${grossRoas.toFixed(2)}x`} />
+        <MetricCard label="صافي الإيراد" value={Math.round(totalNet).toLocaleString('en-US')} suffix="ر.س" color={totalNet > 0 ? 'var(--success-text)' : 'var(--danger-text)'} bold />
+        <MetricCard label="ROAS الحقيقي" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? 'var(--success-text)' : netRoas >= 1 ? '#f59e0b' : 'var(--danger-text)'} bold sub={`المنصة: ${grossRoas.toFixed(2)}x`} />
       </div>
 
       {losses.length > 0 && (
-        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: '#e84040', fontWeight: 600 }}>
+        <div style={{ marginBottom: 12, padding: '10px 14px', background: 'var(--danger-bg)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: 'var(--danger-text)', fontWeight: 600 }}>
           ⚠️ {losses.length} إعلان خاسر فعلياً بعد احتساب الرسوم والمرتجعات — راجعها أو أوقفها
         </div>
       )}
@@ -384,7 +384,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
                     ? r.product_name
                     : (r.sku ? <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{r.sku}</span> : (r.campaign_name || '—'))}
                 </td>
-                <td style={{ padding: '7px 10px', color: '#e84040' }}>{Number(r.spend).toFixed(0)}</td>
+                <td style={{ padding: '7px 10px', color: 'var(--danger-text)' }}>{Number(r.spend).toFixed(0)}</td>
                 <td style={{ padding: '7px 10px' }}>{Number(r.gross_revenue).toFixed(0)}</td>
                 {showDetails && (
                   <>
@@ -392,15 +392,15 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
                       {r.est_fees > 0 ? '−' + Number(r.est_fees).toFixed(0) : '—'}
                       {r.fee_rate && <span style={{ fontSize: 9, color: 'var(--text3)' }}> ({(Number(r.fee_rate) * 100).toFixed(0)}%)</span>}
                     </td>
-                    <td style={{ padding: '7px 10px', color: '#ffd166' }}>
+                    <td style={{ padding: '7px 10px', color: 'var(--warning-text)' }}>
                       {r.est_returns > 0 ? '−' + Number(r.est_returns).toFixed(0) : '—'}
                       {r.return_rate && <span style={{ fontSize: 9, color: 'var(--text3)' }}> ({(Number(r.return_rate) * 100).toFixed(0)}%)</span>}
                     </td>
                   </>
                 )}
-                <td style={{ padding: '7px 10px', fontWeight: 700, color: r.net_revenue >= 0 ? '#00b894' : '#e84040' }}>{Number(r.net_revenue).toFixed(0)}</td>
+                <td style={{ padding: '7px 10px', fontWeight: 700, color: r.net_revenue >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{Number(r.net_revenue).toFixed(0)}</td>
                 <td style={{ padding: '7px 10px', color: 'var(--text3)' }}>{r.gross_roas ? Number(r.gross_roas).toFixed(2) + 'x' : '—'}</td>
-                <td style={{ padding: '7px 10px', fontWeight: 800, color: !r.net_roas ? 'var(--text3)' : Number(r.net_roas) >= 2 ? '#00b894' : Number(r.net_roas) >= 1 ? '#ff9900' : '#e84040' }}>
+                <td style={{ padding: '7px 10px', fontWeight: 800, color: !r.net_roas ? 'var(--text3)' : Number(r.net_roas) >= 2 ? 'var(--success-text)' : Number(r.net_roas) >= 1 ? 'var(--warning-text)' : 'var(--danger-text)' }}>
                   {r.net_roas ? Number(r.net_roas).toFixed(2) + 'x' : '—'}
                 </td>
               </tr>

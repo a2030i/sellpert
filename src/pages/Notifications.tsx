@@ -14,10 +14,10 @@ interface Notif {
 }
 
 const TYPE_META: Record<string, { color: string; bg: string; Icon: any }> = {
-  warning: { color: '#ff9900', bg: 'rgba(255,153,0,0.08)', Icon: AlertTriangle },
-  error:   { color: '#e84040', bg: 'rgba(232,64,64,0.08)', Icon: AlertCircle },
+  warning: { color: '#ff9900', bg: 'var(--warning-bg)', Icon: AlertTriangle },
+  error:   { color: '#e84040', bg: 'var(--danger-bg)', Icon: AlertCircle },
   info:    { color: '#7c6bff', bg: 'rgba(124,107,255,0.08)', Icon: Info },
-  success: { color: '#00b894', bg: 'rgba(0,184,148,0.08)', Icon: Check },
+  success: { color: '#00b894', bg: 'var(--success-bg)', Icon: Check },
 }
 
 function timeAgo(iso: string) {

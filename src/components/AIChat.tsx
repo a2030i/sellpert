@@ -58,7 +58,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
       <button onClick={() => setOpen(true)} style={{
         position: 'fixed', bottom: 26, left: 26, zIndex: 9000,
         width: 56, height: 56, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #7c6bff, #00b894)',
+        background: 'linear-gradient(135deg, #7c6bff, var(--green))',
         border: 'none', color: '#fff', cursor: 'pointer',
         boxShadow: '0 6px 24px rgba(124,107,255,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -78,7 +78,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           <div style={{
-            padding: '14px 18px', background: 'linear-gradient(135deg, #7c6bff, #00b894)',
+            padding: '14px 18px', background: 'linear-gradient(135deg, #7c6bff, var(--green))',
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -134,7 +134,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="اكتب سؤالك..." disabled={loading}
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: 10, fontSize: 13, outline: 'none', color: 'var(--text)', fontFamily: 'inherit' }} />
               <button onClick={() => send()} disabled={loading || !input.trim()}
-                style={{ background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 10, padding: '0 14px', cursor: 'pointer', fontFamily: 'inherit', opacity: loading ? 0.5 : 1 }}>
+                style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', borderRadius: 10, padding: '0 14px', cursor: 'pointer', fontFamily: 'inherit', opacity: loading ? 0.5 : 1 }}>
                 <Send size={14} />
               </button>
             </div>

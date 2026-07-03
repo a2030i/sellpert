@@ -103,7 +103,7 @@ export default function NPSWidget({ merchantCode }: Props) {
             {Array.from({ length: 11 }, (_, i) => (
               <button key={i} onClick={() => setScore(i)} style={{
                 aspectRatio: '1', border: '1px solid ' + (score === i ? 'var(--accent)' : 'var(--border)'),
-                background: score === i ? 'var(--accent)' : 'var(--surface2)',
+                background: score === i ? 'var(--accent-strong)' : 'var(--surface2)',
                 color: score === i ? '#fff' : 'var(--text2)',
                 borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
               }}>{i}</button>

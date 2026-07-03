@@ -261,7 +261,7 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
                           <div style={{
                             height: '100%',
                             width: `${(myPerms.size / ALL_PERMISSIONS.length) * 100}%`,
-                            background: isManager ? '#7c6bff' : myPerms.size > 10 ? '#00b894' : myPerms.size > 3 ? '#f59e0b' : 'var(--text3)',
+                            background: isManager ? '#7c6bff' : myPerms.size > 10 ? 'var(--green)' : myPerms.size > 3 ? '#f59e0b' : 'var(--text3)',
                           }} />
                         </div>
                         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', minWidth: 60, fontFamily: 'monospace' }}>

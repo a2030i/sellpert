@@ -99,12 +99,12 @@ export default function Help({ merchant }: { merchant: Merchant | null }) {
         ))
       )}
 
-      <div style={{ marginTop: 30, padding: 18, background: 'linear-gradient(135deg, rgba(124,107,255,0.06), rgba(0,184,148,0.04))', border: '1px solid rgba(124,107,255,0.2)', borderRadius: 12, textAlign: 'center' }}>
+      <div style={{ marginTop: 30, padding: 18, background: 'linear-gradient(135deg, rgba(124,107,255,0.06), var(--success-bg))', border: '1px solid rgba(124,107,255,0.2)', borderRadius: 12, textAlign: 'center' }}>
         <BookOpen size={28} color="var(--accent)" style={{ marginBottom: 8 }} />
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>لم تجد إجابتك؟</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>اسأل المساعد الذكي أو ارفع تذكرة دعم</div>
         <button onClick={() => { window.history.pushState(null, '', '/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
-          style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <MessageCircle size={14} /> إنشاء تذكرة دعم
         </button>
       </div>

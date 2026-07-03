@@ -108,9 +108,9 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
       {/* Alert message */}
       {msg && (
         <div style={{ padding: '12px 16px', borderRadius: 12, fontSize: 13, fontWeight: 600,
-          background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)',
-          color: msg.type === 'ok' ? 'var(--accent2)' : '#ff4d6d',
-          border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.25)' : 'rgba(255,77,109,0.25)'}`,
+          background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)',
+          color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--danger-text)',
+          border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {msg.text}
           <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14 }}>✕</button>
@@ -119,10 +119,10 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
 
       {/* Suspended banner */}
       {isSuspended && (
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.3)', display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderRadius: 14, background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', display: 'flex', gap: 14, alignItems: 'center' }}>
           <span style={{ fontSize: 28 }}>🚫</span>
           <div>
-            <div style={{ fontWeight: 800, color: '#ff4d6d', marginBottom: 4 }}>تم تعليق الاشتراك</div>
+            <div style={{ fontWeight: 800, color: 'var(--danger-text)', marginBottom: 4 }}>تم تعليق الاشتراك</div>
             <div style={{ fontSize: 13, color: 'var(--text2)' }}>
               {isSallaUser ? 'جدّد اشتراكك من متجر تطبيقات سلة لإعادة التفعيل.' : 'يرجى تجديد اشتراكك بالضغط على "جدّد الاشتراك" أدناه.'}
             </div>
@@ -132,10 +132,10 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
 
       {/* Pending payment banner */}
       {pendingReq && (
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.3)', display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderRadius: 14, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', display: 'flex', gap: 14, alignItems: 'center' }}>
           <span style={{ fontSize: 28 }}>⏳</span>
           <div>
-            <div style={{ fontWeight: 800, color: '#ffd166', marginBottom: 4 }}>بانتظار تأكيد الدفع</div>
+            <div style={{ fontWeight: 800, color: 'var(--warning-text)', marginBottom: 4 }}>بانتظار تأكيد الدفع</div>
             <div style={{ fontSize: 13, color: 'var(--text2)' }}>
               أرسلنا طلب تأكيد لفريق Sellpert — سيتم التفعيل خلال ساعات العمل.
               المبلغ: <strong>{pendingReq.total_amount} ر.س</strong> · الباقة: <strong>{PLANS.find(p=>p.key===pendingReq.plan)?.label}</strong>
@@ -152,9 +152,9 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 20, fontWeight: 800 }}>{activePlan.label}</span>
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 20,
-                background: isActive ? 'rgba(0,229,176,0.15)' : isSuspended ? 'rgba(255,77,109,0.15)' : 'rgba(255,209,102,0.15)',
-                color: isActive ? 'var(--accent2)' : isSuspended ? '#ff4d6d' : '#ffd166',
-                border: `1px solid ${isActive ? 'rgba(0,229,176,0.3)' : isSuspended ? 'rgba(255,77,109,0.3)' : 'rgba(255,209,102,0.3)'}` }}>
+                background: isActive ? 'var(--success-bg)' : isSuspended ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                color: isActive ? 'var(--accent2)' : isSuspended ? 'var(--danger-text)' : 'var(--warning-text)',
+                border: `1px solid ${isActive ? 'var(--success-bg)' : isSuspended ? 'var(--danger-bg)' : 'var(--warning-bg)'}` }}>
                 {isActive ? '✓ نشط' : isSuspended ? '⛔ معلّق' : '⏳ بانتظار الدفع'}
               </span>
               {isSallaUser && (
@@ -168,7 +168,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
             </div>
             <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {periodEnd && (
-                <span>📅 تنتهي في: <strong style={{ color: remaining <= 7 ? '#ffd166' : 'var(--text)' }}>
+                <span>📅 تنتهي في: <strong style={{ color: remaining <= 7 ? 'var(--warning-text)' : 'var(--text)' }}>
                   {new Date(periodEnd).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' })}
                   {remaining <= 30 && ` (${remaining} يوم)`}
                 </strong></span>
@@ -303,8 +303,8 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
                     <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800 }}>{Number(inv.total_amount).toLocaleString()} ر.س</td>
                     <td style={{ padding: '10px 14px' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                        background: inv.status === 'paid' ? 'rgba(0,229,176,0.12)' : 'rgba(255,209,102,0.12)',
-                        color: inv.status === 'paid' ? 'var(--accent2)' : '#ffd166' }}>
+                        background: inv.status === 'paid' ? 'var(--success-bg)' : 'var(--warning-bg)',
+                        color: inv.status === 'paid' ? 'var(--accent2)' : 'var(--warning-text)' }}>
                         {inv.status === 'paid' ? '✓ مدفوعة' : inv.status}
                       </span>
                     </td>

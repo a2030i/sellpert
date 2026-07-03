@@ -240,8 +240,8 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{e.name}</div>
-                      {!e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'rgba(232,64,64,0.15)', color: '#e84040', fontWeight: 700 }}>موقوف</span>}
-                      {e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'rgba(0,184,148,0.15)', color: '#00b894', fontWeight: 700 }}>نشط</span>}
+                      {!e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700 }}>موقوف</span>}
+                      {e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--success-bg)', color: 'var(--success-text)', fontWeight: 700 }}>نشط</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <span>{e.email}</span>
@@ -263,10 +263,10 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                         <button onClick={() => setResetPwdFor(e.merchant_code)} style={iconBtnStyle} title="تغيير كلمة المرور">
                           <Key size={13} />
                         </button>
-                        <button onClick={() => toggleActive(e)} style={{ ...iconBtnStyle, color: e.is_active ? '#f0a800' : '#00b894' }} title={e.is_active ? 'إيقاف' : 'تفعيل'}>
+                        <button onClick={() => toggleActive(e)} style={{ ...iconBtnStyle, color: e.is_active ? '#f0a800' : 'var(--success-text)' }} title={e.is_active ? 'إيقاف' : 'تفعيل'}>
                           <Power size={13} />
                         </button>
-                        <button onClick={() => removeEmployee(e)} style={{ ...iconBtnStyle, color: '#e84040' }} title="حذف">
+                        <button onClick={() => removeEmployee(e)} style={{ ...iconBtnStyle, color: 'var(--danger-text)' }} title="حذف">
                           <Trash2 size={13} />
                         </button>
                       </>

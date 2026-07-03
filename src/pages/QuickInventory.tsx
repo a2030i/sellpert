@@ -123,7 +123,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         <StatCard label="الإجمالي" value={stats.total} color="var(--accent)" />
         <StatCard label="منخفض" value={stats.low} color="#f0a800" />
-        <StatCard label="نفد" value={stats.out} color="#e84040" />
+        <StatCard label="نفد" value={stats.out} color="var(--danger-text)" />
       </div>
 
       {/* Search + Filters */}
@@ -209,7 +209,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
                     <span>·</span>
                     <span>{platLabel}</span>
                     <span>·</span>
-                    <span style={{ color: isOut ? '#e84040' : isLow ? '#f0a800' : 'var(--text3)' }}>
+                    <span style={{ color: isOut ? 'var(--danger-text)' : isLow ? '#f0a800' : 'var(--text3)' }}>
                       حد: {item.low_stock_threshold}
                     </span>
                   </div>
@@ -224,7 +224,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
                     style={{
                       width: 60, textAlign: 'center', border: '1px solid var(--border)',
                       background: isChanged ? 'rgba(108,92,231,0.08)' : 'var(--surface2)',
-                      color: isOut ? '#e84040' : isLow ? '#f0a800' : 'var(--text)',
+                      color: isOut ? 'var(--danger-text)' : isLow ? '#f0a800' : 'var(--text)',
                       borderRadius: 7, padding: '6px 4px', fontSize: 13, fontWeight: 700,
                       fontFamily: 'inherit',
                     }} />

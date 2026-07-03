@@ -103,8 +103,8 @@ function SallaAppSettings() {
   const copyBtnStyle: React.CSSProperties = { flexShrink: 0, padding: '6px 14px', borderRadius: 8, background: 'rgba(124,107,255,0.12)', border: '1px solid rgba(124,107,255,0.3)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
 
   const statusDot = (val: string) => val
-    ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(0,229,176,0.15)', color: 'var(--accent2)', fontWeight: 700, marginRight: 6 }}>✓ محفوظ</span>
-    : <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(255,77,109,0.12)', color: '#ff4d6d', fontWeight: 700, marginRight: 6 }}>⚠ فارغ</span>
+    ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--success-bg)', color: 'var(--accent2)', fontWeight: 700, marginRight: 6 }}>✓ محفوظ</span>
+    : <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700, marginRight: 6 }}>⚠ فارغ</span>
 
   return (
     <div style={{ ...S.chartCard, padding: 0, overflow: 'hidden' }}>
@@ -117,7 +117,7 @@ function SallaAppSettings() {
       </div>
 
       {msg && (
-        <div style={{ margin: '14px 20px 0', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : '#ff4d6d', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.25)' : 'rgba(255,77,109,0.25)'}` }}>
+        <div style={{ margin: '14px 20px 0', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--danger-text)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
         </div>
       )}
@@ -133,7 +133,7 @@ function SallaAppSettings() {
               {SALLA_SETTING_FIELDS.map(f => {
                 const s = settings[f.key] || { value: '', editing: false, draft: '', saving: false, revealed: false }
                 return (
-                  <div key={f.key} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface2)', border: `1px solid ${s.value ? 'rgba(0,229,176,0.2)' : 'var(--border)'}` }}>
+                  <div key={f.key} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface2)', border: `1px solid ${s.value ? 'var(--success-bg)' : 'var(--border)'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: s.editing ? 10 : 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 12, fontWeight: 700 }}>{f.label}</span>
@@ -376,7 +376,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                     </td>
                     <td style={S.td}>
                       {qCount > 0
-                        ? <span style={{ color: '#ffd166', fontWeight: 700, fontSize: 13 }}>{qCount}</span>
+                        ? <span style={{ color: 'var(--warning-text)', fontWeight: 700, fontSize: 13 }}>{qCount}</span>
                         : <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>}
                     </td>
                     <td style={S.td}>{(c.orders_synced || 0).toLocaleString()}</td>
@@ -387,9 +387,9 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button style={{ ...S.miniBtn, fontSize: 11 }} onClick={() => forceSync(c.merchant_code)} title="مزامنة فورية">⟳</button>
                         {status === 'active' ? (
-                          <button style={{ ...S.miniBtn, fontSize: 11, color: '#ff4d6d', borderColor: '#ff4d6d44' }} onClick={() => suspendMerchant(c.merchant_code)}>تعليق</button>
+                          <button style={{ ...S.miniBtn, fontSize: 11, color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }} onClick={() => suspendMerchant(c.merchant_code)}>تعليق</button>
                         ) : (
-                          <button style={{ ...S.miniBtn, fontSize: 11, color: 'var(--accent2)', borderColor: 'rgba(0,229,176,0.3)' }} onClick={() => reactivateMerchant(c.merchant_code)}>تفعيل</button>
+                          <button style={{ ...S.miniBtn, fontSize: 11, color: 'var(--accent2)', borderColor: 'var(--success-bg)' }} onClick={() => reactivateMerchant(c.merchant_code)}>تفعيل</button>
                         )}
                       </div>
                     </td>

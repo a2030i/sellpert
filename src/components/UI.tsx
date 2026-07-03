@@ -50,9 +50,9 @@ export function SectionTitle({ title, subtitle, info, action }: { title: string;
 }
 
 const BADGE_TONES: Record<string, { bg: string; fg: string }> = {
-  green: { bg: 'rgba(0,184,148,0.12)', fg: 'var(--green)' },
-  red:   { bg: 'rgba(232,64,64,0.12)', fg: 'var(--red)' },
-  amber: { bg: 'rgba(255,153,0,0.12)', fg: '#ff9900' },
+  green: { bg: 'var(--success-bg)', fg: 'var(--success-text)' },
+  red:   { bg: 'var(--danger-bg)',  fg: 'var(--danger-text)' },
+  amber: { bg: 'var(--warning-bg)', fg: 'var(--warning-text)' },
   accent:{ bg: 'var(--accent-glow)',   fg: 'var(--accent)' },
   gray:  { bg: 'var(--surface2)',      fg: 'var(--text3)' },
 }

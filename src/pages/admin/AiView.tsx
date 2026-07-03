@@ -102,17 +102,17 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
 
   return (
     <div>
-      <div style={{ ...S.chartCard, marginBottom: 20, padding: '16px 20px', borderRight: savedKey ? '3px solid var(--accent2)' : '3px solid #ffd166' }}>
+      <div style={{ ...S.chartCard, marginBottom: 20, padding: '16px 20px', borderRight: savedKey ? '3px solid var(--accent2)' : '3px solid var(--gold)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 20 }}>{savedKey ? '🔒' : '🔑'}</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>مفتاح OpenRouter</div>
               {savedKey ? <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>✓ محفوظ · {savedKey.slice(0, 10)}••••••••</div>
-                : <div style={{ fontSize: 11, color: '#ffd166', marginTop: 2 }}>غير مضبوط — أدخل مفتاحك من openrouter.ai</div>}
+                : <div style={{ fontSize: 11, color: 'var(--warning-text)', marginTop: 2 }}>غير مضبوط — أدخل مفتاحك من openrouter.ai</div>}
             </div>
           </div>
-          <button style={{ ...S.miniBtn, background: savedKey ? 'transparent' : 'rgba(255,209,102,0.15)', borderColor: savedKey ? 'var(--border)' : '#ffd166', color: savedKey ? 'var(--text2)' : '#ffd166' }} onClick={() => { setEditKey(v => !v); setKeyErr('') }}>
+          <button style={{ ...S.miniBtn, background: savedKey ? 'transparent' : 'var(--warning-bg)', borderColor: savedKey ? 'var(--border)' : 'var(--gold)', color: savedKey ? 'var(--text2)' : 'var(--warning-text)' }} onClick={() => { setEditKey(v => !v); setKeyErr('') }}>
             {editKey ? 'إلغاء' : savedKey ? '✏️ تعديل' : '+ إضافة'}
           </button>
         </div>
@@ -122,7 +122,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
             <button style={{ ...S.btn, padding: '8px 18px' }} onClick={saveKey} disabled={savingKey || !keyInput.trim()}>{savingKey ? '...' : 'حفظ'}</button>
           </div>
         )}
-        {keyErr && <div style={{ fontSize: 12, color: '#ff4d6d', marginTop: 8 }}>✗ {keyErr}</div>}
+        {keyErr && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 8 }}>✗ {keyErr}</div>}
         {keyMsg && <div style={{ fontSize: 12, color: 'var(--accent2)', marginTop: 8 }}>✓ {keyMsg}</div>}
       </div>
 
@@ -204,14 +204,14 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
               <div style={{ ...S.chartCard, padding: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>📅 أفضل أيام البيع</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {c.best_days.map((d: string, i: number) => <span key={i} style={{ background: 'rgba(0,229,176,0.15)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>)}
+                  {c.best_days.map((d: string, i: number) => <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>)}
                 </div>
               </div>
             )}
             {c.low_stock_alert?.length > 0 && (
-              <div style={{ ...S.chartCard, padding: 20, borderRight: '3px solid #ff4d6d' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#ff4d6d', marginBottom: 10 }}>🚨 تحذير مخزون</div>
-                {c.low_stock_alert.map((p: string, i: number) => <div key={i} style={{ fontSize: 13, color: '#ff4d6d', marginBottom: 5 }}>• {p}</div>)}
+              <div style={{ ...S.chartCard, padding: 20, borderRight: '3px solid var(--red)' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger-text)', marginBottom: 10 }}>🚨 تحذير مخزون</div>
+                {c.low_stock_alert.map((p: string, i: number) => <div key={i} style={{ fontSize: 13, color: 'var(--danger-text)', marginBottom: 5 }}>• {p}</div>)}
               </div>
             )}
           </div>

@@ -212,7 +212,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
       {/* Notification */}
       {msg && (
-        <div style={{ ...S.alert, background: msg.type === 'ok' ? 'rgba(0,229,176,0.1)' : 'rgba(255,77,109,0.1)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'rgba(0,229,176,0.3)' : 'rgba(255,77,109,0.3)'}` }}>
+        <div style={{ ...S.alert, background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
           <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
         </div>
@@ -260,7 +260,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
           {/* Guide: fill category first */}
           {form.target_net_price && !form.category.trim() && (
-            <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 10, fontSize: 12, color: '#ffd166', fontWeight: 600 }}>
+            <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', borderRadius: 10, fontSize: 12, color: 'var(--warning-text)', fontWeight: 600 }}>
               ⚠️ اختر تصنيف المنتج لمعاينة الأسعار — نسبة العمولة تختلف حسب القسم
             </div>
           )}
@@ -519,7 +519,7 @@ const S: Record<string, React.CSSProperties> = {
   topbar:     { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
   title:      { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
   sub:        { fontSize: 13, color: 'var(--text2)', marginTop: 3 },
-  addBtn:     { background: 'var(--accent)', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
+  addBtn:     { background: 'var(--accent-strong)', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   alert:      { padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   formCard:   { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 },
   formTitle:  { fontSize: 15, fontWeight: 700, marginBottom: 16 },
@@ -539,7 +539,7 @@ const S: Record<string, React.CSSProperties> = {
   tr:         { borderBottom: '1px solid var(--border)' },
   td:         { padding: '12px 16px', fontSize: 13, color: 'var(--text)' },
   statusBadge: { padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
-  badgeActive: { background: 'rgba(0,229,176,0.12)', color: 'var(--accent2)' },
+  badgeActive: { background: 'var(--success-bg)', color: 'var(--accent2)' },
   badgeOff:    { background: 'var(--surface2)', color: 'var(--text3)' },
   reqBtn:     { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   mobileCard: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' },
@@ -601,9 +601,9 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#7c6bff" />
-        <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="#00b894" />
-        <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? '#00b894' : '#e84040'} />
-        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? '⚠ يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? '#e84040' : '#00b894'} />
+        <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="var(--green)" />
+        <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
+        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? '⚠ يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
       </div>
 
       {show && (
@@ -611,12 +611,12 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
           {/* Star products */}
           {stats.star.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#00b894', marginBottom: 8 }}>🌟 منتجات نجمة (هامش &gt; 30%)</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success-text)', marginBottom: 8 }}>🌟 منتجات نجمة (هامش &gt; 30%)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {stats.star.map((p, i) => (
                   <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.product_name}>{p.product_name}</span>
-                    <span style={{ fontWeight: 700, color: '#00b894' }}>{fmt(Number(p.net_profit))} · {Number(p.profit_margin_pct).toFixed(0)}%</span>
+                    <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>{fmt(Number(p.net_profit))} · {Number(p.profit_margin_pct).toFixed(0)}%</span>
                   </div>
                 ))}
               </div>
@@ -625,12 +625,12 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
           {/* Worst products */}
           {stats.worst.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#e84040', marginBottom: 8 }}>📉 أقل المنتجات ربحاً</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>📉 أقل المنتجات ربحاً</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {stats.worst.map((p, i) => (
                   <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={p.product_name}>{p.product_name}</span>
-                    <span style={{ fontWeight: 700, color: Number(p.net_profit) < 0 ? '#e84040' : '#ff9900' }}>
+                    <span style={{ fontWeight: 700, color: Number(p.net_profit) < 0 ? 'var(--danger-text)' : 'var(--warning-text)' }}>
                       {fmt(Number(p.net_profit))}{p.profit_margin_pct !== null && ' · ' + Number(p.profit_margin_pct).toFixed(0) + '%'}
                     </span>
                   </div>
@@ -673,17 +673,17 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
           <div style={{ fontSize: 22, fontWeight: 800, color: '#7c6bff' }}>{Number(data.turnover_ratio).toFixed(1)}×</div>
           <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{Number(data.turnover_ratio) >= 4 ? 'سرعة جيدة' : Number(data.turnover_ratio) >= 2 ? 'متوسط' : 'بطيء'}</div>
         </div>
-        <div style={kpiBox('#00b894')}>
+        <div style={kpiBox('var(--green)')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>الإيرادات (90 يوم)</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#00b894' }}>{fmt(Number(data.revenue))}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success-text)' }}>{fmt(Number(data.revenue))}</div>
         </div>
-        <div style={kpiBox('#ff9900')}>
+        <div style={kpiBox('var(--gold)')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>تكلفة المباع (COGS)</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#ff9900' }}>{fmt(Number(data.cogs))}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warning-text)' }}>{fmt(Number(data.cogs))}</div>
         </div>
-        <div style={kpiBox('#4cc9f0')}>
+        <div style={kpiBox('var(--info-text)')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>قيمة المخزون</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#4cc9f0' }}>{fmt(Number(data.avg_inv_value))}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--info-text)' }}>{fmt(Number(data.avg_inv_value))}</div>
         </div>
         <div style={kpiBox('#a598ff')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>أيام لبيع المخزون</div>
@@ -725,10 +725,10 @@ function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '8px 12px', fontWeight: 700 }}>{b.brand}</td>
                   <td style={{ padding: '8px 12px', color: PLATFORM_COLORS[b.platform] || 'var(--text3)', fontWeight: 600 }}>{PLATFORM_NAMES[b.platform] || b.platform}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: '#00b894' }}>{b.units_sold}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--success-text)' }}>{b.units_sold}</td>
                   <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(b.revenue)).toLocaleString('ar-SA')}</td>
                   <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: 'var(--text2)' }}>{Math.round(Number(b.net_revenue)).toLocaleString('ar-SA')}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? '#e84040' : ret > 5 ? '#ff9900' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? 'var(--danger-text)' : ret > 5 ? 'var(--warning-text)' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
                 </tr>
               )
             })}
@@ -750,7 +750,7 @@ function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
   const counts: any = { launching: 0, new_no_sales: 0, growing: 0, mature: 0, dormant: 0, unknown: 0 }
   for (const d of data) counts[d.lifecycle_stage]++
   const labels: any = { launching: 'إطلاق ناجح', new_no_sales: 'جديد بدون بيع', growing: 'نامي', mature: 'مُنضج', dormant: 'خامل', unknown: 'غير محدّد' }
-  const colors: any = { launching: '#00b894', new_no_sales: '#ff9900', growing: '#7c6bff', mature: '#4cc9f0', dormant: '#e84040', unknown: '#a598ff' }
+  const colors: any = { launching: 'var(--green)', new_no_sales: 'var(--warning-text)', growing: '#7c6bff', mature: 'var(--info-text)', dormant: 'var(--red)', unknown: '#a598ff' }
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔄 دورة حياة المنتجات</div>
@@ -792,9 +792,9 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
                   <td style={{ padding: '8px 12px', fontWeight: 600 }}>{v.brand}</td>
                   <td style={{ padding: '8px 12px' }}>{v.color}</td>
                   <td style={{ padding: '8px 12px' }}>{v.size}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: '#00b894' }}>{v.units_sold}</td>
-                  <td style={{ padding: '8px 12px', color: v.units_returned > 0 ? '#e84040' : 'var(--text3)' }}>{v.units_returned}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? '#e84040' : ret > 5 ? '#ff9900' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--success-text)' }}>{v.units_sold}</td>
+                  <td style={{ padding: '8px 12px', color: v.units_returned > 0 ? 'var(--danger-text)' : 'var(--text3)' }}>{v.units_returned}</td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? 'var(--danger-text)' : ret > 5 ? 'var(--warning-text)' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
                   <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(v.revenue)).toLocaleString('ar-SA')}</td>
                 </tr>
               )
@@ -823,17 +823,17 @@ function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📦 تنبيه Buy Box</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>منتجاتك اللي سعرها أعلى من سعر باي بوكس — تخسر الصندوق</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
-        <div style={{ background: 'rgba(232,64,64,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #e84040' }}>
+        <div style={{ background: 'var(--danger-bg)', borderRadius: 10, padding: 12, borderTop: '3px solid var(--red)' }}>
           <div style={{ fontSize: 10, color: 'var(--text3)' }}>تخسر الصندوق</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#e84040' }}>{losing.length}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--danger-text)' }}>{losing.length}</div>
         </div>
-        <div style={{ background: 'rgba(255,153,0,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #ff9900' }}>
+        <div style={{ background: 'var(--warning-bg)', borderRadius: 10, padding: 12, borderTop: '3px solid var(--gold)' }}>
           <div style={{ fontSize: 10, color: 'var(--text3)' }}>على وشك الخسارة</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#ff9900' }}>{atRisk.length}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--warning-text)' }}>{atRisk.length}</div>
         </div>
-        <div style={{ background: 'rgba(0,184,148,0.08)', borderRadius: 10, padding: 12, borderTop: '3px solid #00b894' }}>
+        <div style={{ background: 'var(--success-bg)', borderRadius: 10, padding: 12, borderTop: '3px solid var(--green)' }}>
           <div style={{ fontSize: 10, color: 'var(--text3)' }}>تربح الصندوق</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#00b894' }}>{data.length - losing.length - atRisk.length}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success-text)' }}>{data.length - losing.length - atRisk.length}</div>
         </div>
       </div>
       <div style={{ overflowX: 'auto' }}>

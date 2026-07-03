@@ -293,7 +293,7 @@ function KanbanColumn({ status, tasks, merchants, staff, onUpdateStatus, onAssig
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: PRIORITIES[t.priority]?.color }}>{PRIORITIES[t.priority]?.label}</span>
-                {isOverdue && <span style={{ fontSize: 9, color: '#e84040', fontWeight: 700 }}>⚠ متأخرة</span>}
+                {isOverdue && <span style={{ fontSize: 9, color: 'var(--danger-text)', fontWeight: 700 }}>⚠ متأخرة</span>}
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{t.title || t.note?.slice(0, 60) || '—'}</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>{CATEGORIES[t.category || t.type] || t.type}</div>
@@ -511,7 +511,7 @@ function EditTaskModal({ task, staff, canEdit, onClose, onSaved, onDelete }: any
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 14 }}>
         {canEdit ? (
-          <button onClick={onDelete} style={{ ...S.miniBtn, padding: '8px 16px', color: '#e84040', borderColor: '#e8404040' }}>🗑 حذف</button>
+          <button onClick={onDelete} style={{ ...S.miniBtn, padding: '8px 16px', color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }}>🗑 حذف</button>
         ) : <span />}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ ...S.miniBtn, padding: '8px 16px' }}>إغلاق</button>

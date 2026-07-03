@@ -102,13 +102,13 @@ export default function DBHealthView() {
       {overallAlert && !loading && (
         <div style={{
           padding: '14px 20px', borderRadius: 14,
-          background: dbAlert === 'critical' ? 'rgba(255,77,109,0.1)' : 'rgba(255,209,102,0.1)',
-          border: `1px solid ${dbAlert === 'critical' ? 'rgba(255,77,109,0.4)' : 'rgba(255,209,102,0.4)'}`,
+          background: dbAlert === 'critical' ? 'var(--danger-bg)' : 'var(--warning-bg)',
+          border: `1px solid ${dbAlert === 'critical' ? 'var(--danger-bg)' : 'var(--warning-bg)'}`,
           display: 'flex', alignItems: 'center', gap: 14,
         }}>
           <span style={{ fontSize: 28 }}>{dbAlert === 'critical' ? '🚨' : '⚠️'}</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 14, color: dbAlert === 'critical' ? '#ff4d6d' : '#ffd166', marginBottom: 4 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, color: dbAlert === 'critical' ? 'var(--danger-text)' : 'var(--warning-text)', marginBottom: 4 }}>
               {dbAlert === 'critical'
                 ? `قاعدة البيانات وصلت ${dbPct}% من الحد الأقصى — يجب الترقية الآن`
                 : `قاعدة البيانات عند ${dbPct}% — يُنصح بالترقية قريباً`}
@@ -120,7 +120,7 @@ export default function DBHealthView() {
           </div>
           {plan === 'free' && (
             <a href="https://supabase.com/pricing" target="_blank" rel="noopener noreferrer"
-              style={{ marginRight: 'auto', background: '#7c6bff', color: '#fff', padding: '8px 18px', borderRadius: 10, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
+              style={{ marginRight: 'auto', background: 'var(--accent-strong)', color: '#fff', padding: '8px 18px', borderRadius: 10, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
               ترقية الآن ↗
             </a>
           )}
@@ -173,7 +173,7 @@ export default function DBHealthView() {
                 <div style={{ height: 10, borderRadius: 5, background: 'var(--surface2)', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: 5, width: `${bar.pct}%`,
-                    background: bar.pct >= 90 ? 'linear-gradient(90deg,#ff4d6d,#ff6b6b)' : bar.pct >= 70 ? 'linear-gradient(90deg,#ffd166,#ffba08)' : `linear-gradient(90deg,${cfg.color},${cfg.color}99)`,
+                    background: bar.pct >= 90 ? 'linear-gradient(90deg,var(--red),#ff6b6b)' : bar.pct >= 70 ? 'linear-gradient(90deg,var(--gold),#ffba08)' : `linear-gradient(90deg,${cfg.color},${cfg.color}99)`,
                     transition: 'width 0.6s ease',
                   }} />
                 </div>
@@ -185,7 +185,7 @@ export default function DBHealthView() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={S.chartTitle}>⏳ حالة طابور المزامنة</div>
               {oldestMin > 30 && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20, background: 'rgba(255,209,102,0.15)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)' }}>
                   ⚠️ أقدم مهمة معلّقة منذ {oldestMin} دقيقة
                 </span>
               )}

@@ -89,9 +89,9 @@ export default function PerformanceView({ merchants, perfData }: any) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'إجمالي المبيعات', value: fmt(totalSales), color: '#7c6bff' },
-          { label: 'عدد الطلبات', value: fmt(totalOrders, 'number'), color: '#00e5b0' },
-          { label: 'متوسط الطلب (AOV)', value: fmt(aov), color: '#ff9900' },
+          { label: 'إجمالي المبيعات', value: fmt(totalSales), color: 'var(--accent)' },
+          { label: 'عدد الطلبات', value: fmt(totalOrders, 'number'), color: 'var(--success-text)' },
+          { label: 'متوسط الطلب (AOV)', value: fmt(aov), color: 'var(--warning-text)' },
           { label: 'رسوم المنصات', value: fmt(totalFees), color: '#ff6b6b' },
         ].map((k, i) => (
           <div key={i} style={{ ...S.kpiCard }}>
@@ -112,11 +112,11 @@ export default function PerformanceView({ merchants, perfData }: any) {
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f2" />
-              <XAxis dataKey="date" tick={{ fill: '#5a5a7a', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} tickFormatter={(v: number) => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
+              <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} tickFormatter={(v: number) => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v)} />
               <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)' }} formatter={(v: number) => [fmt(v), 'مبيعات']} />
-              <Bar dataKey="sales" fill="#7c6bff" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="sales" fill="var(--accent)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -144,7 +144,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
                   <td style={{ ...S.td, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                   <td style={{ ...S.td, fontSize: 12 }}>{r.merchant_code}</td>
                   <td style={S.td}>
-                    <span style={{ ...S.platformTag, background: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[r.platform] || '#5a5a7a' }}>
+                    <span style={{ ...S.platformTag, background: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[r.platform] || 'var(--text3)' }}>
                       {PLATFORM_MAP[r.platform] || r.platform}
                     </span>
                   </td>

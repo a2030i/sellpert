@@ -19,15 +19,15 @@ export function relativeTime(iso: string) {
 
 export const S: Record<string, React.CSSProperties> = {
   sidebar: {
-    background: '#1e2239',
-    borderLeft: '1px solid #2c3356',
+    background: 'var(--surface)',
+    borderLeft: '1px solid var(--border)',
     display: 'flex', flexDirection: 'column',
     position: 'fixed', right: 0, top: 0, bottom: 0, width: 230, zIndex: 100,
     overflowY: 'auto',
   },
   sidebarLogo: {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '20px 16px', borderBottom: '1px solid #2c3356',
+    padding: '20px 16px', borderBottom: '1px solid var(--border)',
     flexShrink: 0,
   },
   logoIcon: {
@@ -36,16 +36,16 @@ export const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
   },
-  logoText: { fontSize: 17, fontWeight: 800, color: '#e2e6f4', lineHeight: 1.2 },
+  logoText: { fontSize: 17, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 },
   logoBadge: {
-    fontSize: 10, fontWeight: 700, color: '#a598ff',
+    fontSize: 10, fontWeight: 700, color: 'var(--accent-soft)',
     background: 'var(--accent-12)', padding: '2px 7px',
     borderRadius: 20, marginTop: 3, display: 'inline-block',
   },
   navItem: {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '9px 12px', margin: '1px 8px',
-    color: '#8891b4', cursor: 'pointer',
+    color: 'var(--text2)', cursor: 'pointer',
     transition: 'all 0.15s', fontSize: 13, fontWeight: 500,
     borderRadius: 10,
   },
@@ -54,10 +54,10 @@ export const S: Record<string, React.CSSProperties> = {
   groupHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '8px 16px 4px', fontSize: 10, fontWeight: 800,
-    color: '#545d82', textTransform: 'uppercase', letterSpacing: '0.8px',
+    color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px',
     cursor: 'pointer', userSelect: 'none',
   },
-  sidebarBottom: { padding: '16px', borderTop: '1px solid #2c3356', flexShrink: 0 },
+  sidebarBottom: { padding: '16px', borderTop: '1px solid var(--border)', flexShrink: 0 },
   adminInfo: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   adminAvatar: {
     width: 36, height: 36, borderRadius: 10,
@@ -65,11 +65,11 @@ export const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
   },
-  adminName: { fontSize: 13, fontWeight: 600, color: '#e2e6f4' },
-  adminRole: { fontSize: 10, color: '#a598ff', marginTop: 2, fontWeight: 700 },
+  adminName: { fontSize: 13, fontWeight: 600, color: 'var(--text)' },
+  adminRole: { fontSize: 10, color: 'var(--accent-soft)', marginTop: 2, fontWeight: 700 },
   logoutBtn: {
-    width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2c3356',
-    color: '#8891b4', padding: '8px', borderRadius: 9, fontSize: 12, cursor: 'pointer',
+    width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+    color: 'var(--text2)', padding: '8px', borderRadius: 9, fontSize: 12, cursor: 'pointer',
   },
   main: { flex: 1, minHeight: '100vh' },
   topbar: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 },
@@ -151,6 +151,6 @@ export const S: Record<string, React.CSSProperties> = {
   tabBtn:    { padding: '10px 20px', background: 'transparent', border: 'none', color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: -1 },
   tabActive: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
   msgBox: { borderRadius: 10, padding: '12px 16px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  msgOk: { background: 'rgba(0,229,176,0.1)', border: '1px solid rgba(0,229,176,0.3)', color: 'var(--green)' },
-  msgErr: { background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.3)', color: 'var(--red)' },
+  msgOk: { background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--green)' },
+  msgErr: { background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--red)' },
 }

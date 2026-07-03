@@ -384,7 +384,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
 
       {/* ── SIDEBAR (desktop) ── */}
       {!isMobile && (
-        <aside style={S.sidebar}>
+        <aside className="sidebar-dark" style={S.sidebar}>
           <div style={S.sidebarLogo}>
             <div style={S.logoIcon}>S</div>
             <div>

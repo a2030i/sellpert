@@ -141,7 +141,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         <span style={{ fontSize: 16 }}>🔔</span>
         {unread > 0 && (
-          <span style={{ position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%', background: '#e84040', color: '#fff', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%', background: 'var(--red)', color: '#fff', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -156,7 +156,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
             )}
           </div>
           {notifs.length === 0 ? (
-            <div style={{ padding: '28px 16px', textAlign: 'center', color: '#545d82', fontSize: 13 }}>
+            <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>لا توجد إشعارات
             </div>
           ) : notifs.map(n => (
@@ -166,7 +166,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e6f4', marginBottom: 3 }}>{n.title}</div>
                   <div style={{ fontSize: 11, color: '#8891b4', lineHeight: 1.5 }}>{n.body}</div>
-                  <div style={{ fontSize: 10, color: '#545d82', marginTop: 5 }}>{relTime(n.created_at)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5 }}>{relTime(n.created_at)}</div>
                 </div>
               </div>
             </div>
@@ -548,7 +548,7 @@ export default function App() {
                 )
               })}
               <button onClick={() => supabase.auth.signOut()}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: '#e84040', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--danger-text)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
                 <LogOut size={20} />
                 <span>تسجيل الخروج</span>
               </button>

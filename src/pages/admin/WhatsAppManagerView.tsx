@@ -234,7 +234,7 @@ function BulkSendTab({ connection, merchants }: { connection: any; merchants: an
           {results.map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
               <span style={{ fontFamily: 'monospace' }}>{r.to}</span>
-              <span style={{ color: r.ok ? '#00b894' : '#e84040', fontWeight: 700 }}>{r.ok ? '✓' : '✗ ' + (r.error || 'فشل')}</span>
+              <span style={{ color: r.ok ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{r.ok ? '✓' : '✗ ' + (r.error || 'فشل')}</span>
             </div>
           ))}
         </div>
@@ -340,7 +340,7 @@ function TemplatesTab({ connection }: { connection: any }) {
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{t.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{t.language || 'ar'} · {t.category || 'utility'} · {t.status || 'active'}</div>
                 </div>
-                {t.id && <button onClick={() => del(t.id)} style={{ background: 'transparent', border: '1px solid #e84040', color: '#e84040', padding: '4px 10px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Trash2 size={11} /> حذف</button>}
+                {t.id && <button onClick={() => del(t.id)} style={{ background: 'transparent', border: '1px solid var(--red)', color: 'var(--danger-text)', padding: '4px 10px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Trash2 size={11} /> حذف</button>}
               </div>
               {t.body && <div style={{ padding: 10, background: 'var(--surface2)', borderRadius: 8, fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{t.body}</div>}
             </div>
@@ -551,8 +551,8 @@ function HistoryTab() {
                 <td style={{ ...S.td, fontSize: 11 }}>{l.merchant_code || '—'}</td>
                 <td style={S.td}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                    background: l.status === 'sent' ? 'rgba(0,184,148,0.1)' : l.status === 'failed' ? 'rgba(232,64,64,0.1)' : 'rgba(124,107,255,0.1)',
-                    color: l.status === 'sent' ? '#00b894' : l.status === 'failed' ? '#e84040' : '#7c6bff',
+                    background: l.status === 'sent' ? 'var(--success-bg)' : l.status === 'failed' ? 'var(--danger-bg)' : 'rgba(124,107,255,0.1)',
+                    color: l.status === 'sent' ? 'var(--success-text)' : l.status === 'failed' ? 'var(--danger-text)' : '#7c6bff',
                   }}>{l.status}</span>
                 </td>
                 <td style={{ ...S.td, fontSize: 10, color: 'var(--text3)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(l.payload)}>

@@ -787,7 +787,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         </div>
 
         {!merchantCode
-          ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(255,153,0,0.06)', border: '1px solid rgba(255,153,0,0.2)', color: '#ff9900', fontSize: 12 }}>
+          ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', fontSize: 12 }}>
               ⚠️ اختر التاجر أولاً قبل رفع الملفات
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(124,107,255,0.06)', border: '1px solid rgba(124,107,255,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -862,8 +862,8 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--text2)' }}>
               <Stat label="ملفات" value={files.length} />
-              <Stat label="جاهز" value={files.filter(f => f.stage === 'parsed' || f.stage === 'saved').length} color="#00b894" />
-              <Stat label="مرفوض" value={files.filter(f => f.stage === 'rejected' || f.stage === 'failed').length} color="#e84040" />
+              <Stat label="جاهز" value={files.filter(f => f.stage === 'parsed' || f.stage === 'saved').length} color="var(--success-text)" />
+              <Stat label="مرفوض" value={files.filter(f => f.stage === 'rejected' || f.stage === 'failed').length} color="var(--danger-text)" />
               <Stat label="إجمالي الصفوف" value={files.reduce((a, f) => a + (f.parsed?.payloads.reduce((b, p) => b + p.rows.length, 0) || 0), 0)} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -878,7 +878,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
               )}
               {allDone && !busy && (
                 <>
-                  <span style={{ ...S.btn, background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.3)', color: '#00b894', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
+                  <span style={{ ...S.btn, background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
                     <CheckCircle2 size={14} /> اكتمل
                   </span>
                   <button onClick={() => {
@@ -887,7 +887,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
                       rows: f.result!.inserted,
                     }))
                     generateMerchantReport(merchantCode, merchant?.name || merchantCode, saved)
-                  }} style={{ ...S.btn, background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  }} style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <FileText size={14} /> تقرير PDF للتاجر
                   </button>
                   <button onClick={async () => {
@@ -910,7 +910,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             </div>
           </div>
           {!allValid && files.length > 0 && !anyParsing && !allDone && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#e84040' }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--danger-text)' }}>
               ⚠️ بعض الملفات بها أخطاء — لا يمكن الحفظ حتى تُحلّ أو تُحذف
             </div>
           )}
@@ -950,13 +950,13 @@ function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
   }, [refreshTick])
   if (rows.length === 0) return null
   return (
-    <div style={{ ...S.formCard, padding: 14, borderColor: 'rgba(232,64,64,0.2)' }}>
+    <div style={{ ...S.formCard, padding: 14, borderColor: 'var(--danger-bg)' }}>
       <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-        <AlertTriangle size={15} color="#e84040" />
+        <AlertTriangle size={15} color="var(--danger-text)" />
         <div style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
           ملفات لم تُقبل مؤخراً <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— راجعها؛ قد تكون صيغة تقرير تغيّرت</span>
         </div>
-        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: 'rgba(232,64,64,0.12)', color: '#e84040' }}>{rows.length}</span>
+        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: 'var(--danger-bg)', color: 'var(--danger-text)' }}>{rows.length}</span>
         <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
       </div>
       {open && (
@@ -964,7 +964,7 @@ function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
           {rows.map((r, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
               <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.diagnostic || ''}>{r.file_name}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(232,64,64,0.1)', color: '#e84040', flexShrink: 0 }}>{REJECT_REASON_AR[r.reason] || r.reason}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--danger-bg)', color: 'var(--danger-text)', flexShrink: 0 }}>{REJECT_REASON_AR[r.reason] || r.reason}</span>
               <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>{relativeTime(r.created_at)}</span>
             </div>
           ))}
@@ -1040,11 +1040,11 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
             }}>
               {/* Status dot */}
               <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 8,
-                background: last ? '#00b89415' : 'var(--surface)',
-                border: `1px solid ${last ? '#00b89440' : 'var(--border)'}`,
+                background: last ? 'var(--success-bg)' : 'var(--surface)',
+                border: `1px solid ${last ? 'var(--success-bg)' : 'var(--border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
               }}>
-                {last ? <CheckCircle2 size={14} color="#00b894" /> : g.icon}
+                {last ? <CheckCircle2 size={14} color="var(--success-text)" /> : g.icon}
               </div>
 
               {/* Info */}
@@ -1064,10 +1064,10 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
 
                 {/* Dependency */}
                 {g.dependsOn && (
-                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: dependsMissing ? '#ff9900' : 'var(--text3)' }}>
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: dependsMissing ? 'var(--warning-text)' : 'var(--text3)' }}>
                     <Link2 size={11} />
                     <span>{g.dependsNote}</span>
-                    {dependsMissing && <span style={{ color: '#ff9900', fontWeight: 700 }}>⚠ غير مرفوع بعد</span>}
+                    {dependsMissing && <span style={{ color: 'var(--warning-text)', fontWeight: 700 }}>⚠ غير مرفوع بعد</span>}
                   </div>
                 )}
               </div>
@@ -1077,7 +1077,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
                 <div style={{ textAlign: 'left', minWidth: 100 }}>
                   {last ? (
                     <>
-                      <div style={{ fontSize: 11, color: '#00b894', fontWeight: 700 }}>{relativeTime(last.uploaded_at)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--success-text)', fontWeight: 700 }}>{relativeTime(last.uploaded_at)}</div>
                       <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{last.rows_inserted.toLocaleString()} صف</div>
                     </>
                   ) : (
@@ -1087,7 +1087,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
                 {last && (
                   <button onClick={() => deleteOne(last.id, g.label, last.rows_inserted)} disabled={deleting === last.id}
                     title="حذف هذا الملف وكل البيانات المرتبطة"
-                    style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', color: '#e84040',
+                    style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
                       padding: '6px 9px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
                       display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <X size={11} /> {deleting === last.id ? '...' : 'حذف'}
@@ -1180,23 +1180,23 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
 
       {/* Validation errors */}
       {v && v.errors.length > 0 && (
-        <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.2)' }}>
+        <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)' }}>
           {v.errors.map((e, i) => (
-            <div key={i} style={{ fontSize: 11, color: '#e84040', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key={i} style={{ fontSize: 11, color: 'var(--danger-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <AlertTriangle size={11} /> {e}
             </div>
           ))}
         </div>
       )}
       {v && v.warnings.length > 0 && (
-        <div style={{ marginTop: 6, fontSize: 11, color: '#ff9900' }}>
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--warning-text)' }}>
           {v.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
         </div>
       )}
 
       {/* تحذير التكرار: نفس الملف مرفوع مسبقاً — اختر الإجراء */}
       {entry.dup && (entry.stage === 'parsed') && (
-        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.3)' }}>
+        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)' }}>
           <div style={{ fontSize: 12, color: '#d97a00', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <AlertTriangle size={13} /> هذا الملف مرفوع مسبقاً — رُفع {relativeTime(entry.dup.uploadedAt)} · {entry.dup.rows.toLocaleString()} صف
           </div>
@@ -1234,7 +1234,7 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
 
       {/* Save result */}
       {entry.result && (
-        <div style={{ marginTop: 8, fontSize: 11, color: entry.result.errors.length ? '#e84040' : '#00b894', fontWeight: 600 }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: entry.result.errors.length ? 'var(--danger-text)' : 'var(--success-text)', fontWeight: 600 }}>
           {entry.result.errors.length === 0
             ? <><CheckCircle2 size={11} style={{ verticalAlign: 'middle' }} /> حُفظ {entry.result.inserted.toLocaleString()} صف</>
             : <>⚠ حُفظ {entry.result.inserted.toLocaleString()} · أخطاء: {entry.result.errors.slice(0, 2).join(' | ')}</>
@@ -1266,12 +1266,12 @@ function stageMeta(stage: Stage) {
   switch (stage) {
     case 'queued':    return { label: 'في الانتظار', Icon: ArrowRight,    color: '#8891b4', bg: 'var(--surface2)',                            borderColor: 'var(--border)' }
     case 'parsing':   return { label: 'تحليل…',      Icon: Loader2,       color: '#7c6bff', bg: 'rgba(124,107,255,0.04)',                     borderColor: 'rgba(124,107,255,0.2)' }
-    case 'parsed':    return { label: 'جاهز للحفظ',  Icon: CheckCircle2,  color: '#00b894', bg: 'rgba(0,184,148,0.04)',                       borderColor: 'rgba(0,184,148,0.2)' }
+    case 'parsed':    return { label: 'جاهز للحفظ',  Icon: CheckCircle2,  color: '#00b894', bg: 'var(--success-bg)',                          borderColor: 'var(--success-bg)' }
     case 'validating':return { label: 'تحقق…',        Icon: Loader2,       color: '#7c6bff', bg: 'rgba(124,107,255,0.04)',                     borderColor: 'rgba(124,107,255,0.2)' }
-    case 'saving':    return { label: 'حفظ…',         Icon: Loader2,       color: '#ff9900', bg: 'rgba(255,153,0,0.04)',                       borderColor: 'rgba(255,153,0,0.2)' }
-    case 'saved':     return { label: 'تم الحفظ',     Icon: CheckCircle2,  color: '#00b894', bg: 'rgba(0,184,148,0.06)',                       borderColor: 'rgba(0,184,148,0.3)' }
-    case 'rejected':  return { label: 'مرفوض',        Icon: AlertTriangle, color: '#e84040', bg: 'rgba(232,64,64,0.04)',                       borderColor: 'rgba(232,64,64,0.2)' }
-    case 'failed':    return { label: 'فشل',          Icon: AlertTriangle, color: '#e84040', bg: 'rgba(232,64,64,0.06)',                       borderColor: 'rgba(232,64,64,0.3)' }
+    case 'saving':    return { label: 'حفظ…',         Icon: Loader2,       color: '#ff9900', bg: 'var(--warning-bg)',                          borderColor: 'var(--warning-bg)' }
+    case 'saved':     return { label: 'تم الحفظ',     Icon: CheckCircle2,  color: '#00b894', bg: 'var(--success-bg)',                          borderColor: 'var(--success-bg)' }
+    case 'rejected':  return { label: 'مرفوض',        Icon: AlertTriangle, color: '#e84040', bg: 'var(--danger-bg)',                           borderColor: 'var(--danger-bg)' }
+    case 'failed':    return { label: 'فشل',          Icon: AlertTriangle, color: '#e84040', bg: 'var(--danger-bg)',                           borderColor: 'var(--danger-bg)' }
   }
 }
 
@@ -1336,7 +1336,7 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
           <div key={u.id} style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
             background: 'var(--surface2)', borderRadius: 9,
-            borderRight: `3px solid ${u.status === 'success' ? '#00b894' : u.status === 'partial' ? '#ff9900' : u.status === 'failed' ? '#e84040' : 'var(--text3)'}`,
+            borderRight: `3px solid ${u.status === 'success' ? 'var(--green)' : u.status === 'partial' ? 'var(--gold)' : u.status === 'failed' ? 'var(--red)' : 'var(--text3)'}`,
           }}>
             <FileText size={16} color="var(--text3)" style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1346,13 +1346,13 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
               </div>
             </div>
             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12,
-              background: u.status === 'success' ? 'rgba(0,184,148,0.1)' : u.status === 'partial' ? 'rgba(255,153,0,0.1)' : u.status === 'failed' ? 'rgba(232,64,64,0.1)' : 'var(--surface)',
-              color: u.status === 'success' ? '#00b894' : u.status === 'partial' ? '#ff9900' : u.status === 'failed' ? '#e84040' : 'var(--text3)',
+              background: u.status === 'success' ? 'var(--success-bg)' : u.status === 'partial' ? 'var(--warning-bg)' : u.status === 'failed' ? 'var(--danger-bg)' : 'var(--surface)',
+              color: u.status === 'success' ? 'var(--success-text)' : u.status === 'partial' ? 'var(--warning-text)' : u.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)',
             }}>
               {u.status === 'success' ? '✓ ناجح' : u.status === 'partial' ? '⚠ جزئي' : u.status === 'failed' ? '✗ فشل' : u.status}
             </span>
             <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
-              style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', color: '#e84040',
+              style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
                 padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', gap: 4 }}>
               <X size={11} /> {deletingId === u.id ? 'حذف...' : 'حذف'}

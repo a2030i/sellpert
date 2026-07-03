@@ -135,11 +135,11 @@ export default function RevenueView({ merchants, perfData }: { merchants: Mercha
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={commTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="month" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v)} />
               <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)', fontSize: 12 }} formatter={(v: number) => [fmt(v), 'الإيرادات']} />
-              <Bar dataKey="rev" fill="#7c6bff" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="rev" fill="var(--accent)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -185,7 +185,7 @@ export default function RevenueView({ merchants, perfData }: { merchants: Mercha
                           <input style={numInput} type="number" min="0" step="1" value={editVals.subscription_monthly_amount}
                             onChange={e => setEditVals(p => ({ ...p, subscription_monthly_amount: e.target.value }))} autoFocus />
                         ) : (
-                          <span style={{ fontWeight: 700, color: '#7c6bff' }}>{fmt(r.sub)}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{fmt(r.sub)}</span>
                         )}
                       </td>
                       <td style={S.td}>
@@ -204,13 +204,13 @@ export default function RevenueView({ merchants, perfData }: { merchants: Mercha
                           <input style={numInput} type="number" min="0" step="0.5" value={editVals.fixed_fee_per_order}
                             onChange={e => setEditVals(p => ({ ...p, fixed_fee_per_order: e.target.value }))} />
                         ) : (
-                          <span style={{ fontWeight: 700, color: '#4cc9f0' }}>{r.fixed > 0 ? `${r.fixed} ر.س` : '—'}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--info-text)' }}>{r.fixed > 0 ? `${r.fixed} ر.س` : '—'}</span>
                         )}
                       </td>
 
                       <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{fmt(rv.gmv)}</td>
-                      <td style={{ ...S.td, fontWeight: 700, color: '#7c6bff' }}>{fmt(totalAll)}</td>
-                      <td style={{ ...S.td, color: '#00e5b0', fontWeight: 700 }}>{fmt(totalMonth)}</td>
+                      <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{fmt(totalAll)}</td>
+                      <td style={{ ...S.td, color: 'var(--success-text)', fontWeight: 700 }}>{fmt(totalMonth)}</td>
                       <td style={S.td}>
                         {isEditing ? (
                           <div style={{ display: 'flex', gap: 6 }}>

@@ -39,8 +39,8 @@
   --red:     #e84040;
 
   /* ألوان دلالية: -text يمر AA كنص، -bg خلفية الشرائح */
-  --success-text: #0a8f6e; --success-bg: rgba(0,184,148,0.12);
-  --warning-text: #b07400; --warning-bg: rgba(240,168,0,0.14);
+  --success-text: #0b7f62; --success-bg: rgba(0,184,148,0.12);
+  --warning-text: #9c6700; --warning-bg: rgba(240,168,0,0.14);
   --danger-text:  #d12f3f; --danger-bg:  rgba(232,64,64,0.12);
   --info:         #2563eb; --info-text:  #2563eb; --info-bg: rgba(37,99,235,0.12);
   --overlay:      rgba(8,10,20,0.55);

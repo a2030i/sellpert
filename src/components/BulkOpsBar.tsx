@@ -156,7 +156,7 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
 
             {showModal === 'suspend' && (
               <>
-                <div style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
+                <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
                   ⚠️ سيتم إيقاف الوصول لـ {selected.length} تاجر فوراً
                 </div>
                 <ModalActions onCancel={() => setShowModal(null)} onConfirm={() => bulkSuspend(true)} submitting={submitting} confirmLabel="إيقاف الكل" danger />
@@ -165,7 +165,7 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
 
             {showModal === 'unsuspend' && (
               <>
-                <div style={{ background: 'rgba(0,184,148,0.08)', border: '1px solid rgba(0,184,148,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
+                <div style={{ background: 'var(--success-bg)', border: '1px solid rgba(0,184,148,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
                   ✓ سيتم تفعيل الوصول لـ {selected.length} تاجر
                 </div>
                 <ModalActions onCancel={() => setShowModal(null)} onConfirm={() => bulkSuspend(false)} submitting={submitting} confirmLabel="تفعيل الكل" />
@@ -206,7 +206,7 @@ function ModalActions({ onCancel, onConfirm, submitting, confirmLabel, danger }:
         fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
       }}>إلغاء</button>
       <button onClick={onConfirm} disabled={submitting} style={{
-        background: danger ? '#e84040' : 'var(--accent)', border: 'none', color: '#fff',
+        background: danger ? 'var(--red)' : 'var(--accent-strong)', border: 'none', color: '#fff',
         padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
         cursor: submitting ? 'wait' : 'pointer', fontFamily: 'inherit',
       }}>

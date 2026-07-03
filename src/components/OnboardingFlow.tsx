@@ -110,7 +110,7 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
         {step === 0 && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(0,229,176,0.12)', border: '1px solid rgba(0,229,176,0.25)',
+            background: 'var(--success-bg)', border: '1px solid rgba(0,229,176,0.25)',
             color: 'var(--accent2)', padding: '8px 16px', borderRadius: 30,
             fontSize: 13, fontWeight: 700, marginBottom: 24,
           }}>

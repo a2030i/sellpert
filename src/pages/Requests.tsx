@@ -29,8 +29,8 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 const PRIORITIES: any = {
-  urgent: { label: 'عاجل',    color: '#e84040' },
-  high:   { label: 'مرتفع',   color: '#ff9900' },
+  urgent: { label: 'عاجل',    color: 'var(--red)' },
+  high:   { label: 'مرتفع',   color: 'var(--gold)' },
   medium: { label: 'متوسط',   color: '#7c6bff' },
   low:    { label: 'منخفض',   color: '#888' },
 }
@@ -62,7 +62,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>🎫 تذاكر الدعم</h2>
           <p style={{ fontSize: 13, color: 'var(--text3)' }}>اكتب طلبك أو استفسارك وفريق Sellpert يتابعه ويرد عليك</p>
         </div>
-        <button onClick={() => setShowNew(true)} style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
+        <button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
           <Plus size={14} /> إنشاء تذكرة جديدة
         </button>
       </div>
@@ -85,7 +85,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
 
       {loading ? null : filtered.length === 0 ? (
         <EmptyState icon="📭" title="لا توجد تذاكر" description="أنشئ تذكرة جديدة لأي طلب أو استفسار وفريقنا يتولّاه فوراً"
-          action={<button onClick={() => setShowNew(true)} style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ إنشاء تذكرة</button>}
+          action={<button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ إنشاء تذكرة</button>}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -221,7 +221,7 @@ function NewTicketModal({ merchant, onClose, onCreated }: { merchant: Merchant |
             </Field>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 14 }}>
               <button onClick={() => setStep('category')} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '10px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>‹ رجوع</button>
-              <button onClick={submit} disabled={saving} style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={submit} disabled={saving} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Send size={14} /> {saving ? '...' : 'إرسال'}
               </button>
             </div>
@@ -299,7 +299,7 @@ function TicketDetailModal({ ticket, merchant, onClose }: { ticket: any; merchan
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComment()} placeholder="اكتب رد…" style={{ ...inp, flex: 1 }} />
-            <button onClick={addComment} style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={addComment} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
               <Send size={14} />
             </button>
           </div>

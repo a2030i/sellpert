@@ -75,7 +75,7 @@ export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
         <button
           onClick={onUpgrade}
           style={{
-            background: 'var(--accent)', border: 'none', color: '#fff',
+            background: 'var(--accent-strong)', border: 'none', color: '#fff',
             padding: '7px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700,
             cursor: 'pointer', flexShrink: 0,
             boxShadow: '0 3px 12px rgba(124,107,255,0.35)',

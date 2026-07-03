@@ -84,7 +84,7 @@ export default function PermissionsEditor({ employee, onClose, onSaved }: Props)
             {(Object.keys(DEPT_LABELS) as Department[]).map(d => (
               <button key={d} onClick={() => applyTemplate(d)} style={{
                 padding: '5px 10px', fontSize: 11, fontWeight: 700,
-                background: department === d ? 'var(--accent)' : 'var(--surface)',
+                background: department === d ? 'var(--accent-strong)' : 'var(--surface)',
                 color: department === d ? '#fff' : 'var(--text2)',
                 border: '1px solid ' + (department === d ? 'var(--accent)' : 'var(--border)'),
                 borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit',
@@ -157,7 +157,7 @@ export default function PermissionsEditor({ employee, onClose, onSaved }: Props)
               color: 'var(--text2)', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             }}>إلغاء</button>
             <button onClick={save} disabled={saving} style={{
-              padding: '8px 16px', background: 'var(--accent)', border: 'none',
+              padding: '8px 16px', background: 'var(--accent-strong)', border: 'none',
               color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 700,
               cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
               fontFamily: 'inherit',

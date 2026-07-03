@@ -193,9 +193,9 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                         <td style={{ ...S.td, fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA')}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{ct.toFixed(2)}%</td>
                         <td style={{ ...S.td, fontSize: 11, fontWeight: 700 }}>{g.orders}</td>
-                        <td style={{ ...S.td, fontSize: 11, color: '#e84040', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>
-                        <td style={{ ...S.td, fontSize: 11, color: '#00b894', fontFamily: 'monospace' }}>{g.revenue.toFixed(2)}</td>
-                        <td style={{ ...S.td, fontSize: 11, fontWeight: 800, color: r >= 3 ? '#00b894' : r >= 1 ? '#ff9900' : '#e84040' }}>{r.toFixed(2)}x</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--success-text)', fontFamily: 'monospace' }}>{g.revenue.toFixed(2)}</td>
+                        <td style={{ ...S.td, fontSize: 11, fontWeight: 800, color: r >= 3 ? 'var(--success-text)' : r >= 1 ? 'var(--warning-text)' : 'var(--danger-text)' }}>{r.toFixed(2)}x</td>
                       </tr>
                     )
                   })}
