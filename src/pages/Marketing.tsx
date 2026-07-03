@@ -163,7 +163,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
         <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
-        <Kpi labelNode={<Tooltip text="عائد الإنفاق على الإعلان (ROAS): كم ريال مبيعات يجيب كل ريال إنفاق إعلاني. 3x فأعلى ممتاز"><span>عائد الإعلان (ROAS) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
+        <Kpi labelNode={<Tooltip text="عائد الإعلان قبل خصم الرسوم: كم ريال مبيعات يجيب كل ريال إنفاق إعلاني حسب تقارير المنصة. الرقم بعد الرسوم في لوحة «العائد الحقيقي» أعلاه"><span>عائد الإعلان (قبل الرسوم) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز (قبل الرسوم)' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
         <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
         <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="var(--info-text)" />
       </div>
@@ -321,7 +321,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 ROAS الحقيقي — بعد العمولة والشحن والمرتجعات</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 العائد الحقيقي للإعلان — بعد العمولة والشحن والمرتجعات</div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>
             تقارير المنصات تعرض GMV الإجمالي. الـ ROAS الحقيقي يخصم عمولة المنصة + رسوم FBA + الضريبة المحجوزة + المرتجعات
           </div>
@@ -354,7 +354,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
         <MetricCard label="ضريبة محجوزة" value={Math.abs(Math.round(totalVat)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="مرتجعات" value={Math.abs(Math.round(totalReturns)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="صافي الإيراد" value={Math.round(totalNet).toLocaleString('en-US')} suffix="ر.س" color={totalNet > 0 ? 'var(--success-text)' : 'var(--danger-text)'} bold />
-        <MetricCard label="ROAS الحقيقي" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? 'var(--success-text)' : netRoas >= 1 ? '#f59e0b' : 'var(--danger-text)'} bold sub={`المنصة: ${grossRoas.toFixed(2)}x`} />
+        <MetricCard label="العائد الحقيقي (بعد الرسوم)" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? 'var(--success-text)' : netRoas >= 1 ? '#f59e0b' : 'var(--danger-text)'} bold sub={`عائد تقارير المنصة: ${grossRoas.toFixed(2)}x`} />
       </div>
 
       {losses.length > 0 && (

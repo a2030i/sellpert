@@ -66,11 +66,22 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
 
 // ─── Managed Platform Status Card (Noon / Trendyol / Amazon) ─────────────────
 
-function ManagedPlatformCard({ merchant, platform, lastUpload }: { merchant: Merchant | null; platform: string; lastUpload?: { uploaded_at: string; detected_report: string } | null }) {
+// لون حسب عمر البيانات: أخضر ≤ يومين · أصفر ≤ أسبوع · أحمر أكثر
+function freshTone(age: number) {
+  if (age <= 2) return { bg: 'var(--success-bg)', fg: 'var(--success-text)', word: 'محدّثة' }
+  if (age <= 7) return { bg: 'var(--warning-bg)', fg: 'var(--warning-text)', word: `متأخرة ${age} يوم` }
+  return { bg: 'var(--danger-bg)', fg: 'var(--danger-text)', word: `متأخرة ${age} يوم` }
+}
+function fmtDataDate(d: string) {
+  return new Date(d).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long' })
+}
+
+function ManagedPlatformCard({ platform, lastUpload, fresh }: { merchant?: Merchant | null; platform: string; lastUpload?: { uploaded_at: string; detected_report: string } | null; fresh?: { last_data_date: string; age_days: number } | null }) {
   const color = PLATFORM_COLORS[platform] || '#7c6bff'
   const label = PLATFORM_MAP[platform] || platform
   const emoji = ({ noon: '🟡', trendyol: '🟠', amazon: '📦' } as Record<string, string>)[platform] || '🛒'
   const isLinked = !!lastUpload
+  const tone = fresh ? freshTone(fresh.age_days) : null
 
   return (
     <div style={{ background: 'var(--surface)', border: `1px solid ${color}30`, borderRadius: 16, padding: '18px 22px', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
@@ -81,17 +92,20 @@ function ManagedPlatformCard({ merchant, platform, lastUpload }: { merchant: Mer
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{label}</span>
+              {/* الشارة تعكس عمر البيانات الفعلي لا وقت الرفع — لا لون أخضر دائم يوهم بالتحديث */}
               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
-                background: isLinked ? 'var(--success-bg)' : 'var(--surface2)',
-                color: isLinked ? 'var(--success-text)' : 'var(--text3)',
-                border: `1px solid ${isLinked ? 'var(--success-bg)' : 'var(--border)'}` }}>
-                {isLinked ? '✓ يتم تحديثه' : 'بانتظار التفعيل'}
+                background: tone ? tone.bg : 'var(--surface2)',
+                color: tone ? tone.fg : 'var(--text3)',
+                border: `1px solid ${tone ? tone.bg : 'var(--border)'}` }}>
+                {tone ? tone.word : (isLinked ? 'بانتظار المعالجة' : 'بانتظار التفعيل')}
               </span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-              {isLinked
-                ? <>آخر تحديث: <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{relativeTime(lastUpload!.uploaded_at)}</span></>
-                : 'فريق Sellpert يستلم تقاريرك ويحدّث بياناتك يدوياً'
+              {fresh
+                ? <>بيانات حتى <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{fmtDataDate(fresh.last_data_date)}</span>{lastUpload && <span style={{ color: 'var(--text3)' }}> · آخر ملف {relativeTime(lastUpload.uploaded_at)}</span>}</>
+                : isLinked
+                  ? <>استُلم ملف {relativeTime(lastUpload!.uploaded_at)} — جارٍ استخراج البيانات</>
+                  : 'فريق Sellpert يستلم تقاريرك ويحدّث بياناتك يدوياً'
               }
             </div>
           </div>
@@ -115,6 +129,7 @@ function relativeTime(iso: string) {
 
 export default function Integrations({ merchant }: { merchant: Merchant | null }) {
   const [uploads, setUploads] = useState<Record<string, { uploaded_at: string; detected_report: string }>>({})
+  const [fresh, setFresh] = useState<Record<string, { last_data_date: string; age_days: number }>>({})
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
@@ -130,6 +145,12 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
           if (!map[r.platform]) map[r.platform] = { uploaded_at: r.uploaded_at, detected_report: r.detected_report || '' }
         }
         setUploads(map)
+      })
+    supabase.rpc('data_freshness', { p_merchant_code: merchant.merchant_code })
+      .then(({ data }) => {
+        const map: typeof fresh = {}
+        for (const r of (data || []) as any[]) map[r.platform] = { last_data_date: r.last_data_date, age_days: r.age_days }
+        setFresh(map)
       })
   }, [merchant?.merchant_code])
 
@@ -147,9 +168,9 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>منصات مُدارة</div>
-        <ManagedPlatformCard merchant={merchant} platform="noon"     lastUpload={uploads.noon} />
-        <ManagedPlatformCard merchant={merchant} platform="trendyol" lastUpload={uploads.trendyol} />
-        <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon} />
+        <ManagedPlatformCard merchant={merchant} platform="noon"     lastUpload={uploads.noon}     fresh={fresh.noon} />
+        <ManagedPlatformCard merchant={merchant} platform="trendyol" lastUpload={uploads.trendyol} fresh={fresh.trendyol} />
+        <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />
       </div>
 
       <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(124,107,255,0.05)', border: '1px solid rgba(124,107,255,0.15)' }}>

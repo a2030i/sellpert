@@ -171,7 +171,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#7c6bff', icon: '💰', sub: `${summary.totalOrders} طلب` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'عمولة Sellpert',     value: fmt(summary.sellpertComm), color: '#f27a1a', icon: '🏷️', sub: `${commRate}% من الإيراد` },
-              { label: 'الصافي للتحويل',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '✅', sub: `هامش ${summary.margin.toFixed(1)}%` },
+              { label: 'صافي مستحقاتك (يوصل حسابك)',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '✅', sub: `بعد رسوم المنصة وعمولة Sellpert` },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -200,7 +200,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 { label: 'الإيراد قبل عمولة Sellpert', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 { label: `عمولة Sellpert (${commRate}%)`, value: -summary.sellpertComm, color: '#f27a1a', sign: '−' },
                 null,
-                { label: 'الصافي المستحق للتحويل',    value: summary.netPayout,     color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
+                { label: 'صافي مستحقاتك — يوصل حسابك',    value: summary.netPayout,     color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
                 <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
               ) : (
@@ -623,6 +623,12 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
           <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="var(--danger-text)" />
           <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="var(--danger-text)" />
           <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#7c6bff" />
+        </div>
+
+        {/* صدق: المرتجعات تعتمد على التقارير المرفوعة — صفر لا يعني «لا مرتجعات» بل قد يعني «لم يُرفع الملف» */}
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13 }}>ℹ️</span>
+          تعكس هذه الأرقام تقارير المرتجعات المرفوعة فقط — إن كانت منصة بلا مرتجعات فقد يكون تقريرها لم يُرفع بعد.
         </div>
 
         {/* By platform */}

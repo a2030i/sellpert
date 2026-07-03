@@ -9,6 +9,7 @@ import {
 } from 'recharts'
 import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
+import DataFreshness from '../components/DataFreshness'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -341,6 +342,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const [preset, setPreset]     = useState('last30')
   const [platform, setPlatform] = useState('all')
   const [showTable, setShowTable] = useState(false)
+  const [costCoverage, setCostCoverage] = useState(1) // نسبة المنتجات التي لها تكلفة شراء
 
   useEffect(() => {
     if (!merchant) return
@@ -354,10 +356,14 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         supabase.from('orders').select('customer_city,quantity,total_amount,platform,order_date').eq('merchant_code', merchant.merchant_code)
           .order('id').range(f, t), 'الطلبات'),
       supabase.from('ai_insights').select('*').eq('merchant_code', merchant.merchant_code).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    ]).then(([pd, ord, ai]) => {
+      // تغطية تكلفة الشراء: لو أغلب المنتجات بلا تكلفة، «صافي الربح» ليس صافياً فعلياً
+      supabase.from('products').select('cost_price').eq('merchant_code', merchant.merchant_code),
+    ]).then(([pd, ord, ai, prods]) => {
       setData(pd)
       setOrders(ord)
       if (ai.data) setInsight(ai.data)
+      const list = prods.data || []
+      setCostCoverage(list.length ? list.filter(p => Number(p.cost_price) > 0).length / list.length : 1)
       setLoading(false)
     })
   }, [merchant])
@@ -511,13 +517,15 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
-  // صافي الربح هو الرقم الأهم للتاجر — يُعرض أولاً وبإبراز بصري
+  // لو أغلب المنتجات بلا تكلفة شراء، فالرقم = مبيعات − رسوم − إعلان (قبل تكلفة البضاعة)، لا صافي حقيقي.
+  // نعرضه بصدق بدل إيهام التاجر بربح أكبر، والهامش «—» بدل نسبة وهمية.
+  const costMissing = costCoverage < 0.2
   const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
   const kpis = [
-    { label: 'صافي الربح',       value: fmt(netProfit),  icon: '📈', color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: 'المبيعات − رسوم المنصات − الإعلانات', d: delta(netProfit, prevNet), hero: true },
+    { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: '📈', color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
     { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
     { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
-    { label: 'متوسط الهامش',     value: fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: 'نسبة الربح من المبيعات', d: delta(avgMargin, prevMargin), hero: false },
+    { label: costMissing ? 'هامش بعد الرسوم' : 'متوسط الهامش', value: costMissing ? '—' : fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: costMissing ? 'يحتاج تكلفة الشراء لحسابه' : 'نسبة الربح من المبيعات', d: costMissing ? null : delta(avgMargin, prevMargin), hero: false },
   ]
 
   return (
@@ -533,6 +541,17 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         </div>
         {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>}
       </div>
+
+      {/* ── نضارة البيانات: آخر يوم فعلي لكل منصة بلون حسب العمر (قبل أي رقم) ── */}
+      <DataFreshness merchantCode={merchant?.merchant_code} />
+
+      {/* ── تنبيه صدق: الأرقام قبل تكلفة البضاعة حتى تُدخل التكاليف ── */}
+      {costMissing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, fontWeight: 600 }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <span>لم نُدخل تكلفة شراء منتجاتك بعد، فأرقام «الربح» هنا قبل خصم تكلفة البضاعة — ربحك الفعلي أقل. زوّد فريق Sellpert بأسعار الشراء ليظهر رقمك الحقيقي.</span>
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1059,8 +1078,8 @@ function ABCWidget({ data }: { data: any[] }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>📊 تحليل ABC للمنتجات</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>التوزيع حسب مساهمة الإيراد (مبدأ 80/20)</div>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>📊 منتجاتك حسب الأهمية</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>أ = النجوم (أغلب مبيعاتك) · ب = متوسطة · ج = ضعيفة (مبدأ 80/20)</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         {['A', 'B', 'C'].map(cls => {
           const pct = totalRev > 0 ? (revenues[cls] / totalRev * 100) : 0
@@ -1078,7 +1097,7 @@ function ABCWidget({ data }: { data: any[] }) {
           )
         })}
       </div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أبرز منتجات الفئة A</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أبرز نجومك (الأكثر مبيعاً)</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {data.filter((r: any) => r.abc_class === 'A').slice(0, 5).map((r: any, i: number) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11 }}>
