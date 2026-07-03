@@ -11,6 +11,7 @@ import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 import DataFreshness from '../components/DataFreshness'
 import PayoutCalendar from '../components/PayoutCalendar'
+import { TrendingUp, CircleDollarSign, ShoppingCart, Percent } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -530,10 +531,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   if (netProfit < 0) healthIssues.push('ربحك سالب هذه الفترة')
   const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
   const kpis = [
-    { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: '📈', color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
-    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: '💰', color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
-    { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: '🛒', color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
-    { label: costMissing ? 'هامش بعد الرسوم' : 'متوسط الهامش', value: costMissing ? '—' : fmt(avgMargin, 'percent'), icon: '🎯', color: '#ff6b6b', sub: costMissing ? 'يحتاج تكلفة الشراء لحسابه' : 'نسبة الربح من المبيعات', d: costMissing ? null : delta(avgMargin, prevMargin), hero: false },
+    { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: <TrendingUp size={18} />, color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
+    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: <CircleDollarSign size={18} />, color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
+    { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: <ShoppingCart size={18} />, color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
+    { label: costMissing ? 'هامش بعد الرسوم' : 'متوسط الهامش', value: costMissing ? '—' : fmt(avgMargin, 'percent'), icon: <Percent size={18} />, color: '#ff6b6b', sub: costMissing ? 'يحتاج تكلفة الشراء لحسابه' : 'نسبة الربح من المبيعات', d: costMissing ? null : delta(avgMargin, prevMargin), hero: false },
   ]
 
   return (
@@ -586,9 +587,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, marginLeft: 4 }}>المنصة:</span>
-          {[{ key: 'all', label: 'كل المنصات' }, { key: 'trendyol', label: '🟠 تراندايول' }, { key: 'noon', label: '🟡 نون' }, { key: 'amazon', label: '🟡 أمازون' }].map(p => (
+          {[{ key: 'all', label: 'كل المنصات' }, { key: 'trendyol', label: 'تراندايول' }, { key: 'noon', label: 'نون' }, { key: 'amazon', label: 'أمازون' }].map(p => (
             <button key={p.key} onClick={() => setPlatform(p.key)}
-              style={{ ...S.chip, fontSize: 11, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent-strong)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
+              style={{ ...S.chip, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent-strong)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
+              {p.key !== 'all' && <span style={{ width: 8, height: 8, borderRadius: '50%', background: PLT_COLOR[p.key] || 'var(--text3)', flexShrink: 0 }} />}
               {p.label}
             </button>
           ))}
@@ -602,7 +604,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <div style={{ ...S.kpiBar, background: k.color, ...(k.hero ? { height: 5 } : {}) }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <span style={{ fontSize: k.hero ? 12 : 11, color: k.hero ? k.color : 'var(--text3)', fontWeight: k.hero ? 800 : 600 }}>{k.label}</span>
-              <span style={{ fontSize: 18, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', background: k.color + '22', borderRadius: 9 }}>{k.icon}</span>
+              <span style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', background: k.color + '22', color: k.color, borderRadius: 9 }}>{k.icon}</span>
             </div>
             <div style={{ fontSize: k.hero ? (isMobile ? 26 : 32) : (isMobile ? 20 : 24), fontWeight: 800, lineHeight: 1, marginBottom: 8, color: k.hero ? k.color : 'var(--text)' }}>{k.value}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
