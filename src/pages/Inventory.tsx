@@ -189,11 +189,6 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* HEALTH PANEL */}
-      <InventoryHealthPanel merchant={merchant} />
-      {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
-      {merchant && <InventoryPipelinePanel merchantCode={merchant.merchant_code} />}
-
       {/* ADD FORM */}
       {showAdd && (
         <div style={{ ...S.card, padding:24, marginBottom:20 }}>
@@ -333,6 +328,13 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           })}
         </div>
       )}
+
+      {/* لوحات تحليلية أسفل القائمة (كانت تدفن مهمة الصفحة الأساسية: عرض/تعديل الكميات) */}
+      <div style={{ marginTop: 28 }}>
+        <InventoryHealthPanel merchant={merchant} />
+        {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
+        {merchant && <InventoryPipelinePanel merchantCode={merchant.merchant_code} />}
+      </div>
     </div>
   )
 }
