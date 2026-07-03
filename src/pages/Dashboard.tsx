@@ -10,6 +10,7 @@ import {
 import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 import DataFreshness from '../components/DataFreshness'
+import PayoutCalendar from '../components/PayoutCalendar'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -613,6 +614,9 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </button>
         </div>
       )}
+
+      {/* ── القادم لحسابك (سؤال التاجر الأول: كم ومتى) ── */}
+      <PayoutCalendar merchantCode={merchant?.merchant_code} compact />
 
       {/* ── أهم إجراءات اليوم (قائمة قرارات قابلة للنقر) ── */}
       <TopActionsCard merchantCode={merchant?.merchant_code} />

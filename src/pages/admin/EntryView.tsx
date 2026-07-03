@@ -1,12 +1,99 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP } from './adminShared'
+import { toastOk, toastErr } from '../../components/Toast'
 
 const ENTRY_PLATFORMS = [
   { value: 'trendyol', label: 'تراندايول' },
   { value: 'noon',     label: 'نون'       },
   { value: 'amazon',   label: 'أمازون'    },
 ]
+
+// ─── محرّر مواعيد التحويل (رزنامة الكاش للتاجر) ──────────────────────────────────
+function PayoutEditor({ merchants }: { merchants: any[] }) {
+  const today = new Date().toISOString().split('T')[0]
+  const [mc, setMc] = useState('')
+  const [platform, setPlatform] = useState('noon')
+  const [date, setDate] = useState(today)
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [list, setList] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!mc) { setList([]); return }
+    supabase.from('merchant_payout_schedule').select('*').eq('merchant_code', mc).order('payout_date', { ascending: false }).limit(20)
+      .then(({ data }) => setList(data || []))
+  }, [mc])
+
+  async function add() {
+    if (!mc || !amount || !date) { toastErr('التاجر والمبلغ والتاريخ مطلوبة'); return }
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('merchant_payout_schedule').insert({
+      merchant_code: mc, platform, payout_date: date, amount: Number(amount), note: note.trim() || null, created_by: user?.email || null,
+    })
+    setSaving(false)
+    if (error) { toastErr(error.message); return }
+    toastOk('✅ أُضيف موعد التحويل — سيظهر للتاجر فوراً')
+    setAmount(''); setNote('')
+    supabase.from('merchant_payout_schedule').select('*').eq('merchant_code', mc).order('payout_date', { ascending: false }).limit(20)
+      .then(({ data }) => setList(data || []))
+  }
+
+  async function markPaid(id: string) {
+    await supabase.from('merchant_payout_schedule').update({ status: 'paid' }).eq('id', id)
+    setList(l => l.map(x => x.id === id ? { ...x, status: 'paid' } : x))
+  }
+  async function del(id: string) {
+    await supabase.from('merchant_payout_schedule').delete().eq('id', id)
+    setList(l => l.filter(x => x.id !== id))
+  }
+
+  return (
+    <div style={{ ...S.chartCard, marginBottom: 20, padding: 20, borderRight: '4px solid var(--accent)' }}>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>💰 مواعيد التحويل للتاجر</div>
+      <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>أدخل متى وكم يصل التاجر مستحقاته — يظهر له فوراً في «القادم لحسابك»</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+        <select value={mc} onChange={e => setMc(e.target.value)} style={S.input as any}>
+          <option value="">اختر التاجر…</option>
+          {merchants.map(m => <option key={m.merchant_code} value={m.merchant_code}>{m.name || m.merchant_code}</option>)}
+        </select>
+        <select value={platform} onChange={e => setPlatform(e.target.value)} style={S.input as any}>
+          {ENTRY_PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={S.input as any} />
+        <input type="number" placeholder="المبلغ (ر.س)" value={amount} onChange={e => setAmount(e.target.value)} style={S.input as any} />
+        <input placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)} style={S.input as any} />
+        <button style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff' }} onClick={add} disabled={saving}>{saving ? '⟳' : '+ إضافة موعد'}</button>
+      </div>
+      {list.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={S.table}>
+            <thead><tr>{['التاريخ', 'المنصة', 'المبلغ', 'الحالة', 'ملاحظة', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {list.map(r => (
+                <tr key={r.id} style={S.tr}>
+                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 12 }}>{r.payout_date}</td>
+                  <td style={S.td}>{PLATFORM_MAP[r.platform] || r.platform}</td>
+                  <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent2)' }}>{Number(r.amount).toLocaleString()} ر.س</td>
+                  <td style={S.td}><span style={{ fontSize: 11, fontWeight: 700, color: r.status === 'paid' ? 'var(--success-text)' : 'var(--warning-text)' }}>{r.status === 'paid' ? 'تم التحويل' : 'متوقّع'}</span></td>
+                  <td style={{ ...S.td, color: 'var(--text3)', fontSize: 12 }}>{r.note || '—'}</td>
+                  <td style={S.td}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {r.status !== 'paid' && <button style={{ ...S.miniBtn, color: 'var(--success-text)', borderColor: 'var(--success-text)' }} onClick={() => markPaid(r.id)}>تم</button>}
+                      <button style={{ ...S.miniBtn, color: 'var(--red)', borderColor: 'var(--red)' }} onClick={() => del(r.id)}>حذف</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function EntryView({ merchants }: { merchants: any[] }) {
   const today = new Date().toISOString().split('T')[0]
@@ -65,8 +152,10 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
         </div>
       )}
 
+      <PayoutEditor merchants={merchants} />
+
       <div style={{ ...S.chartCard, marginBottom: 20, padding: 20 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 16, color: 'var(--text2)' }}>إضافة سجل</div>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 16, color: 'var(--text2)' }}>إضافة سجل أداء يومي</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
           <label style={S.fieldGroup}>
             <span style={S.fieldLabel}>التاجر *</span>

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PageTabs } from '../components/UI'
+import PayoutCalendar from '../components/PayoutCalendar'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
@@ -141,6 +142,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <button style={{ ...S.navBtn, opacity: year === now.getFullYear() && month === now.getMonth() + 1 ? 0.3 : 1 }} onClick={nextMonth}>‹</button>
         </div>
       </div>
+
+      {/* القادم لحسابك: أول ما يبحث عنه التاجر — كم ومتى تصله مستحقاته */}
+      <PayoutCalendar merchantCode={merchant?.merchant_code} />
 
       {perfData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text3)' }}>
