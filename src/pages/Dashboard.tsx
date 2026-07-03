@@ -521,6 +521,13 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   // لو أغلب المنتجات بلا تكلفة شراء، فالرقم = مبيعات − رسوم − إعلان (قبل تكلفة البضاعة)، لا صافي حقيقي.
   // نعرضه بصدق بدل إيهام التاجر بربح أكبر، والهامش «—» بدل نسبة وهمية.
   const costMissing = costCoverage < 0.2
+  // سطر الحالة الواحد (طلب تاجر الجوال: نظرة واحدة تقول تمام أو مشكلة)
+  const maxDataDate = data.length ? data.reduce((m, r) => { const d = String(r.data_date || r.created_at).slice(0, 10); return d > m ? d : m }, '') : ''
+  const dataAgeDays = maxDataDate ? Math.floor((Date.now() - new Date(maxDataDate).getTime()) / 86400000) : 0
+  const healthIssues: string[] = []
+  if (costMissing) healthIssues.push('تكلفة الشراء غير مُدخلة')
+  if (dataAgeDays > 7) healthIssues.push('بياناتك متأخرة')
+  if (netProfit < 0) healthIssues.push('ربحك سالب هذه الفترة')
   const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
   const kpis = [
     { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: '📈', color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
@@ -542,6 +549,18 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         </div>
         {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>}
       </div>
+
+      {/* ── سطر الحالة الواحد: نظرة واحدة تقول تمام أو مشكلة ── */}
+      {data.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, marginBottom: 12, fontSize: 13, fontWeight: 700,
+          background: healthIssues.length ? 'var(--danger-bg)' : 'var(--success-bg)',
+          color: healthIssues.length ? 'var(--danger-text)' : 'var(--success-text)' }}>
+          <span style={{ fontSize: 16 }}>{healthIssues.length ? '🔴' : '🟢'}</span>
+          {healthIssues.length
+            ? `متجرك يحتاج انتباهك — ${healthIssues.length === 1 ? healthIssues[0] : `${healthIssues.length} أمور: ${healthIssues.join(' · ')}`}`
+            : 'متجرك تمام — لا شيء يحتاج انتباهك الآن'}
+        </div>
+      )}
 
       {/* ── نضارة البيانات: آخر يوم فعلي لكل منصة بلون حسب العمر (قبل أي رقم) ── */}
       <DataFreshness merchantCode={merchant?.merchant_code} />
