@@ -11,7 +11,12 @@ import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 import DataFreshness from '../components/DataFreshness'
 import PayoutCalendar from '../components/PayoutCalendar'
-import { TrendingUp, CircleDollarSign, ShoppingCart, Percent } from 'lucide-react'
+import { TrendingUp, CircleDollarSign, ShoppingCart, Percent, MapPin, Table2, ListChecks, RefreshCw, BarChart3, CalendarClock } from 'lucide-react'
+
+// عنوان قسم بأيقونة (بدل الإيموجي — يرث لون الثيم ويظهر متسقاً عبر الأنظمة)
+function SecTitle({ Icon, children, style }: { Icon: any; children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...style }}><Icon size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} /> {children}</div>
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -796,7 +801,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       <div style={S.card}>
         <div style={{ ...S.cardHeader, marginBottom: 12 }}>
           <div>
-            <div style={S.cardTitle}>🗺 خريطة الطلبات — المملكة العربية السعودية</div>
+            <SecTitle Icon={MapPin} style={S.cardTitle}>خريطة الطلبات — المملكة العربية السعودية</SecTitle>
             <div style={S.cardSub}>حجم الفقاعة يعكس عدد الطلبات لكل مدينة · بيانات من طلبات المنصات</div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'left' }}>
@@ -877,7 +882,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       <div style={{ ...S.card, marginTop: 16 }}>
         <div style={{ ...S.cardHeader, cursor: 'pointer', marginBottom: showTable ? 0 : undefined }}
           onClick={() => setShowTable(v => !v)}>
-          <div style={S.cardTitle}>📋 سجل البيانات التفصيلي</div>
+          <SecTitle Icon={Table2} style={S.cardTitle}>سجل البيانات التفصيلي</SecTitle>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ ...S.badge }}>{filtered.length} سجل</span>
             <span style={{ fontSize: 13, color: 'var(--text3)' }}>{showTable ? '▲' : '▼'}</span>
@@ -1013,7 +1018,7 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
   const go = (path: string) => { window.history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>✅ أهم إجراءات اليوم</div>
+      <SecTitle Icon={ListChecks} style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>أهم إجراءات اليوم</SecTitle>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>قرارات تزيد أرباحك — اضغط للانتقال</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {actions.map((a, i) => (
@@ -1047,7 +1052,7 @@ function RestockWidget({ merchantCode }: { merchantCode?: string }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>🔄 توصيات إعادة التوريد</div>
+          <SecTitle Icon={RefreshCw} style={{ fontSize: 14, fontWeight: 800 }}>توصيات إعادة التوريد</SecTitle>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>بناءً على سرعة بيعك ومدّة توريد 14 يوم</div>
         </div>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>{items.length} منتج</span>
@@ -1114,7 +1119,7 @@ function ABCWidget({ data }: { data: any[] }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>📊 منتجاتك حسب الأهمية</div>
+      <SecTitle Icon={BarChart3} style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>منتجاتك حسب الأهمية</SecTitle>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>أ = النجوم (أغلب مبيعاتك) · ب = متوسطة · ج = ضعيفة (مبدأ 80/20)</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         {['A', 'B', 'C'].map(cls => {
@@ -1155,7 +1160,7 @@ function HeatmapWidget({ data }: { data: any[] }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>🔥 خريطة المبيعات الزمنية</div>
+      <SecTitle Icon={CalendarClock} style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>خريطة المبيعات الزمنية</SecTitle>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>آخر 90 يوم</div>
       {peakHour && (
         <div style={{ fontSize: 12, color: 'var(--success-text)', fontWeight: 700, marginBottom: 12 }}>
