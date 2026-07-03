@@ -20,6 +20,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const now = new Date()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  const [stab, setStab]   = useState<'month' | 'trends' | 'returns'>('month')
   const [perfData, setPerfData]     = useState<any[]>([])
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
@@ -154,6 +155,19 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         </div>
       ) : (
         <>
+          {/* تبويبات فرعية: بدل 14 قسماً مكدّساً بعمود واحد */}
+          <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', padding: 4, borderRadius: 10, marginBottom: 20, width: 'fit-content', flexWrap: 'wrap' }}>
+            {[{ k: 'month', l: '📄 كشف الشهر' }, { k: 'trends', l: '📈 تحليلات واتجاهات' }, { k: 'returns', l: '↩️ المرتجعات' }].map(t => (
+              <button key={t.k} onClick={() => setStab(t.k as any)} style={{
+                padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                background: stab === t.k ? 'var(--surface)' : 'transparent',
+                color: stab === t.k ? 'var(--accent)' : 'var(--text2)',
+                boxShadow: stab === t.k ? 'var(--shadow)' : 'none',
+              }}>{t.l}</button>
+            ))}
+          </div>
+
+          {stab === 'month' && (<>
           {/* Target progress */}
           {monthTarget > 0 && (
             <div style={{ ...S.card, marginBottom: 16, padding: '14px 20px' }}>
@@ -300,29 +314,22 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           )}
 
-          {/* P&L Statement */}
-          <PnLPanel merchant={merchant} year={year} month={month} />
-
-          {/* Revenue Forecast */}
-          <RevenueForecastPanel merchant={merchant} />
-
-          {/* Monthly cashflow (historical) */}
-          <MonthlyCashflowPanel merchant={merchant} />
-
-          {/* Cash flow forecast */}
-          <CashFlowForecast merchant={merchant} />
-
-          {/* Return reasons deep dive */}
-          <ReturnReasonsBreakdown merchant={merchant} />
-
-          {/* Account transactions ledger */}
+          {/* سجل معاملات هذا الشهر (ضمن كشف الشهر) */}
           <TransactionsLedger merchant={merchant} month={month} year={year} />
+          </>)}
 
-          {/* Returns analytics */}
-          <ReturnsAnalytics merchant={merchant} grossRevenue={summary.grossRevenue} />
+          {stab === 'trends' && (<>
+            <PnLPanel merchant={merchant} year={year} month={month} />
+            <RevenueForecastPanel merchant={merchant} />
+            <MonthlyCashflowPanel merchant={merchant} />
+            <CashFlowForecast merchant={merchant} />
+          </>)}
 
-          {/* Returns section */}
-          <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={load} />
+          {stab === 'returns' && (<>
+            <ReturnsAnalytics merchant={merchant} grossRevenue={summary.grossRevenue} />
+            <ReturnReasonsBreakdown merchant={merchant} />
+            <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={load} />
+          </>)}
         </>
       )}
     </div>
