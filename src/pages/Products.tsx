@@ -876,26 +876,35 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔀 المنتج عبر المنصات</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>المنتجات التي تباع على أكثر من منصة — قارن أين تبيع أحسن</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔀 أين يربح كل منتج؟</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>المنتج على أكثر من منصة — الرابح بالربح لا بالإيراد (رسوم أمازون أعلى من نون)</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {data.map((p, i) => {
           const platforms = p.by_platform as Record<string, any>
-          const best = Object.entries(platforms).reduce((a: any, [k, v]: any) => (v.revenue > (a.rev || 0) ? { platform: k, rev: v.revenue } : a), {})
+          const ents = Object.entries(platforms) as [string, any][]
+          const bestNet = ents.reduce((a, [k, v]) => (Number(v.net) > a.net ? { platform: k, net: Number(v.net) } : a), { platform: '', net: -Infinity })
+          const bestRev = ents.reduce((a, [k, v]) => (Number(v.revenue) > a.rev ? { platform: k, rev: Number(v.revenue) } : a), { platform: '', rev: -Infinity })
+          // الإشارة الذهبية: تبيع أكثر على منصة لكن ربحك أعلى على أخرى
+          const conflict = bestRev.platform && bestNet.platform && bestRev.platform !== bestNet.platform
           return (
             <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8, alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.product_name}</div>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[best.platform] || '#7c6bff') + '20', color: PLATFORM_COLORS[best.platform] || '#7c6bff', fontWeight: 800, flexShrink: 0 }}>
-                  🏆 {PLATFORM_NAMES[best.platform] || best.platform}
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[bestNet.platform] || '#7c6bff') + '20', color: PLATFORM_COLORS[bestNet.platform] || '#7c6bff', fontWeight: 800, flexShrink: 0 }}>
+                  🏆 أربح على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
                 </span>
               </div>
+              {conflict && (
+                <div style={{ fontSize: 11, color: 'var(--warning-text)', background: 'var(--warning-bg)', borderRadius: 7, padding: '5px 9px', marginBottom: 8 }}>
+                  ⚠ تبيع أكثر على {PLATFORM_NAMES[bestRev.platform] || bestRev.platform} لكن ربحك أعلى على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {Object.entries(platforms).map(([plat, v]: any) => (
-                  <div key={plat} style={{ flex: 1, minWidth: 120, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#7c6bff'}` }}>
+                {ents.map(([plat, v]) => (
+                  <div key={plat} style={{ flex: 1, minWidth: 130, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#7c6bff'}` }}>
                     <div style={{ fontSize: 10, color: PLATFORM_COLORS[plat] || 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[plat] || plat}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, marginTop: 3 }}>{Math.round(v.revenue).toLocaleString('ar-SA')} ر.س</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)' }}>{v.units} وحدة · {Number(v.avg_price).toFixed(0)} متوسط</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3, color: Number(v.net) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{Math.round(v.net).toLocaleString('ar-SA')} <span style={{ fontSize: 10, color: 'var(--text3)' }}>ربح</span></div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{Math.round(v.revenue).toLocaleString('ar-SA')} مبيعات · {v.margin != null ? v.margin + '% هامش' : v.units + ' وحدة'}</div>
                   </div>
                 ))}
               </div>

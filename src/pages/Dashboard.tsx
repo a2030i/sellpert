@@ -956,9 +956,10 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
     if (!merchantCode) return
     let cancelled = false
     ;(async () => {
-      const [{ data: prof }, { data: restock }] = await Promise.all([
+      const [{ data: prof }, { data: restock }, { data: perf }] = await Promise.all([
         supabase.from('product_profitability').select('product_name, net_profit, ad_roas, ad_spend, revenue').eq('merchant_code', merchantCode),
         supabase.rpc('restock_recommendations', { p_merchant_code: merchantCode, p_lead_time_days: 14 }),
+        supabase.from('performance_data').select('platform, total_sales, order_count, platform_fees').eq('merchant_code', merchantCode),
       ])
       if (cancelled) return
       const acts: typeof actions = []
@@ -972,6 +973,16 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
       if (urgent) acts.push({ icon: '📦', color: '#7c6bff', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
+      // كبّر الطلب: طلبات صغيرة + رسوم شحن ثابتة تلتهم نسبة عالية (خاصة أمازون FBA)
+      const byPlat: Record<string, { sales: number; orders: number; fees: number }> = {}
+      for (const r of (perf || [])) {
+        const k = r.platform; if (!byPlat[k]) byPlat[k] = { sales: 0, orders: 0, fees: 0 }
+        byPlat[k].sales += Number(r.total_sales) || 0; byPlat[k].orders += Number(r.order_count) || 0; byPlat[k].fees += Number(r.platform_fees) || 0
+      }
+      const smallOrder = Object.entries(byPlat).map(([plat, v]) => ({
+        plat, aov: v.orders ? v.sales / v.orders : 0, feePct: v.sales ? (v.fees / v.sales) * 100 : 0,
+      })).filter(x => x.aov > 0 && x.aov < 45 && x.feePct > 28).sort((a, b) => b.feePct - a.feePct)[0]
+      if (smallOrder) acts.push({ icon: '📦', color: 'var(--warning-text)', text: `كبّر متوسط الطلب في ${PLATFORM_MAP[smallOrder.plat] || smallOrder.plat}`, sub: `متوسط طلبك ${Math.round(smallOrder.aov)} ر.س والرسوم تلتهم ${Math.round(smallOrder.feePct)}% — اعمل بندل بحد أدنى ${Math.max(60, Math.ceil(smallOrder.aov * 2 / 10) * 10)} ر.س`, path: '/products' })
       setActions(acts.slice(0, 3))
     })()
     return () => { cancelled = true }
