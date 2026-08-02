@@ -45,8 +45,12 @@ Deno.serve(async (req) => {
 // Auth: Basic base64(apiKey:apiSecret)
 
 async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string) {
+  sellerId = String(sellerId || '').trim()
+  apiKey = String(apiKey || '').trim()
+  apiSecret = String(apiSecret || '').trim()
+
   if (!sellerId || !apiKey || !apiSecret) {
-    return { ok: false, error: 'Supplier ID و API Key و API Secret مطلوبة' }
+    return { ok: false, error: 'معرّف البائع ومفتاح API وسر API مطلوبة' }
   }
 
   const auth = btoa(`${apiKey}:${apiSecret}`)
@@ -70,16 +74,39 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
     }
   }
 
-  if (res.status === 401 || res.status === 403) {
-    return { ok: false, error: 'بيانات الدخول خاطئة — تحقق من API Key و API Secret' }
+  const body = await res.text()
+  const detail = trendyolErrorDetail(body)
+
+  if (res.status === 401) {
+    return {
+      ok: false,
+      error: `ترنديول رفض بيانات الدخول (401) — تحقق من معرّف البائع ومفتاح API وسر API، وتأكد أنها بيانات بيئة الإنتاج${detail ? ` — ${detail}` : ''}`,
+    }
+  }
+
+  if (res.status === 403) {
+    return {
+      ok: false,
+      error: `ترنديول منع طلب الاتصال (403) — البيانات قد تكون صحيحة، لكن الطلب مرفوض بسبب صلاحية التكامل أو User-Agent أو حظر عنوان الخادم${detail ? ` — ${detail}` : ''}`,
+    }
   }
 
   if (res.status === 404) {
     return { ok: false, error: `Supplier ID (${sellerId}) غير موجود — تحقق من الرقم` }
   }
 
-  const body = await res.text()
-  return { ok: false, error: `خطأ من تراندايول (${res.status}): ${body.slice(0, 200)}` }
+  return { ok: false, error: `خطأ من ترنديول (${res.status})${detail ? ` — ${detail}` : ''}` }
+}
+
+function trendyolErrorDetail(body: string) {
+  if (!body) return ''
+  try {
+    const data = JSON.parse(body)
+    const value = data?.message || data?.exception || data?.error?.detail || data?.error?.title
+    return typeof value === 'string' ? value.slice(0, 200) : ''
+  } catch {
+    return body.replace(/\s+/g, ' ').slice(0, 200)
+  }
 }
 
 // ── Noon ─────────────────────────────────────────────────────────────────────
