@@ -171,7 +171,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const meta = PLATFORM_META[platform]
   const [editing, setEditing] = useState(!status)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
-  const [busy, setBusy] = useState<'test' | 'save' | 'delete' | null>(null)
+  const [busy, setBusy] = useState<'test' | 'save' | 'delete' | 'sync' | null>(null)
   const [oauthBusy, setOauthBusy] = useState(false)
   const [verified, setVerified] = useState(false)
 
@@ -203,6 +203,24 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
     } catch (error: any) {
       setVerified(false)
       setNotice({ type: 'err', text: `${meta.label}: ${error.message}` })
+    } finally { setBusy(null) }
+  }
+
+  async function requestSync() {
+    setBusy('sync'); setNotice(null)
+    try {
+      const { error } = await supabase.from('sync_queue').insert({
+        merchant_code: merchantCode,
+        platform,
+        job_type: 'sync_all',
+        priority: 1,
+        status: 'pending',
+        scheduled_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      setNotice({ type: 'ok', text: `${meta.label}: تمت جدولة المزامنة — ستظهر البيانات خلال دقيقة.` })
+    } catch (error: any) {
+      setNotice({ type: 'err', text: `${meta.label}: تعذر بدء المزامنة — ${error.message || 'حاول مرة أخرى'}` })
     } finally { setBusy(null) }
   }
 
@@ -297,6 +315,11 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              {status.is_active ? (
+                <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color }} onClick={() => void requestSync()} disabled={!!busy}>
+                  {busy === 'sync' ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {busy === 'sync' ? 'جارٍ الجدولة...' : 'مزامنة الآن'}
+                </button>
+              ) : null}
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>
               <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}>{busy === 'delete' ? <Loader2 size={13} /> : <Trash2 size={13} />}</button>
             </div>
