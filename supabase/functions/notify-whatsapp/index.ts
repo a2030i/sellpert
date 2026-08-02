@@ -49,9 +49,12 @@ Deno.serve(async (req) => {
       const { data: { user } } = await db.auth.getUser(bearer)
       if (!user?.email) return json({ error: 'Unauthorized' }, 401)
       const { data: callerRow } = await db.from('merchants')
-        .select('role, merchant_code, is_active').eq('email', user.email).maybeSingle()
-      const isStaff = callerRow && ['admin', 'super_admin', 'employee'].includes(callerRow.role)
-      const isSelf  = callerRow?.merchant_code === merchant_code
+        .select('role, merchant_code, owner_merchant_code, permissions, is_active').eq('email', user.email).maybeSingle()
+      const isStaff = callerRow && ['admin', 'super_admin'].includes(callerRow.role)
+      const effectiveCode = callerRow?.role === 'employee' ? callerRow.owner_merchant_code : callerRow?.merchant_code
+      const requiredPermission = eventPermission(event)
+      const employeeAllowed = callerRow?.role !== 'employee' || permissionEnabled(callerRow.permissions, requiredPermission)
+      const isSelf  = effectiveCode === merchant_code && employeeAllowed
       if (!callerRow || callerRow.is_active === false || (!isStaff && !isSelf)) {
         return json({ error: 'Forbidden' }, 403)
       }
@@ -125,4 +128,16 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+function eventPermission(event: string): string {
+  if (event === 'low_stock') return 'inventory'
+  if (event === 'sync_complete') return 'integrations'
+  if (event === 'new_order') return 'orders'
+  return 'dashboard'
+}
+
+function permissionEnabled(value: unknown, permission: string): boolean {
+  if (Array.isArray(value)) return value.includes(permission)
+  return !!value && typeof value === 'object' && (value as Record<string, unknown>)[permission] === true
 }

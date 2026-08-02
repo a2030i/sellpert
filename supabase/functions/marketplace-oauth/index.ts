@@ -35,11 +35,14 @@ async function startAuthorization(req: Request, admin: any) {
   const requestedCode = String(body?.merchant_code || '')
   if (!['amazon', 'noon'].includes(platform)) throw new Error('المنصة غير مدعومة')
 
-  const { data: caller } = await admin.from('merchants').select('merchant_code,role,is_active')
+  const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
     .eq('email', user.email).maybeSingle()
   if (!caller || caller.is_active === false) throw new Error('غير مصرح')
-  const merchantCode = ['admin', 'super_admin'].includes(caller.role) ? requestedCode : caller.merchant_code
-  if (!merchantCode || (!['admin', 'super_admin'].includes(caller.role) && requestedCode !== merchantCode)) throw new Error('غير مصرح لهذا المتجر')
+  const isAdmin = ['admin', 'super_admin'].includes(caller.role)
+  const effectiveCode = caller.role === 'employee' ? caller.owner_merchant_code : caller.merchant_code
+  const employeeAllowed = caller.role !== 'employee' || permissionEnabled(caller.permissions, 'integrations')
+  const merchantCode = isAdmin ? requestedCode : effectiveCode
+  if (!employeeAllowed || !merchantCode || (!isAdmin && requestedCode !== merchantCode)) throw new Error('غير مصرح لهذا المتجر')
 
   const state = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '')
   const { error: stateError } = await admin.from('marketplace_oauth_states').insert({
@@ -62,6 +65,11 @@ async function startAuthorization(req: Request, admin: any) {
 
   const authorizationUrl = platform === 'amazon' ? amazonAuthorizationUrl(state) : noonAuthorizationUrl(state)
   return respond({ authorization_url: authorizationUrl })
+}
+
+function permissionEnabled(value: unknown, permission: string): boolean {
+  if (Array.isArray(value)) return value.includes(permission)
+  return !!value && typeof value === 'object' && (value as Record<string, unknown>)[permission] === true
 }
 
 async function finishAuthorization(req: Request, admin: any) {

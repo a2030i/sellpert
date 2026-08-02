@@ -24,7 +24,7 @@ export async function authorizeMerchantSync(
 
   const { data: caller } = await admin
     .from('merchants')
-    .select('role,merchant_code,owner_merchant_code,is_active')
+    .select('role,merchant_code,owner_merchant_code,is_active,permissions')
     .eq('email', user.email)
     .maybeSingle()
 
@@ -33,9 +33,15 @@ export async function authorizeMerchantSync(
     return { kind: 'staff', email: user.email }
   }
 
-  const ownedCode = caller.role === 'employee'
-    ? caller.owner_merchant_code
-    : caller.merchant_code
+  if (caller.role === 'employee') {
+    const canIntegrate = permissionEnabled(caller.permissions, 'integrations')
+    if (!canIntegrate || caller.owner_merchant_code !== merchantCode) {
+      throw new HttpError(403, 'Forbidden')
+    }
+    return { kind: 'merchant', email: user.email }
+  }
+
+  const ownedCode = caller.merchant_code
 
   if (ownedCode === merchantCode) return { kind: 'merchant', email: user.email }
 
@@ -48,6 +54,12 @@ export async function authorizeMerchantSync(
 
   if (!link) throw new HttpError(403, 'Forbidden')
   return { kind: 'merchant', email: user.email }
+}
+
+export function permissionEnabled(value: unknown, permission: string): boolean {
+  if (Array.isArray(value)) return value.includes(permission)
+  if (!value || typeof value !== 'object') return false
+  return (value as Record<string, unknown>)[permission] === true
 }
 
 export function parseSyncRange(body: any, defaultDays = 90) {

@@ -21,11 +21,12 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { setMsg({ type: 'err', text: 'الحجم الأقصى 2MB' }); return }
-    if (!file.type.startsWith('image/')) { setMsg({ type: 'err', text: 'يجب أن يكون الملف صورة' }); return }
+    const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp'])
+    if (!allowedTypes.has(file.type)) { setMsg({ type: 'err', text: 'الصيغ المدعومة: PNG وJPG وWebP فقط' }); return }
 
     setUploading(true); setMsg(null)
     try {
-      const ext  = file.name.split('.').pop()
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
       const path = `logos/${merchant!.merchant_code}.${ext}`
       const { error: upErr } = await supabase.storage
         .from('merchant-assets')
@@ -33,11 +34,12 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       if (upErr) throw upErr
 
       const { data: { publicUrl } } = supabase.storage.from('merchant-assets').getPublicUrl(path)
-      const { data: updated, error: dbErr } = await supabase
-        .from('merchants').update({ logo_url: publicUrl }).eq('id', merchant!.id).select().maybeSingle()
+      const { error: dbErr } = await supabase.rpc('update_my_store_profile', {
+        p_logo_url: publicUrl,
+      })
       if (dbErr) throw dbErr
 
-      onUpdate(updated as Merchant)
+      onUpdate({ ...merchant!, logo_url: publicUrl })
       setMsg({ type: 'ok', text: '✅ تم رفع اللوغو بنجاح' })
     } catch (e: any) {
       setMsg({ type: 'err', text: e.message })
@@ -49,22 +51,22 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
     if (!name.trim()) { setMsg({ type: 'err', text: 'الاسم مطلوب' }); return }
     setSaving(true); setMsg(null)
     try {
-      const { data: updated, error } = await supabase
-        .from('merchants')
-        .update({ name: name.trim(), whatsapp_phone: phone.trim() || null })
-        .eq('id', merchant!.id)
-        .select().maybeSingle()
+      const { data: updated, error } = await supabase.rpc('update_my_store_profile', {
+        p_name: name.trim(),
+        p_whatsapp_phone: phone.trim(),
+      })
       if (error) throw error
-      onUpdate(updated as Merchant)
+      onUpdate({ ...merchant!, ...(updated as Partial<Merchant>) })
       setMsg({ type: 'ok', text: '✅ تم حفظ البيانات' })
     } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
     setSaving(false)
   }
 
   async function sendPasswordReset() {
-    if (!merchant?.email) return
+    const accountEmail = merchant?.account_email || merchant?.email
+    if (!accountEmail) return
     setResetting(true); setMsg(null)
-    const { error } = await supabase.auth.resetPasswordForEmail(merchant.email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(accountEmail, {
       redirectTo: `${window.location.origin}/settings`,
     })
     setMsg(error
@@ -121,7 +123,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
             <button style={S.uploadBtn} onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? 'جاري الرفع...' : 'اختيار شعار'}
             </button>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>PNG أو JPG · الحد الأقصى 2MB</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>PNG أو JPG أو WebP · الحد الأقصى 2MB</div>
             <input aria-label="اختيار شعار المتجر" ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadLogo} />
           </div>
         </div>
@@ -153,7 +155,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
           <div>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>كلمة المرور</div>
-            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6 }}>سنرسل رابطًا آمنًا إلى {merchant?.email} لتعيين كلمة مرور جديدة.</div>
+            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6 }}>سنرسل رابطًا آمنًا إلى {merchant?.account_email || merchant?.email} لتعيين كلمة مرور جديدة.</div>
           </div>
           <button type="button" style={S.secondaryBtn} onClick={sendPasswordReset} disabled={resetting}>
             {resetting ? 'جاري الإرسال...' : 'إرسال رابط تغيير كلمة المرور'}

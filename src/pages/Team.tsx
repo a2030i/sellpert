@@ -7,24 +7,13 @@ import {
 } from 'lucide-react'
 import { toastOk, toastErr } from '../components/Toast'
 import { fmtRelative } from '../lib/formatters'
+import { DEFAULT_MERCHANT_PERMISSIONS, MERCHANT_PERMISSION_ITEMS } from '../lib/merchantPermissions'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-const PERMISSION_ITEMS: { key: string; label: string; group: string }[] = [
-  { key: 'dashboard',    label: 'لوحة التحكم',  group: 'view' },
-  { key: 'orders',       label: 'الطلبات',       group: 'view' },
-  { key: 'products',     label: 'المنتجات',      group: 'view' },
-  { key: 'inventory',    label: 'المخزون',       group: 'manage' },
-  { key: 'marketing',    label: 'التسويق',       group: 'view' },
-  { key: 'statement',    label: 'كشف الحساب',    group: 'finance' },
-  { key: 'integrations', label: 'المنصات',       group: 'admin' },
-  { key: 'settings',     label: 'الإعدادات',     group: 'admin' },
-]
-
-const DEFAULT_PERMISSIONS = Object.fromEntries(
-  PERMISSION_ITEMS.map(p => [p.key, p.group === 'view' || p.key === 'inventory'])
-)
+const PERMISSION_ITEMS = MERCHANT_PERMISSION_ITEMS
+const DEFAULT_PERMISSIONS = DEFAULT_MERCHANT_PERMISSIONS
 
 interface Employee {
   id: string

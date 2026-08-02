@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const { data: caller } = await callerClient
       .from('merchants').select('role').eq('email', user.email!).single()
 
-    const allowed = ['admin', 'super_admin', 'employee']
+    const allowed = ['admin', 'super_admin']
     if (!caller || !allowed.includes(caller.role))
       return json({ error: 'Forbidden' }, 403)
 

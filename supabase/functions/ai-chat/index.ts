@@ -36,9 +36,11 @@ Deno.serve(async (req) => {
 
     const body = await req.json()
     const question: string = body.question || ''
-    const targetCode: string = body.merchant_code || m.merchant_code
-    const isAdmin = ['admin','super_admin','employee'].includes(m.role)
-    if (!isAdmin && targetCode !== m.merchant_code) return j({ error: 'Forbidden' }, 403)
+    const isAdmin = ['admin','super_admin'].includes(m.role)
+    const effectiveCode = m.role === 'employee' ? m.owner_merchant_code : m.merchant_code
+    const targetCode: string = body.merchant_code || effectiveCode
+    const employeeCanUseAi = m.role !== 'employee' || permissionEnabled(m.permissions, 'dashboard')
+    if (!employeeCanUseAi || (!isAdmin && targetCode !== effectiveCode)) return j({ error: 'Forbidden' }, 403)
 
     let openrouterKey = Deno.env.get('OPENROUTER_API_KEY') || ''
     if (!openrouterKey) {
@@ -141,4 +143,9 @@ ${JSON.stringify(ctx, null, 2)}
 
 function j(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+function permissionEnabled(value: unknown, permission: string): boolean {
+  if (Array.isArray(value)) return value.includes(permission)
+  return !!value && typeof value === 'object' && (value as Record<string, unknown>)[permission] === true
 }

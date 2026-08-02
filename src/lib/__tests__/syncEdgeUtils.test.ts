@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { numberValue, parseSyncRange, splitRange } from '../../../supabase/functions/_shared/sync'
+import { numberValue, parseSyncRange, permissionEnabled, splitRange } from '../../../supabase/functions/_shared/sync'
 
 describe('Edge sync utilities', () => {
   it('splits long date ranges below the platform maximum', () => {
@@ -26,5 +26,11 @@ describe('Edge sync utilities', () => {
     expect(numberValue('12.50')).toBe(12.5)
     expect(numberValue('not-a-number')).toBe(0)
     expect(numberValue(null)).toBe(0)
+  })
+
+  it('does not enable false object permissions', () => {
+    expect(permissionEnabled({ integrations: true }, 'integrations')).toBe(true)
+    expect(permissionEnabled({ integrations: false }, 'integrations')).toBe(false)
+    expect(permissionEnabled(['integrations'], 'integrations')).toBe(true)
   })
 })

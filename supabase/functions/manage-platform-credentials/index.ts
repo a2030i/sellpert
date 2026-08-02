@@ -19,7 +19,7 @@ Deno.serve(async req => {
     if (!token) throw new HttpError(401, 'Unauthorized')
     const { data: { user }, error } = await admin.auth.getUser(token)
     if (error || !user?.email) throw new HttpError(401, 'Unauthorized')
-    const { data: caller } = await admin.from('merchants').select('merchant_code,role,is_active')
+    const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
       .eq('email', user.email).maybeSingle()
     if (!caller || caller.is_active === false) throw new HttpError(403, 'Forbidden')
 
@@ -68,7 +68,16 @@ function authorizeMerchantScope(caller: any, requestedCode: unknown): string | n
     if (requested && requested !== caller.merchant_code) throw new HttpError(403, 'Forbidden')
     return caller.merchant_code
   }
+  if (caller.role === 'employee' && caller.owner_merchant_code && permissionEnabled(caller.permissions, 'integrations')) {
+    if (requested && requested !== caller.owner_merchant_code) throw new HttpError(403, 'Forbidden')
+    return caller.owner_merchant_code
+  }
   throw new HttpError(403, 'Forbidden')
+}
+
+function permissionEnabled(value: unknown, permission: string): boolean {
+  if (Array.isArray(value)) return value.includes(permission)
+  return !!value && typeof value === 'object' && (value as Record<string, unknown>)[permission] === true
 }
 
 async function saveCredential(admin: any, body: any) {

@@ -48,7 +48,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 })
 
-export type UserRole = 'merchant' | 'admin' | 'employee'
+export type UserRole = 'merchant' | 'admin' | 'super_admin' | 'employee'
 
 export interface Merchant {
   id: string
@@ -68,10 +68,12 @@ export interface Merchant {
   onboarding_done?: boolean
   signup_source?: string
   owner_merchant_code?: string | null
-  permissions?: Record<string, boolean> | null
+  permissions?: Record<string, boolean> | string[] | null
   is_active?: boolean | null
   job_title?: string | null
   department?: string | null
+  auth_user_id?: string
+  account_email?: string
   created_at: string
 }
 

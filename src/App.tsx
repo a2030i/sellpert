@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
+import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
 
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
@@ -51,26 +52,26 @@ export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'sett
 
 const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
-type NavItem = { Icon: LucideIcon; label: string; key: View }
+type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
   { key: 'main', label: 'الرئيسية', items: [
-    { Icon: LayoutDashboard, label: 'نظرة عامة', key: 'dashboard' },
+    { Icon: LayoutDashboard, label: 'نظرة عامة', key: 'dashboard', permission: 'dashboard' },
   ]},
   { key: 'store', label: 'إدارة المتجر', items: [
-    { Icon: Package, label: 'الطلبات', key: 'orders' },
-    { Icon: Tags, label: 'المنتجات', key: 'products' },
-    { Icon: Boxes, label: 'المخزون', key: 'inventory' },
+    { Icon: Package, label: 'الطلبات', key: 'orders', permission: 'orders' },
+    { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
+    { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
   ]},
   { key: 'analytics', label: 'التقارير والتحليلات', items: [
-    { Icon: FileText, label: 'الأرباح والتسويات', key: 'statement' },
-    { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing' },
+    { Icon: FileText, label: 'الأرباح والتسويات', key: 'statement', permission: 'statement' },
+    { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing', permission: 'marketing' },
   ]},
   { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
-    { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations' },
-    { Icon: Users, label: 'الفريق والصلاحيات', key: 'team' },
-    { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings' },
+    { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations', permission: 'integrations' },
+    { Icon: Users, label: 'الفريق والصلاحيات', key: 'team', permission: 'team' },
+    { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings', permission: 'settings' },
   ]},
   { key: 'support', label: 'المساعدة', placement: 'secondary', items: [
     { Icon: LifeBuoy, label: 'الدعم ومركز المعرفة', key: 'requests' },
@@ -92,6 +93,32 @@ type SidebarBadges = {
 
 const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
+
+const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
+  dashboard: 'dashboard', notifications: 'dashboard',
+  orders: 'orders',
+  products: 'products', 'product-detail': 'products', 'product-compare': 'products',
+  inventory: 'inventory', 'quick-inventory': 'inventory',
+  marketing: 'marketing',
+  statement: 'statement',
+  integrations: 'integrations',
+  team: 'team',
+  settings: 'settings',
+}
+
+function canAccessMerchantView(account: Merchant | null, view: View): boolean {
+  if (!account || account.role !== 'employee') return true
+  const permission = VIEW_PERMISSION[view]
+  return permission ? hasMerchantPermission(account, permission) : true
+}
+
+function visibleMerchantNav(account: Merchant | null): NavGroup[] {
+  if (!account || account.role !== 'employee') return NAV_GROUPS
+  return NAV_GROUPS.map(group => ({
+    ...group,
+    items: group.items.filter(item => !item.permission || hasMerchantPermission(account, item.permission)),
+  })).filter(group => group.items.length > 0)
+}
 
 // تبويبات الجوال الأساسية (الباقي في ورقة «المزيد») — مختارة عمداً لا أول 5
 const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'inventory']
@@ -200,6 +227,10 @@ export default function App() {
   const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, support: 0, integrationNeedsUpdate: false })
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
+  const activeMerchant                      = impersonating || merchant
+  const merchantNavGroups                   = visibleMerchantNav(activeMerchant)
+  const visibleNavItems                     = merchantNavGroups.flatMap(group => group.items)
+  const visibleMobilePrimary                = MOBILE_PRIMARY.filter(key => visibleNavItems.some(item => item.key === key))
 
   function startImpersonate(m: Merchant) {
     setImpersonating(m)
@@ -290,12 +321,19 @@ export default function App() {
     return () => { cancelled = true }
   }, [merchant?.merchant_code, impersonating?.merchant_code])
 
+  useEffect(() => {
+    if (!activeMerchant || canAccessMerchantView(activeMerchant, view)) return
+    const fallback = visibleMerchantNav(activeMerchant).flatMap(group => group.items)[0]?.key || 'requests'
+    setView(fallback)
+    window.history.replaceState(null, '', '/' + (fallback === 'dashboard' ? '' : fallback))
+  }, [activeMerchant?.id, activeMerchant?.role, activeMerchant?.permissions, view])
+
   function toggleNavGroup(key: string) {
     setCollapsedGroups(current => {
       const opening = current.has(key)
       const next = opening
-        ? new Set(NAV_GROUPS.filter(group => group.key !== key).map(group => group.key))
-        : new Set(NAV_GROUPS.map(group => group.key))
+        ? new Set(merchantNavGroups.filter(group => group.key !== key).map(group => group.key))
+        : new Set(merchantNavGroups.map(group => group.key))
       return next
     })
   }
@@ -321,14 +359,14 @@ export default function App() {
       if (owner) {
         resolved = {
           ...owner,
-          id: identity.id,
-          email: identity.email,
           role: identity.role,
           owner_merchant_code: identity.owner_merchant_code,
           permissions: identity.permissions,
           is_active: identity.is_active,
           job_title: identity.job_title,
           department: identity.department,
+          auth_user_id: identity.id,
+          account_email: identity.email,
         } as Merchant
       }
     }
@@ -339,6 +377,10 @@ export default function App() {
   }
 
   function goTo(v: View) {
+    if (!canAccessMerchantView(activeMerchant, v)) {
+      toastErr('ليس لديك صلاحية لفتح هذا القسم')
+      return
+    }
     setView(v)
     window.history.pushState(null, '', '/' + (v === 'dashboard' ? '' : v))
     window.scrollTo(0, 0)
@@ -369,11 +411,11 @@ export default function App() {
   )
 
   if (!session) return <Login />
-  // Both admins (managers) and employees use AdminPanel — sidebar filters by permissions
-  if ((merchant?.role === 'admin' || merchant?.role === 'employee') && !impersonating)
+  // Platform administrators use the administration console. Merchant
+  // employees stay inside their owner's store with tenant permissions.
+  if ((merchant?.role === 'admin' || merchant?.role === 'super_admin') && !impersonating)
     return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
 
-  const activeMerchant = impersonating || merchant
   const BANNER_H = 44
 
   return (
@@ -412,10 +454,10 @@ export default function App() {
                   <div style={{ fontSize: 10, color: '#a598ff', fontWeight: 600 }}>لوحة التاجر</div>
                 </div>
               </div>
-              <AccountSwitcher currentCode={activeMerchant?.merchant_code} onSwitch={async (code) => {
+              {activeMerchant?.role !== 'employee' && <AccountSwitcher currentCode={activeMerchant?.merchant_code} onSwitch={async (code) => {
                 const { data } = await supabase.from('merchants').select('*').eq('merchant_code', code).maybeSingle()
                 if (data) setMerchant(data)
-              }} />
+              }} />}
               <ThemeToggle />
               <NotificationBell merchantCode={activeMerchant?.merchant_code} />
             </div>
@@ -434,7 +476,7 @@ export default function App() {
 
           {/* Nav */}
           <nav style={{ flex: 1, padding: '8px 0 12px', overflowY: 'auto' }}>
-            {NAV_GROUPS.map(group => (
+            {merchantNavGroups.map(group => (
               <div key={group.key} style={{
                 padding: '6px 8px 2px',
                 marginTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 0,
@@ -521,8 +563,8 @@ export default function App() {
           else window.location.href = p
         }}
       />
-      {activeMerchant && <NPSWidget merchantCode={activeMerchant.merchant_code} />}
-      {activeMerchant && <AIChat merchantCode={activeMerchant.merchant_code} />}
+      {activeMerchant && activeMerchant.role !== 'employee' && <NPSWidget merchantCode={activeMerchant.merchant_code} />}
+      {activeMerchant && hasMerchantPermission(activeMerchant, 'dashboard') && <AIChat merchantCode={activeMerchant.merchant_code} />}
 
       {/* ── Mobile Top Bar ── */}
       {isMobile && (
@@ -544,8 +586,8 @@ export default function App() {
       {/* ── Mobile Bottom Nav (4 أساسية + المزيد) ── */}
       {isMobile && (
         <nav style={S.bottomNav}>
-          {MOBILE_PRIMARY.map(key => {
-            const item = NAV_ITEMS.find(n => n.key === key)
+          {visibleMobilePrimary.map(key => {
+            const item = visibleNavItems.find(n => n.key === key)
             if (!item) return null
             const Icon = item.Icon
             return (
@@ -571,7 +613,7 @@ export default function App() {
               <button aria-label="إغلاق قائمة الصفحات" onClick={() => setMobileMore(false)} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: 'var(--text2)', display: 'flex' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {NAV_ITEMS.filter(n => !MOBILE_PRIMARY.includes(n.key)).map(item => {
+              {visibleNavItems.filter(n => !visibleMobilePrimary.includes(n.key)).map(item => {
                 const Icon = item.Icon
                 return (
                   <button key={item.key} onClick={() => { goTo(item.key); setMobileMore(false) }}
