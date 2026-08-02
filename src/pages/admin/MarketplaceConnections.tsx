@@ -209,16 +209,14 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   async function requestSync() {
     setBusy('sync'); setNotice(null)
     try {
-      const { error } = await supabase.from('sync_queue').insert({
-        merchant_code: merchantCode,
-        platform,
-        job_type: 'sync_all',
-        priority: 1,
-        status: 'pending',
-        scheduled_at: new Date().toISOString(),
+      const data = await callManager({ action: 'sync', merchant_code: merchantCode, platform })
+      if (data.error) throw new Error(data.error)
+      setNotice({
+        type: 'ok',
+        text: data.already_queued
+          ? `${meta.label}: المزامنة موجودة بالفعل في الطابور.`
+          : `${meta.label}: تمت جدولة المزامنة — ستظهر البيانات خلال دقيقة.`,
       })
-      if (error) throw error
-      setNotice({ type: 'ok', text: `${meta.label}: تمت جدولة المزامنة — ستظهر البيانات خلال دقيقة.` })
     } catch (error: any) {
       setNotice({ type: 'err', text: `${meta.label}: تعذر بدء المزامنة — ${error.message || 'حاول مرة أخرى'}` })
     } finally { setBusy(null) }

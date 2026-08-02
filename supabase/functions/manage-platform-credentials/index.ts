@@ -29,6 +29,7 @@ Deno.serve(async req => {
     if (action === 'list') return json(await listCredentials(admin, merchantCode), 200, corsHeaders)
     if (action === 'save') return json(await saveCredential(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     if (action === 'delete') return json(await deleteCredential(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
+    if (action === 'sync') return json(await enqueueSync(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     throw new HttpError(400, 'Unsupported action')
   } catch (error: any) {
     return json({ error: error.message }, error instanceof HttpError ? error.status : 500, corsHeaders)
@@ -107,6 +108,33 @@ async function deleteCredential(admin: any, body: any) {
     .eq('merchant_code', merchantCode).eq('platform', platform)
   if (error) throw error
   return { ok: true }
+}
+
+async function enqueueSync(admin: any, body: any) {
+  const merchantCode = String(body?.merchant_code || '')
+  const platform = String(body?.platform || '')
+  if (!merchantCode || !PLATFORMS.has(platform)) throw new HttpError(400, 'Invalid merchant or platform')
+
+  const { data: credential, error: credentialError } = await admin.from('platform_credentials')
+    .select('id').eq('merchant_code', merchantCode).eq('platform', platform).eq('is_active', true).maybeSingle()
+  if (credentialError) throw credentialError
+  if (!credential) throw new HttpError(409, 'يجب تفعيل ربط المنصة قبل المزامنة')
+
+  const { data: queued, error: queueLookupError } = await admin.from('sync_queue').select('id')
+    .eq('merchant_code', merchantCode).eq('platform', platform).in('status', ['pending', 'processing']).limit(1).maybeSingle()
+  if (queueLookupError) throw queueLookupError
+  if (queued) return { ok: true, already_queued: true }
+
+  const { error } = await admin.from('sync_queue').insert({
+    merchant_code: merchantCode,
+    platform,
+    job_type: 'sync_all',
+    priority: 1,
+    status: 'pending',
+    scheduled_at: new Date().toISOString(),
+  })
+  if (error) throw error
+  return { ok: true, already_queued: false }
 }
 
 function validateCredentials(platform: string, input: any) {
