@@ -151,6 +151,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       exportToExcel(filtered.map(o => ({
         'رقم الطلب': o.order_id,
         'المنصة': PLATFORM_MAP[o.platform] || o.platform,
+        'المصدر': o.upload_id ? 'ملف Excel' : 'API مباشر',
         'المنتج': o.product_name || '',
         'الحالة': STATUS_MAP[o.status]?.label || o.status,
         'الكمية': o.quantity,
@@ -269,14 +270,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             <table style={S.table}>
               <thead>
                 <tr>
-                  {['رقم الطلب','المنصة','المنتج','الكمية','المبلغ','رسوم المنصة','المدينة','الحالة','التاريخ'].map(h => (
+                  {['رقم الطلب','المنصة','المصدر','المنتج','الكمية','المبلغ','رسوم المنصة','المدينة','الحالة','التاريخ'].map(h => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={9} style={{ padding:'50px', textAlign:'center', color:'var(--text3)' }}>
+                  <tr><td colSpan={10} style={{ padding:'50px', textAlign:'center', color:'var(--text3)' }}>
                     لا توجد طلبات في هذه الفترة
                   </td></tr>
                 ) : pageRows.map(o => (
@@ -285,6 +286,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     <td style={S.td}>
                       <span style={{ ...S.platformTag, background:(PLATFORM_COLORS[o.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[o.platform]||'#5a5a7a' }}>
                         {PLATFORM_MAP[o.platform] || o.platform}
+                      </span>
+                    </td>
+                    <td style={S.td}>
+                      <span title={o.upload_id ? 'تم استيراد الطلب من ملف مرفوع' : 'تم سحب الطلب مباشرة من ربط المنصة'} style={{ ...S.statusBadge, background: o.upload_id ? 'var(--info-bg)' : 'var(--success-bg)', color: o.upload_id ? 'var(--info-text)' : 'var(--success-text)', whiteSpace: 'nowrap' }}>
+                        {o.upload_id ? '📄 ملف Excel' : '⚡ API مباشر'}
                       </span>
                     </td>
                     <td style={{ ...S.td, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>

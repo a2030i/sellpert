@@ -133,6 +133,7 @@ export interface Order {
   currency: string
   customer_city?: string
   order_date: string
+  upload_id?: string | null
   created_at: string
 }
 
