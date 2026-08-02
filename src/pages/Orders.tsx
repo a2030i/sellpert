@@ -35,12 +35,12 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   // Filter persistence — حفظ الفلاتر في localStorage
-  const FK = 'sellpert-orders-filters'
+  const FK = 'sellpert-orders-filters:v2'
   const saved = (() => { try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
   const [platform, setPlatform] = useState(saved.platform || 'all')
   const [status, setStatus]     = useState(saved.status   || 'all')
   const [search, setSearch]     = useState(saved.search   || '')
-  const [preset, setPreset]     = useState(saved.preset   || 'last30')
+  const [preset, setPreset]     = useState(saved.preset   || 'all')
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -57,7 +57,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol').order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
@@ -198,7 +198,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
   if (orders.length === 0 && trendyolSnaps.length === 0) return (
     <div style={S.wrap}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
       <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
           <div style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>لا توجد طلبات بعد</div>
         <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
@@ -216,7 +216,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={S.wrap}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
       {/* TOPBAR */}
       <div style={S.topbar}>
         <div>

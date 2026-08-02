@@ -9,6 +9,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   const [name, setName] = useState(merchant?.name || '')
   const [phone, setPhone] = useState(merchant?.whatsapp_phone || '')
   const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -60,11 +61,29 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
     setSaving(false)
   }
 
+  async function sendPasswordReset() {
+    if (!merchant?.email) return
+    setResetting(true); setMsg(null)
+    const { error } = await supabase.auth.resetPasswordForEmail(merchant.email, {
+      redirectTo: `${window.location.origin}/settings`,
+    })
+    setMsg(error
+      ? { type: 'err', text: 'تعذر إرسال رابط تغيير كلمة المرور: ' + error.message }
+      : { type: 'ok', text: 'تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني.' })
+    setResetting(false)
+  }
+
+  async function copyMerchantCode() {
+    if (!merchant?.merchant_code) return
+    await navigator.clipboard.writeText(merchant.merchant_code)
+    setMsg({ type: 'ok', text: 'تم نسخ رمز المتجر.' })
+  }
+
   return (
     <div style={S.wrap}>
       <div style={S.header}>
-        <h2 style={S.title}>الإعدادات</h2>
-        <p style={S.sub}>بيانات الحساب والمظهر</p>
+        <h2 style={S.title}>إعدادات المتجر</h2>
+        <p style={S.sub}>حدّث هوية المتجر وبيانات التواصل وأمان الحساب.</p>
       </div>
 
       {msg && (
@@ -76,7 +95,19 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         }}>{msg.text}</div>
       )}
 
-      {/* Logo */}
+      <div style={S.identityCard}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>المتجر الحالي</div>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>{merchant?.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>{merchant?.email}</div>
+        </div>
+        <button type="button" onClick={copyMerchantCode} style={S.codeBtn} title="نسخ رمز المتجر">
+          <span style={{ color: 'var(--text3)', fontSize: 10 }}>رمز المتجر</span>
+          <strong style={{ fontFamily: 'monospace', fontSize: 13 }}>{merchant?.merchant_code}</strong>
+        </button>
+      </div>
+
+      <div style={S.grid}>
       <div style={S.card}>
         <div style={S.cardTitle}>شعار المتجر</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -88,7 +119,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
           </div>
           <div>
             <button style={S.uploadBtn} onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? '⟳ جاري الرفع...' : '📷 رفع صورة'}
+              {uploading ? 'جاري الرفع...' : 'اختيار شعار'}
             </button>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>PNG أو JPG · الحد الأقصى 2MB</div>
             <input aria-label="اختيار شعار المتجر" ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadLogo} />
@@ -98,26 +129,36 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
 
       {/* Profile */}
       <div style={S.card}>
-        <div style={S.cardTitle}>بيانات الحساب</div>
+        <div style={S.cardTitle}>بيانات المتجر والتواصل</div>
         <div style={S.fieldGroup}>
-          <label htmlFor="merchant-name" style={S.fieldLabel}>الاسم</label>
+          <label htmlFor="merchant-name" style={S.fieldLabel}>اسم المتجر</label>
           <input id="merchant-name" style={S.input} value={name} onChange={e => setName(e.target.value)} placeholder="اسم المتجر" />
         </div>
         <div style={S.fieldGroup}>
-          <label htmlFor="merchant-phone" style={S.fieldLabel}>رقم واتساب (للإشعارات)</label>
+          <label htmlFor="merchant-phone" style={S.fieldLabel}>رقم واتساب للإشعارات</label>
           <input id="merchant-phone" style={S.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+966XXXXXXXXX" dir="ltr" />
         </div>
         <div style={S.fieldGroup}>
           <label htmlFor="merchant-email" style={S.fieldLabel}>البريد الإلكتروني</label>
           <input id="merchant-email" style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed' }} value={merchant?.email || ''} disabled />
         </div>
-        <div style={S.fieldGroup}>
-          <label htmlFor="merchant-code" style={S.fieldLabel}>كود التاجر</label>
-          <input id="merchant-code" style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed', fontFamily: 'monospace' }} value={merchant?.merchant_code || ''} disabled />
-        </div>
         <button style={S.saveBtn} onClick={saveProfile} disabled={saving}>
-          {saving ? '⟳ جاري الحفظ...' : '✓ حفظ التغييرات'}
+          {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
         </button>
+      </div>
+      </div>
+
+      <div style={S.card}>
+        <div style={S.cardTitle}>أمان الحساب</div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>كلمة المرور</div>
+            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6 }}>سنرسل رابطًا آمنًا إلى {merchant?.email} لتعيين كلمة مرور جديدة.</div>
+          </div>
+          <button type="button" style={S.secondaryBtn} onClick={sendPasswordReset} disabled={resetting}>
+            {resetting ? 'جاري الإرسال...' : 'إرسال رابط تغيير كلمة المرور'}
+          </button>
+        </div>
       </div>
 
     </div>
@@ -125,7 +166,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { padding: 'clamp(16px, 4vw, 32px)', maxWidth: 600, margin: '0 auto', minHeight: '100vh' },
+  wrap: { padding: 'clamp(16px, 4vw, 32px)', maxWidth: 920, margin: '0 auto', minHeight: '100vh' },
   header: { marginBottom: 28 },
   title: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
   sub: { fontSize: 13, color: 'var(--text2)', marginTop: 4 },
@@ -133,6 +174,9 @@ const S: Record<string, React.CSSProperties> = {
     background: 'var(--surface)', border: '1px solid var(--border)',
     borderRadius: 16, padding: '20px 24px', marginBottom: 16,
   },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 },
+  identityCard: { background: 'linear-gradient(135deg,rgba(15,149,140,.10),rgba(15,149,140,.03))', border: '1px solid rgba(15,149,140,.22)', borderRadius: 16, padding: '18px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' },
+  codeBtn: { border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', borderRadius: 10, padding: '9px 13px', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', cursor: 'pointer', fontFamily: 'inherit' },
   cardTitle: { fontSize: 14, fontWeight: 700, marginBottom: 18, color: 'var(--text)' },
   logoPreview: {
     width: 72, height: 72, borderRadius: 14, flexShrink: 0,
@@ -155,4 +199,5 @@ const S: Record<string, React.CSSProperties> = {
     background: 'var(--accent2)', color: '#111', border: 'none',
     padding: '11px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4,
   },
+  secondaryBtn: { background: 'var(--surface2)', color: 'var(--accent)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
 }

@@ -16,6 +16,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
+  const [platformFilter, setPlatformFilter] = useState('all')
+  const [sort, setSort] = useState<'attention' | 'name' | 'quantity'>('attention')
   const [editId, setEditId] = useState<string | null>(null)
   const [editQty, setEditQty] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -47,8 +49,15 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
     if (filter === 'low') d = d.filter(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
     if (filter === 'out') d = d.filter(i => i.quantity === 0)
+    if (platformFilter !== 'all') d = d.filter(i => i.platform === platformFilter)
+    d = [...d].sort((a, b) => {
+      if (sort === 'name') return a.product_name.localeCompare(b.product_name, 'ar')
+      if (sort === 'quantity') return b.quantity - a.quantity
+      const priority = (item: InventoryItem) => item.quantity === 0 ? 0 : item.quantity <= item.low_stock_threshold ? 1 : 2
+      return priority(a) - priority(b) || a.quantity - b.quantity
+    })
     return d
-  }, [items, search, filter])
+  }, [items, search, filter, platformFilter, sort])
 
   // Group by SKU
   const bySku = useMemo(() => {
@@ -62,7 +71,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const skuEntries = useMemo(() => Object.entries(bySku), [bySku])
   const pageEntries = useMemo(() => skuEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [skuEntries, page])
 
-  useEffect(() => { setPage(1) }, [search, filter])
+  useEffect(() => { setPage(1) }, [search, filter, platformFilter, sort])
   useEffect(() => {
     const last = Math.max(1, Math.ceil(skuEntries.length / PAGE_SIZE))
     if (page > last) setPage(last)
@@ -73,7 +82,9 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     low:      items.filter(i => i.is_active && i.quantity > 0 && i.quantity <= i.low_stock_threshold).length,
     out:      items.filter(i => i.is_active && i.quantity === 0).length,
     skus:     new Set(items.filter(i=>i.is_active).map(i=>i.sku)).size,
+    units:    items.filter(i => i.is_active).reduce((sum, item) => sum + Number(item.quantity || 0), 0),
   }), [items])
+  const platforms = useMemo(() => [...new Set(items.filter(i => i.is_active).map(i => i.platform))], [items])
 
   async function updateQty(id: string) {
     setSaving(true)
@@ -150,18 +161,18 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {/* Page Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
         <button onClick={goProducts} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit' }}>
-          🏷️ كتالوج المنتجات
+          كتالوج المنتجات
         </button>
         <button style={{ background: 'none', border: 'none', borderBottom: '2px solid var(--accent)', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
-          🗃️ المخزون
+          المخزون
         </button>
       </div>
 
       {/* TOPBAR */}
       <div style={{ ...S.topbar, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h2 style={S.pageTitle}>إدارة المخزون</h2>
-          <p style={S.pageSub}>{stats.skus} منتج مختلف — {stats.total} سجل</p>
+          <h2 style={S.pageTitle}>المخزون</h2>
+          <p style={S.pageSub}>راقب الكميات حسب المنصة، عالج النواقص، وحدّث عدة منتجات بسرعة.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)', boxShadow: 'none' }} onClick={goQuickInventory}>
@@ -184,8 +195,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {/* ALERT CARDS */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:14, marginBottom:20 }}>
         {[
-          { label:'إجمالي المنتجات', value:stats.total,  icon:'', color:'var(--accent)' },
-          { label:'منتجات فريدة (SKU)', value:stats.skus, icon:'', color:'#4cc9f0'     },
+          { label:'المنتجات الفريدة', value:stats.skus,  icon:'', color:'var(--accent)' },
+          { label:'إجمالي الوحدات المتاحة', value:stats.units, icon:'', color:'#4cc9f0'     },
           { label:'مخزون منخفض',     value:stats.low,   icon:'', color:'#ffd166',     active: filter==='low', onClick:()=>setFilter(filter==='low'?'all':'low') },
           { label:'نفد المخزون',      value:stats.out,   icon:'', color:'#ff4d6d',     active: filter==='out', onClick:()=>setFilter(filter==='out'?'all':'out') },
         ].map((k,i) => (
@@ -258,6 +269,15 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
             <button key={k} style={{ ...S.pill, ...(filter===k ? S.pillActive : {}) }} onClick={() => setFilter(k as any)}>{l}</button>
           ))}
         </div>
+        <select style={{ ...S.input, width: 'auto', minWidth: 150 }} value={platformFilter} onChange={e => setPlatformFilter(e.target.value)}>
+          <option value="all">كل المنصات</option>
+          {platforms.map(p => <option key={p} value={p}>{PLATFORM_MAP[p] || p}</option>)}
+        </select>
+        <select style={{ ...S.input, width: 'auto', minWidth: 160 }} value={sort} onChange={e => setSort(e.target.value as typeof sort)}>
+          <option value="attention">الأكثر حاجة للإجراء</option>
+          <option value="name">الاسم أبجديًا</option>
+          <option value="quantity">الأعلى كمية</option>
+        </select>
         <span style={S.badge}>{filtered.length} سجل</span>
       </div>
 
@@ -277,8 +297,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                 {/* SKU Header */}
                 <div style={{ padding: isMobile ? '12px' : '14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                    <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
-                      لا توجد صورة
+                    <div aria-hidden="true" style={{ width:44, height:44, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:800, color:'var(--accent)', flexShrink:0 }}>
+                      {skuItems[0].product_name?.trim()?.[0] || 'P'}
                     </div>
                     <div>
                       <div style={{ fontWeight:700, fontSize:15 }}>{skuItems[0].product_name}</div>

@@ -128,13 +128,13 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px 32px', maxWidth: 960, margin: '0 auto' }}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
 
       {/* Header + month nav */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>كشف الحساب</h2>
-          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>ملخص مالي شهري — الإيرادات والرسوم والصافي</p>
+          <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>الأرباح والتسويات</h2>
+          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>اعرف ما بعته، ما خُصم عليك، وصافي المبلغ المتوقع تحويله من كل منصة.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '6px 12px' }}>
           <button style={S.navBtn} onClick={prevMonth}>›</button>
@@ -143,6 +143,17 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           </span>
           <button style={{ ...S.navBtn, opacity: year === now.getFullYear() && month === now.getMonth() + 1 ? 0.3 : 1 }} onClick={nextMonth}>‹</button>
         </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,1fr)', gap:10, marginBottom:20 }}>
+        {[
+          ['ملخص الربحية','المبيعات ناقص رسوم المنصات والإعلانات والمرتجعات.'],
+          ['التسويات القادمة','المبالغ المتوقع تحويلها ومواعيد وصولها إلى حسابك.'],
+          ['كشف المعاملات','تفاصيل المدين والدائن والخصومات لكل منصة.'],
+        ].map(([title, desc]) => <div key={title} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'13px 15px' }}>
+          <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', marginBottom:4 }}>{title}</div>
+          <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.6 }}>{desc}</div>
+        </div>)}
       </div>
 
       {/* القادم لحسابك: أول ما يبحث عنه التاجر — كم ومتى تصله مستحقاته */}
