@@ -172,6 +172,12 @@ function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: st
   const lines: any[] = shipment.lines || []
   const quantity = lines.reduce((sum, line) => sum + numberValue(line.quantity || 1), 0) || 1
   const total = lines.reduce((sum, line) => sum + numberValue(line.price) * numberValue(line.quantity || 1), 0)
+  const commissionIncludingVat = lines.reduce((sum, line) => {
+    const lineQuantity = Math.max(1, numberValue(line.quantity || 1))
+    const lineAmount = numberValue(line.lineUnitPrice || line.price || line.amount) * lineQuantity
+    return sum + lineAmount * numberValue(line.commission) / 100 * 1.15
+  }, 0)
+  const commissionRate = lines.reduce((rate, line) => Math.max(rate, numberValue(line.commission)), 0)
   const existing = target.get(externalId)
   const row = existing || {
     merchant_code: merchantCode,
@@ -184,7 +190,6 @@ function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: st
     unit_price: 0,
     total_amount: 0,
     gross_amount: 0,
-    // Commission is deliberately not estimated. It must come from a financial report/API.
     platform_fee: 0,
     currency: shipment.currencyCode || 'TRY',
     customer_city: shipment.shipmentAddress?.city || null,
@@ -207,6 +212,8 @@ function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: st
   row.sku = [...new Set([...(row.sku ? row.sku.split(' | ') : []), ...skus])].join(' | ')
   row.quantity += quantity
   row.total_amount += total || numberValue(shipment.totalPrice)
+  row.platform_fee += commissionIncludingVat
+  row.commission_rate = Math.max(numberValue(row.commission_rate), commissionRate) || null
   row.gross_amount = row.total_amount
   row.unit_price = row.quantity ? row.total_amount / row.quantity : row.total_amount
   row.status = mapStatus(shipment.status)
@@ -270,7 +277,8 @@ async function syncOrderItems(admin: any, merchantCode: string, sellerId: string
         quantity, unit_price:unitPrice,
         line_total:numberValue(line.lineGrossAmount || line.amount || unitPrice*quantity),
         discount_amount:numberValue(line.lineTotalDiscount || line.discount),
-        commission_amount:unitPrice*quantity*commissionRate/100,
+        // Trendyol Saudi displays commission inclusive of 15% VAT in the seller panel.
+        commission_amount:unitPrice*quantity*commissionRate/100*1.15,
         commission_rate:commissionRate || null, vat_rate:numberValue(line.vatRate) || null,
         image_url:typeof firstImage === 'string' ? firstImage : firstImage?.url || product?.imageUrl || null,
         images:Array.isArray(images) ? images : null,

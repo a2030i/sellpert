@@ -18,6 +18,11 @@ const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string
 }
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
+function fmtExact(v: number) { return Number(v || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
+function trendyolCommission(order: Order) {
+  if (order.platform !== 'trendyol' || !order.commission_rate) return Number(order.platform_fee || 0)
+  return Number(order.total_amount || 0) * Number(order.commission_rate) / 100 * 1.15
+}
 
 function orderSource(o: Order) {
   if (o.upload_id) return { label: '📄 ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
@@ -321,7 +326,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     </td>
                     <td style={{ ...S.td, textAlign:'center' }}>{o.quantity}</td>
                     <td style={{ ...S.td, fontWeight:700 }}>{fmt(o.total_amount)}</td>
-                    <td style={{ ...S.td, color:'var(--text3)' }}>{fmt(o.platform_fee || 0)}</td>
+                    <td style={{ ...S.td, color:'var(--text3)', fontVariantNumeric:'tabular-nums' }}>{o.platform === 'trendyol' ? fmtExact(trendyolCommission(o)) : fmt(o.platform_fee || 0)}</td>
                     <td style={{ ...S.td, color:'var(--text2)', fontSize:12 }}>{o.customer_city || '—'}</td>
                     <td style={S.td}>
                       <span style={{ ...S.statusBadge, background:STATUS_MAP[o.status]?.bg, color:STATUS_MAP[o.status]?.color }}>
@@ -474,8 +479,12 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ['الكمية', selectedOrder.quantity.toLocaleString('ar-SA')],
                 ['سعر الوحدة', fmt(selectedOrder.unit_price || 0)],
                 ['إجمالي الطلب', fmt(selectedOrder.total_amount)],
-                ['رسوم المنصة', fmt(selectedOrder.platform_fee || 0)],
-                ['نسبة العمولة', selectedOrder.commission_rate ? `${selectedOrder.commission_rate}%` : '—'],
+                [selectedOrder.platform === 'trendyol' ? 'العمولة (شاملة ضريبة القيمة المضافة)' : 'رسوم المنصة', fmtExact(selectedOrder.platform === 'trendyol'
+                  ? (selectedItems.length
+                    ? selectedItems.reduce((sum, item) => sum + Number(item.line_total || Number(item.unit_price || 0) * Number(item.quantity || 1)) * Number(item.commission_rate || 0) / 100 * 1.15, 0)
+                    : trendyolCommission(selectedOrder))
+                  : Number(selectedOrder.platform_fee || 0))],
+                ['نسبة العمولة', selectedOrder.commission_rate ? `${Number(selectedOrder.commission_rate).toLocaleString('ar-SA', { maximumFractionDigits: 2 })}%` : '—'],
                 ['الخصومات', fmt(selectedOrder.discount_amount || 0)],
                 ['تكلفة الشحن', fmt(selectedOrder.shipping_cost || 0)],
                 ['شركة الشحن', selectedOrder.cargo_provider || '—'],
