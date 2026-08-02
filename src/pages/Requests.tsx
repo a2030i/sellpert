@@ -193,7 +193,7 @@ function NewTicketModal({ merchant, onClose, onCreated }: { merchant: Merchant |
                 <select value={platform} onChange={e => setPlatform(e.target.value)} style={inp}>
                   <option value="">— اختر —</option>
                   <option value="noon">نون</option>
-                  <option value="trendyol">تراندايول</option>
+                  <option value="trendyol">Trendyol</option>
                   <option value="amazon">أمازون</option>
                   <option value="salla">سلة</option>
                 </select>

@@ -10,7 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
   noon:     { label: 'نون',       color: '#f5c518' },
-  trendyol: { label: 'تراندايول', color: '#f27a1a' },
+  trendyol: { label: 'Trendyol', color: '#f27a1a' },
 }
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
@@ -379,7 +379,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
               cursor: 'pointer', background: filter === f ? 'var(--accent-strong)' : 'var(--surface2)',
               color: filter === f ? '#fff' : 'var(--text2)',
             }}>
-              {f === 'all' ? 'الكل' : f === 'amazon' ? 'أمازون' : 'تراندايول'}
+              {f === 'all' ? 'الكل' : f === 'amazon' ? 'أمازون' : 'Trendyol'}
             </button>
           ))}
         </div>

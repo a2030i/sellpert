@@ -764,7 +764,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           {topProducts.length === 0 ? (
             <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text3)', fontSize: 12, textAlign: 'center', padding: '0 16px' }}>
               <ShoppingCart size={24} color="var(--accent)" />
-              ارفع تقرير تراندايول لرؤية أفضل منتجاتك هنا
+              شغّل مزامنة Trendyol لرؤية أفضل منتجاتك هنا
             </div>
           ) : (
             <TopProducts items={topProducts} />

@@ -2,7 +2,7 @@ export const PLATFORM_MAP: Record<string, string> = {
   salla:     'سلة',
   noon:      'نون',
   amazon:    'أمازون',
-  trendyol:  'تراندايول',
+  trendyol:  'Trendyol',
   zid:       'زد',
   shopify:   'شوبيفاي',
   other:     'أخرى',

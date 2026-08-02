@@ -304,9 +304,9 @@ function SimBox({ label, value, sub, color }: { label: string; value: string; su
 // ─── Per-Platform Listings ────────────────────────────────────────────────────
 function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescription, defaultImages }: { product: any; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[] }) {
   const productId = product.id
-  const PLATFORMS = ['noon', 'trendyol', 'amazon', 'salla']
+  const PLATFORMS = ['trendyol']
   const [listings, setListings] = useState<Record<string, any>>({})
-  const [activePlatform, setActivePlatform] = useState<string>('noon')
+  const [activePlatform, setActivePlatform] = useState<string>('trendyol')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<any>({})
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -401,8 +401,8 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>📝 وصف وصور لكل منصة</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>كل منصة تتطلّب صياغة مختلفة (طول الوصف، الكلمات المفتاحية، عدد الصور)</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>بيانات المنتج في Trendyol</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>عدّل العنوان أو الوصف أو الصور، ثم أرسل التغيير مباشرة إلى Trendyol للمراجعة.</div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
         {PLATFORMS.map(p => {
           const has = !!listings[p]
