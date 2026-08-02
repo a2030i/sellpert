@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 })
 
 // ── Trendyol ─────────────────────────────────────────────────────────────────
-// Test: GET /sapigw/suppliers/{supplierId}/addresses
+// Test: GET the international orders endpoint with a one-item page.
 // Auth: Basic base64(apiKey:apiSecret)
 
 async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string) {
@@ -54,7 +54,7 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
   }
 
   const auth = btoa(`${apiKey}:${apiSecret}`)
-  const url  = `https://apigw.trendyol.com/integration/sellers/${encodeURIComponent(sellerId)}/addresses`
+  const url  = `https://apigw.trendyol.com/integration/order/sellers/${encodeURIComponent(sellerId)}/orders?page=0&size=1`
 
   const res = await fetch(url, {
     headers: {
@@ -65,12 +65,9 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
   })
 
   if (res.status === 200) {
-    const data = await res.json()
-    const addresses = data.supplierAddresses || []
     return {
       ok: true,
-      message: `✅ تم التحقق بنجاح — ${addresses.length} عنوان مسجّل في حسابك`,
-      details: { addressCount: addresses.length },
+      message: '✅ تم التحقق بنجاح — حساب ترنديول متصل وجاهز للمزامنة',
     }
   }
 
@@ -92,7 +89,10 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
   }
 
   if (res.status === 404) {
-    return { ok: false, error: `Supplier ID (${sellerId}) غير موجود — تحقق من الرقم` }
+    return {
+      ok: false,
+      error: `ترنديول لم يجد خدمة الطلبات لهذا الحساب (404) — لا يعني ذلك بالضرورة أن معرّف البائع (${sellerId}) خاطئ؛ تحقق من تفعيل Partner API وبيئة الإنتاج لهذا المتجر${detail ? ` — ${detail}` : ''}`,
+    }
   }
 
   return { ok: false, error: `خطأ من ترنديول (${res.status})${detail ? ` — ${detail}` : ''}` }
