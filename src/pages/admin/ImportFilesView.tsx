@@ -36,6 +36,7 @@ const FILE_GUIDES: Record<string, FileGuide[]> = {
   amazon: [
     { kind: 'amazon_transactions', label: 'تقرير المعاملات',          icon: '💰', desc: 'الطلبات والرسوم وصافي المبالغ', importance: 'critical' },
     { kind: 'amazon_inventory',    label: 'مخزون FBA',                icon: '📦', desc: 'المخزون المتاح في مستودعات أمازون لكل ASIN', importance: 'critical' },
+    { kind: 'amazon_business_report', label: 'تقرير الأعمال (المبيعات والزيارات)', icon: '📊', desc: 'أداء كل ASIN: الجلسات، المشاهدات، Buy Box، التحويل، الوحدات والمبيعات', importance: 'critical' },
     { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', icon: '🧾', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
     { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', icon: '📣', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
     { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', icon: '📈', desc: 'بديل بسيط: إجماليات المبيعات اليومية. تُملأ بها الأيام التي لا يوجد لها تقرير معاملات', importance: 'optional' },
@@ -347,6 +348,7 @@ const CRITICAL_FIELDS: Record<string, CritField[]> = {
   amazon_campaigns:           [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الحملة', kind: 'id' }],
   amazon_listings:            [{ table: 'products', field: 'sku', label: 'SKU', kind: 'id' }],
   amazon_sales_dashboard:     [{ table: 'amazon_daily_sales', field: 'total_sales', label: 'مبيعات المنتج المطلوب', kind: 'amount' }],
+  amazon_business_report:     [{ table: 'product_performance_snapshots', field: 'asin', label: 'ASIN (المنتج الفرعي)', kind: 'id' }],
 }
 function checkCriticalFields(parsed: ParseResult): string[] {
   const errs: string[] = []
@@ -381,6 +383,8 @@ function validateMatch(parsed: ParseResult, expectedPlatform: string): FileEntry
   if (expectedPlatform !== 'auto' && parsed.platform !== expectedPlatform) {
     warnings.push(`الملف من منصة "${parsed.platform}" — سيُحفظ تحت منصته الفعلية`)
   }
+  const parserWarnings = Array.isArray(parsed.summary?.warnings) ? parsed.summary.warnings : []
+  warnings.push(...parserWarnings.filter((warning: unknown): warning is string => typeof warning === 'string' && warning.length > 0))
   // الحقول الحرجة: عمود حامل فارغ بالكامل = صيغة تغيّرت → خطأ يمنع الحفظ
   errors.push(...checkCriticalFields(parsed))
   // كل الجداول فارغة لنوع معروف = لم يُستخرج شيء → خطأ لا مجرد تحذير
@@ -541,7 +545,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [platform]                      = useState<string>('auto')
   const [files, setFiles]               = useState<FileEntry[]>([])
   const [busy, setBusy]                 = useState(false)
-  const snapshotDate                    = new Date().toISOString().split('T')[0]
+  const [snapshotDate, setSnapshotDate] = useState(() => new Date().toISOString().split('T')[0])
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [lastUploads, setLastUploads]   = useState<Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>>({})
   const [refreshTick, setRefreshTick]   = useState(0)
@@ -779,10 +783,11 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             </select>
           </div>
           <div>
-            <label style={S.label}>تاريخ الرفع</label>
-            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)', display: 'flex', alignItems: 'center' }}>
-              📅 {new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
-            </div>
+            <label style={S.label}>تاريخ التقرير / اللقطة</label>
+            <input type="date" value={snapshotDate}
+              onChange={e => { setSnapshotDate(e.target.value); clearAll() }}
+              title="يُستخدم للتقارير التي لا تحتوي تاريخاً صريحاً داخل الملف"
+              style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)' }} />
           </div>
         </div>
 
@@ -1223,13 +1228,32 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
 
       {/* Parsed summary */}
       {p && p.payloads.length > 0 && entry.stage !== 'rejected' && (
-        <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {p.payloads.map((pl, i) => (
-            <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
-              {arabicTable(pl.table)}: <b style={{ color: 'var(--text)' }}>{pl.rows.length}</b>
-            </span>
-          ))}
-        </div>
+        <>
+          <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {p.payloads.map((pl, i) => (
+              <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
+                {arabicTable(pl.table)}: <b style={{ color: 'var(--text)' }}>{pl.rows.length}</b>
+              </span>
+            ))}
+          </div>
+          {p.kind === 'amazon_business_report' && (
+            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(105px,1fr))', gap: 6 }}>
+              {[
+                ['الجلسات', Number(p.summary.sessions || 0).toLocaleString()],
+                ['المشاهدات', Number(p.summary.pageViews || 0).toLocaleString()],
+                ['الوحدات', Number(p.summary.units || 0).toLocaleString()],
+                ['المبيعات', `${Number(p.summary.sales || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ر.س`],
+                ['التحويل', `${Number(p.summary.conversionRate || 0).toFixed(2)}%`],
+                ['Buy Box', `${Number(p.summary.weightedBuyBox || 0).toFixed(2)}%`],
+              ].map(([label, value]) => (
+                <div key={label} style={{ padding: '7px 9px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)' }}>{label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Save result */}

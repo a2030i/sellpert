@@ -76,18 +76,25 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'data_entry', label: 'إدخال البيانات', Icon: FileInput,
+    key: 'data_entry', label: 'البيانات والاستيراد', Icon: FileInput,
     items: [
       { key: 'import',    Icon: Upload,   label: 'استيراد ملفات',           perm: 'upload_files' },
       { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',             perm: 'upload_files' },
     ],
   },
   {
-    key: 'merchants', label: 'التجار', Icon: Users,
+    key: 'merchants', label: 'التجار والمنتجات', Icon: Users,
     items: [
       { key: 'merchants', Icon: Users,         label: 'التجار',           perm: 'view_merchants' },
       { key: 'products',  Icon: Tag,           label: 'المنتجات والأسعار', perm: 'view_merchants' },
-      { key: 'tasks',     Icon: ClipboardList, label: 'لوحة المهام والطلبات', perm: 'tasks' },
+    ],
+  },
+  {
+    key: 'analytics', label: 'التحليلات والتسويق', Icon: BarChart2,
+    items: [
+      { key: 'performance', Icon: BarChart2, label: 'أداء التجار',      perm: 'view_merchants' },
+      { key: 'ads',         Icon: Megaphone, label: 'أداء الإعلانات',   perm: 'manage_ads' },
+      { key: 'ai',          Icon: Sparkles,  label: 'التحليل الذكي',    perm: 'view_merchants' },
     ],
   },
   {
@@ -98,16 +105,16 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'marketing', label: 'التسويق والتواصل', Icon: Megaphone,
+    key: 'team_mgmt', label: 'الفريق والمهام', Icon: Users,
     items: [
-      { key: 'ads',       Icon: Megaphone,     label: 'أداء الإعلانات', perm: 'manage_ads' },
-      { key: 'whatsapp',  Icon: MessageCircle, label: 'إدارة الواتساب', perm: ['whatsapp_send', 'whatsapp_bulk'] },
+      { key: 'employees', Icon: Users, label: 'الموظفون والمدراء', perm: 'create_staff' },
+      { key: 'tasks', Icon: ClipboardList, label: 'المهام وطلبات التجار', perm: 'tasks' },
     ],
   },
   {
-    key: 'team_mgmt', label: 'الفريق الداخلي', Icon: Users,
+    key: 'communication', label: 'التواصل', Icon: MessageCircle,
     items: [
-      { key: 'employees', Icon: Users, label: 'الموظفون والمدراء', perm: 'create_staff' },
+      { key: 'whatsapp', Icon: MessageCircle, label: 'إدارة الواتساب', perm: ['whatsapp_send', 'whatsapp_bulk'] },
     ],
   },
   {
@@ -119,15 +126,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'salla', label: 'سلة', Icon: ShoppingBag,
-    items: [{ key: 'salla', Icon: ShoppingBag, label: 'تجار سلة', adminOnly: true }],
-  },
-  {
-    key: 'ops', label: 'التشغيل', Icon: Settings,
+    key: 'integrations', label: 'الربط والتكاملات', Icon: Key,
     items: [
-      { key: 'performance',  Icon: BarChart2,  label: 'الأداء',           perm: 'view_merchants' },
-      { key: 'connections',  Icon: Key,        label: 'المفاتيح والربط',   adminOnly: true },
-      { key: 'ai',           Icon: Sparkles,   label: 'تحليل AI',          perm: 'view_merchants' },
+      { key: 'connections', Icon: Key,         label: 'المفاتيح والاتصالات', adminOnly: true },
+      { key: 'salla',       Icon: ShoppingBag, label: 'تكامل سلة',           adminOnly: true },
     ],
   },
   {

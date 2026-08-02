@@ -175,6 +175,9 @@ export function detectFileKind(input: FileInput): string {
     const firstLine = (input.csvText || '').replace(/^﻿/, '').split(/\r?\n/)[0].toLowerCase()
     // لوحة مبيعات أمازون الملخّصة (إجماليات يومية، ليست تقريراً تفصيلياً)
     if (firstLine.includes('اللوحة الرئيسية للمبيعات'))                              return 'amazon_sales_dashboard'
+    // تقرير Business Reports > Detail Page Sales and Traffic by Child Item.
+    // لا نعتمد على اسم الملف لأنه يتغير حسب لغة Seller Central وتاريخ التصدير.
+    if (firstLine.includes('asin') && firstLine.includes('عدد جلسات المعاينة') && firstLine.includes('مبيعات المنتج المطلوب')) return 'amazon_business_report'
     if (firstLine.includes('id_partner') && firstLine.includes('gmv_lcy'))           return 'noon_sales'
     if (firstLine.includes('psku_code') && firstLine.includes('noon_title'))         return 'noon_products'
     // Noon ASN sometimes exported as CSV
@@ -512,19 +515,18 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
 }
 
 // === NOON: Ads ===
-export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string): ParseResult {
+export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
   const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('quer')) || wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x).toLowerCase())
   const idx = (...k: string[]) => ci(h, ...k)
 
-  const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < data.length; i++) {
     const r = data[i]; if (!r || r.every((c: any) => !c)) continue
     rows.push({
-      merchant_code: merchantCode, platform: 'noon', report_date: today,
+      merchant_code: merchantCode, platform: 'noon', report_date: reportDate,
       campaign_name: s(r[idx('campaign name')]),
       sku: s(r[idx('sku')]),
       search_query: s(r[idx('query')]),
@@ -712,7 +714,7 @@ export function parseTrendyolDeals(wb: XLSX.WorkBook, merchantCode: string): Par
 }
 
 // === TRENDYOL: Ads ===
-export function parseTrendyolAds(wb: XLSX.WorkBook, merchantCode: string): ParseResult {
+export function parseTrendyolAds(wb: XLSX.WorkBook, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
   const ws = wb.Sheets['Reklam Raporu']
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
   const h = (data[0] || []).map(x => s(x))
@@ -721,12 +723,11 @@ export function parseTrendyolAds(wb: XLSX.WorkBook, merchantCode: string): Parse
   // نأخذ آخر تطابق للإيراد ("عائد الإنفاق الإعلاني" يقع بعده مباشرة).
   const lastIdx = (key: string) => { let f = -1; h.forEach((x, i) => { if (x.includes(key)) f = i }); return f }
   const revenueIdx = lastIdx('إجمالي المبيعات')
-  const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < data.length; i++) {
     const r = data[i]; if (!r || r.every((c: any) => !c)) continue
     rows.push({
-      merchant_code: merchantCode, platform: 'trendyol', report_date: today,
+      merchant_code: merchantCode, platform: 'trendyol', report_date: reportDate,
       campaign_name: s(r[idx('اسم الإعلان')]),
       ad_status: s(r[idx('حالة الإعلان')]),
       start_date: xlsxDateOnly(r[idx('تاريخ البداية')]),
@@ -845,13 +846,12 @@ export function parseTrendyolSales(wb: XLSX.WorkBook, merchantCode: string, snap
 // === AMAZON: Sponsored Products CAMPAIGN report CSV (campaign-level) ===
 // عناوين عربية: الولاية(=المحفظة), اسم الحملة, الحالة, النوع, الاستهداف, إستراتيجية عرض أسعار الحملة,
 // تاريخ بداية الحملة, تاريخ انتهاء الحملة, مبلغ ميزانية الحملة, مرات الظهور, النقرات, إجمالي التكلفة, المشتريات, المبيعات, ACOS, ROAS
-export function parseAmazonCampaigns(csv: string, merchantCode: string): ParseResult {
+export function parseAmazonCampaigns(csv: string, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
   const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return errResult('amazon_campaigns','amazon','حملات أمازون','الملف فارغ')
   const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
   const idx = (...k: string[]) => ci(h, ...k)
-  const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
     const c = parseLine(lines[i])
@@ -859,7 +859,7 @@ export function parseAmazonCampaigns(csv: string, merchantCode: string): ParseRe
     const name = c[idx('اسم الحملة')] || ''
     if (!name) continue
     rows.push({
-      merchant_code: merchantCode, platform: 'amazon', report_date: today,
+      merchant_code: merchantCode, platform: 'amazon', report_date: reportDate,
       campaign_name: name,
       ad_status: c[idx('الحالة')] || '',
       impressions: parseInt(c[idx('مرات الظهور')]) || 0,
@@ -1027,6 +1027,108 @@ export function parseAmazonSalesDashboard(csv: string, merchantCode: string): Pa
   }
 }
 
+// === AMAZON: Business Report (المبيعات والزيارات حسب المنتج) ===
+// تقرير Seller Central الذي يربط الحركة الشرائية بالزيارات وBuy Box على مستوى ASIN.
+// يُقرأ عبر xlsx بصيغة raw حتى نحافظ على SKU العلمي والنسب كنصوص، مع دعم صحيح
+// للعناوين التي تحتوي فاصلة داخل علامات اقتباس.
+export function parseAmazonBusinessReport(csv: string, merchantCode: string, snapshotDate: string): ParseResult {
+  const workbook = XLSX.read(csv.replace(/^﻿/, ''), { type: 'string', raw: true })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const matrix = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: true }) as any[][]
+  if (matrix.length < 2) return errResult('amazon_business_report', 'amazon', 'تقرير أعمال أمازون', 'الملف فارغ')
+
+  const headers = matrix[0].map(h => s(h).replace(/^﻿/, ''))
+  const idx = (...keys: string[]) => ci(headers, ...keys)
+  const at = (row: any[], ...keys: string[]) => {
+    const i = idx(...keys)
+    return i >= 0 ? row[i] : ''
+  }
+  const rawRows = matrix.slice(1).filter(row => Array.isArray(row) && row.some(value => s(value)))
+  const skuCounts = new Map<string, number>()
+  for (const row of rawRows) {
+    const sellerSku = s(at(row, 'sku'))
+    if (sellerSku) skuCounts.set(sellerSku, (skuCounts.get(sellerSku) || 0) + 1)
+  }
+
+  let asinFallbacks = 0
+  let conversionMismatches = 0
+  const rows: any[] = []
+  for (const source of rawRows) {
+    const asin = s(at(source, 'asin (المنتج الفرعي)', 'asin المنتج الفرعي'))
+    const parentAsin = s(at(source, 'asin (المنتج الأساسي)', 'asin المنتج الأساسي'))
+    if (!asin) continue
+
+    const sellerSku = s(at(source, 'sku'))
+    // بعض صادرات أمازون تحوّل أرقام SKU الطويلة إلى Scientific Notation وتفقد
+    // الدقة (في ملف العينة صارت القيمة نفسها لكل المنتجات). في هذه الحالة يكون
+    // ASIN هو المفتاح الوحيد الآمن، بينما نحتفظ بـ seller_sku للتدقيق والربط لاحقاً.
+    const unsafeSellerSku = !sellerSku || /^[0-9.]+e[+\-]?\d+$/i.test(sellerSku) || (skuCounts.get(sellerSku) || 0) > 1
+    const sku = unsafeSellerSku ? asin : sellerSku
+    if (unsafeSellerSku) asinFallbacks++
+
+    const sessions = Math.max(0, Math.trunc(n(at(source, 'عدد جلسات المعاينة - الإجمالي', 'عدد جلسات المعاينة'))))
+    const pageViews = Math.max(0, Math.trunc(n(at(source, 'عدد مشاهدات الصفحة - الإجمالي', 'عدد مشاهدات الصفحة'))))
+    const units = Math.max(0, Math.trunc(n(at(source, 'الوحدات المطلوبة'))))
+    const orderItems = Math.max(0, Math.trunc(n(at(source, 'إجمالي عدد منتجات الطلب'))))
+    const sales = n(at(source, 'مبيعات المنتج المطلوب'))
+    const unitSessionPercentage = n(at(source, 'نسبة جلسات معاينة الوحدات'))
+    const calculatedConversion = sessions > 0 ? units / sessions * 100 : 0
+    if (sessions > 0 && Math.abs(unitSessionPercentage - calculatedConversion) > 0.02) conversionMismatches++
+
+    rows.push({
+      merchant_code: merchantCode,
+      platform: 'amazon',
+      snapshot_date: snapshotDate,
+      sku,
+      seller_sku: sellerSku || null,
+      asin,
+      parent_asin: parentAsin || null,
+      product_name: s(at(source, 'العنوان')) || null,
+      sessions,
+      session_percentage: n(at(source, 'نسبة معاينة الصفحة - الإجمالي', 'نسبة معاينة الصفحة')),
+      page_views: pageViews,
+      page_views_percentage: n(at(source, 'نسبة عدد مشاهدات الصفحة - الإجمالية', 'نسبة عدد مشاهدات الصفحة')),
+      buy_box_percentage: n(at(source, 'نسبة العرض المميز (خانة الشراء)', 'نسبة العرض المميز')),
+      unit_session_percentage: unitSessionPercentage,
+      sold: units,
+      net_sold: units,
+      total_orders: orderItems,
+      gross_sales: sales,
+      net_revenue: sales,
+      avg_price: units > 0 ? Math.round((sales / units) * 100) / 100 : null,
+    })
+  }
+
+  if (rows.length === 0) return errResult('amazon_business_report', 'amazon', 'تقرير أعمال أمازون', 'لم يُعثر على أي ASIN صالح في الملف')
+  const totalSessions = rows.reduce((a, r) => a + r.sessions, 0)
+  const totalPageViews = rows.reduce((a, r) => a + r.page_views, 0)
+  const totalUnits = rows.reduce((a, r) => a + r.sold, 0)
+  const totalSales = rows.reduce((a, r) => a + r.gross_sales, 0)
+  const weightedBuyBox = totalPageViews > 0
+    ? rows.reduce((a, r) => a + r.buy_box_percentage * r.page_views, 0) / totalPageViews
+    : 0
+  const warnings: string[] = []
+  if (asinFallbacks > 0) warnings.push(`استُخدم ASIN كمفتاح آمن لـ ${asinFallbacks} منتج لأن SKU مكرر أو بصيغة علمية غير موثوقة؛ احتُفظ بقيمة SKU الأصلية للمراجعة.`)
+  if (conversionMismatches > 0) warnings.push(`نسبة التحويل لا تطابق الوحدات ÷ الجلسات في ${conversionMismatches} صف.`)
+
+  return {
+    kind: 'amazon_business_report', platform: 'amazon', label: 'تقرير أعمال أمازون (المبيعات والزيارات)',
+    summary: {
+      products: rows.length,
+      sessions: totalSessions,
+      pageViews: totalPageViews,
+      units: totalUnits,
+      orderItems: rows.reduce((a, r) => a + r.total_orders, 0),
+      sales: Math.round(totalSales * 100) / 100,
+      conversionRate: totalSessions > 0 ? Math.round((totalUnits / totalSessions * 100) * 100) / 100 : 0,
+      weightedBuyBox: Math.round(weightedBuyBox * 100) / 100,
+      skuFallbacks: asinFallbacks,
+      warnings,
+    },
+    payloads: [{ table: 'product_performance_snapshots', rows, conflict: 'merchant_code,platform,snapshot_date,sku' }],
+  }
+}
+
 // === AMAZON: Transactions CSV ===
 export function parseAmazonTransactions(csv: string, merchantCode: string): ParseResult {
   const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
@@ -1117,19 +1219,18 @@ export function parseAmazonInventory(wb: XLSX.WorkBook, merchantCode: string): P
 }
 
 // === AMAZON: Sponsored Products Ads CSV ===
-export function parseAmazonAds(csv: string, merchantCode: string): ParseResult {
+export function parseAmazonAds(csv: string, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
   const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return errResult('amazon_ads','amazon','إعلانات أمازون','الملف فارغ')
   const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
   const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
   const idx = (...k: string[]) => ci(h, ...k)
-  const today = new Date().toISOString().split('T')[0]
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
     const c = parseLine(lines[i])
     if (c.every(x => !x)) continue
     rows.push({
-      merchant_code: merchantCode, platform: 'amazon', report_date: today,
+      merchant_code: merchantCode, platform: 'amazon', report_date: reportDate,
       ad_group_name: c[idx('اسم المجموعة الإعلانية')] || '',
       ad_status: c[idx('الحالة')] || '',
       impressions: parseInt(c[idx('مرات الظهور')]) || 0,
@@ -1184,18 +1285,19 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
       case 'noon_products':        return parseNoonProducts(csvText!, merchantCode)
       case 'noon_asn':             return parseNoonAsn(workbook!, merchantCode, file.name)
       case 'noon_grn':             return parseNoonGrn(workbook!, merchantCode)
-      case 'noon_ads':             return parseNoonAds(workbook!, merchantCode)
+      case 'noon_ads':             return parseNoonAds(workbook!, merchantCode, sd)
       case 'trendyol_sales':       return parseTrendyolSales(workbook!, merchantCode, sd)
       case 'trendyol_statement':   return parseTrendyolStatement(workbook!, merchantCode)
       case 'trendyol_products':    return parseTrendyolProducts(workbook!, merchantCode)
       case 'trendyol_deals':       return parseTrendyolDeals(workbook!, merchantCode)
-      case 'trendyol_ads':         return parseTrendyolAds(workbook!, merchantCode)
+      case 'trendyol_ads':         return parseTrendyolAds(workbook!, merchantCode, sd)
       case 'amazon_settlement':    return parseAmazonSettlement(workbook!, merchantCode)
       case 'amazon_transactions':  return parseAmazonTransactions(csvText!, merchantCode)
       case 'amazon_sales_dashboard': return parseAmazonSalesDashboard(csvText!, merchantCode)
+      case 'amazon_business_report': return parseAmazonBusinessReport(csvText!, merchantCode, sd)
       case 'amazon_inventory':     return parseAmazonInventory(workbook!, merchantCode)
-      case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode)
-      case 'amazon_campaigns':     return parseAmazonCampaigns(csvText!, merchantCode)
+      case 'amazon_ads':           return parseAmazonAds(csvText!, merchantCode, sd)
+      case 'amazon_campaigns':     return parseAmazonCampaigns(csvText!, merchantCode, sd)
       case 'amazon_listings':      return parseAmazonListings(workbook!, merchantCode)
       case 'trendyol_campaign_products': return parseTrendyolCampaignProducts(workbook!, merchantCode)
       default: {

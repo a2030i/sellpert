@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 import { useMobile } from '../../lib/hooks'
 import type { Merchant, AiInsight } from '../../lib/supabase'
+import { normalizeAiInsightContent } from '../../lib/aiInsights'
 
 export default function AiView({ merchants }: { merchants: Merchant[] }) {
   const isMobile = useMobile()
@@ -98,7 +99,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
   }
 
   const activeInsight = results[activeIdx]?.insight
-  const c = activeInsight?.content as any
+  const c = normalizeAiInsightContent(activeInsight?.content)
 
   return (
     <div>
@@ -184,7 +185,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
         </div>
       )}
 
-      {activeInsight && c && (
+      {activeInsight && (
         <div>
           {c.summary && (
             <div style={{ ...S.chartCard, marginBottom: 16, borderRight: '3px solid var(--accent)', padding: '18px 20px' }}>
@@ -200,26 +201,26 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>ثقة: <strong style={{ color: 'var(--text)' }}>{c.forecast_next_week.confidence}</strong></div>
               </div>
             )}
-            {c.best_days?.length > 0 && (
+            {c.best_days.length > 0 && (
               <div style={{ ...S.chartCard, padding: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>📅 أفضل أيام البيع</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {c.best_days.map((d: string, i: number) => <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>)}
+                  {c.best_days.map((d, i) => <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>)}
                 </div>
               </div>
             )}
-            {c.low_stock_alert?.length > 0 && (
+            {c.low_stock_alert.length > 0 && (
               <div style={{ ...S.chartCard, padding: 20, borderRight: '3px solid var(--red)' }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger-text)', marginBottom: 10 }}>🚨 تحذير مخزون</div>
-                {c.low_stock_alert.map((p: string, i: number) => <div key={i} style={{ fontSize: 13, color: 'var(--danger-text)', marginBottom: 5 }}>• {p}</div>)}
+                {c.low_stock_alert.map((p, i) => <div key={i} style={{ fontSize: 13, color: 'var(--danger-text)', marginBottom: 5 }}>• {p}</div>)}
               </div>
             )}
           </div>
-          {c.recommendations?.length > 0 && (
+          {c.recommendations.length > 0 && (
             <div style={{ ...S.chartCard, padding: 20, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 14 }}>💡 التوصيات</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {c.recommendations.map((r: string, i: number) => (
+                {c.recommendations.map((r, i) => (
                   <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: 'var(--bg)', borderRadius: 10, padding: '12px 14px' }}>
                     <span style={{ width: 24, height: 24, borderRadius: 8, background: 'rgba(124,107,255,0.2)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
                     <span style={{ fontSize: 13, lineHeight: 1.6 }}>{r}</span>
@@ -240,7 +241,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
               {history.map(h => (
                 <tr key={h.id} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => { setResults([{ merchant_code: selOne, insight: h }]); setActiveIdx(0) }}>
                   <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(h.created_at).toLocaleString('ar-SA')}</td>
-                  <td style={{ ...S.td, fontSize: 12, color: 'var(--text2)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(h.content as any).summary?.slice(0, 80) || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 12, color: 'var(--text2)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{normalizeAiInsightContent(h.content).summary?.slice(0, 80) || '—'}</td>
                   <td style={S.td}><span style={{ fontSize: 11, color: activeInsight?.id === h.id ? 'var(--accent)' : 'var(--text3)' }}>{activeInsight?.id === h.id ? '● محدد' : 'عرض'}</span></td>
                 </tr>
               ))}

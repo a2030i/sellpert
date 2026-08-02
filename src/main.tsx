@@ -4,12 +4,15 @@ import App from './App'
 import './index.css'
 import { applyStoredTheme } from './components/ThemeToggle'
 import { applyStoredAccent } from './lib/theme'
+import AppErrorBoundary from './components/AppErrorBoundary'
 
 applyStoredTheme()
 applyStoredAccent()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>
 )

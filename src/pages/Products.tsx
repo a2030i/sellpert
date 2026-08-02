@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantRequest } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
@@ -218,8 +219,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* تبويب الربحية والتحليلات (8 لوحات) */}
+      {/* تبويب الربحية والتحليلات */}
       {tab === 'analytics' && (<>
+      <AmazonBusinessFunnelPanel merchant={merchant} />
       <ProfitabilityPanel merchant={merchant} />
       <InventoryTurnoverCard merchant={merchant} />
       <BuyBoxWarningsPanel merchant={merchant} />
@@ -522,6 +524,7 @@ const S: Record<string, React.CSSProperties> = {
   addBtn:     { background: 'var(--accent-strong)', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   alert:      { padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   formCard:   { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 },
+  card:       { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px' },
   formTitle:  { fontSize: 15, fontWeight: 700, marginBottom: 16 },
   field:      { display: 'flex', flexDirection: 'column', gap: 6 },
   label:      { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' },
@@ -553,6 +556,153 @@ const S: Record<string, React.CSSProperties> = {
 
 
 // ─── Profitability Panel ──────────────────────────────────────────────────────
+type AmazonBusinessRow = {
+  asin: string | null
+  product_name: string | null
+  snapshot_date: string
+  sessions: number | null
+  page_views: number | null
+  buy_box_percentage: number | null
+  unit_session_percentage: number | null
+  sold: number | null
+  gross_sales: number | null
+}
+type AmazonInventoryRow = { asin: string | null; quantity: number | null }
+
+function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) {
+  const [rows, setRows] = useState<AmazonBusinessRow[]>([])
+  const [inventory, setInventory] = useState<AmazonInventoryRow[]>([])
+  const [latestDate, setLatestDate] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      if (!merchant) { setLoading(false); return }
+      setLoading(true)
+      const { data: latest } = await supabase
+        .from('product_performance_snapshots')
+        .select('snapshot_date')
+        .eq('merchant_code', merchant.merchant_code)
+        .eq('platform', 'amazon')
+        .not('sessions', 'is', null)
+        .order('snapshot_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const date = latest?.snapshot_date || null
+      if (!date) {
+        if (alive) { setLatestDate(null); setRows([]); setInventory([]); setLoading(false) }
+        return
+      }
+      const [data, inventoryData] = await Promise.all([
+        fetchAll<AmazonBusinessRow>((from, to) =>
+          supabase.from('product_performance_snapshots')
+            .select('asin,product_name,snapshot_date,sessions,page_views,buy_box_percentage,unit_session_percentage,sold,gross_sales')
+            .eq('merchant_code', merchant.merchant_code)
+            .eq('platform', 'amazon')
+            .eq('snapshot_date', date)
+            .order('sessions', { ascending: false })
+            .range(from, to), 'تقرير أعمال أمازون'),
+        fetchAll<AmazonInventoryRow>((from, to) =>
+          supabase.from('inventory').select('asin,quantity')
+            .eq('merchant_code', merchant.merchant_code)
+            .eq('platform', 'amazon')
+            .order('sku').range(from, to), 'مخزون أمازون'),
+      ])
+      if (alive) { setLatestDate(date); setRows(data); setInventory(inventoryData); setLoading(false) }
+    }
+    load()
+    return () => { alive = false }
+  }, [merchant])
+
+  const metrics = useMemo(() => {
+    const sessions = rows.reduce((a, r) => a + (Number(r.sessions) || 0), 0)
+    const pageViews = rows.reduce((a, r) => a + (Number(r.page_views) || 0), 0)
+    const units = rows.reduce((a, r) => a + (Number(r.sold) || 0), 0)
+    const sales = rows.reduce((a, r) => a + (Number(r.gross_sales) || 0), 0)
+    const conversion = sessions > 0 ? units / sessions * 100 : 0
+    const buyBox = pageViews > 0
+      ? rows.reduce((a, r) => a + (Number(r.buy_box_percentage) || 0) * (Number(r.page_views) || 0), 0) / pageViews
+      : 0
+    const avgSessions = rows.length ? sessions / rows.length : 0
+    const inventoryByAsin = new Map(inventory.filter(row => row.asin).map(row => [row.asin!, Number(row.quantity) || 0]))
+    const opportunities = rows.map(row => {
+      const rowSessions = Number(row.sessions) || 0
+      const rowConversion = Number(row.unit_session_percentage) || 0
+      const rowBuyBox = Number(row.buy_box_percentage) || 0
+      const stock = row.asin && inventoryByAsin.has(row.asin) ? inventoryByAsin.get(row.asin)! : null
+      const missedUnits = Math.max(0, Math.round(rowSessions * Math.max(0, conversion - rowConversion) / 100))
+      let action = 'راقب الأداء'
+      let score = missedUnits * 8
+      if (stock === 0 && rowSessions > 0) { action = 'عاجل: المنتج بلا مخزون ويستقبل زيارات'; score += rowSessions * 3 }
+      else if (stock !== null && stock <= 5 && (Number(row.sold) || 0) > 0) { action = 'أعد التوريد قبل نفاد المخزون'; score += rowSessions * 2 }
+      else if (rowBuyBox < 95 && rowSessions >= avgSessions) { action = 'استعد Buy Box: راجع السعر والتوفر'; score += (95 - rowBuyBox) * rowSessions / 10 }
+      else if (rowSessions >= avgSessions && rowConversion < conversion * 0.7) { action = 'حسّن صفحة المنتج والسعر والتحويل'; score += rowSessions * (conversion - rowConversion) / 10 }
+      else if (rowSessions < avgSessions && rowConversion > conversion * 1.25) { action = 'زد الظهور والإعلانات لهذا المنتج'; score += rowConversion * 2 }
+      return { ...row, stock, missedUnits, action, score }
+    }).filter(row => row.score > 0).sort((a, b) => b.score - a.score).slice(0, 5)
+    return { sessions, pageViews, units, sales, conversion, buyBox, opportunities }
+  }, [rows, inventory])
+
+  if (loading) return <div style={{ ...S.card, marginBottom: 16, color: 'var(--text3)', fontSize: 12 }}>جاري تحليل قمع أمازون…</div>
+
+  return (
+    <div style={{ ...S.card, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>قمع أمازون وفرص النمو</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>من الزيارة إلى الوحدة على مستوى ASIN — آخر لقطة {latestDate || 'غير متاحة'}</div>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#ff9900', background: 'rgba(255,153,0,.12)', padding: '5px 10px', borderRadius: 20 }}>Amazon Business Report</span>
+      </div>
+
+      {!latestDate ? (
+        <div style={{ padding: '18px 16px', borderRadius: 12, background: 'var(--surface2)', color: 'var(--text2)', fontSize: 12, lineHeight: 1.8 }}>
+          ارفع «تقرير الأعمال — المبيعات والزيارات حسب المنتج» من Seller Central لإظهار التحويل وBuy Box وفرص المنتجات هنا.
+        </div>
+      ) : (<>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 16 }}>
+          {[
+            ['الجلسات', metrics.sessions.toLocaleString(), '#ff9900'],
+            ['مشاهدات الصفحة', metrics.pageViews.toLocaleString(), '#7c6bff'],
+            ['معدل التحويل', `${metrics.conversion.toFixed(2)}%`, '#28c76f'],
+            ['Buy Box المرجّح', `${metrics.buyBox.toFixed(2)}%`, '#00b8d9'],
+            ['المبيعات', `${metrics.sales.toLocaleString(undefined, { maximumFractionDigits: 2 })} ر.س`, '#f25f5c'],
+          ].map(([label, value, color]) => (
+            <div key={label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 11, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 5 }}>{label}</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color }}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>أولوية العمل</div>
+        {metrics.opportunities.length === 0 ? (
+          <div style={{ color: 'var(--text3)', fontSize: 12 }}>لا توجد فرص حرجة في اللقطة الحالية.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+              <thead><tr>{['المنتج', 'الجلسات', 'التحويل', 'Buy Box', 'الوحدات', 'المخزون', 'المبيعات', 'الإجراء المقترح'].map(h => <th key={h} style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>)}</tr></thead>
+              <tbody>{metrics.opportunities.map((row, i) => (
+                <tr key={row.asin || i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '9px 10px', fontSize: 11, maxWidth: 240 }}><div style={{ fontWeight: 700 }}>{row.product_name || row.asin}</div><div style={{ color: 'var(--text3)', fontFamily: 'monospace', marginTop: 2 }}>{row.asin}</div></td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.sessions) || 0).toLocaleString()}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.unit_session_percentage) || 0).toFixed(2)}%</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.buy_box_percentage) || 0).toFixed(2)}%</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{Number(row.sold) || 0}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11, color: row.stock === 0 ? 'var(--red)' : 'var(--text)' }}>{row.stock ?? 'غير مربوط'}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.gross_sales) || 0).toLocaleString()} ر.س</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>{row.action}{row.missedUnits > 0 ? ` · فرصة تقديرية ${row.missedUnits} وحدة` : ''}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </>)}
+    </div>
+  )
+}
+
 function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)

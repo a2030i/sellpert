@@ -3,6 +3,7 @@ import { supabase, type Merchant, type PerformanceData, type AiInsight } from '.
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP, PLATFORM_COLORS as PLT_COLOR, DATE_PRESETS as PRESETS } from '../lib/constants'
+import { normalizeAiInsightContent } from '../lib/aiInsights'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Brush,
@@ -350,6 +351,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const [platform, setPlatform] = useState('all')
   const [showTable, setShowTable] = useState(false)
   const [costCoverage, setCostCoverage] = useState(1) // نسبة المنتجات التي لها تكلفة شراء
+  const insightContent = useMemo(() => normalizeAiInsightContent(insight?.content), [insight])
 
   useEffect(() => {
     if (!merchant) return
@@ -828,38 +830,39 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
         {insight && (
           <div>
-            {(insight.content as any).summary && (
+            {insightContent.summary && (
               <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 13, lineHeight: 1.8, color: 'var(--text2)' }}>
-                {(insight.content as any).summary}
+                {insightContent.summary}
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-              {(insight.content as any).recommendations?.length > 0 && (
+              {insightContent.recommendations.length > 0 && (
                 <div style={S.aiBox}>
                   <div style={S.aiBoxTitle}>💡 التوصيات</div>
-                  {(insight.content as any).recommendations.map((r: string, i: number) => (
+                  {insightContent.recommendations.map((r, i) => (
                     <div key={i} style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 6, paddingRight: 12, borderRight: '2px solid var(--accent)' }}>
                       {r}
                     </div>
                   ))}
                 </div>
               )}
-              {(insight.content as any).forecast_next_week && (
+              {insightContent.forecast_next_week && (
                 <div style={S.aiBox}>
                   <div style={S.aiBoxTitle}>🔮 توقع الأسبوع القادم</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
-                    {(insight.content as any).forecast_next_week.amount?.toLocaleString()} ر.س
+                    {insightContent.forecast_next_week.amount.toLocaleString()} ر.س
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                    مستوى الثقة: {({ high: 'عالية', medium: 'متوسطة', low: 'منخفضة' } as any)[(insight.content as any).forecast_next_week.confidence] || (insight.content as any).forecast_next_week.confidence} — {(insight.content as any).forecast_next_week.reasoning}
+                    مستوى الثقة: {({ high: 'عالية', medium: 'متوسطة', low: 'منخفضة' } as Record<string, string>)[insightContent.forecast_next_week.confidence] || insightContent.forecast_next_week.confidence}
+                    {insightContent.forecast_next_week.reasoning && ` — ${insightContent.forecast_next_week.reasoning}`}
                   </div>
                 </div>
               )}
-              {(insight.content as any).best_days?.length > 0 && (
+              {insightContent.best_days.length > 0 && (
                 <div style={S.aiBox}>
                   <div style={S.aiBoxTitle}>📅 أفضل أيام البيع</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {(insight.content as any).best_days.map((d: string, i: number) => (
+                    {insightContent.best_days.map((d, i) => (
                       <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{d}</span>
                     ))}
                   </div>

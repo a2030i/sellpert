@@ -2062,8 +2062,10 @@ export type Database = {
       product_performance_snapshots: {
         Row: {
           avg_price: number | null
+          asin: string | null
           barcode: string | null
           brand: string | null
+          buy_box_percentage: number | null
           cancel_rate: number | null
           cancel_reasons: Json | null
           cancelled: number | null
@@ -2078,22 +2080,31 @@ export type Database = {
           merchant_code: string
           net_revenue: number | null
           net_sold: number | null
+          page_views: number | null
+          page_views_percentage: number | null
+          parent_asin: string | null
           platform: string
           product_name: string | null
           return_rate: number | null
           return_reasons: Json | null
           returned: number | null
           size: string | null
+          seller_sku: string | null
+          session_percentage: number | null
+          sessions: number | null
           sku: string | null
           snapshot_date: string
           sold: number | null
           total_orders: number | null
+          unit_session_percentage: number | null
           upload_id: string | null
         }
         Insert: {
           avg_price?: number | null
+          asin?: string | null
           barcode?: string | null
           brand?: string | null
+          buy_box_percentage?: number | null
           cancel_rate?: number | null
           cancel_reasons?: Json | null
           cancelled?: number | null
@@ -2108,22 +2119,31 @@ export type Database = {
           merchant_code: string
           net_revenue?: number | null
           net_sold?: number | null
+          page_views?: number | null
+          page_views_percentage?: number | null
+          parent_asin?: string | null
           platform: string
           product_name?: string | null
           return_rate?: number | null
           return_reasons?: Json | null
           returned?: number | null
           size?: string | null
+          seller_sku?: string | null
+          session_percentage?: number | null
+          sessions?: number | null
           sku?: string | null
           snapshot_date: string
           sold?: number | null
           total_orders?: number | null
+          unit_session_percentage?: number | null
           upload_id?: string | null
         }
         Update: {
           avg_price?: number | null
+          asin?: string | null
           barcode?: string | null
           brand?: string | null
+          buy_box_percentage?: number | null
           cancel_rate?: number | null
           cancel_reasons?: Json | null
           cancelled?: number | null
@@ -2138,16 +2158,23 @@ export type Database = {
           merchant_code?: string
           net_revenue?: number | null
           net_sold?: number | null
+          page_views?: number | null
+          page_views_percentage?: number | null
+          parent_asin?: string | null
           platform?: string
           product_name?: string | null
           return_rate?: number | null
           return_reasons?: Json | null
           returned?: number | null
           size?: string | null
+          seller_sku?: string | null
+          session_percentage?: number | null
+          sessions?: number | null
           sku?: string | null
           snapshot_date?: string
           sold?: number | null
           total_orders?: number | null
+          unit_session_percentage?: number | null
           upload_id?: string | null
         }
         Relationships: [

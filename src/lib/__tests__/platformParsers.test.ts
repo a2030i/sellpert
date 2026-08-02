@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as XLSX from 'xlsx'
-import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns, parseAmazonSalesDashboard, parseNoonAsn, parseAmazonSettlement } from '../platformParsers'
+import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns, parseAmazonSalesDashboard, parseAmazonBusinessReport, parseNoonAsn, parseAmazonSettlement } from '../platformParsers'
 
 describe('n (تحويل رقمي متسامح)', () => {
   it('يحلل الأرقام داخل نصوص بعملات وفواصل', () => {
@@ -175,19 +175,48 @@ describe('amazon_sales_dashboard (لوحة الملخّص اليومية)', () =
   })
 })
 
+describe('amazon_business_report (المبيعات والزيارات حسب ASIN)', () => {
+  const csv = [
+    'ASIN (المنتج الأساسي),ASIN (المنتج الفرعي),العنوان,SKU,عدد جلسات المعاينة - الإجمالي,نسبة معاينة الصفحة - الإجمالي,عدد مشاهدات الصفحة - الإجمالي,نسبة عدد مشاهدات الصفحة - الإجمالية,نسبة العرض المميز (خانة الشراء),الوحدات المطلوبة,نسبة جلسات معاينة الوحدات,مبيعات المنتج المطلوب,إجمالي عدد منتجات الطلب',
+    'B0PARENT1,B0CHILD001,"منتج, مع فاصلة",6.28702E+12,47,60.00%,68,65.00%,96.88%,12,25.53%,"‏300.00 ر.س.‏",11',
+    'B0PARENT2,B0CHILD002,منتج ثان,6.28702E+12,31,40.00%,37,35.00%,100.00%,3,9.68%,"‏75.50 ر.س.‏",3',
+  ].join('\n')
+
+  it('يُكتشف من الأعمدة الرسمية ولا يعتمد على اسم الملف', () => {
+    expect(detectFileKind({ name: 'BusinessReport.csv', isCsv: true, csvText: csv })).toBe('amazon_business_report')
+  })
+
+  it('يحفظ أرقام الحركة والمبيعات ويمنع دمج المنتجات عند SKU العلمي المكرر', () => {
+    const result = parseAmazonBusinessReport(csv, 'M-TEST', '2026-08-02')
+    expect(result.error).toBeUndefined()
+    expect(result.summary).toMatchObject({ products: 2, sessions: 78, pageViews: 105, units: 15, orderItems: 14, sales: 375.5 })
+    expect(result.summary.conversionRate).toBeCloseTo(19.23)
+    expect(result.summary.skuFallbacks).toBe(2)
+    const rows = result.payloads[0].rows
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      merchant_code: 'M-TEST', platform: 'amazon', snapshot_date: '2026-08-02',
+      asin: 'B0CHILD001', parent_asin: 'B0PARENT1', sku: 'B0CHILD001', seller_sku: '6.28702E+12',
+      product_name: 'منتج, مع فاصلة', sessions: 47, page_views: 68, sold: 12,
+      gross_sales: 300, total_orders: 11, buy_box_percentage: 96.88,
+    })
+    expect(rows[1].sku).toBe('B0CHILD002')
+  })
+})
+
 describe('parseAmazonCampaigns', () => {
   const csv = [
     'الولاية,اسم الحملة,الحالة,إستراتيجية عرض أسعار الحملة,مبلغ ميزانية الحملة,مرات الظهور,النقرات,إجمالي التكلفة,المشتريات,المبيعات,ACOS,ROAS',
     'محفظة,حملة الصيف,نشط,ديناميكي,50,220146,1448,206.73,77,2330,0.0887,11.27',
   ].join('\n')
   it('يحوّل صفوف الحملة إلى ad_metrics بقيم صحيحة', () => {
-    const r = parseAmazonCampaigns(csv, 'M-TEST')
+    const r = parseAmazonCampaigns(csv, 'M-TEST', '2026-05-03')
     expect(r.kind).toBe('amazon_campaigns')
     expect(r.error).toBeUndefined()
     expect(r.payloads[0].table).toBe('ad_metrics')
     expect(r.payloads[0].conflict).toContain('campaign_name')
     const row = r.payloads[0].rows[0]
-    expect(row).toMatchObject({ merchant_code: 'M-TEST', platform: 'amazon', campaign_name: 'حملة الصيف' })
+    expect(row).toMatchObject({ merchant_code: 'M-TEST', platform: 'amazon', report_date: '2026-05-03', campaign_name: 'حملة الصيف' })
     expect(row.spend).toBeCloseTo(206.73)
     expect(row.revenue).toBe(2330)
     expect(row.clicks).toBe(1448)

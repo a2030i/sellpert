@@ -21,27 +21,68 @@ interface KPIs {
   notifications_30d?: number
 }
 
+interface TopMerchant {
+  merchant_code: string
+  name: string
+  subscription_plan: string | null
+  health_score: number
+  last_active_at: string | null
+}
+
+interface OpenTask {
+  id: string
+  title: string | null
+  note: string | null
+  priority: string
+  due_date: string | null
+  status: string
+  merchant_code: string
+  assigned_to: string | null
+}
+
 export default function TeamDashboardView() {
   const [k, setK] = useState<KPIs | null>(null)
   const [loading, setLoading] = useState(true)
-  const [topMerchants, setTopMerchants] = useState<any[]>([])
+  const [topMerchants, setTopMerchants] = useState<TopMerchant[]>([])
   const [recentNPS, setRecentNPS] = useState<any[]>([])
-  const [openTasks, setOpenTasks] = useState<any[]>([])
+  const [openTasks, setOpenTasks] = useState<OpenTask[]>([])
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
-    const [kpiResp, topResp, npsResp, tasksResp] = await Promise.all([
+    const [kpiResp, merchantsResp, npsResp, tasksResp, activityResp] = await Promise.all([
       supabase.rpc('team_dashboard_kpis'),
-      supabase.from('merchants').select('merchant_code,name,health_score,last_active_at,subscription_plan').order('health_score', { ascending: false, nullsFirst: false }).limit(10),
-      supabase.from('nps_responses').select('*').order('created_at', { ascending: false }).limit(8),
-      supabase.from('admin_tasks').select('id,title,priority,due_date,status,merchant_code,assignee_email').in('status', ['pending', 'in_progress']).order('priority', { ascending: false }).limit(10),
+      supabase.from('merchants').select('merchant_code,name,subscription_plan').eq('role', 'merchant').limit(50),
+      supabase.from('nps_responses').select('*').order('responded_at', { ascending: false }).limit(8),
+      supabase.from('merchant_requests').select('id,title,note,priority,due_date,status,merchant_code,assigned_to')
+        .in('status', ['pending', 'in_progress', 'review', 'blocked']).order('created_at', { ascending: false }).limit(10),
+      supabase.from('platform_file_uploads').select('merchant_code,uploaded_at').order('uploaded_at', { ascending: false }).limit(500),
     ])
+
+    const merchantRows = merchantsResp.data || []
+    const healthResponses = await Promise.all(
+      merchantRows.map(m => supabase.rpc('merchant_health_score', { p_merchant_code: m.merchant_code })),
+    )
+    const latestActivity = new Map<string, string>()
+    for (const upload of activityResp.data || []) {
+      if (!latestActivity.has(upload.merchant_code)) latestActivity.set(upload.merchant_code, upload.uploaded_at)
+    }
+    const rankedMerchants: TopMerchant[] = merchantRows.map((merchant, index) => {
+      const health = healthResponses[index].data as { score?: number } | null
+      return {
+        ...merchant,
+        health_score: Number(health?.score || 0),
+        last_active_at: latestActivity.get(merchant.merchant_code) || null,
+      }
+    }).sort((a, b) => b.health_score - a.health_score).slice(0, 10)
+
+    const errors = [kpiResp.error, merchantsResp.error, npsResp.error, tasksResp.error, activityResp.error, ...healthResponses.map(r => r.error)].filter(Boolean)
+    if (errors.length) console.error('تعذر تحميل جزء من لوحة الفريق', errors)
     setK(kpiResp.data || null)
-    setTopMerchants(topResp.data || [])
+    setTopMerchants(rankedMerchants)
     setRecentNPS(npsResp.data || [])
-    setOpenTasks(tasksResp.data || [])
+    setOpenTasks((tasksResp.data as OpenTask[]) || [])
     setLoading(false)
   }
 
@@ -78,17 +119,17 @@ export default function TeamDashboardView() {
             <Empty text="لا توجد مهام مفتوحة" />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {openTasks.map((t: any) => (
+              {openTasks.map(t => (
                 <div key={t.id} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <PriorityDot priority={t.priority} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title || t.note?.slice(0, 80) || 'مهمة بدون عنوان'}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                      {t.merchant_code} {t.assignee_email && `· ${t.assignee_email}`} {t.due_date && `· موعد: ${t.due_date}`}
+                      {t.merchant_code} {t.assigned_to && `· ${t.assigned_to}`} {t.due_date && `· موعد: ${t.due_date}`}
                     </div>
                   </div>
                   <div style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: t.status === 'in_progress' ? 'rgba(245,158,11,0.15)' : 'rgba(108,92,231,0.15)', color: t.status === 'in_progress' ? '#f59e0b' : 'var(--accent)', fontWeight: 700 }}>
-                    {t.status === 'in_progress' ? 'قيد التنفيذ' : 'معلقة'}
+                    {t.status === 'in_progress' ? 'قيد التنفيذ' : t.status === 'review' ? 'بانتظار التأكيد' : t.status === 'blocked' ? 'متوقفة' : 'معلقة'}
                   </div>
                 </div>
               ))}
@@ -113,7 +154,7 @@ export default function TeamDashboardView() {
                     }}>{n.score}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>
-                        {n.merchant_code} · {fmtRelative(n.created_at)}
+                        {n.merchant_code} · {fmtRelative(n.responded_at)}
                       </div>
                       {n.feedback && <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{n.feedback}</div>}
                     </div>
