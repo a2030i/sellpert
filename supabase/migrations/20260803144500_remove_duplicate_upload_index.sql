@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.platform_file_uploads_merchant_uploaded_idx;

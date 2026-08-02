@@ -2,10 +2,8 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
-import { isSuspended, getPlan, getPlanKey, PLANS, getUpgradePlan } from './lib/subscription'
 import Login from './pages/Login'
 import { ToastContainer, toastErr } from './components/Toast'
-import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
 import ThemeToggle from './components/ThemeToggle'
@@ -15,7 +13,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
-  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
+  FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
   Search, MoreHorizontal, X, Bell, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
@@ -34,7 +32,6 @@ const Settings      = lazy(() => import('./pages/Settings'))
 const Products      = lazy(() => import('./pages/Products'))
 const Requests      = lazy(() => import('./pages/Requests'))
 const Statement     = lazy(() => import('./pages/Statement'))
-const Billing       = lazy(() => import('./pages/Billing'))
 const Marketing     = lazy(() => import('./pages/Marketing'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const ProductDetail = lazy(() => import('./pages/ProductDetail'))
@@ -50,9 +47,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'billing' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -73,7 +70,6 @@ const NAV_GROUPS: NavGroup[] = [
   { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
     { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations' },
     { Icon: Users, label: 'الفريق والصلاحيات', key: 'team' },
-    { Icon: CreditCard, label: 'الاشتراك والفواتير', key: 'billing' },
     { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings' },
   ]},
   { key: 'support', label: 'المساعدة', placement: 'secondary', items: [
@@ -81,8 +77,8 @@ const NAV_GROUPS: NavGroup[] = [
   ]},
 ]
 
-const SIDEBAR_STORAGE_KEY = 'sellpert:merchant-sidebar:v1'
-const DEFAULT_COLLAPSED_GROUPS = new Set<string>(['support'])
+const SIDEBAR_STORAGE_KEY = 'sellpert:merchant-sidebar:v2'
+const DEFAULT_COLLAPSED_GROUPS = new Set<string>(NAV_GROUPS.map(group => group.key))
 const NAV_PARENT: Partial<Record<View, View>> = {
   help: 'requests', 'quick-inventory': 'inventory',
   'product-detail': 'products', 'product-compare': 'products',
@@ -200,7 +196,6 @@ export default function App() {
   const [view, setView]                     = useState<View>(readView)
   const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showUpgrade, setShowUpgrade]       = useState(false)
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
@@ -281,19 +276,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const activeKey = NAV_PARENT[view] || view
-    const activeGroup = NAV_GROUPS.find(group => group.items.some(item => item.key === activeKey))
-    if (!activeGroup) return
-    setCollapsedGroups(current => {
-      if (!current.has(activeGroup.key)) return current
-      const next = new Set(current)
-      next.delete(activeGroup.key)
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify([...next]))
-      return next
-    })
-  }, [view])
-
-  useEffect(() => {
     const code = (impersonating || merchant)?.merchant_code
     if (!code) return
     let cancelled = false
@@ -316,8 +298,10 @@ export default function App() {
 
   function toggleNavGroup(key: string) {
     setCollapsedGroups(current => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key); else next.add(key)
+      const opening = current.has(key)
+      const next = opening
+        ? new Set(NAV_GROUPS.filter(group => group.key !== key).map(group => group.key))
+        : new Set(NAV_GROUPS.map(group => group.key))
       localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify([...next]))
       return next
     })
@@ -367,42 +351,6 @@ export default function App() {
     return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
 
   const activeMerchant = impersonating || merchant
-  const suspended = isSuspended(activeMerchant)
-  const plan      = getPlanKey(activeMerchant)
-  const upgradeTo = getUpgradePlan(plan)
-  const planCfg   = getPlan(activeMerchant)
-
-  // Upgrade modal
-  if (showUpgrade && upgradeTo) {
-    const upgradeCfg = PLANS[upgradeTo]
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,18,40,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 20, padding: '36px 28px', maxWidth: 440, width: '100%', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
-          <div style={{ width:48,height:4,borderRadius:4,background:'var(--accent)',margin:'0 auto 18px' }} />
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, color: 'var(--text)' }}>ترقية إلى {upgradeCfg.label}</h2>
-          <p style={{ color: 'var(--text2)', fontSize: 13, marginBottom: 20, lineHeight: 1.7 }}>فتح قنوات إضافية: {upgradeCfg.channels.join(' · ')}</p>
-          <div style={{ background: 'var(--surface2)', borderRadius: 12, padding: '16px', marginBottom: 24, textAlign: 'right' }}>
-            {upgradeCfg.features.map((f, i) => (
-              <div key={i} style={{ fontSize: 13, padding: '5px 0', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: 'var(--accent2)', fontWeight: 700 }}>✓</span>{f}
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)', marginBottom: 20 }}>
-            {upgradeCfg.price} <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--text3)' }}>ر.س / شهر</span>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setShowUpgrade(false)} style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: 12, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>لاحقاً</button>
-            <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer"
-              style={{ flex: 2, background: 'var(--grad-accent)', border: 'none', color: '#fff', padding: 12, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--e-accent)' }}>
-              ترقية من متجر سلة →
-            </a>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const BANNER_H = 44
 
   return (
@@ -426,25 +374,6 @@ export default function App() {
 
       {showOnboarding && activeMerchant && (
         <OnboardingFlow merchant={activeMerchant} onComplete={() => setShowOnboarding(false)} />
-      )}
-
-      {suspended && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(10,12,28,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', border: '1px solid #fcc', borderRadius: 20, padding: '40px 28px', maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 0 60px rgba(232,64,64,0.2)' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>🚫</div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#e84040', marginBottom: 10 }}>تم إيقاف اشتراكك</h2>
-            <p style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.8, marginBottom: 28 }}>
-              تم إيقاف الوصول إلى بيانات متجرك. لاستئناف المزامنة والخدمات، يرجى تجديد الاشتراك من متجر سلة.
-            </p>
-            <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer"
-              style={{ display: 'block', background: 'linear-gradient(135deg,#e84040,#c9184a)', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 800, textDecoration: 'none', boxShadow: '0 4px 20px rgba(232,64,64,0.3)', marginBottom: 10 }}>
-              تجديد الاشتراك من سلة
-            </a>
-            <button onClick={signOut} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '10px 20px', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>
-              تسجيل الخروج
-            </button>
-          </div>
-        </div>
       )}
 
       {/* ── Desktop Sidebar ── */}
@@ -527,12 +456,7 @@ export default function App() {
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                    <span style={{ fontSize: 10, color: '#a598ff', fontFamily: 'monospace' }}>{activeMerchant.merchant_code}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: planCfg.color + '25', color: planCfg.color }}>
-                      {planCfg.label}
-                    </span>
-                  </div>
+                  <div style={{ fontSize: 10, color: '#a598ff', fontFamily: 'monospace', marginTop: 3 }}>{activeMerchant.merchant_code}</div>
                 </div>
               </div>
             )}
@@ -545,7 +469,6 @@ export default function App() {
 
       {/* ── Main Content ── */}
       <main style={{ flex: 1, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
-        <SubscriptionBanner merchant={activeMerchant} onUpgrade={() => setShowUpgrade(true)} />
         <Suspense fallback={<PageFallback />}>
           {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
           {view === 'products'     && <Products     merchant={activeMerchant} />}
@@ -553,7 +476,6 @@ export default function App() {
           {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
           {view === 'requests'     && <Requests     merchant={activeMerchant} />}
           {view === 'statement'    && <Statement    merchant={activeMerchant} />}
-          {view === 'billing'      && <Billing      merchant={activeMerchant} />}
           {view === 'integrations' && <Integrations merchant={activeMerchant} />}
           {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
           {view === 'notifications'&& <Notifications merchant={activeMerchant} />}

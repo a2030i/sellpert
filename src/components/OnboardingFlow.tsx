@@ -30,10 +30,9 @@ function getSteps(signupSource: string) {
         : 'من صفحة "المنصات" ارفع تقارير تراندايول أو نون أو أمازون وستظهر بياناتك فوراً في لوحة التحكم.',
     },
     {
-      icon: '🚀',
-      title: 'وسّع قنواتك',
-      desc: 'هل تبيع على أكثر من منصة؟ رقّي اشتراكك لباقة النمو وادر كل قنواتك من مكان واحد.',
-      cta: true,
+      icon: '✓',
+      title: 'أنت جاهز للبدء',
+      desc: 'اربط منصاتك أو ارفع ملفات التقارير، ثم تابع الطلبات والمنتجات والمخزون من مكان واحد.',
     },
   ]
 }
@@ -125,31 +124,17 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
         {/* Actions */}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
           {isLast ? (
-            <>
-              <button
-                onClick={finish}
-                style={{
-                  flex: 1, background: 'transparent',
-                  border: '1px solid var(--border)', color: 'var(--text2)',
-                  padding: '12px', borderRadius: 12, fontSize: 13, cursor: 'pointer',
-                }}
-              >
-                ابدأ بالباقة الحالية
-              </button>
-              <button
-                onClick={finish}
-                style={{
-                  flex: 1,
-                  background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
-                  border: 'none', color: '#fff',
-                  padding: '12px', borderRadius: 12, fontSize: 13, fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(15,149,140,0.4)',
-                }}
-              >
-                🚀 ترقية الباقة
-              </button>
-            </>
+            <button
+              onClick={finish}
+              style={{
+                width: '100%', background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
+                border: 'none', color: '#fff', padding: '12px', borderRadius: 12,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(15,149,140,0.4)',
+              }}
+            >
+              ابدأ استخدام Sellpert
+            </button>
           ) : (
             <button
               onClick={() => setStep(s => s + 1)}

@@ -18,7 +18,6 @@ const PERMISSION_ITEMS: { key: string; label: string; group: string }[] = [
   { key: 'inventory',    label: 'المخزون',       group: 'manage' },
   { key: 'marketing',    label: 'التسويق',       group: 'view' },
   { key: 'statement',    label: 'كشف الحساب',    group: 'finance' },
-  { key: 'billing',      label: 'الاشتراك',      group: 'finance' },
   { key: 'integrations', label: 'المنصات',       group: 'admin' },
   { key: 'settings',     label: 'الإعدادات',     group: 'admin' },
 ]

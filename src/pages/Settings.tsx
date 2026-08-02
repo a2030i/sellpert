@@ -2,7 +2,6 @@ import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useEffect } from 'react'
 import type { Merchant } from '../lib/supabase'
-import { getPlan } from '../lib/subscription'
 
 export default function Settings({ merchant, onUpdate }: { merchant: Merchant | null; onUpdate: (m: Merchant) => void }) {
   const [uploading, setUploading] = useState(false)
@@ -11,7 +10,6 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   const [phone, setPhone] = useState(merchant?.whatsapp_phone || '')
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const plan = getPlan(merchant)
 
   useEffect(() => {
     setName(merchant?.name || '')
@@ -122,26 +120,6 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         </button>
       </div>
 
-      {/* Plan */}
-      <div style={S.card}>
-        <div style={S.cardTitle}>الخطة الحالية</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{
-            padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700,
-            background: merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
-                        merchant?.subscription_plan === 'pro'   ? 'rgba(15,149,140,0.15)' : 'var(--surface2)',
-            color: merchant?.subscription_plan === 'elite' ? 'var(--warning-text)' :
-                   merchant?.subscription_plan === 'pro'   ? 'var(--accent)' : 'var(--text2)',
-            border: `1px solid ${merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
-                                  merchant?.subscription_plan === 'pro'   ? 'rgba(15,149,140,0.3)' : 'var(--border)'}`,
-          }}>
-            {plan.label}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-            {plan.price === 0 ? 'يمكنك الترقية من صفحة الباقة والفواتير' : 'خطتك النشطة'}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }

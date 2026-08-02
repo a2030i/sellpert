@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
     // Caller must be a merchant (or admin acting on behalf — but we limit to merchant for self-service)
     const { data: callerMerchant } = await adminClient
-      .from('merchants').select('role,merchant_code,subscription_plan')
+      .from('merchants').select('role,merchant_code')
       .eq('email', caller.email!).maybeSingle()
     if (!callerMerchant) return json({ error: 'Unauthorized' }, 401)
     if (!['merchant', 'admin', 'super_admin'].includes(callerMerchant.role)) {
@@ -100,19 +100,6 @@ Deno.serve(async (req) => {
     }
     if (password.length < 8) return json({ error: 'الباسورد يجب 8 أحرف على الأقل' }, 400)
 
-    // Quota check (basic plan = 2 employees, pro = 10, enterprise = unlimited)
-    const limits: Record<string, number> = { free: 0, basic: 2, pro: 10, enterprise: 999 }
-    const limit = limits[callerMerchant.subscription_plan || 'free'] ?? 0
-    if (callerMerchant.role === 'merchant') {
-      const { count } = await adminClient.from('merchants')
-        .select('id', { count: 'exact', head: true })
-        .eq('owner_merchant_code', callerMerchant.merchant_code)
-        .eq('role', 'employee')
-      if ((count || 0) >= limit) {
-        return json({ error: `وصلت للحد الأقصى للموظفين في خطتك (${limit}). قم بالترقية لإضافة المزيد.` }, 403)
-      }
-    }
-
     // Create or reuse auth user
     let userId: string
     const { data: authData, error: createErr } = await adminClient.auth.admin.createUser({
@@ -148,7 +135,6 @@ Deno.serve(async (req) => {
       role:               'employee',
       merchant_code:      code,
       currency:           'SAR',
-      subscription_plan:  'free',
       owner_merchant_code: callerMerchant.merchant_code,
       job_title:          job_title?.trim() || null,
       whatsapp_phone:     whatsapp_phone?.trim() || null,
