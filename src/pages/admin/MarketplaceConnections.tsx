@@ -337,9 +337,15 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
                 <strong style={{ color: syncInProgress ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
-                  {syncJob?.status === 'pending' ? '⏳ في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ سحب البيانات' : syncJob?.status === 'done' ? '✓ اكتملت' : syncJob?.status === 'failed' ? '✕ فشلت' : 'لم تبدأ بعد'}
+                  {syncJob?.status === 'pending' ? '⏳ طلباتك في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ سحب الطلبات' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة الطلبات' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة الطلبات' : 'لم تبدأ بعد'}
                 </strong>
               </div>
+              {syncJob?.status === 'done' ? (
+                <div style={{ marginTop: 9, padding: '8px 10px', borderRadius: 8, background: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700 }}>تم سحب {status.records_synced || 0} طلبًا من آخر 90 يومًا</span>
+                  <a href="/orders" style={{ color: 'inherit', fontWeight: 800, textDecoration: 'underline' }}>عرض الطلبات ←</a>
+                </div>
+              ) : null}
               {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color: 'var(--danger-text)', fontSize: 10, marginTop: 7 }}>{syncJob.error_message}</div> : null}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
