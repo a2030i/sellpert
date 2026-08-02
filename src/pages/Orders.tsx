@@ -32,6 +32,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [preset, setPreset]     = useState(saved.preset   || 'last30')
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const isMobile = useMobile()
 
   useEffect(() => {
@@ -282,7 +283,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   </td></tr>
                 ) : pageRows.map(o => (
                   <tr key={o.id} style={S.tr}>
-                    <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>{o.order_id}</td>
+                    <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>
+                      <button onClick={() => setSelectedOrder(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
+                        {o.order_id}
+                      </button>
+                    </td>
                     <td style={S.td}>
                       <span style={{ ...S.platformTag, background:(PLATFORM_COLORS[o.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[o.platform]||'#5a5a7a' }}>
                         {PLATFORM_MAP[o.platform] || o.platform}
@@ -428,6 +433,44 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           </div>
         </div>
       )}
+
+      {selectedOrder && (
+        <div style={S.modalBackdrop} onClick={() => setSelectedOrder(null)}>
+          <div role="dialog" aria-modal="true" aria-label={`تفاصيل الطلب ${selectedOrder.order_id}`} style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={S.modalHeader}>
+              <div>
+                <div style={{ fontSize:12, color:'var(--text3)', marginBottom:4 }}>تفاصيل الطلب</div>
+                <div style={{ fontSize:18, fontWeight:800, fontFamily:'monospace' }}>{selectedOrder.order_id}</div>
+              </div>
+              <button onClick={() => setSelectedOrder(null)} style={S.closeBtn} aria-label="إغلاق">×</button>
+            </div>
+
+            <div style={S.detailGrid}>
+              {[
+                ['المنصة', PLATFORM_MAP[selectedOrder.platform] || selectedOrder.platform],
+                ['مصدر الطلب', selectedOrder.upload_id ? 'ملف Excel' : 'API مباشر'],
+                ['الحالة', STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status],
+                ['تاريخ الطلب', new Date(selectedOrder.order_date).toLocaleString('ar-SA-u-ca-gregory-nu-latn')],
+                ['المنتج', selectedOrder.product_name || '—'],
+                ['SKU', selectedOrder.sku || '—'],
+                ['الكمية', selectedOrder.quantity.toLocaleString('ar-SA')],
+                ['سعر الوحدة', fmt(selectedOrder.unit_price || 0)],
+                ['إجمالي الطلب', fmt(selectedOrder.total_amount)],
+                ['رسوم المنصة', fmt(selectedOrder.platform_fee || 0)],
+                ['تكلفة الشحن', fmt(selectedOrder.shipping_cost || 0)],
+                ['المدينة', selectedOrder.customer_city || '—'],
+                ['العملة', selectedOrder.currency || 'SAR'],
+              ].map(([label, value]) => (
+                <div key={label} style={S.detailItem}>
+                  <div style={S.detailLabel}>{label}</div>
+                  <div style={S.detailValue}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <div style={S.modalNote}>تظهر هنا البيانات المحفوظة في Sellpert حالياً. سيتم توسيعها عند ربط حقول الشحن والخصومات والعمولات من ترنديول.</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -457,4 +500,14 @@ const S: Record<string, React.CSSProperties> = {
   platformTag:{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:600 },
   statusBadge:{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 },
   pageBtn:    { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', width:32, height:32, borderRadius:8, fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
+  orderLink:  { background:'transparent', border:'none', padding:0, color:'var(--accent)', font:'inherit', fontWeight:700, textDecoration:'underline', textUnderlineOffset:3, cursor:'pointer' },
+  modalBackdrop:{ position:'fixed', inset:0, zIndex:1000, background:'rgba(6,18,27,0.58)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 },
+  modal:      { width:'min(680px, 100%)', maxHeight:'88vh', overflowY:'auto', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:18, padding:22, boxShadow:'0 24px 70px rgba(0,0,0,0.28)' },
+  modalHeader:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', paddingBottom:16, marginBottom:16, borderBottom:'1px solid var(--border)' },
+  closeBtn:   { width:34, height:34, borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:24, lineHeight:1, cursor:'pointer' },
+  detailGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:10 },
+  detailItem: { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' },
+  detailLabel:{ fontSize:11, color:'var(--text3)', fontWeight:700, marginBottom:5 },
+  detailValue:{ fontSize:13, color:'var(--text)', fontWeight:700, overflowWrap:'anywhere' },
+  modalNote:  { marginTop:16, padding:'10px 12px', borderRadius:10, background:'var(--info-bg)', color:'var(--info-text)', fontSize:11, lineHeight:1.7 },
 }
