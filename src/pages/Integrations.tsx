@@ -164,11 +164,6 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>أدِر اتصالات منصات البيع وتابع حالة المزامنة من مكان واحد.</p>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>ربط مباشر</div>
-        <SallaCard merchant={merchant} />
-      </div>
-
       {merchant ? (
         <MarketplaceConnections
           merchants={[merchant]}

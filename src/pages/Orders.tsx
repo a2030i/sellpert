@@ -26,7 +26,7 @@ function trendyolCommission(order: Order) {
 
 function orderSource(o: Order) {
   if (o.upload_id) return { label: '📄 ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
-  if (o.platform === 'trendyol') return { label: '⚡ API ترنديول', exportLabel: 'API ترنديول', title: 'تم سحب الطلب مباشرة من ربط ترنديول', bg: 'var(--success-bg)', color: 'var(--success-text)' }
+  if (o.platform === 'trendyol') return { label: 'API Trendyol', exportLabel: 'API Trendyol', title: 'تم سحب الطلب مباشرة من ربط Trendyol', bg: 'var(--success-bg)', color: 'var(--success-text)' }
   return { label: 'مصدر غير محدد', exportLabel: 'مصدر غير محدد', title: 'لا توجد بيانات كافية لتحديد مصدر هذا الطلب', bg: 'var(--warning-bg)', color: 'var(--warning-text)' }
 }
 
@@ -261,7 +261,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         {[
           { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'', color:'#0f958c' },
           { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'', color:'var(--success-text)' },
-          { label:'متوسط الطلب',      value: fmt(aov),                         icon:'🛒', color:'var(--warning-text)' },
+          { label:'متوسط الطلب',      value: fmt(aov),                         icon:'', color:'var(--warning-text)' },
           { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'', color:'var(--success-text)' },
           { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'', color:'var(--danger-text)' },
         ].map((k,i) => (

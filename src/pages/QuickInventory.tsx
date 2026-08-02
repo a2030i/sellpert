@@ -262,7 +262,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
       <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
 
       <div style={{ marginTop: 16, padding: '10px 12px', fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
-        💡 اختصارات: اضغط <kbd style={kbdStyle}>/</kbd> للبحث · <kbd style={kbdStyle}>Tab</kbd> للتنقل بين الحقول
+        اختصارات: اضغط <kbd style={kbdStyle}>/</kbd> للبحث · <kbd style={kbdStyle}>Tab</kbd> للتنقل بين الحقول
       </div>
     </div>
   )

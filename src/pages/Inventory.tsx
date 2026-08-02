@@ -165,7 +165,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)', boxShadow: 'none' }} onClick={goQuickInventory}>
-            ⚡ تحديث كميات متعددة
+            تحديث كميات متعددة
           </button>
           {(stats.low > 0 || stats.out > 0) && (
             <button

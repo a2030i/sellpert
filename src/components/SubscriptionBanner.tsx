@@ -65,10 +65,10 @@ export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
           <span style={{ width:4,height:34,borderRadius:4,background:'var(--accent)',display:'inline-block' }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-              أنت على {cfg.label} — {cfg.channels.length} قناة متاحة
+              باقتك الحالية: {cfg.label}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-              ترقى إلى {upgradeCfg.label} وفتح {upgradeCfg.channels.length} قنوات ({upgradeCfg.channels.join(' · ')})
+              الترقية إلى {upgradeCfg.label} تمنحك حدود استخدام أعلى وميزات إضافية لإدارة متجرك.
             </div>
           </div>
         </div>

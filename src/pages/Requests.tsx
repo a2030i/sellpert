@@ -11,7 +11,7 @@ const CATEGORIES: { key: string; label: string; icon: string; needsPlatform?: bo
   { key: 'ad_budget_decrease', label: 'خفض ميزانية إعلانات',  icon: '⬇️', needsPlatform: true, needsAmount: true },
   { key: 'price_change',       label: 'تغيير سعر منتج',        icon: '💲' },
   { key: 'shipping_change',    label: 'تغيير شركة الشحن',      icon: '🚚' },
-  { key: 'inventory_update',   label: 'تحديث المخزون',         icon: '📦' },
+  { key: 'inventory_update',   label: 'تحديث المخزون',         icon: 'INV' },
   { key: 'add_product',        label: 'إضافة منتج جديد',       icon: '➕' },
   { key: 'remove_product',     label: 'إيقاف منتج',            icon: '🗑' },
   { key: 'inquiry',            label: 'استفسار عام',           icon: '💬' },
