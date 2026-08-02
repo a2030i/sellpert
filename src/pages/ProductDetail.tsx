@@ -316,6 +316,12 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const [checkingStatus, setCheckingStatus] = useState(false)
   const [editing, setEditing] = useState<any>({})
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [commercial, setCommercial] = useState({
+    quantity: String(product.raw?.quantity ?? product.raw?.stock ?? ''),
+    salePrice: String(product.sale_price ?? product.target_net_price ?? ''),
+    listPrice: String(product.msrp ?? product.sale_price ?? product.target_net_price ?? ''),
+  })
+  const [commercialSaving, setCommercialSaving] = useState(false)
 
   useEffect(() => {
     if (!productId) return
@@ -444,6 +450,45 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     }
   }
 
+  async function savePriceInventory() {
+    if (!merchantCode || !product.barcode) {
+      setSaveMessage({ type:'err', text:'لا يمكن تحديث السعر والمخزون قبل توفر باركود Trendyol للمنتج.' }); return
+    }
+    const quantity = Number(commercial.quantity)
+    const salePrice = Number(commercial.salePrice)
+    const listPrice = Number(commercial.listPrice)
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20000) {
+      setSaveMessage({ type:'err', text:'المخزون المتاح يجب أن يكون عددًا صحيحًا بين 0 و20,000.' }); return
+    }
+    if (!Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) {
+      setSaveMessage({ type:'err', text:'تحقق من الأسعار: السعر قبل الخصم لا يمكن أن يكون أقل من سعر البيع.' }); return
+    }
+    setCommercialSaving(true); setSaveMessage(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({ merchant_code:merchantCode, action:'products.price_inventory', confirm:true, storefront:'SA', payload:{ items:[{ barcode:product.barcode, quantity, salePrice, listPrice }] } }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol تحديث السعر والمخزون')
+      const now = new Date().toISOString()
+      const { error } = await supabase.from('product_platform_listings').upsert({
+        product_id:productId, merchant_code:merchantCode, platform:'trendyol',
+        delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null,
+        last_submitted_at:now, last_verified_at:result.pendingApproval ? null : now, delivery_error:null, updated_at:now,
+      }, { onConflict:'product_id,platform' })
+      if (error) throw error
+      await supabase.from('products').update({ sale_price:salePrice, msrp:listPrice, updated_at:now }).eq('id',productId).eq('merchant_code',merchantCode)
+      setListings(previous => ({ ...previous, trendyol:{ ...previous.trendyol, delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null, last_submitted_at:now } }))
+      setSaveMessage({ type:'ok', text:'تم إرسال السعر والمخزون إلى Trendyol، وتتم متابعة اعتماد التحديث تلقائيًا.' })
+    } catch (error:any) {
+      setSaveMessage({ type:'err', text:error.message || 'تعذر تحديث السعر والمخزون في Trendyol' })
+    } finally { setCommercialSaving(false) }
+  }
+
   const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }
   const inp: React.CSSProperties = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
 
@@ -474,6 +519,16 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           {listings.trendyol.external_batch_id && ['accepted','processing'].includes(listings.trendyol.delivery_status) ? <button onClick={() => void checkDeliveryStatus(listings.trendyol.external_batch_id)} disabled={checkingStatus} style={{ border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', padding:'7px 11px', borderRadius:8, fontFamily:'inherit', fontSize:11, fontWeight:700, cursor:'pointer' }}>{checkingStatus ? 'جارٍ التحقق...' : 'تحديث الحالة'}</button> : null}
         </div>
       ) : null}
+      {activePlatform === 'trendyol' ? <div style={{ marginBottom:16, padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+        <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>السعر والمخزون في Trendyol</div>
+        <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>المخزون هنا هو الكمية المتاحة للبيع. يرسل النظام القيم بالريال السعودي ويتابع نتيجة الاعتماد تلقائيًا.</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:8 }}>
+          <div><label style={fieldLabel}>المخزون المتاح</label><input type="number" min="0" max="20000" step="1" value={commercial.quantity} onChange={e => setCommercial({...commercial,quantity:e.target.value})} style={inp}/></div>
+          <div><label style={fieldLabel}>سعر البيع (ر.س)</label><input type="number" min="0" step="0.01" value={commercial.salePrice} onChange={e => setCommercial({...commercial,salePrice:e.target.value})} style={inp}/></div>
+          <div><label style={fieldLabel}>السعر قبل الخصم (ر.س)</label><input type="number" min="0" step="0.01" value={commercial.listPrice} onChange={e => setCommercial({...commercial,listPrice:e.target.value})} style={inp}/></div>
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={() => void savePriceInventory()} disabled={commercialSaving} style={{ background:'var(--surface)', border:'1px solid #f27a1a', color:'#f27a1a', padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:11, fontWeight:800, cursor:'pointer' }}>{commercialSaving ? 'جارٍ الإرسال...' : 'إرسال السعر والمخزون'}</button></div>
+      </div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         <div>
           <label style={fieldLabel}>العنوان</label>

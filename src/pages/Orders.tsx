@@ -8,6 +8,11 @@ import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const ORDER_PAGE_SIZE = 50
+const SA_CARRIERS = [
+  ['AJEX','Ajex'],['ARAMEX','Aramex'],['AYMAKAN','Aymakan'],['DHL','DHL'],['FLOWEXPRESS','Flow Express'],
+  ['IMILE','iMile'],['JTEXPRESS','J&T'],['NAQEL','Naqel'],['SHIPA','Shipa'],['SMSA','SMSA'],['SPL','SPL'],
+  ['STARLINKS','Starlinks'],['ZID LOGISTICS','ZID Logistics'],['JOYEXPRESS','Joy Express'],
+]
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   pending:    { label: 'معلق',      color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
   processing: { label: 'قيد التنفيذ', color: 'var(--info-text)', bg: 'var(--info-bg)' },
@@ -54,9 +59,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orderPage, setOrderPage] = useState(0)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [selectedItems, setSelectedItems] = useState<any[]>([])
+  const [selectedActions, setSelectedActions] = useState<any[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [orderActionLoading, setOrderActionLoading] = useState(false)
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
+  const [packageForm, setPackageForm] = useState({ invoiceNumber:'', trackingNumber:'', providerCode:'STARLINKS' })
   const isMobile = useMobile()
 
   useEffect(() => {
@@ -191,13 +198,16 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function openOrder(order: Order) {
-    setSelectedOrder(order); setSelectedItems([]); setDetailLoading(true); setOrderActionMessage(null)
-    const [detail, items] = await Promise.all([
+    setSelectedOrder(order); setSelectedItems([]); setSelectedActions([]); setDetailLoading(true); setOrderActionMessage(null)
+    const [detail, items, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
+      order.platform === 'trendyol' && order.shipment_package_id
+        ? supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at').eq('merchant_code',order.merchant_code).eq('platform','trendyol').contains('request',{path:{packageId:order.shipment_package_id}}).order('started_at',{ascending:false}).limit(8)
+        : Promise.resolve({data:[] as any[]}),
     ])
     if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
-    setSelectedItems(items.data || []); setDetailLoading(false)
+    setSelectedItems(items.data || []); setSelectedActions(actions.data || []); setDetailLoading(false)
   }
 
   async function copyOrderValue(value: string, label: string) {
@@ -224,6 +234,29 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }
     setOrderActionMessage({ type:'ok', text:`تم التحديث من Trendyol. تمت مزامنة ${Number(data?.records_synced || 0).toLocaleString('ar-SA')} طلب.` })
     setOrderActionLoading(false)
+  }
+
+  async function runPackageAction(action:string, payload:Record<string,unknown>, label:string) {
+    if (!merchant || !selectedOrder?.shipment_package_id) return
+    if (action === 'packages.status' && (!Array.isArray(payload.lines) || payload.lines.some((line:any) => !Number.isFinite(line.lineId) || line.quantity < 1))) {
+      setOrderActionMessage({ type:'err', text:'تفاصيل بنود الطلب غير مكتملة. حدّث الطلب من Trendyol ثم حاول مجددًا.' }); return
+    }
+    if (!window.confirm(`تأكيد ${label} وإرساله إلى Trendyol؟`)) return
+    setOrderActionLoading(true); setOrderActionMessage(null)
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST', headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({ merchant_code:merchant.merchant_code, action, confirm:true, storefront:'SA', path:{ packageId:selectedOrder.shipment_package_id }, payload }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || `رفض Trendyol ${label}`)
+      setSelectedActions(current => [{ id:crypto.randomUUID(), action, status:result.status || 'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
+      setOrderActionMessage({ type:'ok', text:`تم ${label} في Trendyol بنجاح. استخدم «تحديث من Trendyol» لقراءة الحالة الجديدة.` })
+    } catch (error:any) {
+      setOrderActionMessage({ type:'err', text:error.message || `تعذر ${label}.` })
+    } finally { setOrderActionLoading(false) }
   }
 
   if (loading) return (
@@ -522,6 +555,27 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             {financialMismatch(selectedOrder) ? <div style={{ marginBottom:14, padding:'10px 12px', borderRadius:8, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
               <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
               <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{financialMismatch(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
+            </div> : null}
+            {selectedOrder.platform === 'trendyol' && selectedOrder.shipment_package_id ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+              <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>إجراءات تنفيذ الطلب</div>
+              <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>كل إجراء يُرسل مباشرة إلى Trendyol ويُحفظ في سجل التدقيق. لا ترسل «تم إصدار الفاتورة» قبل بدء التجهيز.</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+                <button disabled={orderActionLoading || selectedItems.length === 0} onClick={() => void runPackageAction('packages.status', { lines:selectedItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{}, status:'Picking' }, 'بدء تجهيز الطلب')} style={S.actionBtn}>بدء التجهيز</button>
+                <input value={packageForm.invoiceNumber} onChange={e => setPackageForm({...packageForm,invoiceNumber:e.target.value})} placeholder="رقم الفاتورة" style={{...S.select,minWidth:150}}/>
+                <button disabled={orderActionLoading || selectedItems.length === 0 || !packageForm.invoiceNumber.trim()} onClick={() => void runPackageAction('packages.status', { lines:selectedItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{ invoiceNumber:packageForm.invoiceNumber.trim() }, status:'Invoiced' }, 'تسجيل إصدار الفاتورة')} style={S.actionBtn}>تسجيل الفاتورة</button>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) minmax(150px,1fr) auto', gap:8 }}>
+                <input value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={S.select}/>
+                <select value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={S.select}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
+                <button disabled={orderActionLoading || !packageForm.trackingNumber.trim()} onClick={() => void runPackageAction('packages.tracking', { cargoSenderNumber:packageForm.trackingNumber.trim(), providerCode:packageForm.providerCode }, 'تسجيل بيانات الشحن')} style={S.actionBtn}>حفظ الشحن</button>
+              </div>
+              {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
+                <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>
+                <div style={{ display:'grid', gap:5 }}>{selectedActions.map(log => <div key={log.id} style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10 }}>
+                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
+                  <span style={{ color:['success','accepted'].includes(log.status) ? 'var(--success-text)' : ['failed','partial'].includes(log.status) ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight:700 }}>{log.status === 'success' ? 'تم' : log.status === 'accepted' ? 'تم الإرسال' : log.status === 'failed' ? 'فشل' : log.status === 'partial' ? 'جزئي' : 'قيد التنفيذ'}</span>
+                </div>)}</div>
+              </div> : null}
             </div> : null}
 
             <div style={S.detailGrid}>

@@ -199,7 +199,8 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
         const data = await callManager({ action: 'sync-status', merchant_code: merchantCode, platform })
         if (cancelled || data.error) return
         const active = ['pending', 'processing', 'running'].includes(data.job?.status || '')
-        setSyncJob(data.job || null)
+        const visibleJob = data.job ? { ...data.job, status: data.job.status === 'done' && data.log?.status === 'partial' ? 'partial' : data.job.status } : null
+        setSyncJob(visibleJob)
         setSyncDetails(data.log?.details || null)
         if (wasInProgress && !active) await onChanged()
         wasInProgress = active
@@ -343,8 +344,8 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
-                <strong style={{ color: syncInProgress ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
-                  {syncJob?.status === 'pending' ? '⏳ المزامنة في الطابور' : syncProcessing ? '⟳ جارٍ مزامنة بيانات ترنديول' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة ترنديول' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة ترنديول' : 'لم تبدأ بعد'}
+                <strong style={{ color: syncInProgress || syncJob?.status === 'partial' ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
+                  {syncJob?.status === 'pending' ? 'المزامنة في الطابور' : syncProcessing ? 'جارٍ مزامنة بيانات Trendyol' : syncJob?.status === 'done' ? 'اكتملت مزامنة Trendyol' : syncJob?.status === 'partial' ? 'اكتملت المزامنة مع نواقص' : syncJob?.status === 'failed' ? 'فشلت مزامنة Trendyol' : 'لم تبدأ بعد'}
                 </strong>
               </div>
               {syncInProgress ? (
@@ -366,13 +367,13 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                   </div>
                 </div>
               ) : null}
-              {syncJob?.status === 'done' ? (
-                <div style={{ marginTop: 9, padding: '8px 10px', borderRadius: 8, background: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {['done','partial'].includes(syncJob?.status || '') ? (
+                <div style={{ marginTop: 9, padding: '8px 10px', borderRadius: 8, background: syncJob?.status === 'partial' ? 'var(--warning-bg)' : 'var(--success-bg)', color: syncJob?.status === 'partial' ? 'var(--warning-text)' : 'var(--success-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700 }}>تم سحب {syncDetails?.orders ?? status.records_synced ?? 0} طلبًا</span>
                   <a href="/orders" style={{ color: 'inherit', fontWeight: 800, textDecoration: 'underline' }}>عرض الطلبات ←</a>
                 </div>
               ) : null}
-              {syncJob?.status === 'done' && syncDetails ? (
+              {['done','partial'].includes(syncJob?.status || '') && syncDetails ? (
                 <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
                   {[
                     ['الطلبات', syncDetails.orders], ['المرتجعات', syncDetails.returns],

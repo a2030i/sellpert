@@ -121,11 +121,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
   const actions:[MerchantAction,string,string,any][]=[
     ['label','طباعة ملصق الشحن','أدخل رقم التتبع وحمّل الملصق الجاهز',Printer],
-    ['status','تحديث حالة الشحنة','حدّث الشحنة إلى التجهيز أو إصدار الفاتورة',PackageCheck],
-    ['tracking','تحديث رقم التتبع','اربط الشحنة برقم التتبع الصحيح',Truck],
-    ['carrier','تغيير شركة الشحن','اختر رمز شركة الشحن المعتمد في Trendyol',RefreshCw],
     ['stock','تحديث السعر والمخزون','حدّث سعر وكمية المنتج مباشرة',RefreshCw],
-    ['approve_return','قبول طلب مرتجع','وافق على عناصر المرتجع من رقم المطالبة',CheckCircle2],
   ]
   const set=(key:string,value:string)=>setForm(current=>({...current,[key]:value}))
   const input=(label:string,key:string,placeholder:string,type='text')=><label style={F.field}><span>{label}</span><input style={M.input} type={type} value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={placeholder}/></label>

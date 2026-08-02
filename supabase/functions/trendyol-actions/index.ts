@@ -25,7 +25,7 @@ const ACTIONS: Record<string, Definition> = {
   'products.unlock':          { method:'PUT',    path:'/integration/product/sellers/{sellerId}/products/unlock', risk:'write' },
   'products.buybox':          { method:'GET',    path:'/integration/product/sellers/{sellerId}/products/buybox-information', risk:'read' },
   'products.qc_audit':        { method:'GET',    path:'/integration/product/sellers/{sellerId}/products/{contentId}/update-audits', risk:'read' },
-  'products.price_inventory': { method:'POST',   path:'/integration/inventory/sellers/{sellerId}/products/price-and-inventory', risk:'write' },
+  'products.price_inventory': { method:'POST',   path:'/integration/inventory/sellers/{sellerId}/products/price-and-inventory', risk:'write', storefront:true },
   'products.batch_result':    { method:'GET',    path:'/integration/product/sellers/{sellerId}/products/batch-requests/{batchRequestId}', risk:'read' },
   'products.v2_create':       { method:'POST',   path:'/integration/product/sellers/{sellerId}/v2/products', risk:'write' },
   'products.v2_base':         { method:'GET',    path:'/integration/product/sellers/{sellerId}/product/{barcode}', risk:'read' },
@@ -48,14 +48,14 @@ const ACTIONS: Record<string, Definition> = {
   // Orders, packages, cargo and labels
   'orders.list':              { method:'GET', path:'/integration/order/sellers/{sellerId}/orders', risk:'read' },
   'orders.stream':            { method:'GET', path:'/integration/order/sellers/{sellerId}/orders/stream', risk:'read', storefront:true },
-  'packages.tracking':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/tracking-details', risk:'write' },
-  'packages.status':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}', risk:'write' },
+  'packages.tracking':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/tracking-details', risk:'write', storefront:true },
+  'packages.status':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}', risk:'write', storefront:true },
   'packages.cancel':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/items/unsupplied', risk:'destructive' },
   'packages.split':           { method:'POST',path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/split-packages', risk:'write' },
   'packages.alternative':     { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/alternative-delivery', risk:'write' },
   'packages.cargo_provider':  { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/cargo-providers', risk:'write' },
   'packages.box_info':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/box-info', risk:'write' },
-  'packages.common_label':    { method:'GET', path:'/integration/sellers/{sellerId}/common-label/query', risk:'read', binary:true },
+  'packages.common_label':    { method:'GET', path:'/integration/sellers/{sellerId}/common-label/query', risk:'read', binary:true, storefront:true },
   'seller.addresses':         { method:'GET', path:'/integration/sellers/{sellerId}/addresses', risk:'read' },
 
   // Webhooks
@@ -108,6 +108,7 @@ Deno.serve(async req => {
     if (definition.risk !== 'read' && input?.confirm !== true) {
       throw new HttpError(409, 'يجب تأكيد العملية قبل إرسالها إلى Trendyol')
     }
+    validateActionInput(action, input)
     const idempotencyKey = clean(req.headers.get('idempotency-key') || input?.idempotency_key)
     if (definition.risk !== 'read' && !idempotencyKey) throw new HttpError(400, 'idempotency_key مطلوب للعمليات التي تغيّر البيانات')
 
@@ -209,6 +210,28 @@ function buildPath(template:string, values:Record<string,unknown>) {
   })
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
+function validateActionInput(action:string,input:any) {
+  if (action === 'products.price_inventory') {
+    const items = input?.payload?.items
+    if (!Array.isArray(items) || items.length < 1 || items.length > 1000) throw new HttpError(400, 'أرسل من 1 إلى 1000 منتج في كل تحديث')
+    for (const item of items) {
+      const quantity = Number(item?.quantity), salePrice = Number(item?.salePrice), listPrice = Number(item?.listPrice)
+      if (!clean(item?.barcode)) throw new HttpError(400, 'باركود المنتج مطلوب')
+      if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20000) throw new HttpError(400, 'المخزون يجب أن يكون عددًا صحيحًا بين 0 و20,000')
+      if (!Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) throw new HttpError(400, 'السعر قبل الخصم يجب ألا يقل عن سعر البيع')
+    }
+  }
+  if (action === 'packages.status') {
+    const status = String(input?.payload?.status || '')
+    const lines = input?.payload?.lines
+    if (!['Picking','Invoiced'].includes(status)) throw new HttpError(400, 'حالة الطلب المدعومة هي بدء التجهيز أو إصدار الفاتورة')
+    if (!Array.isArray(lines) || !lines.length || lines.length > 200 || lines.some((line:any) => !Number.isFinite(Number(line?.lineId)) || !Number.isInteger(Number(line?.quantity)) || Number(line.quantity) < 1)) throw new HttpError(400, 'بنود الطلب غير مكتملة')
+    if (status === 'Invoiced' && !clean(input?.payload?.params?.invoiceNumber)) throw new HttpError(400, 'رقم الفاتورة مطلوب')
+  }
+  if (action === 'packages.tracking') {
+    if (!clean(input?.payload?.cargoSenderNumber) || !clean(input?.payload?.providerCode)) throw new HttpError(400, 'رقم التتبع وشركة الشحن مطلوبان')
+  }
+}
 function sanitize(value:any):any {
   if (value === null || value === undefined) return value
   if (typeof value === 'string') return value.length > 2000 ? `[omitted ${value.length} chars]` : value
