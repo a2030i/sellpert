@@ -33,8 +33,8 @@ const ACTIONS: Record<string, Definition> = {
   'products.v2_approved':     { method:'GET',    path:'/integration/product/sellers/{sellerId}/products/approved', risk:'read' },
   'products.v2_stock_price':  { method:'GET',    path:'/integration/product/sellers/{sellerId}/products/approved/inventory-and-price', risk:'read' },
   'products.v2_update_unapproved': { method:'PUT', path:'/integration/product/sellers/{sellerId}/products/unapproved-bulk-update', risk:'write' },
-  'products.v2_update_content':    { method:'PUT', path:'/integration/product/sellers/{sellerId}/products/content-bulk-update', risk:'write' },
-  'products.v2_update_variant':    { method:'PUT', path:'/integration/product/sellers/{sellerId}/products/variant-bulk-update', risk:'write' },
+  'products.v2_update_content':    { method:'POST', path:'/integration/product/sellers/{sellerId}/products/content-bulk-update', risk:'write', storefront:true },
+  'products.v2_update_variant':    { method:'POST', path:'/integration/product/sellers/{sellerId}/products/variant-bulk-update', risk:'write', storefront:true },
   'brands.list':              { method:'GET',    path:'/integration/product/brands', risk:'read' },
   'brands.search':            { method:'GET',    path:'/integration/product/brands/by-name', risk:'read' },
   'brands.create':            { method:'POST',   path:'/integration/product/sellers/{sellerId}/brands', risk:'write' },
@@ -138,6 +138,7 @@ Deno.serve(async req => {
       'User-Agent':`${credentials.sellerId} - Sellpert`, Accept:'application/json',
     }
     if (definition.storefront) headers.storeFrontCode = clean(input?.storefront) || 'SA'
+    if (definition.storefront && input?.language) headers['Accept-Language'] = clean(input.language)
     let body: string | undefined
     if (!['GET','DELETE'].includes(definition.method) && input?.payload !== undefined) {
       headers['Content-Type'] = 'application/json'

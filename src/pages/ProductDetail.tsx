@@ -98,7 +98,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       )}
 
       {/* Per-platform listings */}
-      <PerPlatformListings productId={product.id} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={product.images || []} />
+      <PerPlatformListings product={product} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={(product.images || []).map((image: any) => typeof image === 'string' ? image : image?.url).filter(Boolean)} />
 
       {/* Inventory by platform */}
       {inventory.length > 0 && (
@@ -302,12 +302,14 @@ function SimBox({ label, value, sub, color }: { label: string; value: string; su
 }
 
 // ─── Per-Platform Listings ────────────────────────────────────────────────────
-function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDescription, defaultImages }: { productId: string; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[] }) {
+function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescription, defaultImages }: { product: any; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[] }) {
+  const productId = product.id
   const PLATFORMS = ['noon', 'trendyol', 'amazon', 'salla']
   const [listings, setListings] = useState<Record<string, any>>({})
   const [activePlatform, setActivePlatform] = useState<string>('noon')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<any>({})
+  const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => {
     if (!productId) return
@@ -332,6 +334,47 @@ function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDes
   async function save() {
     if (!productId || !merchantCode) return
     setSaving(true)
+    setSaveMessage(null)
+    const images = editing.images ? editing.images.split('\n').map((s: string) => s.trim()).filter(Boolean) : []
+    if (activePlatform === 'trendyol') {
+      try {
+        const contentId = product.external_id || product.raw?.contentId || product.raw?.id
+        if (!contentId) throw new Error('لا يوجد معرّف Trendyol لهذا المنتج. شغّل المزامنة أولًا ثم حاول مجددًا.')
+        if (!Number.isFinite(Number(contentId))) throw new Error('معرّف المنتج في Trendyol غير صالح. شغّل المزامنة ثم حاول مجددًا.')
+        if (!editing.title?.trim() && !editing.description?.trim() && !images.length) throw new Error('أدخل تعديلًا واحدًا على الأقل قبل الإرسال.')
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+            'idempotency-key': crypto.randomUUID(),
+          },
+          body: JSON.stringify({
+            merchant_code: merchantCode,
+            action: 'products.v2_update_content',
+            confirm: true,
+            storefront: 'SA',
+            language: 'ar',
+            payload: { items: [{
+              contentId: Number(contentId),
+              title: editing.title?.trim() || undefined,
+              description: editing.description?.trim() || undefined,
+              images: images.length ? images.map((url: string) => ({ url })) : undefined,
+            }] },
+          }),
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol طلب التعديل')
+        setSaveMessage({ type: 'ok', text: `تم إرسال التعديل إلى Trendyol للمراجعة${result.batchRequestId ? ` — رقم المتابعة: ${result.batchRequestId}` : ''}` })
+      } catch (error: any) {
+        setSaveMessage({ type: 'err', text: error.message || 'تعذر إرسال التعديل إلى Trendyol' })
+        setSaving(false)
+        return
+      }
+    }
     const { error } = await supabase.from('product_platform_listings').upsert({
       product_id: productId,
       merchant_code: merchantCode,
@@ -340,14 +383,16 @@ function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDes
       description: editing.description || null,
       bullet_points: editing.bullet_points ? editing.bullet_points.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
       keywords: editing.keywords ? editing.keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
-      images: editing.images ? editing.images.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
+      images,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'product_id,platform' })
     setSaving(false)
+    if (error) setSaveMessage({ type: 'err', text: `تعذر حفظ التعديل: ${error.message}` })
     if (!error) {
       const { data } = await supabase.from('product_platform_listings').select('*').eq('product_id', productId)
       const map: any = {}; for (const l of data || []) map[l.platform] = l
       setListings(map)
+      if (activePlatform !== 'trendyol') setSaveMessage({ type: 'ok', text: 'تم حفظ التعديل.' })
     }
   }
 
@@ -375,28 +420,29 @@ function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDes
           <label style={fieldLabel}>العنوان</label>
           <input value={editing.title || ''} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
         </div>
-        <div>
+        {activePlatform !== 'trendyol' ? <div>
           <label style={fieldLabel}>الكلمات المفتاحية</label>
           <input value={editing.keywords || ''} onChange={e => setEditing({ ...editing, keywords: e.target.value })} style={inp} placeholder="مفصولة بفواصل" />
-        </div>
+        </div> : null}
       </div>
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>الوصف</label>
         <textarea value={editing.description || ''} onChange={e => setEditing({ ...editing, description: e.target.value })} rows={3} style={{ ...inp, minHeight: 80 }} />
       </div>
-      <div style={{ marginTop: 10 }}>
+      {activePlatform !== 'trendyol' ? <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>النقاط (سطر لكل واحدة)</label>
         <textarea value={editing.bullet_points || ''} onChange={e => setEditing({ ...editing, bullet_points: e.target.value })} rows={4} style={{ ...inp, minHeight: 90 }} />
-      </div>
+      </div> : null}
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>روابط الصور (سطر لكل واحدة)</label>
         <textarea value={editing.images || ''} onChange={e => setEditing({ ...editing, images: e.target.value })} rows={3} style={{ ...inp, minHeight: 70 }} placeholder="https://..." />
       </div>
       <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={save} disabled={saving} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          {saving ? '...' : '💾 حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
+          {saving ? 'جارٍ الإرسال...' : activePlatform === 'trendyol' ? 'إرسال التعديل إلى Trendyol' : '💾 حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
         </button>
       </div>
+      {saveMessage ? <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, fontSize:12, lineHeight:1.6, background:saveMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:saveMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{saveMessage.text}</div> : null}
     </div>
   )
 }
