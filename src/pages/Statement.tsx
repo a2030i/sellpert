@@ -23,6 +23,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [perfData, setPerfData]     = useState<any[]>([])
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
+  const [costInfo, setCostInfo] = useState({ cogs: 0, costedUnits: 0, missingUnits: 0 })
   // الباقة الحالية مجانية، لذلك لا تُحتسب أي عمولة للمنصة.
   const commRate = 0
   const [loading, setLoading]       = useState(true)
@@ -38,7 +39,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [perf, rets, { data: tgts }] = await Promise.all([
+    const [perf, rets, { data: tgts }, monthOrders, productCosts] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', merchant!.merchant_code)
@@ -51,10 +52,24 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       supabase.from('sales_targets').select('*')
         .eq('merchant_code', merchant!.merchant_code)
         .eq('year', year).eq('month', month),
+      fetchAll<any>((f, t) => supabase.from('orders').select('sku,quantity,status')
+        .eq('merchant_code', merchant!.merchant_code).gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
+        .order('id').range(f, t), 'تكلفة الطلبات'),
+      fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
+        .eq('merchant_code', merchant!.merchant_code).order('id').range(f, t), 'تكلفة المنتجات'),
     ])
     setPerfData(perf)
     setReturns(rets)
     setTargets(tgts || [])
+    const costs = new Map<string, number>()
+    for (const product of productCosts) if (product.sku && Number(product.cost_price) > 0) costs.set(String(product.sku).toLowerCase(), Number(product.cost_price))
+    let cogs = 0, costedUnits = 0, missingUnits = 0
+    for (const order of monthOrders.filter((row: any) => !['cancelled','returned'].includes(row.status))) {
+      const units = Number(order.quantity || 1)
+      const cost = order.sku ? costs.get(String(order.sku).toLowerCase()) : undefined
+      if (cost) { cogs += cost * units; costedUnits += units } else missingUnits += units
+    }
+    setCostInfo({ cogs, costedUnits, missingUnits })
     setLoading(false)
   }
 
@@ -67,10 +82,12 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const afterFees     = grossRevenue - platformFees - adSpend - totalReturns
     const sellpertComm  = Math.round(grossRevenue * commRate / 100)
     const netPayout     = afterFees - sellpertComm
-    const margin        = grossRevenue > 0 ? (netPayout / grossRevenue * 100) : 0
+    const estimatedProfit = netPayout - costInfo.cogs
+    const costsComplete = costInfo.missingUnits === 0 && costInfo.costedUnits > 0
+    const margin        = grossRevenue > 0 && costsComplete ? (estimatedProfit / grossRevenue * 100) : null
     const totalOrders   = perfData.reduce((s, r) => s + r.order_count, 0)
-    return { grossRevenue, platformFees, adSpend, totalReturns, afterFees, sellpertComm, netPayout, margin, totalOrders }
-  }, [perfData, returns, commRate])
+    return { grossRevenue, platformFees, adSpend, totalReturns, afterFees, sellpertComm, netPayout, estimatedProfit, costsComplete, margin, totalOrders }
+  }, [perfData, returns, commRate, costInfo])
 
   // Per-platform breakdown
   const byPlatform = useMemo(() => {
@@ -199,7 +216,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: `${summary.totalOrders} طلب` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'المرتجعات', value: fmt(summary.totalReturns), color: 'var(--warning-text)', icon: '', sub: 'بحسب البيانات المستوردة' },
-              { label: 'الصافي التشغيلي التقديري', value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: 'ليس مبلغ تسوية أو تحويلًا بنكيًا' },
+              { label: summary.costsComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكلفة المنتجات', value: fmt(summary.costsComplete ? summary.estimatedProfit : summary.netPayout), color: (summary.costsComplete ? summary.estimatedProfit : summary.netPayout) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: summary.costsComplete ? `${summary.margin?.toFixed(1)}% هامش تقديري` : 'الربحية غير مكتملة حتى تُدخل تكاليف المنتجات' },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -224,10 +241,11 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 { label: 'رسوم المنصات',              value: -summary.platformFees, color: 'var(--danger-text)', sign: '−' },
                 { label: 'الإنفاق الإعلاني',          value: -summary.adSpend,      color: 'var(--danger-text)', sign: '−' },
                 { label: 'قيمة المرتجعات',            value: -summary.totalReturns, color: 'var(--warning-text)', sign: '−' },
+                { label: 'تكلفة المنتجات المسجّلة', value: -costInfo.cogs, color: 'var(--danger-text)', sign: '−' },
                 null, // divider
                 { label: 'الصافي بعد الرسوم والإعلانات والمرتجعات', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 null,
-                { label: 'الصافي التشغيلي التقديري — لا يمثل تسوية بنكية', value: summary.netPayout, color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
+                { label: summary.costsComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكاليف المنتجات الناقصة', value: summary.costsComplete ? summary.estimatedProfit : summary.netPayout, color: (summary.costsComplete ? summary.estimatedProfit : summary.netPayout) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
                 <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
               ) : (
@@ -240,6 +258,11 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
               ))}
             </div>
           </div>
+
+          {!summary.costsComplete ? <div style={{ marginBottom:16, padding:'12px 15px', borderRadius:10, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'var(--warning-text)' }}>الربحية غير مكتملة</div>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, lineHeight:1.7 }}>هناك {costInfo.missingUnits.toLocaleString('ar-SA')} وحدة مباعة بلا تكلفة منتج مسجّلة. لذلك لا نعرضها كصافي ربح، ويمكن استكمال التكاليف من صفحة المنتجات.</div>
+          </div> : null}
 
           {/* Data mismatch warning — منصات فيها إنفاق إعلاني بدون مبيعات */}
           {(() => {

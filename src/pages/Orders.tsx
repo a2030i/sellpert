@@ -46,6 +46,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [selectedItems, setSelectedItems] = useState<any[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [orderActionLoading, setOrderActionLoading] = useState(false)
+  const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const isMobile = useMobile()
 
   useEffect(() => {
@@ -180,13 +182,39 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function openOrder(order: Order) {
-    setSelectedOrder(order); setSelectedItems([]); setDetailLoading(true)
+    setSelectedOrder(order); setSelectedItems([]); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
     ])
     if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
     setSelectedItems(items.data || []); setDetailLoading(false)
+  }
+
+  async function copyOrderValue(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setOrderActionMessage({ type:'ok', text:`تم نسخ ${label}.` })
+    } catch {
+      setOrderActionMessage({ type:'err', text:`تعذر نسخ ${label}.` })
+    }
+  }
+
+  async function refreshSelectedOrder() {
+    if (!merchant || !selectedOrder || selectedOrder.platform !== 'trendyol') return
+    setOrderActionLoading(true); setOrderActionMessage(null)
+    const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code } })
+    if (error || data?.error) {
+      setOrderActionMessage({ type:'err', text:data?.error || error?.message || 'تعذر تحديث الطلب من Trendyol.' })
+      setOrderActionLoading(false); return
+    }
+    const { data: fresh } = await supabase.from('orders').select('*').eq('id', selectedOrder.id).maybeSingle()
+    if (fresh) {
+      setSelectedOrder(fresh as Order)
+      setOrders(current => current.map(order => order.id === fresh.id ? fresh as Order : order))
+    }
+    setOrderActionMessage({ type:'ok', text:`تم التحديث من Trendyol. تمت مزامنة ${Number(data?.records_synced || 0).toLocaleString('ar-SA')} طلب.` })
+    setOrderActionLoading(false)
   }
 
   if (loading) return (
@@ -205,12 +233,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           <div style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>لا توجد طلبات بعد</div>
         <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
         <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
-          فريق Sellpert يستلم تقارير منصاتك ويرفعها لك — بمجرد وصول أول تقرير ستظهر طلباتك هنا.<br />
-          أرسل تقاريرك للفريق أو افتح طلب دعم وسنتولى الباقي.
+          اربط Trendyol للمزامنة المباشرة، أو ارفع ملف Amazon أو Noon أو سلة أو زد، وستظهر الطلبات هنا دون تدخل الإدارة.
         </p>
-        <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
+        <button onClick={() => { window.history.pushState(null,'','/integrations'); window.dispatchEvent(new PopStateEvent('popstate')) }}
           style={{ background:'var(--accent-strong)', border:'none', color:'#fff', padding:'12px 28px', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-          فتح الدعم
+          الربط ورفع الملفات
         </button>
       </div>
     </div>
@@ -477,6 +504,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               <button onClick={() => setSelectedOrder(null)} style={S.closeBtn} aria-label="إغلاق">×</button>
             </div>
 
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+              <button onClick={() => void copyOrderValue(selectedOrder.order_id, 'رقم الطلب')} style={S.actionBtn}>نسخ رقم الطلب</button>
+              {selectedOrder.cargo_tracking_number ? <button onClick={() => void copyOrderValue(selectedOrder.cargo_tracking_number!, 'رقم التتبع')} style={S.actionBtn}>نسخ رقم التتبع</button> : null}
+              {selectedOrder.platform === 'trendyol' ? <button onClick={() => void refreshSelectedOrder()} disabled={orderActionLoading} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:orderActionLoading ? .6 : 1 }}>{orderActionLoading ? 'جارٍ التحديث...' : 'تحديث من Trendyol'}</button> : null}
+            </div>
+            {orderActionMessage ? <div style={{ marginBottom:14, padding:'9px 11px', borderRadius:8, fontSize:11, background:orderActionMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:orderActionMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{orderActionMessage.text}</div> : null}
+
             <div style={S.detailGrid}>
               {[
                 ['المنصة', PLATFORM_MAP[selectedOrder.platform] || selectedOrder.platform],
@@ -545,6 +579,7 @@ const S: Record<string, React.CSSProperties> = {
   pageTitle:  { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
   pageSub:    { fontSize:13, color:'var(--text2)', marginTop:3 },
   exportBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' },
+  actionBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text2)', padding:'7px 11px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
   filtersRow: { display:'flex', flexDirection:'column', gap:10, marginBottom:20 },
   pill:       { padding:'7px 16px', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer' },
   pillActive: { background:'var(--accent-strong)', borderColor:'var(--accent)', color:'#fff' },

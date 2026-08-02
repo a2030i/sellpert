@@ -2205,9 +2205,14 @@ export type Database = {
         Row: {
           bullet_points: Json | null
           description: string | null
+          delivery_error: string | null
+          delivery_status: string
+          external_batch_id: string | null
           id: string
           images: Json | null
           keywords: Json | null
+          last_submitted_at: string | null
+          last_verified_at: string | null
           merchant_code: string
           notes: string | null
           platform: string
@@ -2218,9 +2223,14 @@ export type Database = {
         Insert: {
           bullet_points?: Json | null
           description?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          external_batch_id?: string | null
           id?: string
           images?: Json | null
           keywords?: Json | null
+          last_submitted_at?: string | null
+          last_verified_at?: string | null
           merchant_code: string
           notes?: string | null
           platform: string
@@ -2231,9 +2241,14 @@ export type Database = {
         Update: {
           bullet_points?: Json | null
           description?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          external_batch_id?: string | null
           id?: string
           images?: Json | null
           keywords?: Json | null
+          last_submitted_at?: string | null
+          last_verified_at?: string | null
           merchant_code?: string
           notes?: string | null
           platform?: string

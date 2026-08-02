@@ -159,6 +159,24 @@ Deno.serve(async req => {
       result = { content_type:contentType, file_name:response.headers.get('content-disposition'), data_base64:toBase64(bytes) }
     }
     if (!response.ok) throw new HttpError(response.status, trendyolError(result, response.status))
+    if (action === 'products.batch_result') {
+      const batchId = clean(input?.path?.batchRequestId)
+      const batchState = normalizeBatchState(result)
+      const now = new Date().toISOString()
+      await admin.from('marketplace_action_logs').update({
+        status:batchState.status, response:sanitize(result), error_message:batchState.error,
+        finished_at:['success','partial','failed'].includes(batchState.status) ? now : null,
+      }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('external_batch_id',batchId)
+        .neq('action','products.batch_result')
+      await admin.from('product_platform_listings').update({
+        delivery_status:batchState.status, delivery_error:batchState.error,
+        last_verified_at:now,
+      }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('external_batch_id',batchId)
+      await admin.from('marketplace_action_logs').update({
+        status:'success', response:sanitize(result), finished_at:now,
+      }).eq('id',logId)
+      return json({ ok:true, status:batchState.status, pendingApproval:['accepted','processing'].includes(batchState.status), error:batchState.error, data:result }, 200, cors)
+    }
     const batchId = String(result?.batchRequestId || result?.batch_request_id || '') || null
     const finalStatus = batchId ? 'accepted' : 'success'
     await admin.from('marketplace_action_logs').update({
@@ -213,6 +231,24 @@ function readableError(value:any):string {
     try { return JSON.stringify(value) } catch { return 'استجابة غير مفهومة من Trendyol' }
   }
   return String(value)
+}
+function normalizeBatchState(result:any):{status:'processing'|'success'|'partial'|'failed',error:string|null} {
+  const rawStatus = String(result?.status || result?.batchRequestStatus || result?.batchStatus || '').toUpperCase()
+  const items = Array.isArray(result?.items) ? result.items : Array.isArray(result?.content) ? result.content : []
+  const failed = items.filter((item:any) => {
+    const status = String(item?.status || item?.itemStatus || '').toUpperCase()
+    return status.includes('FAIL') || status.includes('REJECT') || Boolean(item?.failureReasons?.length || item?.errors?.length)
+  })
+  const succeeded = items.filter((item:any) => {
+    const status = String(item?.status || item?.itemStatus || '').toUpperCase()
+    return status.includes('SUCCESS') || status.includes('COMPLETE') || status.includes('APPROV')
+  })
+  const error = failed.length ? readableError(failed.flatMap((item:any) => item.failureReasons || item.errors || item.message || [])) || 'رفض Trendyol بعض التعديلات' : null
+  if (failed.length && succeeded.length) return { status:'partial', error }
+  if (failed.length && (items.length === failed.length || rawStatus.includes('FAIL') || rawStatus.includes('REJECT'))) return { status:'failed', error }
+  if (['COMPLETED','COMPLETE','SUCCESS','SUCCEEDED','APPROVED'].some(value => rawStatus.includes(value))) return { status:'success', error:null }
+  if (['FAILED','REJECTED','CANCELLED'].some(value => rawStatus.includes(value))) return { status:'failed', error:error || 'رفض Trendyol التعديل' }
+  return { status:'processing', error:null }
 }
 function toBase64(bytes:Uint8Array) {
   let binary=''; const chunk=0x8000

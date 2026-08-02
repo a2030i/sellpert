@@ -308,6 +308,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const [listings, setListings] = useState<Record<string, any>>({})
   const [activePlatform, setActivePlatform] = useState<string>('trendyol')
   const [saving, setSaving] = useState(false)
+  const [checkingStatus, setCheckingStatus] = useState(false)
   const [editing, setEditing] = useState<any>({})
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -331,10 +332,41 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     })
   }, [activePlatform, listings, defaultTitle, defaultDescription, defaultImages])
 
+  async function checkDeliveryStatus(batchId: string, quiet = false) {
+    if (!merchantCode || !batchId || checkingStatus) return
+    if (!quiet) setCheckingStatus(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant_code: merchantCode, action: 'products.batch_result', path: { batchRequestId: batchId } }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'تعذر تحديث حالة التعديل')
+      setListings(previous => ({ ...previous, trendyol: { ...previous.trendyol, delivery_status: result.status, delivery_error: result.error || null, last_verified_at: new Date().toISOString() } }))
+    } catch (error: any) {
+      if (!quiet) setSaveMessage({ type: 'err', text: error.message || 'تعذر تحديث حالة التعديل' })
+    } finally {
+      if (!quiet) setCheckingStatus(false)
+    }
+  }
+
+  useEffect(() => {
+    const listing = listings.trendyol
+    if (!listing?.external_batch_id || !['accepted', 'processing'].includes(listing.delivery_status)) return
+    const timer = window.setInterval(() => void checkDeliveryStatus(listing.external_batch_id, true), 20000)
+    return () => window.clearInterval(timer)
+    // حالة الطلب ورقم الدفعة فقط هما ما يبدآن أو يوقفان المتابعة.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merchantCode, listings.trendyol?.external_batch_id, listings.trendyol?.delivery_status])
+
   async function save() {
     if (!productId || !merchantCode) return
     setSaving(true)
     setSaveMessage(null)
+    let deliveryResult: any = null
     const images = editing.images ? editing.images.split('\n').map((s: string) => s.trim()).filter(Boolean) : []
     if (activePlatform === 'trendyol') {
       try {
@@ -368,6 +400,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         })
         const result = await response.json().catch(() => ({}))
         if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol طلب التعديل')
+        deliveryResult = result
         setSaveMessage({
           type: 'ok',
           text: result.pendingApproval || result.batchRequestId
@@ -389,6 +422,11 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       bullet_points: editing.bullet_points ? editing.bullet_points.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
       keywords: editing.keywords ? editing.keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
       images,
+      delivery_status: activePlatform === 'trendyol' ? (deliveryResult?.status || 'success') : 'draft',
+      external_batch_id: activePlatform === 'trendyol' ? (deliveryResult?.batchRequestId || null) : null,
+      last_submitted_at: activePlatform === 'trendyol' ? new Date().toISOString() : null,
+      last_verified_at: activePlatform === 'trendyol' && !deliveryResult?.pendingApproval ? new Date().toISOString() : null,
+      delivery_error: null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'product_id,platform' })
     setSaving(false)
@@ -420,6 +458,17 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           )
         })}
       </div>
+      {activePlatform === 'trendyol' && listings.trendyol?.delivery_status && listings.trendyol.delivery_status !== 'draft' ? (
+        <div style={{ marginBottom:14, padding:'11px 13px', borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontSize:12, fontWeight:800, color: listings.trendyol.delivery_status === 'success' ? 'var(--success-text)' : listings.trendyol.delivery_status === 'failed' ? 'var(--danger-text)' : 'var(--warning-text)' }}>
+              {{ accepted:'أُرسل إلى Trendyol', processing:'قيد مراجعة Trendyol', success:'اعتمد Trendyol التعديل', partial:'اعتمد Trendyol جزءًا من التعديل', failed:'يحتاج التعديل إلى تصحيح' }[listings.trendyol.delivery_status as string] || 'حالة التعديل غير معروفة'}
+            </div>
+            {listings.trendyol.delivery_error ? <div style={{ fontSize:11, color:'var(--danger-text)', marginTop:4 }}>{listings.trendyol.delivery_error}</div> : <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>يتم تحديث الحالة تلقائيًا دون الحاجة لإعادة الإرسال.</div>}
+          </div>
+          {listings.trendyol.external_batch_id && ['accepted','processing'].includes(listings.trendyol.delivery_status) ? <button onClick={() => void checkDeliveryStatus(listings.trendyol.external_batch_id)} disabled={checkingStatus} style={{ border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', padding:'7px 11px', borderRadius:8, fontFamily:'inherit', fontSize:11, fontWeight:700, cursor:'pointer' }}>{checkingStatus ? 'جارٍ التحقق...' : 'تحديث الحالة'}</button> : null}
+        </div>
+      ) : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         <div>
           <label style={fieldLabel}>العنوان</label>
