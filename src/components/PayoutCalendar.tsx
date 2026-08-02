@@ -44,7 +44,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
   if (compact) {
     return (
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 20, borderRight: '4px solid var(--accent)' }}>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontWeight: 700 }}>💰 القادم لحسابك</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontWeight: 700 }}>المستحقات القادمة</div>
         {next ? (
           <>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fmtSAR(next.amount)}</div>
@@ -52,7 +52,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
           </>
         ) : (
           <>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text2)' }}>بانتظار تأكيد فريقك لموعد تحويلك</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text2)' }}>لا يوجد موعد تحويل مؤكد حاليًا</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>مبيعات بانتظار التحويل: {fmtSAR(pending.reduce((a, p) => a + p.sales, 0))} (قبل الرسوم)</div>
           </>
         )}
@@ -63,7 +63,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
   // بطاقة كاملة (كشف الحساب)
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>💰 القادم لحسابك</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>المستحقات القادمة</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>متى تصلك مستحقاتك وكم — مواعيد يؤكّدها فريق الحسابات</div>
 
       {upcoming.length > 0 ? (

@@ -583,7 +583,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       {costMissing && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, fontWeight: 600 }}>
           <span style={{ width:4,alignSelf:'stretch',borderRadius:4,background:'var(--warning-text)' }} />
-          <span>لم نُدخل تكلفة شراء منتجاتك بعد، فأرقام «الربح» هنا قبل خصم تكلفة البضاعة — ربحك الفعلي أقل. زوّد فريق Sellpert بأسعار الشراء ليظهر رقمك الحقيقي.</span>
+          <span>تكلفة شراء بعض المنتجات غير مدخلة؛ أضف تكلفة المنتجات من صفحة المنتجات لاحتساب صافي الربح بدقة.</span>
         </div>
       )}
 
@@ -641,7 +641,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           <BarChart3 size={32} color="var(--text3)" style={{marginBottom:12}} />
           <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات في هذه الفترة</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.7 }}>
-            فريق Sellpert يستلم تقارير منصاتك (تراندايول، نون، أمازون) ويرفعها لك<br />بمجرد وصول أول تقرير ستظهر بيانات متجرك هنا
+            لا توجد بيانات Trendyol ضمن الفترة المحددة.<br />شغّل المزامنة أو اختر فترة زمنية أوسع.
           </div>
           <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
             style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
