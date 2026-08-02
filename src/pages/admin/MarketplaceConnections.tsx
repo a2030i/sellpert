@@ -174,12 +174,34 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const [busy, setBusy] = useState<'test' | 'save' | 'delete' | 'sync' | null>(null)
   const [oauthBusy, setOauthBusy] = useState(false)
   const [verified, setVerified] = useState(false)
+  const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null } | null>(null)
+
+  const syncInProgress = syncJob?.status === 'pending' || syncJob?.status === 'running'
 
   useEffect(() => {
     setEditing(!status)
     setVerified(false)
     setForm({ ...EMPTY_FORM, seller_id: status?.seller_id || '' })
   }, [merchantCode, status])
+
+  useEffect(() => {
+    if (platform !== 'trendyol' || !status?.is_active) { setSyncJob(null); return }
+    let cancelled = false
+    let wasInProgress = false
+    const poll = async () => {
+      try {
+        const data = await callManager({ action: 'sync-status', merchant_code: merchantCode, platform })
+        if (cancelled || data.error) return
+        const active = data.job?.status === 'pending' || data.job?.status === 'running'
+        setSyncJob(data.job || null)
+        if (wasInProgress && !active) await onChanged()
+        wasInProgress = active
+      } catch { /* keep the last visible state and retry */ }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 4000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [merchantCode, platform, status?.is_active, onChanged])
 
   function update(field: keyof FormState, value: string) {
     setVerified(false)
@@ -211,6 +233,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
     try {
       const data = await callManager({ action: 'sync', merchant_code: merchantCode, platform })
       if (data.error) throw new Error(data.error)
+      setSyncJob({ status: 'pending' })
       setNotice({
         type: 'ok',
         text: data.already_queued
@@ -310,12 +333,19 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>{platform === 'trendyol' ? 'معرّف البائع (معرّف الكيان)' : 'Seller ID'}</span><code>{status.seller_id}</code></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر اختبار</span><span>{formatDate(status.last_tested_at)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
+                <strong style={{ color: syncInProgress ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
+                  {syncJob?.status === 'pending' ? '⏳ في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ سحب البيانات' : syncJob?.status === 'done' ? '✓ اكتملت' : syncJob?.status === 'failed' ? '✕ فشلت' : 'لم تبدأ بعد'}
+                </strong>
+              </div>
+              {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color: 'var(--danger-text)', fontSize: 10, marginTop: 7 }}>{syncJob.error_message}</div> : null}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {status.is_active ? (
-                <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color }} onClick={() => void requestSync()} disabled={!!busy}>
-                  {busy === 'sync' ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {busy === 'sync' ? 'جارٍ الجدولة...' : 'مزامنة الآن'}
+                <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color, opacity: syncInProgress ? 0.65 : 1 }} onClick={() => void requestSync()} disabled={!!busy || syncInProgress}>
+                  {busy === 'sync' || syncInProgress ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {busy === 'sync' ? 'جارٍ الجدولة...' : syncJob?.status === 'pending' ? 'في الطابور...' : syncJob?.status === 'running' ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
                 </button>
               ) : null}
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>

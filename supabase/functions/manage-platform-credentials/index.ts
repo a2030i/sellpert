@@ -30,6 +30,7 @@ Deno.serve(async req => {
     if (action === 'save') return json(await saveCredential(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     if (action === 'delete') return json(await deleteCredential(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     if (action === 'sync') return json(await enqueueSync(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
+    if (action === 'sync-status') return json(await getSyncStatus(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     throw new HttpError(400, 'Unsupported action')
   } catch (error: any) {
     return json({ error: error.message }, error instanceof HttpError ? error.status : 500, corsHeaders)
@@ -135,6 +136,19 @@ async function enqueueSync(admin: any, body: any) {
   })
   if (error) throw error
   return { ok: true, already_queued: false }
+}
+
+async function getSyncStatus(admin: any, body: any) {
+  const merchantCode = String(body?.merchant_code || '')
+  const platform = String(body?.platform || '')
+  if (!merchantCode || !PLATFORMS.has(platform)) throw new HttpError(400, 'Invalid merchant or platform')
+
+  const { data: job, error } = await admin.from('sync_queue')
+    .select('id,status,attempts,error_message,created_at,started_at,finished_at')
+    .eq('merchant_code', merchantCode).eq('platform', platform)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw error
+  return { ok: true, job: job || null }
 }
 
 function validateCredentials(platform: string, input: any) {
