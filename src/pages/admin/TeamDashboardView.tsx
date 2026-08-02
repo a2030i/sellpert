@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
-  Users, CheckSquare, AlertTriangle, Activity, Star, TrendingUp, Upload, DollarSign, Heart,
+  Users, CheckSquare, Star, TrendingUp, Upload, DollarSign, Heart,
 } from 'lucide-react'
 import { fmtCurrency, fmtNumber } from '../../lib/formatters'
 

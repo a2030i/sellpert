@@ -2,12 +2,12 @@ import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 import type { Merchant } from '../../lib/supabase'
-import { UserPlus, Trash2, Settings, Briefcase, Crown, ChevronDown, Sparkles, Check } from 'lucide-react'
+import { UserPlus, Trash2, Settings, Briefcase, Crown, Sparkles, Check } from 'lucide-react'
 import { toastOk, toastErr } from '../../components/Toast'
 import PermissionsEditor from '../../components/PermissionsEditor'
 import { ALL_PERMISSIONS, PERM_CATEGORIES, DEPT_TEMPLATES, DEPT_LABELS, getPermissions, type Department, type PermKey } from '../../lib/permissions'
 
-export default function EmployeesView({ merchants, onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
+export default function EmployeesView({ merchants, currentUserId, onRefresh }: { merchants: Merchant[]; currentUserId?: string; onRefresh: () => void }) {
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
   const [editPerms, setEditPerms] = useState<Merchant | null>(null)
@@ -77,6 +77,11 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
   }
 
   async function deleteStaff(m: Merchant) {
+    if (m.id === currentUserId) {
+      toastErr('لا يمكنك حذف حسابك أثناء تسجيل الدخول')
+      setDeleteConfirm(null)
+      return
+    }
     if (m.role === 'admin') {
       const count = merchants.filter(x => x.role === 'admin').length
       if (count <= 1) { toastErr('لا يمكن حذف آخر مدير'); setDeleteConfirm(null); return }
@@ -112,8 +117,8 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
       </div>
 
       {/* Add bar */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
-        <input style={{ ...S.searchInput, flex: 1 }} placeholder="ابحث بالاسم أو البريد..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input aria-label="البحث في الموظفين والمدراء" style={{ ...S.searchInput, flex: '1 1 220px', minWidth: 0 }} placeholder="ابحث بالاسم أو البريد..." value={search} onChange={e => setSearch(e.target.value)} />
         <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
           {showAdd ? '✕ إلغاء' : <><UserPlus size={14} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> إضافة موظف</>}
         </button>
@@ -222,7 +227,7 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
       {/* Staff table */}
       <div style={S.tableCard}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={S.table}>
+          <table style={{ ...S.table, minWidth: 760 }}>
             <thead>
               <tr>{['الاسم', 'البريد', 'القسم/الدور', 'الصلاحيات', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
@@ -286,9 +291,13 @@ export default function EmployeesView({ merchants, onRefresh }: { merchants: Mer
                               <Settings size={11} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> صلاحيات
                             </button>
                           )}
-                          <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>
-                            <Trash2 size={11} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> حذف
-                          </button>
+                          {m.id === currentUserId ? (
+                            <span style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>حسابك الحالي</span>
+                          ) : (
+                            <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>
+                              <Trash2 size={11} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> حذف
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>

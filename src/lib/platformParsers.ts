@@ -1003,7 +1003,24 @@ export function parseAmazonSalesDashboard(csv: string, merchantCode: string): Pa
   }
   if (start < 0) return errResult('amazon_sales_dashboard', 'amazon', 'لوحة مبيعات أمازون', 'تعذّر إيجاد سلسلة المبيعات اليومية في الملف')
 
+  // صف «لمحة عن المبيعات» يسبق السلسلة اليومية ويحمل عدد منتجات الطلب.
+  // نحفظه للمطابقة مع Business Report؛ الملف لا يحتوي طلبات فردية.
+  let overview: { orderItems: number; units: number; sales: number } | null = null
+  for (let i = 0; i < start - 1; i++) {
+    const c = parseLine(lines[i])
+    if (c.length < 3 || !/^\d+(?:\.\d+)?$/.test(c[0] || '')) continue
+    const orderItems = Math.trunc(n(c[0]))
+    const units = Math.trunc(n(c[1]))
+    const sales = n(c[2])
+    if (orderItems > 0 && units > 0 && sales > 0) {
+      overview = { orderItems, units, sales }
+      break
+    }
+  }
+
   const rows: any[] = []
+  let rangeStart = ''
+  let rangeEnd = ''
   for (let i = start; i < lines.length; i++) {
     const c = parseLine(lines[i])
     const dateRaw = c[0] || ''
@@ -1013,13 +1030,32 @@ export function parseAmazonSalesDashboard(csv: string, merchantCode: string): Pa
     const totalSales = n(c[1])   // مبيعات المنتج المطلوبة (النطاق المحدد)
     const units = parseInt(s(c[2])) || 0
     if (!dataDate) continue
+    if (!rangeStart || dataDate < rangeStart) rangeStart = dataDate
+    if (!rangeEnd || dataDate > rangeEnd) rangeEnd = dataDate
     if (totalSales <= 0 && units <= 0) continue  // تجاهل الأيام بلا مبيعات
     rows.push({ merchant_code: merchantCode, data_date: dataDate, total_sales: totalSales, units })
   }
-  const total = rows.reduce((a, r) => a + r.total_sales, 0)
+  const totalSales = Math.round(rows.reduce((a, r) => a + r.total_sales, 0) * 100) / 100
+  const totalUnits = rows.reduce((a, r) => a + r.units, 0)
+  const calendarDays = rangeStart && rangeEnd
+    ? Math.round((Date.parse(rangeEnd + 'T00:00:00Z') - Date.parse(rangeStart + 'T00:00:00Z')) / 86400000) + 1
+    : rows.length
+  const warnings: string[] = []
+  if (overview && (Math.abs(overview.sales - totalSales) > 0.01 || overview.units !== totalUnits)) {
+    warnings.push('إجمالي لمحة المبيعات لا يطابق مجموع السلسلة اليومية؛ راجع نطاق التاريخ في ملف أمازون.')
+  }
   return {
     kind: 'amazon_sales_dashboard', platform: 'amazon', label: 'لوحة مبيعات أمازون (ملخّص يومي)',
-    summary: { days: rows.length, totalSales: Math.round(total) },
+    summary: {
+      days: rows.length,
+      calendarDays,
+      totalSales,
+      totalUnits,
+      orderItems: overview?.orderItems,
+      rangeStart: rangeStart || undefined,
+      rangeEnd: rangeEnd || undefined,
+      warnings,
+    },
     payloads: rows.length === 0
       ? []
       : [{ table: 'amazon_daily_sales', rows, conflict: 'merchant_code,data_date' }],

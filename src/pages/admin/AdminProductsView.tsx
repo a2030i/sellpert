@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { S } from './adminShared'
 import { PLATFORM_MAP as PLT_NAMES, PLATFORM_COLORS as PLT_COLORS } from '../../lib/constants'
 import type { Merchant } from '../../lib/supabase'
 

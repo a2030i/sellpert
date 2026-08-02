@@ -147,7 +147,7 @@ export const S: Record<string, React.CSSProperties> = {
     padding: '7px 14px', border: '1px solid var(--border)', background: 'var(--surface)',
     color: 'var(--text2)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
   },
-  presetActive: { background: 'var(--accent-strong)', borderColor: 'var(--accent-strong)', color: '#fff' },
+  presetActive: { background: 'var(--accent-strong)', border: '1px solid var(--accent-strong)', color: '#fff' },
   tabBtn:    { padding: '10px 20px', background: 'transparent', border: 'none', color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: -1 },
   tabActive: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
   msgBox: { borderRadius: 10, padding: '12px 16px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },

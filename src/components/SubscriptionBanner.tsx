@@ -1,4 +1,4 @@
-import { PLANS, getPlan, getUpgradePlan, type PlanKey } from '../lib/subscription'
+import { PLANS, getUpgradePlan, type PlanKey } from '../lib/subscription'
 import type { Merchant } from '../lib/supabase'
 
 interface Props {

@@ -32,7 +32,6 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [preset, setPreset]     = useState(saved.preset   || 'last30')
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const isMobile = useMobile()
 
   useEffect(() => {
@@ -453,4 +452,3 @@ const S: Record<string, React.CSSProperties> = {
   statusBadge:{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 },
   pageBtn:    { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', width:32, height:32, borderRadius:8, fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
 }
-

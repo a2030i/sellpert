@@ -1,11 +1,15 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useCallback } from 'react'
+import { useDeferredValue } from 'react'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantRequest } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
+import { Pagination } from '../components/UI'
 
 const PLATFORMS = ['trendyol', 'noon', 'amazon'] as const
+const PAGE_SIZE = 30
 
 function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
   if (!netTarget || netTarget <= 0) return 0
@@ -19,6 +23,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [rates, setRates]               = useState<CommissionRate[]>([])
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
+  const [page, setPage]                 = useState(1)
   const [showAdd, setShowAdd]           = useState(false)
   // ?tab=analytics يفتح تبويب التحليلات مباشرة (روابط «منتج يبيع بخسارة» من اللوحة)
   const [tab, setTab]                   = useState<'catalog' | 'analytics'>(() =>
@@ -40,6 +45,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [reqNewPrice, setReqNewPrice] = useState('')
   const [reqSending, setReqSending]   = useState(false)
 
+  // The loader is intentionally keyed by the current merchant.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) loadData() }, [merchant])
 
   async function loadData() {
@@ -55,13 +62,13 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     setLoading(false)
   }
 
-  function getRate(platform: string, category?: string): CommissionRate | undefined {
+  const getRate = useCallback((platform: string, category?: string): CommissionRate | undefined => {
     if (category) {
       const specific = rates.find(r => r.platform === platform && r.category.toLowerCase() === category.toLowerCase())
       if (specific) return specific
     }
     return rates.find(r => r.platform === platform && r.category === 'default')
-  }
+  }, [rates])
 
   function getPrices(productId: string): Record<string, number> {
     const result: Record<string, number> = {}
@@ -161,9 +168,17 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     setReqSending(false)
   }
 
+  const deferredSearch = useDeferredValue(search)
   const filtered = useMemo(() =>
-    products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase()))
-  , [products, search])
+    products.filter(p => !deferredSearch || p.name.toLowerCase().includes(deferredSearch.toLowerCase()) || p.sku?.toLowerCase().includes(deferredSearch.toLowerCase()))
+  , [products, deferredSearch])
+  const pageProducts = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
+
+  useEffect(() => { setPage(1) }, [deferredSearch])
+  useEffect(() => {
+    const last = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    if (page > last) setPage(last)
+  }, [filtered.length, page])
 
   const preview = useMemo(() => {
     const net = parseFloat(form.target_net_price) || 0
@@ -172,7 +187,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       const rate = getRate(p, form.category)
       return { p, price: rate ? calcSellingPrice(net, rate) : 0, ratePct: rate?.rate }
     })
-  }, [form.target_net_price, form.category, rates])
+  }, [form.target_net_price, form.category, getRate])
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
@@ -309,7 +324,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           {isMobile ? (
             // Mobile: card list
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
-              {filtered.map(prod => {
+              {pageProducts.map(prod => {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
                 return (
@@ -358,7 +373,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(prod => {
+                  {pageProducts.map(prod => {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
                     return (
@@ -399,6 +414,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               </table>
             </div>
           )}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
         </div>
       )}
 
@@ -811,7 +827,7 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
     if (!merchant) return
     supabase.rpc('inventory_turnover', { p_merchant_code: merchant.merchant_code, p_days: 90 })
       .then(({ data }) => setData(data))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (!data || !data.turnover_ratio) return null
   const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
   return (
@@ -857,7 +873,7 @@ function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.from('brand_performance').select('*').eq('merchant_code', merchant.merchant_code).order('revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
@@ -895,7 +911,7 @@ function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.from('sku_lifecycle').select('*').eq('merchant_code', merchant.merchant_code).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
   const counts: any = { launching: 0, new_no_sales: 0, growing: 0, mature: 0, dormant: 0, unknown: 0 }
   for (const d of data) counts[d.lifecycle_stage]++
@@ -923,7 +939,7 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.from('variant_performance').select('*').eq('merchant_code', merchant.merchant_code).order('units_sold', { ascending: false }).limit(20).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
@@ -962,7 +978,7 @@ function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.from('buybox_warnings').select('*').eq('merchant_code', merchant.merchant_code).order('overprice_pct', { ascending: false }).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
   const losing = data.filter(d => d.buybox_status === 'losing')
   const atRisk = data.filter(d => d.buybox_status === 'at_risk')
@@ -1021,7 +1037,7 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.from('cross_platform_product_perf').select('*').eq('merchant_code', merchant.merchant_code).order('total_revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
 
   return (

@@ -50,6 +50,11 @@ export const PLANS = {
 
 export type PlanKey = keyof typeof PLANS
 
+export function getPlanKey(merchant: Merchant | null): PlanKey {
+  const key = merchant?.subscription_plan as PlanKey | undefined
+  return key && Object.prototype.hasOwnProperty.call(PLANS, key) ? key : 'free'
+}
+
 // ── Guards ────────────────────────────────────────────────────────────────────
 
 export function isActive(merchant: Merchant | null): boolean {
@@ -69,15 +74,13 @@ export function canAccessChannel(merchant: Merchant | null, channel: string): bo
   if (!merchant) return false
   if (['admin', 'employee'].includes(merchant.role)) return true
   if (!isActive(merchant)) return false
-  const plan = (merchant.subscription_plan as PlanKey) || 'free'
+  const plan = getPlanKey(merchant)
   const cfg  = PLANS[plan] || PLANS.free
   return cfg.channels.includes(channel)
 }
 
 export function getPlan(merchant: Merchant | null): typeof PLANS[PlanKey] {
-  if (!merchant) return PLANS.free
-  const plan = (merchant.subscription_plan as PlanKey) || 'free'
-  return PLANS[plan] || PLANS.free
+  return PLANS[getPlanKey(merchant)]
 }
 
 export function getUpgradePlan(current: PlanKey): PlanKey | null {

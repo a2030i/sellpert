@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { S, PLATFORM_MAP } from './adminShared'
+import { S } from './adminShared'
 import { fmtRelative, fmtDate } from '../../lib/formatters'
 import { Pagination, EmptyState } from '../../components/UI'
 
@@ -39,17 +39,16 @@ export default function AuditLogView({ merchants }: { merchants: Merchant[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1200, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📜 سجل التدقيق</h3>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>كل التغييرات اللي صارت في النظام مع المنفذ والوقت</p>
       </div>
 
       {/* Filters */}
       <div style={{ ...S.formCard, padding: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <select value={merchantFilter} onChange={e => { setMerchantFilter(e.target.value); setPage(1) }} style={{ ...S.input, fontSize: 12, minWidth: 220 }}>
+        <select aria-label="تصفية سجل التدقيق حسب التاجر" value={merchantFilter} onChange={e => { setMerchantFilter(e.target.value); setPage(1) }} style={{ ...S.input, fontSize: 12, minWidth: 220 }}>
           <option value="">كل التجار</option>
           {merchants.map(m => <option key={m.merchant_code} value={m.merchant_code}>{m.name}</option>)}
         </select>
-        <select value={tableFilter} onChange={e => { setTableFilter(e.target.value); setPage(1) }} style={{ ...S.input, fontSize: 12, minWidth: 180 }}>
+        <select aria-label="تصفية سجل التدقيق حسب الجدول" value={tableFilter} onChange={e => { setTableFilter(e.target.value); setPage(1) }} style={{ ...S.input, fontSize: 12, minWidth: 180 }}>
           <option value="">كل الجداول</option>
           {tables.map(t => <option key={t} value={t}>{t}</option>)}
         </select>

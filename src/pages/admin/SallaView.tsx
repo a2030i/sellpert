@@ -33,6 +33,8 @@ function SallaAppSettings() {
   const [copied, setCopied]             = useState<string | null>(null)
   const [msg, setMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
+  // Load settings once when the Salla manager mounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadSettings() }, [])
 
   async function loadSettings() {

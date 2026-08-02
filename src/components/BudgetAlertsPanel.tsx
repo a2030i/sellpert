@@ -24,6 +24,8 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ platform: 'all', monthly_limit: 5000, alert_at_pct: 80 })
 
+  // The loader is intentionally keyed only by the merchant identifier.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [merchantCode])
 
   async function load() {

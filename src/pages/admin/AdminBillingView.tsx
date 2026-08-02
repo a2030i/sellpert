@@ -92,6 +92,8 @@ export default function AdminBillingView() {
   const [saving, setSaving]       = useState(false)
   const [msg, setMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
+  // The query is intentionally keyed by the active filter.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [filter])
 
   async function load() {

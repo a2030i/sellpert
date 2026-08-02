@@ -1,18 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
-import { InfoIcon } from '../components/UI'
+import { InfoIcon, Pagination } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+const PAGE_SIZE = 25
 
 export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
   const [editId, setEditId] = useState<string | null>(null)
   const [editQty, setEditQty] = useState(0)
@@ -22,6 +24,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [msg, setMsg] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [alertSending, setAlertSending] = useState(false)
 
+  // The inventory loader is intentionally keyed by the current merchant.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) loadInventory() }, [merchant])
 
   async function loadInventory() {
@@ -55,6 +59,14 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
     return map
   }, [filtered])
+  const skuEntries = useMemo(() => Object.entries(bySku), [bySku])
+  const pageEntries = useMemo(() => skuEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [skuEntries, page])
+
+  useEffect(() => { setPage(1) }, [search, filter])
+  useEffect(() => {
+    const last = Math.max(1, Math.ceil(skuEntries.length / PAGE_SIZE))
+    if (page > last) setPage(last)
+  }, [skuEntries.length, page])
 
   const stats = useMemo(() => ({
     total:    items.filter(i => i.is_active).length,
@@ -128,6 +140,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
+  function goQuickInventory() {
+    window.history.pushState(null, '', '/quick-inventory')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   return (
     <div style={S.wrap}>
       {/* Page Tabs */}
@@ -147,6 +164,9 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           <p style={S.pageSub}>{stats.skus} منتج مختلف — {stats.total} سجل</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)', boxShadow: 'none' }} onClick={goQuickInventory}>
+            ⚡ تحديث كميات متعددة
+          </button>
           {(stats.low > 0 || stats.out > 0) && (
             <button
               style={{ ...S.addBtn, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', boxShadow: 'none' }}
@@ -226,7 +246,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       )}
 
       {/* FILTERS */}
-      <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center', flexWrap: 'wrap' }}>
         <input
           style={{ ...S.input, flex:1, maxWidth:320 }}
           placeholder="ابحث بالاسم أو SKU..."
@@ -248,14 +268,14 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {Object.entries(bySku).map(([sku, skuItems]) => {
+          {pageEntries.map(([sku, skuItems]) => {
             const totalQty = skuItems.reduce((s,i) => s + i.quantity, 0)
             const isLow    = skuItems.some(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
             const isOut    = skuItems.every(i => i.quantity === 0)
             return (
               <div key={sku} style={{ ...S.card, borderRight:isOut ? '3px solid var(--red)' : isLow ? '3px solid var(--gold)' : '3px solid transparent' }}>
                 {/* SKU Header */}
-                <div style={{ padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
+                <div style={{ padding: isMobile ? '12px' : '14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                     <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
                       📦
@@ -282,12 +302,12 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                 {/* Platform rows */}
                 <div>
                   {skuItems.map(item => (
-                    <div key={item.id} style={{ padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', background: item.quantity===0 ? 'var(--danger-bg)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-bg)' : 'transparent' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:14, flex:1 }}>
+                    <div key={item.id} style={{ padding: isMobile ? '12px' : '12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap', borderBottom:'1px solid var(--border)', background: item.quantity===0 ? 'var(--danger-bg)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-bg)' : 'transparent' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:14, flex:'1 1 260px', minWidth: 0, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                         <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:6, background:(PLATFORM_COLORS[item.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[item.platform]||'var(--text3)', minWidth:70, textAlign:'center' }}>
                           {PLATFORM_MAP[item.platform] || item.platform}
                         </span>
-                        <div style={{ display:'flex', gap:24, fontSize:12, color:'var(--text2)' }}>
+                        <div style={{ display:'flex', gap: isMobile ? 8 : 24, fontSize:12, color:'var(--text2)', flexWrap: 'wrap' }}>
                           <span>حد التنبيه: <strong style={{ color:'var(--text)' }}>{item.low_stock_threshold}</strong></span>
                           {item.cost_price ? <span>التكلفة: <strong style={{ color:'var(--text)' }}>{item.cost_price} ر.س</strong></span> : null}
                           {item.reserved_quantity > 0 ? <span>محجوز: <strong style={{ color:'var(--warning-text)' }}>{item.reserved_quantity}</strong></span> : null}
@@ -328,6 +348,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           })}
         </div>
       )}
+      <Pagination page={page} pageSize={PAGE_SIZE} total={skuEntries.length} onPage={setPage} />
 
       {/* لوحات تحليلية أسفل القائمة (كانت تدفن مهمة الصفحة الأساسية: عرض/تعديل الكميات) */}
       <div style={{ marginTop: 28 }}>
@@ -340,7 +361,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap:      { padding:'28px 32px', minHeight:'100vh' },
+  wrap:      { padding:'clamp(14px, 3vw, 32px)', minHeight:'100vh', maxWidth: '100%', overflowX: 'hidden' },
   topbar:    { display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 },
   pageTitle: { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
   pageSub:   { fontSize:13, color:'var(--text2)', marginTop:3 },
@@ -546,7 +567,7 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تتبّع كل إرسالية من الإرسال حتى البيع</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead><tr>{['الإرسالية','المنصة','أُرسل','أيام للاستلام','متوقع','مُستلم','مفقود','مرفوض بالفحص','بيع بعد','إيراد بعد'].map(h => (
+          <thead><tr>{['الإرسالية','المنصة','سُجلت','مدة الاستلام','متوقع','مُستلم','فرق الكمية','مرفوض بالفحص','بيع بعد','إيراد بعد'].map(h => (
             <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>{h}</th>
           ))}</tr></thead>
           <tbody>
@@ -555,10 +576,16 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
                 <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 700 }}>{r.asn_number}</td>
                 <td style={{ padding: '8px 10px' }}>{r.platform}</td>
                 <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.asn_sent_at).toLocaleDateString('ar-SA-u-ca-gregory', { day: 'numeric', month: 'short' })}</td>
-                <td style={{ padding: '8px 10px' }}>{r.days_to_receive ?? '—'}</td>
+                <td style={{ padding: '8px 10px' }}>
+                  {r.days_to_receive != null && Number(r.days_to_receive) >= 0
+                    ? `${r.days_to_receive} يوم`
+                    : r.delivery_date ? 'غير متاح' : 'بانتظار الاستلام'}
+                </td>
                 <td style={{ padding: '8px 10px' }}>{r.expected_qty}</td>
                 <td style={{ padding: '8px 10px', color: 'var(--success-text)' }}>{r.delivered_qty}</td>
-                <td style={{ padding: '8px 10px', color: r.lost_qty > 0 ? 'var(--danger-text)' : 'var(--text3)', fontWeight: r.lost_qty > 0 ? 700 : 400 }}>{r.lost_qty || '—'}</td>
+                <td style={{ padding: '8px 10px', color: r.lost_qty > 0 ? 'var(--danger-text)' : r.lost_qty < 0 ? 'var(--success-text)' : 'var(--text3)', fontWeight: r.lost_qty !== 0 ? 700 : 400 }}>
+                  {r.lost_qty > 0 ? `ناقص ${r.lost_qty}` : r.lost_qty < 0 ? `زائد ${Math.abs(r.lost_qty)}` : '—'}
+                </td>
                 <td style={{ padding: '8px 10px', color: r.qc_failed_qty > 0 ? 'var(--warning-text)' : 'var(--text3)' }}>{r.qc_failed_qty || '—'}</td>
                 <td style={{ padding: '8px 10px', fontWeight: 700 }}>{r.units_sold_after_receive || '—'}</td>
                 <td style={{ padding: '8px 10px', color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA') : '—'}</td>

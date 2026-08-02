@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { X, Star } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
+import { useMobile } from '../lib/hooks'
 
 const SHOWN_KEY = 'sellpert_nps_shown_at'
 const SHOW_AFTER_DAYS = 14
@@ -10,6 +11,7 @@ const RECHECK_AFTER_DAYS = 90
 interface Props { merchantCode?: string }
 
 export default function NPSWidget({ merchantCode }: Props) {
+  const isMobile = useMobile()
   const [show, setShow] = useState(false)
   const [score, setScore] = useState<number | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -70,13 +72,13 @@ export default function NPSWidget({ merchantCode }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 16, left: 16, zIndex: 9998,
-      width: 360, maxWidth: 'calc(100vw - 32px)',
+      position: 'fixed', bottom: isMobile ? 76 : 16, right: isMobile ? 12 : 16, zIndex: 350,
+      width: 360, maxWidth: isMobile ? 'calc(100vw - 24px)' : 'calc(100vw - 32px)',
       background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: 14, padding: 16, boxShadow: '0 12px 36px rgba(0,0,0,0.18)',
       animation: 'npsSlide 0.4s ease',
     }}>
-      <button onClick={dismiss} style={{
+      <button aria-label="إغلاق استبيان التقييم" onClick={dismiss} style={{
         position: 'absolute', top: 8, left: 8, background: 'transparent',
         border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4,
       }}><X size={16} /></button>

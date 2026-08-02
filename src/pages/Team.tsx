@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import {
-  Users, UserPlus, Trash2, Key, Save, X, Mail, Briefcase, Phone,
+  Users, UserPlus, Trash2, Key, Save, Mail, Briefcase, Phone,
   Check, Power, Shield,
 } from 'lucide-react'
 import { toastOk, toastErr } from '../components/Toast'
@@ -55,7 +55,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     permissions: { ...DEFAULT_PERMISSIONS } as Record<string, boolean>,
   })
 
-  useEffect(() => { if (merchant) load() }, [merchant?.merchant_code])
+  useEffect(() => { if (merchant) load() }, [merchant])
 
   async function load() {
     setLoading(true)

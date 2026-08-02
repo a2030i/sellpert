@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 import type { Merchant, PlatformConnection } from '../../lib/supabase'
 
-export default function ConnectionsView({ merchants, onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
+export default function ConnectionsView({ merchants: _merchants, onRefresh: _onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
   const [loading, setLoading] = useState(true)
 
   const [waConn, setWaConn]         = useState<PlatformConnection | null>(null)
@@ -25,6 +25,8 @@ export default function ConnectionsView({ merchants, onRefresh }: { merchants: M
 
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
+  // Load once when the integration manager mounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -316,4 +318,3 @@ export default function ConnectionsView({ merchants, onRefresh }: { merchants: M
     </div>
   )
 }
-

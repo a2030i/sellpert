@@ -77,7 +77,6 @@ export default function DBHealthView() {
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>🩺 صحة قاعدة البيانات</h3>
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>
             آخر تحديث: {lastRefresh.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>

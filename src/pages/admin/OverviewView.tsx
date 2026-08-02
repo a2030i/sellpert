@@ -2,26 +2,40 @@
 import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from './adminShared'
 import type { Merchant, PerformanceData, SyncLog } from '../../lib/supabase'
 import { supabase } from '../../lib/supabase'
+import { filterPerformanceRows, localDateKey, performanceDateKey, summarizePerformance } from '../../lib/adminPerformance'
+import { Activity, AlertTriangle, CheckCircle2, PackageCheck, TrendingUp, Trophy, Users, Wallet } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
 
-export default function OverviewView({ merchantOnly, merchants, totalGMV, totalOrders, activeIntegrations, gmvTrend, gmvByPlatform, topMerchants, syncLogs, perfData }: any) {
+export default function OverviewView({ merchantOnly, totalGMV, activeIntegrations, totalIntegrations, openTaskCount, gmvTrend, gmvByPlatform, topMerchants, syncLogs, perfData }: any) {
   const now = new Date()
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const prevMonthKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`
 
-  const gmvThisMonth = perfData.filter((r: PerformanceData) => (r.data_date || r.created_at.split('T')[0]).startsWith(thisMonthKey)).reduce((s: number, r: PerformanceData) => s + r.total_sales, 0)
-  const gmvLastMonth = perfData.filter((r: PerformanceData) => (r.data_date || r.created_at.split('T')[0]).startsWith(prevMonthKey)).reduce((s: number, r: PerformanceData) => s + r.total_sales, 0)
+  const thisMonthRows = perfData.filter((r: PerformanceData) => performanceDateKey(r).startsWith(thisMonthKey))
+  const lastMonthRows = perfData.filter((r: PerformanceData) => performanceDateKey(r).startsWith(prevMonthKey))
+  const thisMonth = summarizePerformance(thisMonthRows)
+  const lastMonth = summarizePerformance(lastMonthRows)
+  const gmvThisMonth = thisMonth.sales
+  const gmvLastMonth = lastMonth.sales
   const gmvDelta = gmvLastMonth > 0 ? ((gmvThisMonth - gmvLastMonth) / gmvLastMonth) * 100 : null
-  const ordersThisMonth = perfData.filter((r: PerformanceData) => (r.data_date || r.created_at.split('T')[0]).startsWith(thisMonthKey)).reduce((s: number, r: PerformanceData) => s + r.order_count, 0)
-  const ordersLastMonth = perfData.filter((r: PerformanceData) => (r.data_date || r.created_at.split('T')[0]).startsWith(prevMonthKey)).reduce((s: number, r: PerformanceData) => s + r.order_count, 0)
+  const ordersThisMonth = thisMonth.volume
+  const ordersLastMonth = lastMonth.volume
   const ordersDelta = ordersLastMonth > 0 ? ((ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100 : null
-  const avgGMVPerMerchant = merchantOnly.length > 0 ? totalGMV / merchantOnly.length : 0
-  const adminCount = merchants.filter((m: Merchant) => m.role === 'admin').length
-  const employeeCount = merchants.filter((m: Merchant) => m.role === 'employee').length
+  const activeMerchantCodes = new Set(filterPerformanceRows(perfData, 'last30', now).map((r: PerformanceData) => r.merchant_code))
+  const avgGMVPerMerchant = activeMerchantCodes.size > 0 ? gmvThisMonth / activeMerchantCodes.size : 0
+  const latestByMerchant: Record<string, string> = {}
+  for (const row of perfData as PerformanceData[]) {
+    const date = performanceDateKey(row)
+    if (date && (!latestByMerchant[row.merchant_code] || date > latestByMerchant[row.merchant_code])) latestByMerchant[row.merchant_code] = date
+  }
+  const staleCutoff = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7))
+  const staleMerchants = merchantOnly.filter((m: Merchant) => !latestByMerchant[m.merchant_code] || latestByMerchant[m.merchant_code] < staleCutoff).length
+  const failedImports = syncLogs.filter((log: SyncLog) => log.status === 'error' || log.status === 'stalled').length
+  const inactiveIntegrations = Math.max(0, totalIntegrations - activeIntegrations)
   const topGMV = topMerchants[0]?.gmv || 1
 
   function Delta({ v }: { v: number | null }) {
@@ -35,21 +49,28 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
   }
 
   const kpis = [
-    { label: 'التجار النشطون', value: merchantOnly.length, icon: '👥', color: '#7c6bff', sub: `${adminCount} مدير · ${employeeCount} موظف` },
-    { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), icon: '💰', color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta },
-    { label: 'طلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA'), icon: '📦', color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA'), delta: ordersDelta },
-    { label: 'متوسط GMV / تاجر', value: fmt(avgGMVPerMerchant), icon: '📈', color: '#4cc9f0', sub: 'إجمالي كل الوقت' },
+    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#7c6bff', sub: `من أصل ${merchantOnly.length} تاجر` },
+    { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), Icon: Wallet, color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta },
+    { label: 'الوحدات / الطلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA'), Icon: PackageCheck, color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA'), delta: ordersDelta },
+    { label: 'متوسط GMV / تاجر نشط', value: fmt(avgGMVPerMerchant), Icon: TrendingUp, color: '#4cc9f0', sub: 'لنفس الشهر الحالي' },
+  ]
+
+  const actions = [
+    { label: 'استيرادات متعثرة', value: failedImports, detail: 'فشل أو تجاوز 30 دقيقة ضمن آخر 20 عملية', attention: failedImports > 0 },
+    { label: 'بيانات تحتاج تحديثاً', value: staleMerchants, detail: 'أكثر من 7 أيام أو بلا بيانات', attention: staleMerchants > 0 },
+    { label: 'مهام مفتوحة', value: openTaskCount, detail: 'تحتاج متابعة الفريق', attention: openTaskCount > 0 },
+    { label: 'اتصالات غير نشطة', value: inactiveIntegrations, detail: `${activeIntegrations} اتصال نشط`, attention: inactiveIntegrations > 0 },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+      <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {kpis.map((k, i) => (
           <div key={i} style={{ ...S.kpiCard, padding: 18 }}>
             <div style={{ ...S.kpiBar, background: k.color }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{k.label}</span>
-              <span style={{ width: 32, height: 32, borderRadius: 8, background: k.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{k.icon}</span>
+              <span style={{ width: 32, height: 32, borderRadius: 8, background: k.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><k.Icon size={16} color={k.color} /></span>
             </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: k.color, letterSpacing: '-0.5px', lineHeight: 1 }}>{k.value}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
@@ -60,7 +81,29 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
+      <section style={{ ...S.chartCard, padding: 16 }} aria-labelledby="admin-action-center-title">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Activity size={17} color="var(--accent)" />
+          <div>
+            <div id="admin-action-center-title" style={S.chartTitle}>مركز الإجراءات</div>
+            <div style={S.chartSub}>الموضوعات التي تحتاج قراراً أو متابعة الآن</div>
+          </div>
+        </div>
+        <div className="grid-mobile-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+          {actions.map(action => (
+            <div key={action.label} style={{ border: `1px solid ${action.attention ? 'rgba(232,64,64,.25)' : 'var(--border)'}`, borderRadius: 10, padding: 12, background: action.attention ? 'var(--danger-bg)' : 'var(--surface2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 700 }}>{action.label}</span>
+                {action.attention ? <AlertTriangle size={14} color="var(--red)" /> : <CheckCircle2 size={14} color="var(--accent2)" />}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: action.attention ? 'var(--red)' : 'var(--accent2)' }}>{action.value}</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{action.detail}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid-mobile-1" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
         <div style={S.chartCard}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
@@ -134,10 +177,10 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="grid-mobile-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div style={S.chartCard}>
           <div style={{ marginBottom: 16 }}>
-            <div style={S.chartTitle}>🏆 أفضل التجار — GMV الكلي</div>
+            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Trophy size={16} color="var(--warning-text)" /> أفضل التجار — GMV الكلي</div>
             <div style={S.chartSub}>مرتبون تنازلياً</div>
           </div>
           {topMerchants.length === 0 ? (
@@ -169,7 +212,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
 
         <div style={S.chartCard}>
           <div style={{ marginBottom: 14 }}>
-            <div style={S.chartTitle}>⚡ آخر النشاطات</div>
+            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Activity size={16} color="var(--accent)" /> آخر النشاطات</div>
             <div style={S.chartSub}>آخر عمليات إدخال ومزامنة</div>
           </div>
           {syncLogs.length === 0 ? (
@@ -178,7 +221,8 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {syncLogs.map((l: SyncLog, i: number) => {
                 const isSuccess = l.status === 'success'
-                const isError = l.status === 'error'
+                const isError = l.status === 'error' || l.status === 'stalled'
+                const isStalled = l.status === 'stalled'
                 const dotColor = isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--gold)'
                 return (
                   <div key={l.id} style={{ display: 'flex', gap: 12, paddingBottom: i < syncLogs.length - 1 ? 12 : 0, marginBottom: i < syncLogs.length - 1 ? 12 : 0, borderBottom: i < syncLogs.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -192,7 +236,7 @@ export default function OverviewView({ merchantOnly, merchants, totalGMV, totalO
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>·</span>
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[l.platform] || l.platform}</span>
                         <span style={{ marginRight: 'auto', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: isSuccess ? 'var(--success-bg)' : isError ? 'var(--danger-bg)' : 'var(--warning-bg)', color: isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--warning-text)' }}>
-                          {isSuccess ? 'نجح' : isError ? 'خطأ' : 'جاري'}
+                          {isSuccess ? 'نجح' : isStalled ? 'متعطل' : isError ? 'خطأ' : 'جاري'}
                         </span>
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text3)' }}>{relativeTime(l.started_at)}</div>

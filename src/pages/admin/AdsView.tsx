@@ -32,6 +32,8 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
   const [search, setSearch] = useState('')
   const [groupBy, setGroupBy] = useState<'campaign' | 'sku' | 'query'>('campaign')
 
+  // The report query is intentionally keyed by merchant code.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchantCode) load() }, [merchantCode])
 
   async function load() {
@@ -96,14 +98,13 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1300, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📣 أداء الإعلانات</h3>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>كل حملات نون وتراندايول وأمازون في مكان واحد · تحليل ROAS و CTR والعائد</p>
       </div>
 
       {/* Merchant selector */}
       <div style={{ ...S.formCard, padding: 18 }}>
         <label style={S.label}>التاجر</label>
-        <select value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
+        <select aria-label="اختيار التاجر لأداء الإعلانات" value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
           <option value="">— اختر التاجر —</option>
           {merchants.filter(m => m.role === 'merchant').map(m => (
             <option key={m.merchant_code} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>
@@ -158,6 +159,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', right: 10, color: 'var(--text3)' }} />
               <input
+                aria-label="البحث في الحملات الإعلانية"
                 placeholder="بحث"
                 value={search}
                 onChange={e => setSearch(e.target.value)}

@@ -1,21 +1,29 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useDeferredValue } from 'react'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { Search, Save, Plus, Minus, Check, AlertCircle, Zap } from 'lucide-react'
 import { toastOk, toastErr } from '../components/Toast'
 import { PLATFORM_MAP } from '../lib/constants'
+import { Pagination } from '../components/UI'
+import { useMobile } from '../lib/hooks'
 
 interface PendingChange { qty: number; original: number }
+const PAGE_SIZE = 25
 
 export default function QuickInventory({ merchant }: { merchant: Merchant | null }) {
+  const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [pending, setPending] = useState<Record<string, PendingChange>>({})
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
   const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(1)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  // The loader is intentionally keyed by the current merchant.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) loadInventory() }, [merchant])
 
   // Focus search on mount and on '/'
@@ -41,16 +49,24 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
     setLoading(false)
   }
 
+  const deferredSearch = useDeferredValue(search)
   const filtered = useMemo(() => {
     let d = items
-    if (search.trim()) {
-      const q = search.toLowerCase()
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.toLowerCase()
       d = d.filter(i => i.product_name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q))
     }
     if (filter === 'low') d = d.filter(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
     if (filter === 'out') d = d.filter(i => i.quantity === 0)
     return d
-  }, [items, search, filter])
+  }, [items, deferredSearch, filter])
+  const pageItems = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
+
+  useEffect(() => { setPage(1) }, [deferredSearch, filter])
+  useEffect(() => {
+    const last = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    if (page > last) setPage(last)
+  }, [filtered.length, page])
 
   function setQty(id: string, currentQty: number, newQty: number) {
     if (newQty < 0) newQty = 0
@@ -189,7 +205,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {filtered.map(item => {
+          {pageItems.map(item => {
             const qty = getQty(item)
             const isChanged = pending[item.id] !== undefined
             const isOut = qty === 0
@@ -197,7 +213,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
             const platLabel = PLATFORM_MAP[item.platform] || item.platform
             return (
               <div key={item.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap',
                 background: 'var(--surface)', border: '1px solid ' + (isChanged ? 'var(--accent)' : 'var(--border)'),
                 borderRadius: 10, padding: '10px 12px',
                 boxShadow: isChanged ? '0 0 0 3px rgba(108,92,231,0.08)' : 'none',
@@ -215,7 +231,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: isMobile ? 'auto' : 0 }}>
                   <button onClick={() => setQty(item.id, item.quantity, qty - 1)} style={qtyBtnStyle}>
                     <Minus size={14} />
                   </button>
@@ -243,6 +259,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
           })}
         </div>
       )}
+      <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
 
       <div style={{ marginTop: 16, padding: '10px 12px', fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
         💡 اختصارات: اضغط <kbd style={kbdStyle}>/</kbd> للبحث · <kbd style={kbdStyle}>Tab</kbd> للتنقل بين الحقول

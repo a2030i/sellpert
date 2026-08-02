@@ -55,16 +55,16 @@ function PayoutEditor({ merchants }: { merchants: any[] }) {
       <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>💰 مواعيد التحويل للتاجر</div>
       <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>أدخل متى وكم يصل التاجر مستحقاته — يظهر له فوراً في «القادم لحسابك»</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
-        <select value={mc} onChange={e => setMc(e.target.value)} style={S.input as any}>
+        <select aria-label="التاجر لموعد التحويل" value={mc} onChange={e => setMc(e.target.value)} style={S.input as any}>
           <option value="">اختر التاجر…</option>
           {merchants.map(m => <option key={m.merchant_code} value={m.merchant_code}>{m.name || m.merchant_code}</option>)}
         </select>
-        <select value={platform} onChange={e => setPlatform(e.target.value)} style={S.input as any}>
+        <select aria-label="المنصة لموعد التحويل" value={platform} onChange={e => setPlatform(e.target.value)} style={S.input as any}>
           {ENTRY_PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={S.input as any} />
-        <input type="number" placeholder="المبلغ (ر.س)" value={amount} onChange={e => setAmount(e.target.value)} style={S.input as any} />
-        <input placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)} style={S.input as any} />
+        <input aria-label="تاريخ التحويل" type="date" value={date} onChange={e => setDate(e.target.value)} style={S.input as any} />
+        <input aria-label="مبلغ التحويل" type="number" placeholder="المبلغ (ر.س)" value={amount} onChange={e => setAmount(e.target.value)} style={S.input as any} />
+        <input aria-label="ملاحظة موعد التحويل" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)} style={S.input as any} />
         <button style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff' }} onClick={add} disabled={saving}>{saving ? '⟳' : '+ إضافة موعد'}</button>
       </div>
       {list.length > 0 && (

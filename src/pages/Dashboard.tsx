@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase, type Merchant, type PerformanceData, type AiInsight } from '../lib/supabase'
+import { useCallback } from 'react'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP, PLATFORM_COLORS as PLT_COLOR, DATE_PRESETS as PRESETS } from '../lib/constants'
@@ -12,6 +13,7 @@ import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 import DataFreshness from '../components/DataFreshness'
 import PayoutCalendar from '../components/PayoutCalendar'
+import AmazonSalesInsights from '../components/AmazonSalesInsights'
 import { TrendingUp, CircleDollarSign, ShoppingCart, Percent, MapPin, Table2, ListChecks, RefreshCw, BarChart3, CalendarClock } from 'lucide-react'
 
 // عنوان قسم بأيقونة (بدل الإيموجي — يرث لون الثيم ويظهر متسقاً عبر الأنظمة)
@@ -397,10 +399,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     setAiLoading(false)
   }
 
-  const pFilter = (r: PerformanceData) => platform === 'all' || r.platform === platform
+  const pFilter = useCallback((r: PerformanceData) => platform === 'all' || r.platform === platform, [platform])
 
-  const filtered = useMemo(() => filterByPreset(data, preset).filter(pFilter), [data, preset, platform])
-  const prev     = useMemo(() => getPrev(data, preset).filter(pFilter), [data, preset, platform])
+  const filtered = useMemo(() => filterByPreset(data, preset).filter(pFilter), [data, preset, pFilter])
+  const prev     = useMemo(() => getPrev(data, preset).filter(pFilter), [data, preset, pFilter])
 
   // KPIs
   const totalSales  = filtered.reduce((s, r) => s + toSAR(r.total_sales, r.platform), 0)
@@ -531,16 +533,21 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const costMissing = costCoverage < 0.2
   // سطر الحالة الواحد (طلب تاجر الجوال: نظرة واحدة تقول تمام أو مشكلة)
   const maxDataDate = data.length ? data.reduce((m, r) => { const d = String(r.data_date || r.created_at).slice(0, 10); return d > m ? d : m }, '') : ''
+  const insightDate = insight?.created_at ? insight.created_at.slice(0, 10) : ''
+  const insightIsStale = Boolean(insightDate && maxDataDate && insightDate < maxDataDate)
   const dataAgeDays = maxDataDate ? Math.floor((Date.now() - new Date(maxDataDate).getTime()) / 86400000) : 0
   const healthIssues: string[] = []
   if (costMissing) healthIssues.push('تكلفة الشراء غير مُدخلة')
   if (dataAgeDays > 7) healthIssues.push('بياناتك متأخرة')
   if (netProfit < 0) healthIssues.push('ربحك سالب هذه الفترة')
   const prevMargin = prevSales > 0 ? (prevNet / prevSales) * 100 : 0
+  const amazonOnly = platform === 'amazon'
+  const includesAmazon = filtered.some(row => row.platform === 'amazon')
+  const volumeUnit = amazonOnly ? 'وحدة مباعة' : includesAmazon ? 'طلب/وحدة حسب المصدر' : 'طلب'
   const kpis = [
     { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: <TrendingUp size={18} />, color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
-    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: <CircleDollarSign size={18} />, color: '#7c6bff', sub: `${totalOrders.toLocaleString()} طلب`, d: delta(totalSales, prevSales), hero: false },
-    { label: 'متوسط قيمة الطلب', value: fmt(aov),        icon: <ShoppingCart size={18} />, color: '#ffd166', sub: 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
+    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: <CircleDollarSign size={18} />, color: '#7c6bff', sub: `${totalOrders.toLocaleString()} ${volumeUnit}`, d: delta(totalSales, prevSales), hero: false },
+    { label: amazonOnly ? 'متوسط سعر الوحدة' : includesAmazon ? 'متوسط القيمة حسب المصدر' : 'متوسط قيمة الطلب', value: fmt(aov), icon: <ShoppingCart size={18} />, color: '#ffd166', sub: amazonOnly ? 'المبيعات ÷ الوحدات المباعة' : includesAmazon ? 'المبيعات ÷ الطلبات/الوحدات المسجلة' : 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
     { label: costMissing ? 'هامش بعد الرسوم' : 'متوسط الهامش', value: costMissing ? '—' : fmt(avgMargin, 'percent'), icon: <Percent size={18} />, color: '#ff6b6b', sub: costMissing ? 'يحتاج تكلفة الشراء لحسابه' : 'نسبة الربح من المبيعات', d: costMissing ? null : delta(avgMargin, prevMargin), hero: false },
   ]
 
@@ -627,6 +634,10 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </div>
         ))}
       </div>
+
+      {(platform === 'all' || platform === 'amazon') && (
+        <AmazonSalesInsights merchantCode={merchant?.merchant_code} showEmpty={platform === 'amazon'} />
+      )}
 
       {/* ── Empty state (أول شيء للتاجر بلا بيانات) ── */}
       {filtered.length === 0 && (
@@ -828,7 +839,12 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </button>
         </div>
         {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
-        {insight && (
+        {insightIsStale && (
+          <div role="status" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', borderRadius: 10, padding: '12px 14px', marginTop: 12, fontSize: 12, lineHeight: 1.7 }}>
+            ⚠️ هذا التحليل مؤرشف لأنه أقدم من أحدث بياناتك. آخر تحليل بتاريخ {new Date(insight!.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}، وأحدث بيانات بتاريخ {new Date(maxDataDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}. اضغط «تحديث» لبناء توصيات دقيقة.
+          </div>
+        )}
+        {insight && !insightIsStale && (
           <div>
             {insightContent.summary && (
               <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 13, lineHeight: 1.8, color: 'var(--text2)' }}>
@@ -1039,6 +1055,8 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
   )
 }
 
+// Kept for the next dashboard composition pass; excluded from the current layout.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function RestockWidget({ merchantCode }: { merchantCode?: string }) {
   const [items, setItems] = useState<any[]>([])
   useEffect(() => {

@@ -4,7 +4,7 @@ import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { fmtRelative, fmtDate } from '../../lib/formatters'
 import { Pagination, EmptyState } from '../../components/UI'
 import { toastOk, toastErr } from '../../components/Toast'
-import { Inbox, AlertTriangle, Clock, CheckCircle2, X, Send, User, Filter } from 'lucide-react'
+import { AlertTriangle, Clock, CheckCircle2, X, Send, Filter } from 'lucide-react'
 
 type Merchant = { merchant_code: string; name: string; role: string; email: string }
 
@@ -133,7 +133,6 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1400, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📋 إدارة المهام والتذاكر</h3>
           <p style={{ fontSize: 13, color: 'var(--text3)' }}>{isEmployee ? 'مهامك المسندة' : 'كل مهام النظام — من التجار والإدارة'}</p>
         </div>
         {!isEmployee && (
@@ -260,7 +259,7 @@ function tabBtn(active: boolean): React.CSSProperties {
 
 function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
+    <select aria-label={label} value={value} onChange={e => onChange(e.target.value)}
       style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '6px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
       title={label}>
       {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}

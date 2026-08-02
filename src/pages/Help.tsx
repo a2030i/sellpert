@@ -39,7 +39,7 @@ const FAQ = [
   },
 ]
 
-export default function Help({ merchant }: { merchant: Merchant | null }) {
+export default function Help({ merchant: _merchant }: { merchant: Merchant | null }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<string | null>(null)
 

@@ -1,11 +1,14 @@
 ﻿import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
+import { getPlanKey, PLANS as PLAN_CONFIG } from '../lib/subscription'
 
 const PLANS = [
+  { key: 'free',       label: 'مجاني',           price: 0,   channels: ['أمازون', 'نون', 'تراندايول'],           color: '#5a5a7a' },
   { key: 'salla',      label: 'باقة سلة',      price: 99,  channels: ['سلة'],                                    color: '#7c6bff' },
   { key: 'growth',     label: 'باقة النمو',     price: 299, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#00e5b0' },
   { key: 'pro',        label: 'باقة المحترف',   price: 599, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#ff9900' },
+  { key: 'elite',      label: 'باقة النخبة',    price: 799, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#e5c100' },
   { key: 'enterprise', label: 'المؤسسات',       price: 999, channels: ['كل القنوات + دعم مخصص'],                  color: '#f27a1a' },
 ]
 
@@ -25,8 +28,10 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
   const [msg, setMsg]           = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [showPayForm, setShowPayForm] = useState(false)
 
-  const isSallaUser = merchant?.signup_source === 'salla_app' || sub?.billing_source === 'salla'
+  const isSallaUser = merchant?.signup_source === 'salla_app' || getPlanKey(merchant) === 'salla'
 
+  // Reload only when the account record changes; load itself updates local state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) load() }, [merchant])
 
   async function load() {
@@ -88,11 +93,18 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
-  const activePlan  = PLANS.find(p => p.key === (sub?.plan || merchant?.subscription_plan)) || PLANS[0]
+  // merchants.subscription_plan هو المصدر الموحّد للصلاحيات والواجهة.
+  // سجل subscriptions قد يتأخر في المزامنة، لذلك لا يجوز أن يغيّر الباقة المعروضة وحده.
+  const activePlanKey = getPlanKey(merchant)
+  const activePlan  = PLANS.find(p => p.key === activePlanKey) || {
+    key: activePlanKey,
+    ...PLAN_CONFIG[activePlanKey],
+    channels: PLAN_CONFIG[activePlanKey].channels,
+  }
+  const upgradePlans = PLANS.filter(p => p.price > activePlan.price)
   const periodEnd   = sub?.current_period_end
   const remaining   = periodEnd ? daysLeft(periodEnd) : 0
   const isActive    = merchant?.subscription_status === 'active'
-  const isTrial     = sub?.status === 'trial'
   const isPending   = merchant?.subscription_status === 'pending_payment' || sub?.status === 'pending_payment'
   const isSuspended = merchant?.subscription_status === 'suspended'
 
@@ -185,7 +197,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
                 إدارة الاشتراك في سلة ↗
               </a>
             ) : (
-              !showPayForm && (
+              !showPayForm && upgradePlans.length > 0 && (
                 <button onClick={() => setShowPayForm(true)}
                   style={{ padding: '10px 20px', borderRadius: 10, background: `linear-gradient(135deg,${activePlan.color},${activePlan.color}cc)`, color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   {isSuspended || isPending ? '🔄 جدّد الاشتراك' : '⬆️ ترقية الباقة'}
@@ -205,7 +217,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 10 }}>1. اختر الباقة</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-              {PLANS.map(p => (
+              {upgradePlans.map(p => (
                 <button key={p.key} onClick={() => setSelectedPlan(p.key)}
                   style={{ padding: '12px 14px', borderRadius: 12, border: `2px solid ${selectedPlan === p.key ? p.color : 'var(--border)'}`,
                     background: selectedPlan === p.key ? p.color + '15' : 'var(--surface2)',
@@ -244,20 +256,20 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 12 }}>3. أدخل تفاصيل التحويل</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>رقم مرجع التحويل *</label>
-                    <input value={bankRef} onChange={e => setBankRef(e.target.value)}
+                    <label htmlFor="bank-reference" style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>رقم مرجع التحويل *</label>
+                    <input id="bank-reference" value={bankRef} onChange={e => setBankRef(e.target.value)}
                       placeholder="مثال: TXN123456789"
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>تاريخ التحويل *</label>
-                    <input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)}
+                    <label htmlFor="transfer-date" style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>تاريخ التحويل *</label>
+                    <input id="transfer-date" type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)}
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }} />
                   </div>
                 </div>
                 <div style={{ marginTop: 10 }}>
-                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>ملاحظات (اختياري)</label>
-                  <input value={notes} onChange={e => setNotes(e.target.value)}
+                  <label htmlFor="payment-notes" style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>ملاحظات (اختياري)</label>
+                  <input id="payment-notes" value={notes} onChange={e => setNotes(e.target.value)}
                     placeholder="أي معلومات إضافية..."
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, boxSizing: 'border-box' }} />
                 </div>

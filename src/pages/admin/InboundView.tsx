@@ -62,6 +62,8 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
 
+  // The inbound query is intentionally keyed by merchant code.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchantCode) load() }, [merchantCode])
 
   async function load() {
@@ -94,14 +96,13 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1200, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>🚚 الإرساليات والاستلام</h3>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>متابعة ASN (ما أُرسل للمستودع) و GRN (ما استُلم فعلياً) لكل تاجر</p>
       </div>
 
       {/* Merchant selector */}
       <div style={{ ...S.formCard, padding: 18 }}>
         <label style={S.label}>التاجر</label>
-        <select value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
+        <select aria-label="اختيار التاجر للإرساليات" value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
           <option value="">— اختر التاجر —</option>
           {merchants.filter(m => m.role === 'merchant').map(m => (
             <option key={m.merchant_code} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>
@@ -192,6 +193,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
                   <Search size={14} style={{ position: 'absolute', right: 10, color: 'var(--text3)' }} />
                   <input
+                    aria-label="البحث في الإرساليات"
                     placeholder="بحث SKU / باركود / ASN"
                     value={search}
                     onChange={e => setSearch(e.target.value)}

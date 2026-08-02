@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useMemo } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { fmtCurrency, fmtNumber, fmtPercent } from '../lib/formatters'
 import { ChevronLeft, X } from 'lucide-react'
 
 export default function ProductCompare({ merchant }: { merchant: Merchant | null }) {
   const params = new URLSearchParams(window.location.search)
-  const ids = params.get('ids')?.split(',').filter(Boolean) || []
+  const idsParam = params.get('ids') || ''
+  const ids = useMemo(() => idsParam.split(',').filter(Boolean), [idsParam])
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -20,7 +22,7 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
       setProducts((p.data || []).map((prod: any) => ({ ...prod, ...(profMap.get(prod.id) || {}) })))
       setLoading(false)
     })
-  }, [merchant?.merchant_code, ids.join(',')])
+  }, [merchant, ids])
 
   function back() {
     window.history.pushState(null, '', '/products')

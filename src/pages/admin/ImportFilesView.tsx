@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { fetchAll } from '../../lib/db'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
+import { reconcileAmazonReportTotals } from '../../lib/amazonReportReconciliation'
+import { uploadDisplayStatus } from '../../lib/uploadStatus'
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText } from 'lucide-react'
 
 // ─── File guides per platform ────────────────────────────────────────────────
@@ -39,7 +41,7 @@ const FILE_GUIDES: Record<string, FileGuide[]> = {
     { kind: 'amazon_business_report', label: 'تقرير الأعمال (المبيعات والزيارات)', icon: '📊', desc: 'أداء كل ASIN: الجلسات، المشاهدات، Buy Box، التحويل، الوحدات والمبيعات', importance: 'critical' },
     { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', icon: '🧾', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
     { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', icon: '📣', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
-    { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', icon: '📈', desc: 'بديل بسيط: إجماليات المبيعات اليومية. تُملأ بها الأيام التي لا يوجد لها تقرير معاملات', importance: 'optional' },
+    { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', icon: '📈', desc: 'السلسلة اليومية للمبيعات والوحدات؛ تُربط بتقرير الأعمال لتوزيع الإجمالي زمنياً دون تكراره', importance: 'critical' },
   ],
 }
 
@@ -592,6 +594,23 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const pendingSave = files.some(f => f.stage === 'parsed')
   const allDone = files.length > 0 && files.every(f => f.stage === 'saved' || f.stage === 'rejected' || f.stage === 'failed')
 
+  const amazonPair = useMemo(() => {
+    const business = files.find(f => f.validation?.ok && f.parsed?.kind === 'amazon_business_report')?.parsed
+    const dashboard = files.find(f => f.validation?.ok && f.parsed?.kind === 'amazon_sales_dashboard')?.parsed
+    if (!business || !dashboard) return null
+    return reconcileAmazonReportTotals({
+      sales: Number(business.summary.sales || 0),
+      units: Number(business.summary.units || 0),
+      orderItems: Number(business.summary.orderItems || 0),
+    }, {
+      totalSales: Number(dashboard.summary.totalSales || 0),
+      totalUnits: Number(dashboard.summary.totalUnits || 0),
+      orderItems: dashboard.summary.orderItems == null ? undefined : Number(dashboard.summary.orderItems),
+      rangeStart: dashboard.summary.rangeStart,
+      rangeEnd: dashboard.summary.rangeEnd,
+    })
+  }, [files])
+
   // ── Add files (parse + validate) — يفك ZIP تلقائياً ────────────────────────
   async function onAddFiles(picked: FileList | null) {
     if (!picked || !merchantCode) return
@@ -672,6 +691,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
     if (!merchantCode || files.length === 0) return
     setBusy(true); setGlobalMsg(null)
 
+    // هوية الموظف الذي نفّذ الرفع — تحفظ مع كل ملف ليظهر في سجل الاستيراد المركزي.
+    const { data: { user: uploader } } = await supabase.auth.getUser()
+    const uploadedBy = uploader?.email || uploader?.id || null
+
     // تخطّي الملفات المكررة التي اختار الموظف تخطّيها
     const validFiles = files.filter(f => f.validation?.ok && f.parsed && !(f.dup && (f.dupAction ?? 'skip') === 'skip'))
     const skipped = files.filter(f => f.validation?.ok && f.dup && (f.dupAction ?? 'skip') === 'skip').length
@@ -692,6 +715,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
         merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
         file_type: entry.parsed!.kind, file_size: entry.file.size,
         detected_report: entry.parsed!.label, status: 'processing',
+        uploaded_by: uploadedBy,
         fingerprint: entry.fingerprint || null,
       }).select('id').single()
       if (auditErr || !audit?.id) {
@@ -703,7 +727,20 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
 
       setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'saving', progress: 5, startedAt: Date.now() } : f))
 
-      const result = await saveParsedResult(entry.parsed!, merchantCode, uploadId, (pct, _msg) => {
+      // عند تطابق تقريري أمازون، لقطة المنتج تخص فترة Sales Dashboard نفسها،
+      // وليست مبيعات جديدة بتاريخ الرفع. هذا التاريخ للربط فقط ولا يدخل في التجميع اليومي.
+      const parsedForSave = entry.parsed!.kind === 'amazon_business_report' && amazonPair?.matched && amazonPair.rangeEnd
+        ? {
+            ...entry.parsed!,
+            summary: { ...entry.parsed!.summary, linkedRangeStart: amazonPair.rangeStart, linkedRangeEnd: amazonPair.rangeEnd },
+            payloads: entry.parsed!.payloads.map(payload => ({
+              ...payload,
+              rows: payload.rows.map(row => ({ ...row, snapshot_date: amazonPair.rangeEnd })),
+            })),
+          }
+        : entry.parsed!
+
+      const result = await saveParsedResult(parsedForSave, merchantCode, uploadId, (pct, _msg) => {
         setFiles(p => p.map(f => f.id === entry.id ? { ...f, progress: pct } : f))
       })
 
@@ -840,6 +877,26 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
             </div>
           )}
 
+          {amazonPair && (
+            <div style={{
+              marginTop: 12, padding: '12px 14px', borderRadius: 10, fontSize: 12, lineHeight: 1.7,
+              display: 'flex', alignItems: 'flex-start', gap: 9,
+              background: amazonPair.matched ? 'var(--success-bg)' : 'var(--danger-bg)',
+              color: amazonPair.matched ? 'var(--success-text)' : 'var(--danger-text)',
+              border: `1px solid ${amazonPair.matched ? 'var(--success-text)' : 'var(--danger-text)'}33`,
+            }}>
+              <Link2 size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 800 }}>
+                  {amazonPair.matched ? 'تم ربط تقريري أمازون بنجاح' : 'تقريرا أمازون لا يخصان النطاق نفسه'}
+                </div>
+                {amazonPair.matched
+                  ? <span>المبيعات والوحدات وعدد منتجات الطلب متطابقة{amazonPair.rangeStart && amazonPair.rangeEnd ? <> للفترة <bdi dir="ltr">{amazonPair.rangeStart} — {amazonPair.rangeEnd}</bdi></> : ''}. ستظهر الأيام من لوحة المبيعات، والزيارات والتحويل حسب ASIN من تقرير الأعمال، ولن يُجمع الإجمالي مرتين.</span>
+                  : <span>فرق المبيعات: {amazonPair.salesDifference.toFixed(2)} ر.س · فرق الوحدات: {amazonPair.unitsDifference}{amazonPair.orderItemsDifference !== null ? ` · فرق منتجات الطلب: ${amazonPair.orderItemsDifference}` : ''}. راجع نطاق التاريخ قبل الحفظ.</span>}
+              </div>
+            </div>
+          )}
+
           {/* Overall progress */}
           {anyParsing && (
             <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -956,14 +1013,14 @@ function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
   if (rows.length === 0) return null
   return (
     <div style={{ ...S.formCard, padding: 14, borderColor: 'var(--danger-bg)' }}>
-      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', width: '100%', border: 0, padding: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: 'inherit' }}>
         <AlertTriangle size={15} color="var(--danger-text)" />
         <div style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
           ملفات لم تُقبل مؤخراً <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— راجعها؛ قد تكون صيغة تقرير تغيّرت</span>
         </div>
         <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: 'var(--danger-bg)', color: 'var(--danger-text)' }}>{rows.length}</span>
         <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
-      </div>
+      </button>
       {open && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {rows.map((r, i) => (
@@ -1013,13 +1070,13 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
 
   return (
     <div style={{ ...S.formCard, padding: 18 }}>
-      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 14 : 0, cursor: 'pointer' }}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 14 : 0, cursor: 'pointer', width: '100%', border: 0, padding: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: 'inherit' }}>
         <Info size={16} color={color} />
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
           الملفات المتوقّعة <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— دليل اختياري لكل تقرير وآخر مرة رُفع</span>
         </div>
         <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
-      </div>
+      </button>
 
       {open && groups.map(([pf, guides]) => {
         const gColor = PLATFORM_COLORS[pf] || color
@@ -1348,7 +1405,10 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
           <div style={{ fontSize: 14, fontWeight: 800 }}>📋 الرفعات السابقة لهذا التاجر ({uploads.length})</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>الحذف يزيل الملف وكل البيانات اللي رُفعت معه ثم يعيد بناء الأداء</div>
         </div>
-        <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => { window.history.pushState(null, '', '/admin/uploads'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>عرض السجل الكامل</button>
+          <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
+        </div>
       </div>
       {uploads.length === 0 && (
         <div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)', fontSize: 12, background: 'var(--surface2)', borderRadius: 9 }}>
@@ -1356,11 +1416,22 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
-        {uploads.map(u => (
+        {uploads.map(u => {
+          const displayStatus = uploadDisplayStatus(u.status, u.uploaded_at)
+          const statusMeta = displayStatus === 'success'
+            ? { label: '✓ ناجح', color: 'var(--success-text)', bg: 'var(--success-bg)', border: 'var(--green)' }
+            : displayStatus === 'partial'
+              ? { label: '⚠ جزئي', color: 'var(--warning-text)', bg: 'var(--warning-bg)', border: 'var(--gold)' }
+              : displayStatus === 'processing'
+                ? { label: 'قيد المعالجة', color: 'var(--warning-text)', bg: 'var(--warning-bg)', border: 'var(--gold)' }
+                : displayStatus === 'stalled'
+                  ? { label: 'متعطل (أكثر من 30 دقيقة)', color: 'var(--danger-text)', bg: 'var(--danger-bg)', border: 'var(--red)' }
+                  : { label: displayStatus === 'failed' ? '✗ فشل' : 'غير معروف', color: 'var(--danger-text)', bg: 'var(--danger-bg)', border: 'var(--red)' }
+          return (
           <div key={u.id} style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
             background: 'var(--surface2)', borderRadius: 9,
-            borderRight: `3px solid ${u.status === 'success' ? 'var(--green)' : u.status === 'partial' ? 'var(--gold)' : u.status === 'failed' ? 'var(--red)' : 'var(--text3)'}`,
+            borderRight: `3px solid ${statusMeta.border}`,
           }}>
             <FileText size={16} color="var(--text3)" style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1370,10 +1441,10 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
               </div>
             </div>
             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12,
-              background: u.status === 'success' ? 'var(--success-bg)' : u.status === 'partial' ? 'var(--warning-bg)' : u.status === 'failed' ? 'var(--danger-bg)' : 'var(--surface)',
-              color: u.status === 'success' ? 'var(--success-text)' : u.status === 'partial' ? 'var(--warning-text)' : u.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)',
+              background: statusMeta.bg,
+              color: statusMeta.color,
             }}>
-              {u.status === 'success' ? '✓ ناجح' : u.status === 'partial' ? '⚠ جزئي' : u.status === 'failed' ? '✗ فشل' : u.status}
+              {statusMeta.label}
             </span>
             <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
               style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
@@ -1382,7 +1453,8 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
               <X size={11} /> {deletingId === u.id ? 'حذف...' : 'حذف'}
             </button>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

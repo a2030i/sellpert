@@ -1,6 +1,8 @@
 ﻿import { useState, useMemo } from 'react'
 import { S, fmt, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import type { Merchant, PerformanceData } from '../../lib/supabase'
+import { useEffect } from 'react'
+import { filterPerformanceRows, performanceDateKey, summarizePerformance, type PerformancePreset } from '../../lib/adminPerformance'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const PERF_PAGE_SIZE = 50
@@ -8,37 +10,29 @@ const PERF_PAGE_SIZE = 50
 export default function PerformanceView({ merchants, perfData }: any) {
   const [filterMerchant, setFilterMerchant] = useState('all')
   const [filterPlatform, setFilterPlatform] = useState('all')
-  const [filterPreset, setFilterPreset] = useState('last30')
+  const [filterPreset, setFilterPreset] = useState<PerformancePreset>('last30')
   const [page, setPage] = useState(0)
 
   const filtered = useMemo(() => {
-    setPage(0)
     let d = perfData as PerformanceData[]
     if (filterMerchant !== 'all') d = d.filter(r => r.merchant_code === filterMerchant)
     if (filterPlatform !== 'all') d = d.filter(r => r.platform === filterPlatform)
-    const now = Date.now()
-    if (filterPreset === 'today') d = d.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString())
-    else if (filterPreset === 'last7') d = d.filter(r => new Date(r.created_at).getTime() >= now - 7 * 86400000)
-    else if (filterPreset === 'last30') d = d.filter(r => new Date(r.created_at).getTime() >= now - 30 * 86400000)
-    else if (filterPreset === 'thisMonth') {
-      const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0)
-      d = d.filter(r => new Date(r.created_at) >= start)
-    }
-    return d
+    return filterPerformanceRows(d, filterPreset)
   }, [perfData, filterMerchant, filterPlatform, filterPreset])
+
+  useEffect(() => setPage(0), [filterMerchant, filterPlatform, filterPreset])
 
   const totalPages = Math.ceil(filtered.length / PERF_PAGE_SIZE)
   const pageRows = filtered.slice(page * PERF_PAGE_SIZE, (page + 1) * PERF_PAGE_SIZE)
 
-  const totalSales = filtered.reduce((s: number, r: PerformanceData) => s + r.total_sales, 0)
-  const totalOrders = filtered.reduce((s: number, r: PerformanceData) => s + r.order_count, 0)
-  const totalFees = filtered.reduce((s: number, r: PerformanceData) => s + (r.platform_fees || 0), 0)
-  const aov = totalOrders > 0 ? totalSales / totalOrders : 0
+  const { sales: totalSales, volume: totalVolume, fees: totalFees } = useMemo(() => summarizePerformance(filtered), [filtered])
+  const averageValue = totalVolume > 0 ? totalSales / totalVolume : 0
 
   const trend = useMemo(() => {
     const map: Record<string, number> = {}
     for (const r of filtered) {
-      const d = r.data_date || r.created_at.split('T')[0]
+      const d = performanceDateKey(r)
+      if (!d) continue
       map[d] = (map[d] || 0) + r.total_sales
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, sales]) => ({
@@ -52,15 +46,15 @@ export default function PerformanceView({ merchants, perfData }: any) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select style={S.filterSelect} value={filterMerchant} onChange={e => setFilterMerchant(e.target.value)}>
+        <select aria-label="تصفية الأداء حسب التاجر" style={S.filterSelect} value={filterMerchant} onChange={e => setFilterMerchant(e.target.value)}>
           <option value="all">كل التجار</option>
           {merchants.map((m: Merchant) => <option key={m.id} value={m.merchant_code}>{m.name}</option>)}
         </select>
-        <select style={S.filterSelect} value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
+        <select aria-label="تصفية الأداء حسب المنصة" style={S.filterSelect} value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
           <option value="all">كل المنصات</option>
           {platforms.map((p: any) => <option key={p} value={p}>{PLATFORM_MAP[p] || p}</option>)}
         </select>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { k: 'today', l: 'اليوم' },
             { k: 'last7', l: '7 أيام' },
@@ -68,14 +62,14 @@ export default function PerformanceView({ merchants, perfData }: any) {
             { k: 'thisMonth', l: 'هذا الشهر' },
             { k: 'all', l: 'الكل' },
           ].map(p => (
-            <button key={p.k} style={{ ...S.presetBtn, ...(filterPreset === p.k ? S.presetActive : {}) }} onClick={() => setFilterPreset(p.k)}>{p.l}</button>
+            <button key={p.k} aria-pressed={filterPreset === p.k} style={{ ...S.presetBtn, ...(filterPreset === p.k ? S.presetActive : {}) }} onClick={() => setFilterPreset(p.k as PerformancePreset)}>{p.l}</button>
           ))}
         </div>
         <span style={S.badge}>{filtered.length} سجل</span>
         <button style={{ ...S.miniBtn, marginRight: 'auto', fontSize: 12, padding: '6px 14px' }} onClick={() => {
-          const headers = ['التاريخ', 'التاجر', 'المنصة', 'الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش%', 'الإعلانات']
+          const headers = ['تاريخ التقرير', 'التاجر', 'المنصة', 'الوحدات/الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش%', 'الإعلانات']
           const rows = filtered.map((r: PerformanceData) => [
-            r.data_date || r.created_at.split('T')[0],
+            performanceDateKey(r),
             merchants.find((m: Merchant) => m.merchant_code === r.merchant_code)?.name || r.merchant_code,
             PLATFORM_MAP[r.platform] || r.platform,
             r.order_count, r.total_sales, r.platform_fees || 0, r.margin.toFixed(1), r.ad_spend || 0
@@ -87,11 +81,11 @@ export default function PerformanceView({ merchants, perfData }: any) {
         }}>⬇ تصدير CSV</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>
+      <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>
         {[
           { label: 'إجمالي المبيعات', value: fmt(totalSales), color: 'var(--accent)' },
-          { label: 'عدد الطلبات', value: fmt(totalOrders, 'number'), color: 'var(--success-text)' },
-          { label: 'متوسط الطلب (AOV)', value: fmt(aov), color: 'var(--warning-text)' },
+          { label: 'الوحدات / الطلبات', value: fmt(totalVolume, 'number'), color: 'var(--success-text)' },
+          { label: 'متوسط قيمة الوحدة / الطلب', value: fmt(averageValue), color: 'var(--warning-text)' },
           { label: 'رسوم المنصات', value: fmt(totalFees), color: '#ff6b6b' },
         ].map((k, i) => (
           <div key={i} style={{ ...S.kpiCard }}>
@@ -105,7 +99,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
       <div style={{ ...S.chartCard, marginBottom: 20 }}>
         <div style={S.chartHeader}>
           <div style={S.chartTitle}>اتجاه المبيعات</div>
-          <div style={S.chartSub}>{filtered.length} سجل مرشح</div>
+          <div style={S.chartSub}>{filtered.length} سجل مرشح · يعتمد التاريخ على فترة التقرير لا وقت الرفع</div>
         </div>
         {trend.length === 0 ? (
           <div style={S.emptyChart}>لا توجد بيانات للفترة المحددة</div>
@@ -131,7 +125,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
           <table style={S.table}>
             <thead>
               <tr>
-                {['التاريخ', 'التاجر', 'المنصة', 'الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش', 'الإنفاق'].map(h => (
+                {['تاريخ التقرير', 'التاجر', 'المنصة', 'الوحدات/الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش', 'الإنفاق'].map(h => (
                   <th key={h} style={S.th}>{h}</th>
                 ))}
               </tr>
@@ -141,7 +135,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
                 <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد بيانات</td></tr>
               ) : pageRows.map((r: PerformanceData) => (
                 <tr key={r.id} style={S.tr}>
-                  <td style={{ ...S.td, fontSize: 11 }}>{new Date(r.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
+                  <td style={{ ...S.td, fontSize: 11 }}>{new Date(`${performanceDateKey(r)}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</td>
                   <td style={{ ...S.td, fontSize: 12 }}>{r.merchant_code}</td>
                   <td style={S.td}>
                     <span style={{ ...S.platformTag, background: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '22', color: PLATFORM_COLORS[r.platform] || 'var(--text3)' }}>
@@ -174,4 +168,3 @@ export default function PerformanceView({ merchants, perfData }: any) {
     </div>
   )
 }
-

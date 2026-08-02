@@ -27,7 +27,7 @@ export default function FeesView() {
   const [calcWeight,   setCalcWeight]   = useState('0.5')
   const [calcCategory, setCalcCategory] = useState('')
   const [calcModel,    setCalcModel]    = useState('')
-  const [calcAsp,      setCalcAsp]      = useState('') // override ASP if different from price
+  const [calcAsp] = useState('') // override ASP if different from price
 
   useEffect(() => { load() }, [])
 

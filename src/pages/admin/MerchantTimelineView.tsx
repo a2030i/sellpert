@@ -20,16 +20,6 @@ interface TimelineItem {
   occurred_at: string
 }
 
-interface Note {
-  id: string
-  body: string
-  type: string
-  pinned: boolean
-  author_email: string | null
-  author_name: string | null
-  created_at: string
-}
-
 interface Props {
   merchantCode: string
   onBack: () => void
@@ -56,6 +46,8 @@ export default function MerchantTimelineView({ merchantCode, onBack }: Props) {
   const [newPinned, setNewPinned] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Timeline reloads only when the selected merchant changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [merchantCode])
 
   async function load() {

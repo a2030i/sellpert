@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { S } from './adminShared'
 import type { Merchant } from '../../lib/supabase'
 
 const TYPE_LABELS: Record<string, string> = {

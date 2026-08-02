@@ -38,7 +38,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       }
       setLoading(false)
     })
-  }, [productId, merchant?.merchant_code])
+  }, [productId, merchant])
 
   const adTotals = useMemo(() => ({
     spend:   adMetrics.reduce((a, r) => a + Number(r.spend), 0),
@@ -226,7 +226,7 @@ const td: React.CSSProperties = { padding: '8px 10px', fontSize: 12 }
 const btnPrimary: React.CSSProperties = { background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 
 // ─── Profitability Simulator ──────────────────────────────────────────────────
-function ProfitSimulator({ product, profitability }: { product: any; profitability: any }) {
+function ProfitSimulator({ product: _product, profitability }: { product: any; profitability: any }) {
   const [pricePct, setPricePct] = useState(0)
   const [adPct, setAdPct] = useState(0)
   const [costPct, setCostPct] = useState(0)
@@ -327,7 +327,7 @@ function PerPlatformListings({ productId, merchantCode, defaultTitle, defaultDes
       keywords: (cur.keywords || []).join(', '),
       images: (cur.images || defaultImages || []).join('\n'),
     })
-  }, [activePlatform, listings])
+  }, [activePlatform, listings, defaultTitle, defaultDescription, defaultImages])
 
   async function save() {
     if (!productId || !merchantCode) return

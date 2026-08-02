@@ -14,13 +14,40 @@ const STEPS = [
 
 export default function OnboardingTour({ merchantCode }: { merchantCode?: string }) {
   const [activation, setActivation] = useState<Record<string, boolean>>({})
-  const [closed, setClosed] = useState(localStorage.getItem('sellpert-onb-closed') === 'true')
+  const storageKey = `sellpert-onb-closed:${merchantCode || 'unknown'}`
+  const [closed, setClosed] = useState(localStorage.getItem(storageKey) === 'true')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!merchantCode) return
-    supabase.rpc('merchant_activation', { p_merchant_code: merchantCode })
-      .then(({ data }) => { setActivation(data || {}); setLoading(false) })
+    setClosed(localStorage.getItem(`sellpert-onb-closed:${merchantCode}`) === 'true')
+    async function loadActivation() {
+      const [rpc, products, costs, inventory, orders, ads, insights, merchant] = await Promise.all([
+        supabase.rpc('merchant_activation', { p_merchant_code: merchantCode }),
+        supabase.from('products').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+        supabase.from('products').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode).gt('cost_price', 0),
+        supabase.from('inventory').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode).eq('is_active', true),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+        supabase.from('ad_metrics').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+        supabase.from('ai_insights').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+        supabase.from('merchants').select('salla_store_id').eq('merchant_code', merchantCode).maybeSingle(),
+      ])
+      const direct = {
+        has_products: (products.count || 0) > 0,
+        has_costs: (costs.count || 0) > 0,
+        has_inventory: (inventory.count || 0) > 0,
+        has_orders: (orders.count || 0) > 0,
+        has_ad_metrics: (ads.count || 0) > 0,
+        has_ai_insight: (insights.count || 0) > 0,
+        has_salla: Boolean(merchant.data?.salla_store_id),
+      }
+      const fromRpc = (rpc.data || {}) as Record<string, boolean>
+      setActivation(Object.fromEntries(
+        STEPS.map(step => [step.key, Boolean(fromRpc[step.key] || direct[step.key as keyof typeof direct])]),
+      ))
+      setLoading(false)
+    }
+    loadActivation().catch(() => setLoading(false))
   }, [merchantCode])
 
   if (loading || closed) return null
@@ -35,7 +62,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
   }
   function close() {
     setClosed(true)
-    localStorage.setItem('sellpert-onb-closed', 'true')
+    localStorage.setItem(storageKey, 'true')
   }
 
   return (
@@ -44,7 +71,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
       border: '1px solid rgba(124,107,255,0.2)',
       borderRadius: 14, padding: 18, marginBottom: 18, position: 'relative',
     }}>
-      <button onClick={close} style={{ position: 'absolute', top: 10, left: 10, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4 }}>
+      <button aria-label="إغلاق دليل البدء" onClick={close} style={{ position: 'absolute', top: 10, left: 10, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4 }}>
         <X size={14} />
       </button>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 14 }}>
@@ -60,20 +87,21 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
         {STEPS.map(s => {
           const done = !!activation[s.key]
           return (
-            <div key={s.key} onClick={() => !done && go(s.path)} style={{
+            <button type="button" key={s.key} disabled={done} onClick={() => go(s.path)} style={{
               background: done ? 'var(--success-bg)' : 'var(--surface2)',
               border: `1px solid ${done ? 'rgba(0,184,148,0.2)' : 'var(--border)'}`,
               borderRadius: 9, padding: '10px 12px',
               display: 'flex', alignItems: 'flex-start', gap: 10,
               cursor: done ? 'default' : 'pointer',
               opacity: done ? 0.7 : 1,
+              width: '100%', textAlign: 'right', color: 'inherit', fontFamily: 'inherit',
             }}>
               {done ? <CheckCircle2 size={16} color="var(--success-text)" style={{ flexShrink: 0, marginTop: 2 }} /> : <Circle size={16} color="var(--text3)" style={{ flexShrink: 0, marginTop: 2 }} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--text2)' : 'var(--text)', textDecoration: done ? 'line-through' : 'none' }}>{s.label}</div>
                 <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{s.desc}</div>
               </div>
-            </div>
+            </button>
           )
         })}
       </div>

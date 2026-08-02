@@ -48,44 +48,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 })
 
-// Heartbeat: while the tab is visible, refresh the session every 30 minutes.
-// Supabase's autoRefreshToken handles this internally too, but having an
-// explicit poll catches edge cases (long-idle tabs, suspended workers).
-if (typeof window !== 'undefined') {
-  let interval: number | null = null
-  const start = () => {
-    if (interval) return
-    interval = window.setInterval(() => {
-      supabase.auth.getSession().then(({ data }) => {
-        if (!data.session) return
-        const expiresAt = data.session.expires_at
-        if (!expiresAt) return
-        const secondsLeft = expiresAt - Math.floor(Date.now() / 1000)
-        // Refresh proactively if less than 10 minutes remain
-        if (secondsLeft < 600) {
-          supabase.auth.refreshSession().catch(() => {})
-        }
-      }).catch(() => {})
-    }, 5 * 60 * 1000)  // every 5 minutes
-  }
-  const stop = () => { if (interval) { clearInterval(interval); interval = null } }
-
-  // Refresh on visibility change (returning to tab)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      supabase.auth.refreshSession().catch(() => {})
-      start()
-    } else {
-      stop()
-    }
-  })
-  // Refresh on online (returning from offline)
-  window.addEventListener('online', () => {
-    supabase.auth.refreshSession().catch(() => {})
-  })
-  start()
-}
-
 export type UserRole = 'merchant' | 'admin' | 'employee'
 
 export interface Merchant {
@@ -146,7 +108,7 @@ export interface SyncLog {
   id: string
   merchant_code: string
   platform: string
-  status: 'running' | 'success' | 'error'
+  status: 'running' | 'success' | 'error' | 'stalled'
   records_synced: number
   error_message?: string
   started_at: string

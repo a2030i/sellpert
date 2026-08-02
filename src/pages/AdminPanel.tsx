@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP } from '../lib/constants'
+import { performanceDateKey } from '../lib/adminPerformance'
+import { uploadDisplayStatus } from '../lib/uploadStatus'
 // كل الشاشات الإدارية lazy: الاستيراد المباشر كان يحمّل 24 شاشة (459KB +
 // سلسلة xlsx 424KB) لكل مستخدم حتى لو كانت صلاحياته شاشتين فقط
 const FeesView            = lazy(() => import('./FeesView'))
@@ -13,6 +15,7 @@ const ConnectionsView     = lazy(() => import('./admin/ConnectionsView'))
 const AiView              = lazy(() => import('./admin/AiView'))
 const EntryView           = lazy(() => import('./admin/EntryView'))
 const ImportFilesView     = lazy(() => import('./admin/ImportFilesView'))
+const UploadsLogView      = lazy(() => import('./admin/UploadsLogView'))
 const InboundView         = lazy(() => import('./admin/InboundView'))
 const AdsView             = lazy(() => import('./admin/AdsView'))
 const OperationsView      = lazy(() => import('./admin/OperationsView'))
@@ -29,9 +32,9 @@ const MerchantTimelineView = lazy(() => import('./admin/MerchantTimelineView'))
 const EmployeesView       = lazy(() => import('./admin/EmployeesView'))
 import CommandPalette from '../components/CommandPalette'
 import PWAInstallPrompt from '../components/PWAInstallPrompt'
-import type { Merchant, PerformanceData, PlatformCredential } from '../lib/supabase'
+import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../lib/supabase'
 import {
-  LayoutDashboard, Users, Tag, Inbox, PenLine, Upload, Truck, Megaphone, History,
+  LayoutDashboard, Users, Tag, PenLine, Upload, Truck, Megaphone, History,
   TrendingUp, CreditCard, Percent, ShoppingBag,
   BarChart2, Key, Sparkles, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
@@ -39,15 +42,19 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'requests' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'requests', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'fees', 'revenue', 'salla', 'health', 'billing']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
   // بادئة /admin إلزامية: مسارات التاجر (/products، /team، /billing...) كانت تتصادم مع مفاتيح
   // الشاشات الإدارية فيتبدّل السياق صامتاً عند التحديث أثناء الانتحال
   if (parts[1] !== 'admin') return 'overview'
+  if (parts[parts.length - 1] === 'requests') {
+    window.history.replaceState(null, '', '/admin/tasks')
+    return 'tasks'
+  }
   const last = parts[parts.length - 1] as AdminView
   return ADMIN_VIEWS.includes(last) ? last : 'overview'
 }
@@ -65,6 +72,17 @@ type NavGroup = {
   items: NavItem[]
 }
 
+type AdminUpload = {
+  id: string
+  merchant_code: string
+  platform: string
+  status: string | null
+  rows_inserted: number | null
+  error_message: string | null
+  uploaded_at: string | null
+  finished_at: string | null
+}
+
 // Permission gates per view. If `perm` is set, employees need that permission.
 // If `adminOnly` is true, only admins (managers) can see it.
 const NAV_GROUPS: NavGroup[] = [
@@ -76,17 +94,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'data_entry', label: 'البيانات والاستيراد', Icon: FileInput,
-    items: [
-      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات',           perm: 'upload_files' },
-      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',             perm: 'upload_files' },
-    ],
-  },
-  {
     key: 'merchants', label: 'التجار والمنتجات', Icon: Users,
     items: [
       { key: 'merchants', Icon: Users,         label: 'التجار',           perm: 'view_merchants' },
       { key: 'products',  Icon: Tag,           label: 'المنتجات والأسعار', perm: 'view_merchants' },
+    ],
+  },
+  {
+    key: 'data_entry', label: 'البيانات والاستيراد', Icon: FileInput,
+    items: [
+      { key: 'import',    Icon: Upload,   label: 'استيراد ملفات', perm: 'upload_files' },
+      { key: 'uploads',   Icon: History,  label: 'سجل الاستيراد', perm: ['upload_files', 'view_audit'] },
+      { key: 'entry',     Icon: PenLine,  label: 'إدخال يدوي',   perm: 'upload_files' },
     ],
   },
   {
@@ -204,13 +223,13 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
     fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase' as const, letterSpacing: '0.7px',
-    userSelect: 'none' as const,
+    userSelect: 'none' as const, width: '100%', border: 'none', background: 'transparent', fontFamily: 'inherit',
   },
   navItem: {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '9px 12px', color: 'var(--text2)', cursor: 'pointer',
     borderRadius: 8, fontSize: 12, fontWeight: 500, marginBottom: 1,
-    transition: 'all 0.15s',
+    transition: 'all 0.15s', width: '100%', border: 'none', background: 'transparent', fontFamily: 'inherit', textAlign: 'right',
   },
   navActive: { color: 'var(--accent)', background: 'rgba(124,107,255,0.1)', fontWeight: 700 },
   navIcon: { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' as const },
@@ -231,7 +250,7 @@ const S: Record<string, React.CSSProperties> = {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: { merchant: Merchant | null; onImpersonate: (m: Merchant) => void }) {
+export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onSignOut }: { merchant: Merchant | null; onImpersonate: (m: Merchant) => void; onSignOut: () => void }) {
   const [view, setView]         = useState<AdminView>(readAdminView)
   const [mobileMore, setMobileMore] = useState(false)
   const [timelineCode, setTimelineCode] = useState<string | null>(() => {
@@ -247,8 +266,13 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   // Filter navigation by current user's permissions (admins see all, employees see allowed only)
   const visibleNav = useMemo(() => filterNavForUser(adminMerchant), [adminMerchant])
   const visibleNavFlat = useMemo(() => visibleNav.flatMap(g => g.items), [visibleNav])
-  // تبويبات الجوال الأساسية = أول 4 شاشات مسموحة للمستخدم (لا قائمة ثابتة تتجاهل الصلاحيات)
-  const mobileTabs = useMemo(() => visibleNavFlat.slice(0, 4), [visibleNavFlat])
+  // أهم الرحلات اليومية أولاً، مع احترام صلاحيات الموظف وملء المواقع المتبقية تلقائياً.
+  const mobileTabs = useMemo(() => {
+    const preferred: AdminView[] = ['overview', 'merchants', 'import', 'performance']
+    const preferredItems = preferred.map(key => visibleNavFlat.find(item => item.key === key)).filter(Boolean) as NavItem[]
+    const remaining = visibleNavFlat.filter(item => !preferred.includes(item.key))
+    return [...preferredItems, ...remaining].slice(0, 4)
+  }, [visibleNavFlat])
   const mobileTabKeys = useMemo(() => mobileTabs.map(t => t.key), [mobileTabs])
   const isManager = adminMerchant?.role === 'admin'
 
@@ -297,6 +321,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   const [merchants, setMerchants] = useState<Merchant[]>([])
   const [perfData, setPerfData]   = useState<PerformanceData[]>([])
   const [credentials, setCredentials] = useState<PlatformCredential[]>([])
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([])
+  const [openTaskCount, setOpenTaskCount] = useState(0)
   const [loading, setLoading]     = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -305,7 +331,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   async function loadAll(silent = false) {
     if (!silent) setLoading(true)
     else setRefreshing(true)
-    const [m, p, c] = await Promise.all([
+    const [m, p, c, uploads, tasks] = await Promise.all([
       supabase.from('merchants').select('*').order('created_at', { ascending: false }),
       // fetchAll: GMV الكلي يُجمع من هذا الاستعلام — اقتطاع PostgREST عند
       // 1000 صف كان يعني أرقام نظرة عامة ناقصة بصمت
@@ -313,10 +339,28 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         supabase.from('performance_data').select('*')
           .order('data_date', { ascending: false }).order('merchant_code').order('platform').range(f, t), 'بيانات الأداء'),
       supabase.from('platform_credentials').select('*').order('updated_at', { ascending: false }),
+      supabase.from('platform_file_uploads')
+        .select('id,merchant_code,platform,status,rows_inserted,error_message,uploaded_at,finished_at')
+        .order('uploaded_at', { ascending: false }).limit(20),
+      supabase.from('merchant_requests').select('status'),
     ])
     setMerchants(m.data || [])
     setPerfData(p)
     setCredentials(c.data || [])
+    setSyncLogs(((uploads.data || []) as AdminUpload[]).map(upload => {
+      const displayStatus = uploadDisplayStatus(upload.status, upload.uploaded_at)
+      return {
+        id: upload.id,
+        merchant_code: upload.merchant_code,
+        platform: upload.platform,
+        status: displayStatus === 'success' ? 'success' : displayStatus === 'processing' ? 'running' : displayStatus === 'stalled' ? 'stalled' : 'error',
+        records_synced: upload.rows_inserted || 0,
+        error_message: upload.error_message || undefined,
+        started_at: upload.uploaded_at || upload.finished_at || new Date().toISOString(),
+        finished_at: upload.finished_at || undefined,
+      }
+    }))
+    setOpenTaskCount((tasks.data || []).filter(task => !['done', 'rejected'].includes(task.status)).length)
     setLoading(false)
     setRefreshing(false)
   }
@@ -324,7 +368,6 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
   const merchantOnly = useMemo(() => merchants.filter(m => m.role === 'merchant'), [merchants])
 
   const totalGMV = useMemo(() => perfData.reduce((s, r) => s + r.total_sales, 0), [perfData])
-  const totalOrders = useMemo(() => perfData.reduce((s, r) => s + r.order_count, 0), [perfData])
   const activeIntegrations = useMemo(() => credentials.filter(c => c.is_active).length, [credentials])
 
   const gmvByMerchant = useMemo(() => {
@@ -337,7 +380,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
     const map: Record<string, number> = {}
     const cutoff = Date.now() - 30 * 86400000
     for (const r of perfData) {
-      const d = r.data_date || r.created_at.split('T')[0]
+      const d = performanceDateKey(r)
+      if (!d) continue
       if (new Date(d).getTime() < cutoff) continue
       map[d] = (map[d] || 0) + r.total_sales
     }
@@ -402,7 +446,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
               const GIcon = group.Icon
               return (
                 <div key={group.key} style={S.navGroup}>
-                  <div
+                  <button type="button"
+                    aria-expanded={isOpen}
                     style={{ ...S.navGroupHeader, color: hasActive ? 'var(--accent)' : 'var(--text3)' }}
                     onClick={() => toggleGroup(group.key)}
                   >
@@ -411,18 +456,18 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
                       {group.label}
                     </span>
                     <ChevronUp size={12} style={{ transition: 'transform 0.2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(180deg)' }} />
-                  </div>
+                  </button>
                   {isOpen && group.items.map(item => {
                     const IIcon = item.Icon
                     return (
-                      <div
+                      <button type="button"
                         key={item.key}
                         style={{ ...S.navItem, ...(view === item.key ? S.navActive : {}) }}
                         onClick={() => navTo(item.key)}
                       >
                         <IIcon size={15} style={{ flexShrink: 0 }} />
                         <span>{item.label}</span>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -441,13 +486,13 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
               </div>
             </div>
             <button style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '8px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              onClick={() => supabase.auth.signOut()}><LogOut size={13} /> تسجيل الخروج</button>
+              onClick={onSignOut}><LogOut size={13} /> تسجيل الخروج</button>
           </div>
         </aside>
       )}
 
       {/* ── MAIN ── */}
-      <main style={{ flex: 1, minHeight: '100vh', marginRight: isMobile ? 0 : 230, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
+      <main style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 230, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
           <div>
             <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{currentLabel}</h2>
@@ -459,19 +504,20 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         </div>
 
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}><div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}>
-        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} merchants={merchants} totalGMV={totalGMV} totalOrders={totalOrders} activeIntegrations={activeIntegrations} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={[]} perfData={perfData} />}
+        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} totalGMV={totalGMV} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={syncLogs} perfData={perfData} />}
         {view === 'team'        && <TeamDashboardView />}
         {view === 'merchants'   && (
           timelineCode
             ? <MerchantTimelineView merchantCode={timelineCode} onBack={closeTimeline} />
             : <MerchantsView merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
         )}
-        {view === 'employees'   && <EmployeesView merchants={merchants} onRefresh={() => loadAll(true)} />}
+        {view === 'employees'   && <EmployeesView merchants={merchants} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
         {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
         {view === 'ai'          && <AiView merchants={merchantOnly} />}
         {view === 'entry'       && <EntryView merchants={merchantOnly} />}
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
+        {view === 'uploads'     && <UploadsLogView merchants={merchants} />}
         {view === 'inbound'     && <InboundView merchants={merchantOnly} />}
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'operations'  && <OperationsView merchants={merchantOnly} />}
@@ -479,8 +525,6 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
         {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
-        {/* 'requests' كان شاشة مكررة على نفس جدول merchant_requests — يوجَّه للوحة المهام الموحّدة */}
-        {view === 'requests'    && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'fees'        && <FeesView />}
         {view === 'revenue'     && <RevenueView merchants={merchantOnly} perfData={perfData} />}
         {view === 'salla'       && <SallaView onRefresh={() => loadAll(true)} />}
@@ -545,10 +589,10 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate }: {
                   </div>
                 )
               })}
-              <div onClick={() => supabase.auth.signOut()} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+              <button type="button" onClick={onSignOut} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, border: 'none', borderTop: '1px solid var(--border)', marginTop: 4, width: '100%', background: 'transparent', fontFamily: 'inherit' }}>
                 <LogOut size={18} />
                 <span>تسجيل الخروج</span>
-              </div>
+              </button>
             </div>
           )}
         </>

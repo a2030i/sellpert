@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Sparkles, Send, X, MessageSquare } from 'lucide-react'
+import { useMobile } from '../lib/hooks'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 
@@ -14,6 +15,7 @@ const SUGGESTIONS = [
 ]
 
 export default function AIChat({ merchantCode }: { merchantCode?: string }) {
+  const isMobile = useMobile()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -55,8 +57,8 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
   return (
     <>
       {/* Floating button */}
-      <button onClick={() => setOpen(true)} style={{
-        position: 'fixed', bottom: 26, left: 26, zIndex: 9000,
+      <button aria-label="فتح مساعد Sellpert الذكي" onClick={() => setOpen(true)} style={{
+        position: 'fixed', bottom: isMobile ? 76 : 26, left: isMobile ? 12 : 26, zIndex: 500,
         width: 56, height: 56, borderRadius: '50%',
         background: 'linear-gradient(135deg, #7c6bff, var(--green))',
         border: 'none', color: '#fff', cursor: 'pointer',
@@ -70,7 +72,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
       {/* Chat panel */}
       {open && (
         <div style={{
-          position: 'fixed', bottom: 26, left: 26, zIndex: 9001,
+          position: 'fixed', bottom: isMobile ? 70 : 26, left: isMobile ? 12 : 26, zIndex: 501,
           width: 'min(420px, calc(100vw - 32px))',
           height: 'min(560px, calc(100vh - 100px))',
           background: 'var(--surface)', border: '1px solid var(--border)',
@@ -88,7 +90,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
                 <div style={{ fontSize: 11, opacity: 0.9 }}>اسألني عن أرقامك وأداء متجرك</div>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: 6, cursor: 'pointer' }}>
+            <button aria-label="إغلاق المساعد الذكي" onClick={() => setOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: 6, cursor: 'pointer' }}>
               <X size={16} />
             </button>
           </div>
@@ -133,7 +135,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
             <div style={{ display: 'flex', gap: 6 }}>
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="اكتب سؤالك..." disabled={loading}
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: 10, fontSize: 13, outline: 'none', color: 'var(--text)', fontFamily: 'inherit' }} />
-              <button onClick={() => send()} disabled={loading || !input.trim()}
+              <button aria-label="إرسال السؤال" onClick={() => send()} disabled={loading || !input.trim()}
                 style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', borderRadius: 10, padding: '0 14px', cursor: 'pointer', fontFamily: 'inherit', opacity: loading ? 0.5 : 1 }}>
                 <Send size={14} />
               </button>

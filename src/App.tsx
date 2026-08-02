@@ -1,21 +1,21 @@
 ﻿import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
+import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
-import { isSuspended, getPlan, PLANS, getUpgradePlan } from './lib/subscription'
-import type { PlanKey } from './lib/subscription'
+import { isSuspended, getPlan, getPlanKey, PLANS, getUpgradePlan } from './lib/subscription'
 import Login from './pages/Login'
 import { ToastContainer, toastErr } from './components/Toast'
 import SubscriptionBanner from './components/SubscriptionBanner'
 import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
-import ThemeToggle, { applyStoredTheme } from './components/ThemeToggle'
+import ThemeToggle from './components/ThemeToggle'
 import AccountSwitcher from './components/AccountSwitcher'
 import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import {
-  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy, ChevronDown, HelpCircle,
-  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, BarChart3, Users,
+  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
+  FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
   Search, MoreHorizontal, X,
   type LucideIcon,
 } from 'lucide-react'
@@ -61,23 +61,25 @@ const NAV_GROUPS: NavGroup[] = [
   { key: 'main',      label: 'الرئيسية', items: [
     { Icon: LayoutDashboard, label: 'لوحة التحكم', key: 'dashboard' },
   ]},
-  { key: 'sales',     label: 'المبيعات والمنتجات',  items: [
-    { Icon: Package,    label: 'المبيعات والمستحقات', key: 'orders'   },
-    { Icon: Tags,       label: 'المنتجات',           key: 'products' },
+  { key: 'finance', label: 'المبيعات والمال', items: [
+    { Icon: Package,  label: 'المبيعات والطلبات',      key: 'orders'    },
+    { Icon: FileText, label: 'كشف الحساب والتحويلات', key: 'statement' },
+  ]},
+  { key: 'catalog', label: 'المنتجات والمخزون', items: [
+    { Icon: Tags,  label: 'المنتجات والربحية', key: 'products'  },
+    { Icon: Boxes, label: 'إدارة المخزون',      key: 'inventory' },
   ]},
   { key: 'growth',    label: 'النمو',      items: [
-    { Icon: Megaphone,  label: 'التسويق',  key: 'marketing' },
+    { Icon: Megaphone,  label: 'الإعلانات والأداء',  key: 'marketing' },
   ]},
-  { key: 'support',   label: 'الحساب والدعم', items: [
-    { Icon: LifeBuoy,   label: 'الدعم والمساعدة', key: 'requests' },
-    { Icon: CreditCard, label: 'الاشتراك',        key: 'billing'  },
+  { key: 'management', label: 'الإدارة', items: [
+    { Icon: Users,         label: 'الفريق والصلاحيات',     key: 'team'         },
+    { Icon: Link2,         label: 'مصادر البيانات والمنصات', key: 'integrations' },
+    { Icon: CreditCard,    label: 'الباقة والفواتير',       key: 'billing'      },
+    { Icon: SettingsIcon,  label: 'إعدادات الحساب',         key: 'settings'     },
   ]},
-  { key: 'team',      label: 'الفريق',    items: [
-    { Icon: Users,      label: 'الموظفون',   key: 'team'        },
-  ]},
-  { key: 'system',    label: 'النظام',    items: [
-    { Icon: Link2,         label: 'المنصات',    key: 'integrations' },
-    { Icon: SettingsIcon,  label: 'الإعدادات',  key: 'settings'     },
+  { key: 'support', label: 'المساعدة', items: [
+    { Icon: LifeBuoy, label: 'الدعم ومركز المعرفة', key: 'requests' },
   ]},
 ]
 
@@ -85,7 +87,7 @@ const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
 
 // تبويبات الجوال الأساسية (الباقي في ورقة «المزيد») — مختارة عمداً لا أول 5
-const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'marketing']
+const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'inventory']
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
@@ -104,6 +106,12 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
   const ref                 = useRef<HTMLDivElement>(null)
   const unread              = notifs.filter(n => !n.is_read).length
 
+  const loadNotifs = useCallback(async () => {
+    const { data } = await supabase.from('notifications').select('*')
+      .eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(20)
+    setNotifs(data || [])
+  }, [merchantCode])
+
   useEffect(() => {
     if (!merchantCode) return
     loadNotifs()
@@ -112,13 +120,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [merchantCode])
-
-  async function loadNotifs() {
-    const { data } = await supabase.from('notifications').select('*')
-      .eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(20)
-    setNotifs(data || [])
-  }
+  }, [merchantCode, loadNotifs])
 
   async function markAllRead() {
     await supabase.from('notifications').update({ is_read: true })
@@ -188,6 +190,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showUpgrade, setShowUpgrade]       = useState(false)
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
+  const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
 
   function startImpersonate(m: Merchant) {
@@ -232,6 +235,10 @@ export default function App() {
         return
       }
       if (event === 'SIGNED_OUT') {
+        if (explicitSignOut.current) {
+          setSession(null); setMerchant(null); setLoading(false)
+          return
+        }
         // Double-check before clearing state — sometimes a refresh race triggers
         // a spurious SIGNED_OUT. If the storage still has a valid session, ignore it.
         await new Promise(r => setTimeout(r, 250))
@@ -244,6 +251,7 @@ export default function App() {
         return
       }
       // SIGNED_IN, PASSWORD_RECOVERY
+      explicitSignOut.current = false
       setSession(session)
       if (session) fetchMerchant(session.user.email!)
       else { setMerchant(null); setLoading(false) }
@@ -267,10 +275,22 @@ export default function App() {
     window.scrollTo(0, 0)
   }
 
+  async function signOut() {
+    explicitSignOut.current = true
+    setSession(null)
+    setMerchant(null)
+    setImpersonating(null)
+    setShowOnboarding(false)
+    setView('dashboard')
+    window.history.replaceState(null, '', '/')
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    if (error) toastErr('تعذر إنهاء الجلسة بالكامل: ' + error.message)
+  }
+
   // خريطة ابن→أب: تمييز «أين أنا» في القائمة يبقى مضاءً على المسارات الثانوية (كشف/مساعدة/مخزون...)
   const NAV_PARENT: Record<string, View> = {
-    statement: 'orders', help: 'requests', inventory: 'products',
-    'quick-inventory': 'products', 'product-detail': 'products', 'product-compare': 'products',
+    help: 'requests', 'quick-inventory': 'inventory',
+    'product-detail': 'products', 'product-compare': 'products',
     notifications: 'dashboard',
   }
   const isActiveNav = (key: View) => view === key || NAV_PARENT[view] === key
@@ -287,11 +307,11 @@ export default function App() {
   if (!session) return <Login />
   // Both admins (managers) and employees use AdminPanel — sidebar filters by permissions
   if ((merchant?.role === 'admin' || merchant?.role === 'employee') && !impersonating)
-    return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} />
+    return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
 
   const activeMerchant = impersonating || merchant
   const suspended = isSuspended(activeMerchant)
-  const plan      = (activeMerchant?.subscription_plan as PlanKey) ?? 'free'
+  const plan      = getPlanKey(activeMerchant)
   const upgradeTo = getUpgradePlan(plan)
   const planCfg   = getPlan(activeMerchant)
 
@@ -363,7 +383,7 @@ export default function App() {
               style={{ display: 'block', background: 'linear-gradient(135deg,#e84040,#c9184a)', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 800, textDecoration: 'none', boxShadow: '0 4px 20px rgba(232,64,64,0.3)', marginBottom: 10 }}>
               تجديد الاشتراك من سلة
             </a>
-            <button onClick={() => supabase.auth.signOut()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '10px 20px', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>
+            <button onClick={signOut} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '10px 20px', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>
               تسجيل الخروج
             </button>
           </div>
@@ -413,7 +433,7 @@ export default function App() {
                 {group.items.map(item => {
                   const Icon = item.Icon
                   return (
-                    <div key={item.key}
+                    <button type="button" key={item.key}
                       className={`nav-item${isActiveNav(item.key) ? ' active' : ''}`}
                       style={S.navItem}
                       onClick={() => goTo(item.key)}
@@ -421,7 +441,7 @@ export default function App() {
                       <Icon size={16} style={{ flexShrink: 0 }} />
                       <span style={{ flex: 1 }}>{item.label}</span>
                       {isActiveNav(item.key) && <div className="nav-dot" />}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -447,7 +467,7 @@ export default function App() {
                 </div>
               </div>
             )}
-            <button style={S.logoutBtn} onClick={impersonating ? stopImpersonate : () => supabase.auth.signOut()}>
+            <button style={S.logoutBtn} onClick={impersonating ? stopImpersonate : signOut}>
               {impersonating ? '← العودة للأدمن' : '🚪 تسجيل الخروج'}
             </button>
           </div>
@@ -521,7 +541,7 @@ export default function App() {
               </button>
             )
           })}
-          <button style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text3)' }} onClick={() => setMobileMore(true)}>
+          <button aria-expanded={mobileMore} aria-controls="mobile-more-sheet" style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text3)' }} onClick={() => setMobileMore(true)}>
             <MoreHorizontal size={20} />
             <span style={{ fontSize: 9, marginTop: 1 }}>المزيد</span>
           </button>
@@ -531,10 +551,10 @@ export default function App() {
       {/* ── Mobile "المزيد" sheet (كل الوجهات المتبقية) ── */}
       {isMobile && mobileMore && (
         <div onClick={() => setMobileMore(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--surface)', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '16px 14px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
+          <div id="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="كل صفحات النظام" onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--surface)', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '16px 14px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontSize: 15, fontWeight: 800 }}>كل الصفحات</span>
-              <button onClick={() => setMobileMore(false)} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: 'var(--text2)', display: 'flex' }}><X size={18} /></button>
+              <button aria-label="إغلاق قائمة الصفحات" onClick={() => setMobileMore(false)} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: 'var(--text2)', display: 'flex' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {NAV_ITEMS.filter(n => !MOBILE_PRIMARY.includes(n.key)).map(item => {
@@ -547,7 +567,7 @@ export default function App() {
                   </button>
                 )
               })}
-              <button onClick={() => supabase.auth.signOut()}
+              <button onClick={signOut}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--danger-text)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
                 <LogOut size={20} />
                 <span>تسجيل الخروج</span>
@@ -588,7 +608,8 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 11,
     padding: '10px 12px', cursor: 'pointer',
     fontSize: 13, fontWeight: 500,
-    color: '#8891b4',
+    color: '#8891b4', width: '100%', border: 'none', background: 'transparent',
+    fontFamily: 'inherit', textAlign: 'right',
   },
   navIcon:      { fontSize: 16, flexShrink: 0, width: 20, textAlign: 'center' as const },
   sidebarBottom: { padding: '14px 16px', borderTop: '1px solid #2c3356', flexShrink: 0 },

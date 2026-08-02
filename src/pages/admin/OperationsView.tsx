@@ -28,13 +28,12 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1200, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📦 العمليات والشحن</h3>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>تحليل أداء الشحن وقنوات الإيفاء (FBN/FBP/FBA)</p>
       </div>
 
       <div style={{ ...S.formCard, padding: 18 }}>
         <label style={S.label}>التاجر</label>
-        <select value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
+        <select aria-label="اختيار التاجر للعمليات والشحن" value={merchantCode} onChange={e => setMerchantCode(e.target.value)} style={{ ...S.input, fontSize: 13 }}>
           <option value="">— اختر التاجر —</option>
           {merchants.filter(m => m.role === 'merchant').map(m => (
             <option key={m.merchant_code} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>

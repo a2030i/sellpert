@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { S, PLATFORM_MAP } from './adminShared'
+import { S } from './adminShared'
 import { fmtRelative } from '../../lib/formatters'
 import { toastOk, toastErr } from '../../components/Toast'
 import { EmptyState, Pagination } from '../../components/UI'
-import { MessageSquare, Send, Plus, Trash2, Edit, RefreshCw, Megaphone, FileText, History } from 'lucide-react'
+import { MessageSquare, Send, Plus, Trash2, RefreshCw, Megaphone, FileText, History } from 'lucide-react'
 
 type Tab = 'send' | 'templates' | 'conversations' | 'bulk' | 'history' | 'events'
 
@@ -91,7 +91,7 @@ export default function WhatsAppManagerView({ merchants }: { merchants: any[] })
 }
 
 // ─── Quick Send ──────────────────────────────────────────────────────────────
-function SendQuickTab({ connection, merchants }: { connection: any; merchants: any[] }) {
+function SendQuickTab({ connection: _connection, merchants }: { connection: any; merchants: any[] }) {
   const [merchantCode, setMerchantCode] = useState('')
   const [phone, setPhone] = useState('')
   const [event, setEvent] = useState('custom')

@@ -30,11 +30,12 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
     if (merchants.length > 0) setSelOne(merchants[0].merchant_code)
   }, [merchants])
 
+  // Selection changes are the complete trigger set for history refresh.
   useEffect(() => {
     const codes = getSelectedCodes()
     if (codes.length === 1) loadHistory(codes[0])
     else setHistory([])
-  }, [selMode, selOne, selMulti])
+  }, [selMode, selOne, selMulti]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadKey() {
     const { data } = await supabase.from('platform_connections').select('api_key').eq('platform', 'openrouter').eq('is_active', true).maybeSingle()

@@ -1,6 +1,8 @@
 ﻿import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useEffect } from 'react'
 import type { Merchant } from '../lib/supabase'
+import { getPlan } from '../lib/subscription'
 
 export default function Settings({ merchant, onUpdate }: { merchant: Merchant | null; onUpdate: (m: Merchant) => void }) {
   const [uploading, setUploading] = useState(false)
@@ -9,6 +11,12 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   const [phone, setPhone] = useState(merchant?.whatsapp_phone || '')
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const plan = getPlan(merchant)
+
+  useEffect(() => {
+    setName(merchant?.name || '')
+    setPhone(merchant?.whatsapp_phone || '')
+  }, [merchant?.id, merchant?.name, merchant?.whatsapp_phone])
 
   async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -85,7 +93,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
               {uploading ? '⟳ جاري الرفع...' : '📷 رفع صورة'}
             </button>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>PNG أو JPG · الحد الأقصى 2MB</div>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadLogo} />
+            <input aria-label="اختيار شعار المتجر" ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadLogo} />
           </div>
         </div>
       </div>
@@ -94,20 +102,20 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       <div style={S.card}>
         <div style={S.cardTitle}>بيانات الحساب</div>
         <div style={S.fieldGroup}>
-          <label style={S.fieldLabel}>الاسم</label>
-          <input style={S.input} value={name} onChange={e => setName(e.target.value)} placeholder="اسم المتجر" />
+          <label htmlFor="merchant-name" style={S.fieldLabel}>الاسم</label>
+          <input id="merchant-name" style={S.input} value={name} onChange={e => setName(e.target.value)} placeholder="اسم المتجر" />
         </div>
         <div style={S.fieldGroup}>
-          <label style={S.fieldLabel}>رقم واتساب (للإشعارات)</label>
-          <input style={S.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+966XXXXXXXXX" dir="ltr" />
+          <label htmlFor="merchant-phone" style={S.fieldLabel}>رقم واتساب (للإشعارات)</label>
+          <input id="merchant-phone" style={S.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+966XXXXXXXXX" dir="ltr" />
         </div>
         <div style={S.fieldGroup}>
-          <label style={S.fieldLabel}>البريد الإلكتروني</label>
-          <input style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed' }} value={merchant?.email || ''} disabled />
+          <label htmlFor="merchant-email" style={S.fieldLabel}>البريد الإلكتروني</label>
+          <input id="merchant-email" style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed' }} value={merchant?.email || ''} disabled />
         </div>
         <div style={S.fieldGroup}>
-          <label style={S.fieldLabel}>كود التاجر</label>
-          <input style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed', fontFamily: 'monospace' }} value={merchant?.merchant_code || ''} disabled />
+          <label htmlFor="merchant-code" style={S.fieldLabel}>كود التاجر</label>
+          <input id="merchant-code" style={{ ...S.input, opacity: 0.6, cursor: 'not-allowed', fontFamily: 'monospace' }} value={merchant?.merchant_code || ''} disabled />
         </div>
         <button style={S.saveBtn} onClick={saveProfile} disabled={saving}>
           {saving ? '⟳ جاري الحفظ...' : '✓ حفظ التغييرات'}
@@ -127,11 +135,10 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
             border: `1px solid ${merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
                                   merchant?.subscription_plan === 'pro'   ? 'rgba(124,107,255,0.3)' : 'var(--border)'}`,
           }}>
-            {merchant?.subscription_plan === 'elite' ? '👑 Elite' :
-             merchant?.subscription_plan === 'pro'   ? '⭐ Pro'   : '🆓 Free'}
+            {plan.label}
           </span>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-            {merchant?.subscription_plan === 'free' ? 'للترقية تواصل مع الفريق' : 'خطتك النشطة'}
+            {plan.price === 0 ? 'يمكنك الترقية من صفحة الباقة والفواتير' : 'خطتك النشطة'}
           </span>
         </div>
       </div>
@@ -140,7 +147,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { padding: '32px', maxWidth: 600, margin: '0 auto', minHeight: '100vh' },
+  wrap: { padding: 'clamp(16px, 4vw, 32px)', maxWidth: 600, margin: '0 auto', minHeight: '100vh' },
   header: { marginBottom: 28 },
   title: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
   sub: { fontSize: 13, color: 'var(--text2)', marginTop: 4 },
@@ -171,4 +178,3 @@ const S: Record<string, React.CSSProperties> = {
     padding: '11px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4,
   },
 }
-

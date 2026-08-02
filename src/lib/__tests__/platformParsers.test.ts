@@ -172,6 +172,10 @@ describe('amazon_sales_dashboard (لوحة الملخّص اليومية)', () =
     expect(rows.length).toBe(2)  // يوم 2026-06-03 (صفر) مُتجاهَل
     expect(rows[0]).toMatchObject({ merchant_code: 'M-TEST', data_date: '2026-06-01', total_sales: 102, units: 4 })
     expect(rows[1]).toMatchObject({ data_date: '2026-06-06', total_sales: 182, units: 5 })
+    expect(r.summary).toMatchObject({
+      days: 2, calendarDays: 6, totalSales: 284, totalUnits: 9, orderItems: 25,
+      rangeStart: '2026-06-01', rangeEnd: '2026-06-06',
+    })
   })
 })
 

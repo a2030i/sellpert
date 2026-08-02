@@ -5,7 +5,7 @@ import { useMobile } from '../lib/hooks'
 import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
 import type { Merchant } from '../lib/supabase'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -14,7 +14,6 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
 }
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
-function fmtPct(v: number) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%' }
 
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const now = new Date()
@@ -28,6 +27,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [loading, setLoading]       = useState(true)
   const isMobile = useMobile()
 
+  // Reload only for the selected merchant and accounting period.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) load() }, [merchant, year, month])
 
   async function load() {
@@ -721,6 +722,8 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   const [form, setForm] = useState({ platform: 'amazon', order_id: '', product_name: '', quantity: '1', return_amount: '', reason: '', return_date: new Date().toISOString().split('T')[0], status: 'pending' })
   const [saving, setSaving] = useState(false)
 
+  // The returns query is intentionally keyed by the selected period.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadReturns() }, [month, year])
 
   async function loadReturns() {
@@ -833,7 +836,7 @@ function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: 
     if (!merchant) return
     supabase.rpc('pnl_statement', { p_merchant_code: merchant.merchant_code, p_year: year, p_month: month })
       .then(({ data }) => setData(data))
-  }, [merchant?.merchant_code, year, month])
+  }, [merchant, year, month])
   if (!data || Number(data.revenue) === 0) return null
   const lines = [
     { label: 'الإيرادات', value: Number(data.revenue), bold: true, color: 'var(--text)' },
@@ -876,7 +879,7 @@ function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.rpc('revenue_forecast', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (!data || !Number(data.avg_daily)) return null
   const growth = data.growth_rate_pct
   return (
@@ -911,7 +914,7 @@ function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
   useEffect(() => {
     if (!merchant) return
     supabase.rpc('return_reasons_breakdown', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data || []))
-  }, [merchant?.merchant_code])
+  }, [merchant])
   if (data.length === 0) return null
   const labels: Record<string, string> = {
     customer: 'ألغاها العميل', trendyol: 'ألغتها المنصة', seller: 'ألغيتها أنت',
@@ -953,4 +956,3 @@ const S: Record<string, React.CSSProperties> = {
   input:  { width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', color: 'var(--text)', fontSize: 12, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit' },
   addBtn: { background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
 }
-
