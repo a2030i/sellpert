@@ -134,6 +134,15 @@ export interface Order {
   customer_city?: string
   order_date: string
   upload_id?: string | null
+  shipment_package_id?: string | null
+  cargo_tracking_number?: string | null
+  cargo_provider?: string | null
+  shipment_address?: Record<string, unknown> | null
+  invoice_address?: Record<string, unknown> | null
+  commission_rate?: number | null
+  vat_rate?: number | null
+  discount_amount?: number | null
+  last_synced_at?: string | null
   created_at: string
 }
 

@@ -175,6 +175,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const [oauthBusy, setOauthBusy] = useState(false)
   const [verified, setVerified] = useState(false)
   const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null } | null>(null)
+  const [syncDetails, setSyncDetails] = useState<any>(null)
 
   const syncInProgress = syncJob?.status === 'pending' || syncJob?.status === 'running'
 
@@ -194,6 +195,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
         if (cancelled || data.error) return
         const active = data.job?.status === 'pending' || data.job?.status === 'running'
         setSyncJob(data.job || null)
+        setSyncDetails(data.log?.details || null)
         if (wasInProgress && !active) await onChanged()
         wasInProgress = active
       } catch { /* keep the last visible state and retry */ }
@@ -337,13 +339,27 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
                 <strong style={{ color: syncInProgress ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
-                  {syncJob?.status === 'pending' ? '⏳ طلباتك في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ سحب الطلبات' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة الطلبات' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة الطلبات' : 'لم تبدأ بعد'}
+                  {syncJob?.status === 'pending' ? '⏳ المزامنة في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ مزامنة بيانات ترنديول' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة ترنديول' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة ترنديول' : 'لم تبدأ بعد'}
                 </strong>
               </div>
               {syncJob?.status === 'done' ? (
                 <div style={{ marginTop: 9, padding: '8px 10px', borderRadius: 8, background: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700 }}>تم سحب {status.records_synced || 0} طلبًا من آخر 90 يومًا</span>
+                  <span style={{ fontWeight: 700 }}>تم سحب {syncDetails?.orders ?? status.records_synced ?? 0} طلبًا</span>
                   <a href="/orders" style={{ color: 'inherit', fontWeight: 800, textDecoration: 'underline' }}>عرض الطلبات ←</a>
+                </div>
+              ) : null}
+              {syncJob?.status === 'done' && syncDetails ? (
+                <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
+                  {[
+                    ['الطلبات', syncDetails.orders], ['المرتجعات', syncDetails.returns],
+                    ['التسويات', syncDetails.settlements], ['المنتجات', syncDetails.products],
+                    ['المخزون', syncDetails.inventory], ['أيام الأداء', syncDetails.performance_days],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 8px', display:'flex', justifyContent:'space-between' }}>
+                      <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>
+                    </div>
+                  ))}
+                  {syncDetails.warnings?.length ? <div style={{ gridColumn:'1/-1', color:'var(--warning-text)', fontSize:10, lineHeight:1.6 }}>⚠ تعذر تحديث بعض الأقسام: {syncDetails.warnings.join('، ')}</div> : null}
                 </div>
               ) : null}
               {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color: 'var(--danger-text)', fontSize: 10, marginTop: 7 }}>{syncJob.error_message}</div> : null}

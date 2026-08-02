@@ -148,7 +148,12 @@ async function getSyncStatus(admin: any, body: any) {
     .eq('merchant_code', merchantCode).eq('platform', platform)
     .order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (error) throw error
-  return { ok: true, job: job || null }
+  const { data: log, error: logError } = await admin.from('sync_logs')
+    .select('status,records_synced,details,finished_at,error_message')
+    .eq('merchant_code', merchantCode).eq('platform', platform)
+    .order('started_at', { ascending: false }).limit(1).maybeSingle()
+  if (logError) throw logError
+  return { ok: true, job: job || null, log: log || null }
 }
 
 function validateCredentials(platform: string, input: any) {

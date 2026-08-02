@@ -463,7 +463,12 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ['سعر الوحدة', fmt(selectedOrder.unit_price || 0)],
                 ['إجمالي الطلب', fmt(selectedOrder.total_amount)],
                 ['رسوم المنصة', fmt(selectedOrder.platform_fee || 0)],
+                ['نسبة العمولة', selectedOrder.commission_rate ? `${selectedOrder.commission_rate}%` : '—'],
+                ['الخصومات', fmt(selectedOrder.discount_amount || 0)],
                 ['تكلفة الشحن', fmt(selectedOrder.shipping_cost || 0)],
+                ['شركة الشحن', selectedOrder.cargo_provider || '—'],
+                ['رقم التتبع', selectedOrder.cargo_tracking_number || '—'],
+                ['رقم شحنة ترنديول', selectedOrder.shipment_package_id || '—'],
                 ['المدينة', selectedOrder.customer_city || '—'],
                 ['العملة', selectedOrder.currency || 'SAR'],
               ].map(([label, value]) => (
