@@ -24,6 +24,15 @@ function trendyolCommission(order: Order) {
   return Number(order.total_amount || 0) * Number(order.commission_rate) / 100 * 1.15
 }
 
+function financialMismatch(order: Order) {
+  const total = Number(order.total_amount || 0)
+  const fees = Number(order.platform_fee || 0)
+  const expectedLineTotal = Number(order.unit_price || 0) * Number(order.quantity || 1)
+  if (fees > total && total > 0) return 'رسوم المنصة أعلى من إجمالي الطلب في الملف المصدر.'
+  if (total > 0 && expectedLineTotal > 0 && Math.abs(expectedLineTotal - total) > Math.max(1, total * .05)) return 'سعر الوحدة والكمية لا يطابقان إجمالي الطلب في الملف المصدر.'
+  return null
+}
+
 function orderSource(o: Order) {
   if (o.upload_id) return { label: '📄 ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
   if (o.platform === 'trendyol') return { label: 'API Trendyol', exportLabel: 'API Trendyol', title: 'تم سحب الطلب مباشرة من ربط Trendyol', bg: 'var(--success-bg)', color: 'var(--success-text)' }
@@ -510,6 +519,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               {selectedOrder.platform === 'trendyol' ? <button onClick={() => void refreshSelectedOrder()} disabled={orderActionLoading} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:orderActionLoading ? .6 : 1 }}>{orderActionLoading ? 'جارٍ التحديث...' : 'تحديث من Trendyol'}</button> : null}
             </div>
             {orderActionMessage ? <div style={{ marginBottom:14, padding:'9px 11px', borderRadius:8, fontSize:11, background:orderActionMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:orderActionMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{orderActionMessage.text}</div> : null}
+            {financialMismatch(selectedOrder) ? <div style={{ marginBottom:14, padding:'10px 12px', borderRadius:8, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
+              <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
+              <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{financialMismatch(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
+            </div> : null}
 
             <div style={S.detailGrid}>
               {[
@@ -564,7 +577,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <div style={S.productImage}>{item.image_url ? <img src={item.image_url} alt={item.product_name || 'المنتج'} style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : <span style={{fontSize:11,color:'var(--text3)'}}>لا توجد صورة</span>}</div>
                   <div style={{ flex:1, minWidth:0 }}><div style={{ fontWeight:800, fontSize:13 }}>{item.product_name_ar || item.product_name || '—'}</div>{item.product_name_ar && item.product_name_ar !== item.product_name ? <div dir="ltr" style={{ fontSize:10, color:'var(--text3)', marginTop:3, textAlign:'right' }}>{item.product_name}</div> : null}<div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>الباركود: {item.barcode || '—'} · SKU: {item.sku || '—'}</div><div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>الكمية {item.quantity} · سعر الوحدة {fmt(Number(item.unit_price || 0))} · الخصم {fmt(Number(item.discount_amount || 0))} · العمولة {item.commission_rate || 0}% · الضريبة {item.vat_rate || 0}%</div></div>
                 </div>)}
-              </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة بعد مطابقة الباركود مع كتالوج Trendyol.</div>}
+              </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة بعد مطابقة الباركود مع كتالوج المنصة.</div>}
             </>}
           </div>
         </div>
