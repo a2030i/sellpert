@@ -45,12 +45,23 @@ SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000
 SET LOCAL ROLE authenticated;
 
 DO $$
+DECLARE
+  blocked_platform_kpis boolean := false;
 BEGIN
   IF (SELECT count(*) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'tenant owner isolation failed';
   END IF;
   IF (SELECT count(DISTINCT merchant_code) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'tenant owner can see another tenant';
+  END IF;
+
+  BEGIN
+    PERFORM public.team_dashboard_kpis();
+  EXCEPTION WHEN insufficient_privilege THEN
+    blocked_platform_kpis := true;
+  END;
+  IF NOT blocked_platform_kpis THEN
+    RAISE EXCEPTION 'merchant accessed platform-wide team KPIs';
   END IF;
 END
 $$;
