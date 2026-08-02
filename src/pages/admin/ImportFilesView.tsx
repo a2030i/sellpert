@@ -822,8 +822,14 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
 
       {/* ── Step 1: التاجر فقط (المنصة تُكتشف تلقائياً) ── */}
       <div style={{ ...S.formCard, padding: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, alignItems: 'end' }}>
-          <div>
+        <div style={{ display: 'grid', gridTemplateColumns: merchantMode ? '1fr' : '2fr 1fr', gap: 14, alignItems: 'end' }}>
+          {merchantMode ? <div>
+            <label style={S.label}>المتجر المرتبط</label>
+            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <strong>{merchant?.name || merchantCode}</strong>
+              <span style={{ color: 'var(--text3)', fontFamily: 'monospace' }}>{merchantCode}</span>
+            </div>
+          </div> : <div>
             <label style={S.label}>التاجر</label>
             <select value={merchantCode} onChange={e => { setMerchantCode(e.target.value); clearAll() }}
               style={{ ...S.input, fontSize: 13 }}>
@@ -834,17 +840,17 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
                 </option>
               ))}
             </select>
-          </div>
-          {!lockedMerchantCode ? <div>
+          </div>}
+          {!merchantMode && !lockedMerchantCode ? <div>
             <label style={S.label}>تاريخ التقرير / اللقطة</label>
             <input type="date" value={snapshotDate}
               onChange={e => { setSnapshotDate(e.target.value); clearAll() }}
               title="يُستخدم للتقارير التي لا تحتوي تاريخاً صريحاً داخل الملف"
               style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)' }} />
-          </div> : <div>
+          </div> : !merchantMode ? <div>
             <label style={S.label}>الحساب</label>
             <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)' }}>{merchant?.name || merchantCode}</div>
-          </div>}
+          </div> : null}
         </div>
 
         {!merchantCode
@@ -852,7 +858,9 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
               ⚠️ اختر التاجر أولاً قبل رفع الملفات
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              ارفع ملفات Amazon أو Noon أو سلة أو زد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.
+              {merchantMode
+                ? 'ارفع ملفات Amazon أو Noon، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه، وستظهر تعريفات سلة وزد هنا عند إضافتها.'
+                : 'ارفع ملفات Amazon أو Noon أو سلة أو زد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.'}
             </div>
         }
       </div>
