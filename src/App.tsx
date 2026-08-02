@@ -77,7 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
   ]},
 ]
 
-const SIDEBAR_STORAGE_KEY = 'sellpert:merchant-sidebar:v2'
 const DEFAULT_COLLAPSED_GROUPS = new Set<string>(NAV_GROUPS.map(group => group.key))
 const NAV_PARENT: Partial<Record<View, View>> = {
   help: 'requests', 'quick-inventory': 'inventory',
@@ -197,12 +196,7 @@ export default function App() {
   const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(SIDEBAR_STORAGE_KEY) || 'null')
-      return Array.isArray(stored) ? new Set(stored) : new Set(DEFAULT_COLLAPSED_GROUPS)
-    } catch { return new Set(DEFAULT_COLLAPSED_GROUPS) }
-  })
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_GROUPS))
   const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, support: 0, integrationNeedsUpdate: false })
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
@@ -302,7 +296,6 @@ export default function App() {
       const next = opening
         ? new Set(NAV_GROUPS.filter(group => group.key !== key).map(group => group.key))
         : new Set(NAV_GROUPS.map(group => group.key))
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify([...next]))
       return next
     })
   }
