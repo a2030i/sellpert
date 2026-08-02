@@ -195,8 +195,20 @@ function sanitize(value:any):any {
   return value
 }
 function trendyolError(data:any,status:number) {
-  const message = data?.errors?.map((e:any)=>e.message || e.key).filter(Boolean).join('، ') || data?.message || data?.error
+  const message = readableError(data?.errors || data?.message || data?.error || data)
   return `Trendyol ${status}: ${message || 'رفض العملية'}`
+}
+function readableError(value:any):string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(readableError).filter(Boolean).join('، ')
+  if (typeof value === 'object') {
+    const preferred = ['message','detail','description','reason','error','errors','key','title']
+      .map(key => readableError(value[key])).filter(Boolean)
+    if (preferred.length) return [...new Set(preferred)].join(' — ')
+    try { return JSON.stringify(value) } catch { return 'استجابة غير مفهومة من Trendyol' }
+  }
+  return String(value)
 }
 function toBase64(bytes:Uint8Array) {
   let binary=''; const chunk=0x8000

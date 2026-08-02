@@ -42,7 +42,7 @@ const CAPABILITIES: Capability[] = [
   { action:'packages.alternative',label:'تسليم بديل',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{}' },
   { action:'packages.cargo_provider',label:'تغيير شركة الشحن',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"cargoProviderCode":"..."}' },
   { action:'packages.box_info',label:'عدد الصناديق والوزن الحجمي',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"boxQuantity":1,"deci":1}' },
-  { action:'packages.common_label',label:'تحميل ملصق الشحن',group:'الطلبات والشحن',risk:'read',queryHint:'{"id":"رقم التتبع"}' },
+  { action:'packages.common_label',label:'تحميل ملصق الشحن',group:'الطلبات والشحن',risk:'read',queryHint:'{"id":""}' },
   { action:'seller.addresses',label:'عناوين الشحن والإرجاع',group:'الطلبات والشحن',risk:'read' },
   { action:'webhooks.list',label:'قائمة Webhooks',group:'Webhooks',risk:'read' },
   { action:'webhooks.create',label:'إنشاء Webhook',group:'Webhooks',risk:'write',payloadHint:'{"url":"https://...","subscribedStatuses":[...]}' },
@@ -78,6 +78,7 @@ export default function TrendyolActionCenter({ merchantCode, onClose }:{ merchan
     setBusy(true); setError(''); setResult(null)
     try {
       const parsedPath=JSON.parse(path||'{}'), parsedQuery=JSON.parse(query||'{}'), parsedPayload=JSON.parse(payload||'{}')
+      if(selected==='packages.common_label'&&!String(parsedQuery.id||'').trim()) throw new Error('أدخل رقم تتبع الشحنة الحقيقي في خانة id قبل التنفيذ')
       const { data:{ session } }=await supabase.auth.getSession()
       const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`,{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session?.access_token || ''}`},
@@ -87,7 +88,7 @@ export default function TrendyolActionCenter({ merchantCode, onClose }:{ merchan
       const data=await response.json().catch(()=>({}))
       if(!response.ok||data.error) throw new Error(data.error||`HTTP ${response.status}`)
       setResult(data)
-    } catch(e:any){setError(e.message||'تعذر تنفيذ العملية')} finally{setBusy(false)}
+    } catch(e:any){setError(typeof e?.message==='string'?e.message:JSON.stringify(e?.message||e)||'تعذر تنفيذ العملية')} finally{setBusy(false)}
   }
   function download() {
     const file=result?.data?.data_base64; if(!file)return
