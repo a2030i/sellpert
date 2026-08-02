@@ -16,6 +16,9 @@ const PLATFORM_FUNCTION: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return ok({ skipped: true })
 
+  const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
+  if (token !== SERVICE_KEY) return ok({ ok: false, error: 'Unauthorized' }, 401)
+
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   const startedAt = Date.now()
 
@@ -74,6 +77,7 @@ async function processJob(admin: any, job: any): Promise<{ success: boolean; err
       // trendyol / noon / amazon — pass date range from payload if present
       body = {
         merchant_code,
+        mapping_id: payload?.mapping_id || null,
         date_from: payload?.date_from || null,
         date_to:   payload?.date_to   || null,
       }

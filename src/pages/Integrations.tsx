@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
+import MarketplaceConnections from './admin/MarketplaceConnections'
 
 // ─── Salla Card ───────────────────────────────────────────────────────────────
 
@@ -165,6 +166,14 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>ربط مباشر</div>
         <SallaCard merchant={merchant} />
       </div>
+
+      {merchant ? (
+        <MarketplaceConnections
+          merchants={[merchant]}
+          lockedMerchantCode={merchant.merchant_code}
+          compactHeader
+        />
+      ) : null}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>منصات مُدارة</div>

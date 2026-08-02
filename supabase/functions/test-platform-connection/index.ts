@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     switch (platform) {
       case 'trendyol':  return json(await testTrendyol(seller_id, api_key, api_secret))
-      case 'noon':      return json(await testNoon(seller_id, api_key))
+      case 'noon':      return json(await testNoon(extra?.service_account, extra?.token_endpoint))
       case 'amazon':    return json(await testAmazon(api_key, api_secret, extra?.refresh_token))
       default:          return json({ ok: false, error: 'منصة غير مدعومة' })
     }
@@ -50,7 +50,7 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
   }
 
   const auth = btoa(`${apiKey}:${apiSecret}`)
-  const url  = `https://api.trendyol.com/sapigw/suppliers/${encodeURIComponent(sellerId)}/addresses`
+  const url  = `https://apigw.trendyol.com/integration/sellers/${encodeURIComponent(sellerId)}/addresses`
 
   const res = await fetch(url, {
     headers: {
@@ -83,39 +83,64 @@ async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string)
 }
 
 // ── Noon ─────────────────────────────────────────────────────────────────────
-// Test: GET /seller/v1/packing-info
-// Auth: Basic base64(sellerId:apiKey)
-
-async function testNoon(sellerId: string, apiKey: string) {
-  if (!sellerId || !apiKey) {
-    return { ok: false, error: 'Seller ID و Partner Key مطلوبان' }
+// Noon Partner service-account flow. A successful token exchange verifies the
+// private key and account identity without treating a 404 as false success.
+async function testNoon(serviceAccount: any, configuredTokenEndpoint?: string) {
+  if (typeof serviceAccount === 'string') {
+    try { serviceAccount = JSON.parse(serviceAccount) } catch { return { ok: false, error: 'Service Account JSON غير صالح' } }
   }
-
-  const auth = btoa(`${sellerId}:${apiKey}`)
-
-  // Try the catalog endpoint as a lightweight check
-  const res = await fetch('https://api.noon.com/seller/v1/packing-info', {
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/json',
-    },
+  if (!serviceAccount?.client_email || !serviceAccount?.private_key) {
+    return { ok: false, error: 'Service Account JSON الخاص بنون مطلوب' }
+  }
+  const tokenEndpoint = allowNoonTokenUrl(configuredTokenEndpoint)
+  const now = Math.floor(Date.now() / 1000)
+  const message = `${base64UrlJson({ alg: 'RS256', typ: 'JWT' })}.${base64UrlJson({
+    iss: serviceAccount.client_email,
+    sub: serviceAccount.client_email,
+    aud: tokenEndpoint,
+    iat: now,
+    exp: now + 3600,
+  })}`
+  const pem = String(serviceAccount.private_key).replace(/\\n/g, '\n')
+  const key = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')
+  const keyBytes = Uint8Array.from(atob(key), c => c.charCodeAt(0))
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8', keyBytes, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'],
+  )
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(message),
+  )
+  const jwt = `${message}.${base64UrlBytes(new Uint8Array(signature))}`
+  const res = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt,
+    }),
   })
-
-  if (res.status === 200) {
-    return { ok: true, message: '✅ تم التحقق بنجاح — الحساب متصل بنون' }
+  const data = await res.json().catch(() => ({}))
+  if (res.ok && data.access_token) {
+    return { ok: true, message: '✅ تم التحقق من حساب خدمة نون بنجاح' }
   }
+  return { ok: false, error: `فشل تفويض نون (${res.status}): ${data.error_description || data.error || 'بيانات غير صحيحة'}` }
+}
 
-  if (res.status === 401 || res.status === 403) {
-    return { ok: false, error: 'بيانات الدخول خاطئة — تحقق من Seller ID و Partner Key' }
+function allowNoonTokenUrl(value?: string) {
+  const url = new URL(value || 'https://idp.noon.partners/token')
+  if (url.protocol !== 'https:' || !(url.hostname === 'noon.partners' || url.hostname.endsWith('.noon.partners'))) {
+    throw new Error('Noon token endpoint غير مسموح')
   }
+  return url.toString()
+}
 
-  // Noon sometimes returns 404 for empty accounts — still valid auth
-  if (res.status === 404) {
-    return { ok: true, message: '✅ تم التحقق بنجاح — الحساب متصل بنون' }
-  }
+function base64UrlJson(value: unknown) {
+  return base64UrlBytes(new TextEncoder().encode(JSON.stringify(value)))
+}
 
-  const body = await res.text()
-  return { ok: false, error: `خطأ من نون (${res.status}): ${body.slice(0, 200)}` }
+function base64UrlBytes(bytes: Uint8Array) {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 // ── Amazon SP-API ─────────────────────────────────────────────────────────────

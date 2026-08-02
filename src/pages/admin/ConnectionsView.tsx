@@ -2,6 +2,7 @@
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 import type { Merchant, PlatformConnection } from '../../lib/supabase'
+import MarketplaceConnections from './MarketplaceConnections'
 
 export default function ConnectionsView({ merchants: _merchants, onRefresh: _onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
   const [loading, setLoading] = useState(true)
@@ -181,6 +182,8 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
           <button style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
+
+      <MarketplaceConnections merchants={_merchants} />
 
       {/* WHATSAPP */}
       {(

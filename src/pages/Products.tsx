@@ -109,7 +109,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         selling_price: calcSellingPrice(parseFloat(form.target_net_price), rate),
         commission_rate: rate.rate,
       }
-    }).filter(Boolean)
+    }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
 
     setMsg({ type: 'ok', text: '✅ تم إضافة المنتج وحساب الأسعار' })
@@ -138,7 +138,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       const rate = getRate(p, editProduct.category || undefined)
       if (!rate) return null
       return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate }
-    }).filter(Boolean)
+    }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceUpserts.length) {
       await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
     }

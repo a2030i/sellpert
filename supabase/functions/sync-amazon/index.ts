@@ -1,154 +1,269 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  HttpError,
+  authorizeMerchantSync,
+  fetchJsonWithRetry,
+  json,
+  numberValue,
+  parseSyncRange,
+} from '../_shared/sync.ts'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANON_KEY      = Deno.env.get('SUPABASE_ANON_KEY')!
-const MARKETPLACE   = 'A17E79C6D8DWNP' // Saudi Arabia
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const DEFAULT_MARKETPLACE = 'A17E79C6D8DWNP' // Amazon.sa
+const EU_ENDPOINT = 'https://sellingpartnerapi-eu.amazon.com'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, corsHeaders)
 
-  const db = createClient(SUPABASE_URL, SERVICE_KEY)
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
+  let mappingId = ''
 
   try {
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '')
-    if (!token) return json({ error: 'Unauthorized' }, 401)
-    const { data: { user } } = await db.auth.getUser(token)
-    if (!user) return json({ error: 'Unauthorized' }, 401)
-    const { data: caller } = await db.from('merchants').select('role').eq('email', user.email!).single()
-    if (!caller || !['admin', 'super_admin'].includes(caller.role)) return json({ error: 'Forbidden' }, 403)
-
     const body = await req.json()
-    const { merchant_code, mapping_id } = body
-    if (!merchant_code) return json({ error: 'merchant_code مطلوب' }, 400)
+    const merchantCode = String(body?.merchant_code || '')
+    mappingId = String(body?.mapping_id || '')
+    if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
+    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
 
-    // ── Resolve credentials ──────────────────────────────────────────────────
-    let clientId = '', clientSecret = '', refreshToken = '', sellerId = ''
+    const { data: merchant } = await admin.from('merchants')
+      .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()
+    if (!merchant) throw new HttpError(404, 'Merchant not found')
+    if (merchant.subscription_status !== 'active') throw new HttpError(402, 'SUBSCRIPTION_INACTIVE')
 
-    if (mapping_id) {
-      const { data: mapping } = await db
-        .from('merchant_platform_mappings')
-        .select('seller_id, platform_connections(api_key, api_secret, extra)')
-        .eq('id', mapping_id).single()
-      if (!mapping) return json({ error: 'mapping not found' }, 404)
-      sellerId      = (mapping as any).seller_id
-      const conn    = (mapping as any).platform_connections
-      clientId      = conn?.api_key    || ''
-      clientSecret  = conn?.api_secret || ''
-      refreshToken  = conn?.extra?.refresh_token || ''
-    } else {
-      const { data: cred } = await db.from('platform_credentials').select('*').eq('merchant_code', merchant_code).eq('platform', 'amazon').single()
-      if (!cred) return json({ error: 'لا توجد بيانات ربط لأمازون' }, 400)
-      clientId     = cred.api_key    || ''
-      clientSecret = cred.api_secret || ''
-      refreshToken = cred.extra?.refresh_token || ''
-      sellerId     = cred.seller_id  || ''
-    }
+    const credentials = await resolveCredentials(admin, merchantCode, mappingId)
+    const { from, to } = parseSyncRange(body, 90)
+    const marketplaceId = credentials.marketplaceId || DEFAULT_MARKETPLACE
+    const endpoint = credentials.endpoint || EU_ENDPOINT
 
-    if (!clientId || !clientSecret || !refreshToken) return json({ error: 'بيانات Amazon SP-API غير مكتملة' }, 400)
+    const { data: log, error: logError } = await admin.from('sync_logs').insert({
+      merchant_code: merchantCode, platform: 'amazon', status: 'running', records_synced: 0,
+    }).select().single()
+    if (logError) throw logError
+    logId = log.id
 
-    // ── Start sync log ───────────────────────────────────────────────────────
-    const { data: log } = await db.from('sync_logs').insert({ merchant_code, platform: 'amazon', status: 'running', records_synced: 0 }).select().single()
-    logId = log?.id || ''
+    const accessToken = await getLwaToken(credentials)
+    const headers = { 'x-amz-access-token': accessToken, Accept: 'application/json' }
+    const rows: any[] = []
+    let paginationToken = ''
 
-    // ── Get LWA token ────────────────────────────────────────────────────────
-    const lwaRes = await fetch('https://api.amazon.com/auth/o2/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret }),
-    })
-    const lwaData = await lwaRes.json()
-    if (!lwaData.access_token) throw new Error('Amazon LWA error: ' + JSON.stringify(lwaData))
-    const accessToken = lwaData.access_token
-
-    const spHeaders = { 'x-amz-access-token': accessToken, 'Content-Type': 'application/json' }
-    const since     = new Date(Date.now() - 90 * 86400000).toISOString()
-    let nextToken   = ''
-    let totalDays   = 0
-    const dailyMap: Record<string, { sales: number; orders: number; fees: number }> = {}
-    const orderRows: any[] = []
-
-    // ── Fetch orders ─────────────────────────────────────────────────────────
-    while (true) {
-      let url = `https://sellingpartnerapi-eu.amazon.com/orders/v0/orders?MarketplaceIds=${MARKETPLACE}&CreatedAfter=${since}&MaxResultsPerPage=100`
-      if (nextToken) url += `&NextToken=${encodeURIComponent(nextToken)}`
-      const res = await fetch(url, { headers: spHeaders })
-      if (!res.ok) { const t = await res.text(); throw new Error(`Amazon API ${res.status}: ${t}`) }
-      const data = await res.json()
-      const orders: any[] = data?.payload?.Orders || []
-
+    do {
+      const query = new URLSearchParams({
+        marketplaceIds: marketplaceId,
+        createdAfter: from.toISOString(),
+        createdBefore: to.toISOString(),
+        maxResultsPerPage: '100',
+        includedData: 'PROCEEDS,EXPENSE,FULFILLMENT,CANCELLATION',
+      })
+      if (paginationToken) query.set('paginationToken', paginationToken)
+      const data = await fetchJsonWithRetry(
+        `${endpoint}/orders/2026-01-01/orders?${query}`,
+        { headers },
+        'Amazon Orders API',
+      )
+      const orders: any[] = data?.orders || data?.payload?.orders || []
       for (const order of orders) {
-        if (order.OrderStatus === 'Canceled') continue
-        const date    = new Date(order.PurchaseDate)
-        const dateStr = date.toISOString().split('T')[0]
-        const amount  = parseFloat(order.OrderTotal?.Amount || '0')
-        const fee     = amount * 0.15
-
-        if (!dailyMap[dateStr]) dailyMap[dateStr] = { sales: 0, orders: 0, fees: 0 }
-        dailyMap[dateStr].sales  += amount
-        dailyMap[dateStr].orders += 1
-        dailyMap[dateStr].fees   += fee
-
-        orderRows.push({
-          merchant_code, platform: 'amazon',
-          order_id:     order.AmazonOrderId,
-          status:       mapAmazonStatus(order.OrderStatus),
-          quantity:     order.NumberOfItemsShipped || 1,
-          unit_price:   amount,
-          total_amount: amount,
-          platform_fee: fee,
-          currency:     order.OrderTotal?.CurrencyCode || 'SAR',
-          customer_city: order.ShippingAddress?.City,
-          order_date:   date.toISOString(),
-        })
+        const row = mapAmazonOrder(order, merchantCode)
+        if (row) rows.push(row)
       }
+      paginationToken = String(data?.nextToken || data?.pagination?.nextToken || '')
+    } while (paginationToken)
 
-      nextToken = data?.payload?.NextToken || ''
-      if (!nextToken) break
-    }
-
-    for (const [dateStr, v] of Object.entries(dailyMap)) {
-      await db.from('performance_data').upsert({
-        merchant_code, platform: 'amazon', data_date: dateStr,
-        total_sales: Math.round(v.sales), order_count: v.orders,
-        platform_fees: Math.round(v.fees), margin: 0, ad_spend: 0,
-      }, { onConflict: 'merchant_code,platform,data_date' })
-      totalDays++
-    }
-    for (let i = 0; i < orderRows.length; i += 100) {
-      await db.from('orders').upsert(orderRows.slice(i, i + 100), { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: true })
-    }
+    await upsertRows(admin, rows)
+    const daily = buildDaily(rows)
+    await upsertPerformance(admin, merchantCode, daily)
 
     const now = new Date().toISOString()
-    await db.from('sync_logs').update({ status: 'success', records_synced: totalDays, finished_at: now }).eq('id', logId)
-    if (mapping_id) {
-      await db.from('merchant_platform_mappings').update({ last_sync_at: now, last_sync_status: 'success', records_synced: orderRows.length, last_sync_error: null }).eq('id', mapping_id)
-    }
+    await admin.from('sync_logs').update({
+      status: 'success', records_synced: rows.length, finished_at: now,
+    }).eq('id', logId)
+    await admin.from('platform_credentials').update({
+      last_sync_at: now, records_synced: rows.length,
+    }).eq('merchant_code', merchantCode).eq('platform', 'amazon')
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_at: now,
+      last_sync_status: 'success',
+      records_synced: rows.length,
+      last_sync_error: null,
+    }).eq('id', mappingId).eq('merchant_code', merchantCode)
 
-    // Non-blocking WhatsApp notification
-    fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
-      body: JSON.stringify({ merchant_code, event: 'sync_complete', data: { platform: 'amazon', orders: orderRows.length, records: totalDays } }),
-    }).catch(() => {})
-
-    return json({ ok: true, records_synced: totalDays, orders: orderRows.length })
-
-  } catch (e: any) {
-    if (logId) await db.from('sync_logs').update({ status: 'error', error_message: e.message, finished_at: new Date().toISOString() }).eq('id', logId)
-    return json({ error: e.message }, 500)
+    return json({ ok: true, records_synced: daily.size, orders: rows.length }, 200, corsHeaders)
+  } catch (error: any) {
+    const status = error instanceof HttpError ? error.status : 500
+    if (logId) await admin.from('sync_logs').update({
+      status: 'error', error_message: error.message, finished_at: new Date().toISOString(),
+    }).eq('id', logId)
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_status: 'error', last_sync_error: error.message,
+    }).eq('id', mappingId)
+    return json({ error: error.message }, status, corsHeaders)
   }
 })
 
-function mapAmazonStatus(s: string) {
-  return ({ Pending: 'pending', Unshipped: 'processing', PartiallyShipped: 'processing', Shipped: 'shipped', Delivered: 'delivered', Canceled: 'cancelled' } as Record<string, string>)[s] || 'pending'
+async function resolveCredentials(admin: any, merchantCode: string, mappingId: string) {
+  let data: any
+  if (mappingId) {
+    const result = await admin.from('merchant_platform_mappings')
+      .select('seller_id,merchant_code,platform,platform_connections(api_key,api_secret,extra)')
+      .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'amazon').maybeSingle()
+    const connection = result.data?.platform_connections as any
+    if (!result.data || !connection) throw new HttpError(404, 'Amazon connection not found')
+    data = { seller_id: result.data.seller_id, api_key: connection.api_key, api_secret: connection.api_secret, extra: connection.extra }
+  } else {
+    const result = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')
+      .eq('merchant_code', merchantCode).eq('platform', 'amazon').eq('is_active', true).maybeSingle()
+    data = result.data
+  }
+  if (!data) throw new HttpError(400, 'لا توجد بيانات ربط مفعلة لأمازون')
+  const secret = await resolveSecretPayload(data)
+  if (!secret.api_key || !secret.api_secret || !secret.refresh_token) {
+    throw new HttpError(400, 'بيانات Amazon غير مكتملة (LWA Client ID / Secret / Refresh Token)')
+  }
+  return {
+    clientId: secret.api_key,
+    clientSecret: secret.api_secret,
+    refreshToken: secret.refresh_token,
+    marketplaceId: data.extra?.marketplace_id,
+    endpoint: normalizeEndpoint(data.extra?.endpoint),
+  }
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+function normalizeEndpoint(value: unknown) {
+  const allowed = new Set([
+    'https://sellingpartnerapi-na.amazon.com',
+    'https://sellingpartnerapi-eu.amazon.com',
+    'https://sellingpartnerapi-fe.amazon.com',
+  ])
+  return allowed.has(String(value)) ? String(value) : EU_ENDPOINT
+}
+
+async function getLwaToken(credentials: any) {
+  const res = await fetch('https://api.amazon.com/auth/o2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: credentials.refreshToken,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.access_token) {
+    throw new HttpError(res.status || 401, `Amazon LWA: ${data.error_description || data.error || 'authorization failed'}`)
+  }
+  return data.access_token
+}
+
+function mapAmazonOrder(order: any, merchantCode: string) {
+  const externalId = String(order.orderId || order.amazonOrderId || '')
+  if (!externalId) return null
+  const items: any[] = order.orderItems || order.items || []
+  const quantity = items.reduce((sum, item) => sum + numberValue(item.quantityOrdered || item.quantity), 0) || 1
+  const itemNames = items.map(item => item.product?.title || item.title).filter(Boolean)
+  const skus = items.map(item => item.product?.sellerSku || item.sellerSku).filter(Boolean)
+  const itemProceeds = items.reduce((sum, item) => sum + proceedsValue(item.proceeds), 0)
+  const orderProceeds = proceedsValue(order.proceeds)
+  const total = itemProceeds || orderProceeds || moneyValue(order.orderTotal)
+  const expense = Math.abs(items.reduce((sum, item) => sum + expenseValue(item.expense), 0) || expenseValue(order.expense))
+  const createdTime = order.createdTime || order.purchaseDate || new Date().toISOString()
+  const status = String(order.fulfillmentStatus || order.orderStatus || 'PENDING')
+
+  return {
+    merchant_code: merchantCode,
+    platform: 'amazon',
+    order_id: externalId,
+    status: mapStatus(status),
+    product_name: [...new Set(itemNames)].join(' | ') || null,
+    sku: [...new Set(skus)].join(' | ') || null,
+    quantity,
+    unit_price: quantity ? total / quantity : total,
+    total_amount: total,
+    gross_amount: total,
+    platform_fee: expense,
+    currency: detectCurrency(order, items) || 'SAR',
+    fulfillment_model: String(order.fulfilledBy || order.fulfillment?.fulfilledBy || ''),
+    order_date: new Date(createdTime).toISOString(),
+  }
+}
+
+function moneyValue(value: any): number {
+  if (value == null) return 0
+  if (typeof value === 'number' || typeof value === 'string') return numberValue(value)
+  return numberValue(value.amount ?? value.value ?? value.total ?? value.subtotal)
+}
+
+function proceedsValue(value: any): number {
+  if (!value) return 0
+  const direct = moneyValue(value.total ?? value.subtotal ?? value)
+  if (direct) return direct
+  const breakdowns: any[] = value.breakdowns || []
+  return breakdowns.reduce((sum, entry) => {
+    const amount = moneyValue(entry.subtotal ?? entry.value ?? entry.amount)
+    return sum + (String(entry.type).toUpperCase() === 'DISCOUNT' ? -Math.abs(amount) : amount)
+  }, 0)
+}
+
+function expenseValue(value: any): number {
+  if (!value) return 0
+  const direct = moneyValue(value.total ?? value.subtotal ?? value)
+  if (direct) return direct
+  return (value.breakdowns || []).reduce((sum: number, entry: any) => {
+    return sum + moneyValue(entry.subtotal ?? entry.value ?? entry.amount)
+  }, 0)
+}
+
+function detectCurrency(order: any, items: any[]) {
+  return order.proceeds?.currencyCode || order.orderTotal?.currencyCode ||
+    items[0]?.proceeds?.currencyCode || items[0]?.product?.price?.unitPrice?.currencyCode
+}
+
+function mapStatus(value: string) {
+  return ({
+    PENDING_AVAILABILITY: 'pending', PENDING: 'pending', UNSHIPPED: 'processing',
+    PARTIALLY_SHIPPED: 'processing', SHIPPED: 'shipped', DELIVERED: 'delivered',
+    CANCELLED: 'cancelled', UNFULFILLABLE: 'cancelled',
+  } as Record<string, string>)[value.toUpperCase()] || 'pending'
+}
+
+async function upsertRows(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('orders').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,order_id',
+    })
+    if (error) throw error
+  }
+}
+
+function buildDaily(rows: any[]) {
+  const daily = new Map<string, { sales: number; orders: number; fees: number }>()
+  for (const row of rows) {
+    if (row.status === 'cancelled') continue
+    const date = row.order_date.slice(0, 10)
+    const value = daily.get(date) || { sales: 0, orders: 0, fees: 0 }
+    value.sales += numberValue(row.total_amount)
+    value.fees += numberValue(row.platform_fee)
+    value.orders++
+    daily.set(date, value)
+  }
+  return daily
+}
+
+async function upsertPerformance(admin: any, merchantCode: string, daily: Map<string, any>) {
+  for (const [date, value] of daily) {
+    const { error } = await admin.from('performance_data').upsert({
+      merchant_code: merchantCode, platform: 'amazon', data_date: date,
+      total_sales: value.sales, order_count: value.orders,
+      platform_fees: value.fees, margin: 0, ad_spend: 0,
+    }, { onConflict: 'merchant_code,platform,data_date' })
+    if (error) throw error
+  }
 }

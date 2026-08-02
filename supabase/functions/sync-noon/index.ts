@@ -1,163 +1,234 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  HttpError,
+  authorizeMerchantSync,
+  fetchJsonWithRetry,
+  json,
+  numberValue,
+  parseSyncRange,
+} from '../_shared/sync.ts'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANON_KEY     = Deno.env.get('SUPABASE_ANON_KEY')!
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const DEFAULT_ORDERS_ENDPOINT = 'https://api.noon.partners/seller/v1/order'
+const DEFAULT_TOKEN_ENDPOINT = 'https://idp.noon.partners/token'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, corsHeaders)
 
-  const db = createClient(SUPABASE_URL, SERVICE_KEY)
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
-
+  let mappingId = ''
   try {
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '')
-    if (!token) return json({ error: 'Unauthorized' }, 401)
-    const { data: { user } } = await db.auth.getUser(token)
-    if (!user) return json({ error: 'Unauthorized' }, 401)
-    const { data: caller } = await db.from('merchants').select('role').eq('email', user.email!).single()
-    if (!caller || !['admin', 'super_admin'].includes(caller.role)) return json({ error: 'Forbidden' }, 403)
-
     const body = await req.json()
-    const { merchant_code, mapping_id } = body
-    if (!merchant_code) return json({ error: 'merchant_code مطلوب' }, 400)
+    const merchantCode = String(body?.merchant_code || '')
+    mappingId = String(body?.mapping_id || '')
+    if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
+    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
 
-    // ── Resolve credentials ──────────────────────────────────────────────────
-    let serviceAccount: Record<string, any> | null = null
-    let sellerId = ''
+    const { data: merchant } = await admin.from('merchants')
+      .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()
+    if (!merchant) throw new HttpError(404, 'Merchant not found')
+    if (merchant.subscription_status !== 'active') throw new HttpError(402, 'SUBSCRIPTION_INACTIVE')
 
-    if (mapping_id) {
-      const { data: mapping } = await db
-        .from('merchant_platform_mappings')
-        .select('seller_id, platform_connections(extra)')
-        .eq('id', mapping_id).single()
-      if (!mapping) return json({ error: 'mapping not found' }, 404)
-      sellerId      = (mapping as any).seller_id
-      serviceAccount = (mapping as any).platform_connections?.extra?.service_account || null
-    } else {
-      const { data: cred } = await db.from('platform_credentials').select('*').eq('merchant_code', merchant_code).eq('platform', 'noon').single()
-      if (!cred) return json({ error: 'لا توجد بيانات ربط لنون' }, 400)
-      serviceAccount = cred.extra?.service_account || null
-      sellerId       = cred.seller_id || cred.extra?.seller_id || ''
-    }
+    const credentials = await resolveCredentials(admin, merchantCode, mappingId)
+    const { from, to } = parseSyncRange(body, 90)
+    const { data: log, error: logError } = await admin.from('sync_logs').insert({
+      merchant_code: merchantCode, platform: 'noon', status: 'running', records_synced: 0,
+    }).select().single()
+    if (logError) throw logError
+    logId = log.id
 
-    if (!serviceAccount) return json({ error: 'Service Account JSON غير موجود' }, 400)
-
-    // ── Start sync log ───────────────────────────────────────────────────────
-    const { data: log } = await db.from('sync_logs').insert({ merchant_code, platform: 'noon', status: 'running', records_synced: 0 }).select().single()
-    logId = log?.id || ''
-
-    // ── Get Noon access token ────────────────────────────────────────────────
-    const noonToken = await getNoonToken(serviceAccount)
-
-    const headers = { Authorization: `Bearer ${noonToken}`, 'Content-Type': 'application/json' }
-    const since    = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]
-
-    let page = 1, totalDays = 0
-    const dailyMap: Record<string, { sales: number; orders: number; fees: number }> = {}
-    const orderRows: any[] = []
-
+    const token = await getNoonToken(credentials.serviceAccount, credentials.tokenEndpoint)
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    const rows: any[] = []
+    let page = 1
     while (true) {
-      const url = `https://api.noon.partners/seller/v1/order?page=${page}&limit=100&from=${since}`
-      const res = await fetch(url, { headers })
-      if (!res.ok) { const t = await res.text(); throw new Error(`Noon API ${res.status}: ${t}`) }
-      const data = await res.json()
-      const items: any[] = data?.value?.orders || data?.orders || []
-      if (items.length === 0) break
-
-      for (const order of items) {
-        if (order.status === 'CANCELLED') continue
-        const date    = new Date(order.created_at || order.date)
-        const dateStr = date.toISOString().split('T')[0]
-        const amount  = parseFloat(order.grand_total || order.total || 0)
-        const fee     = amount * 0.12
-
-        if (!dailyMap[dateStr]) dailyMap[dateStr] = { sales: 0, orders: 0, fees: 0 }
-        dailyMap[dateStr].sales  += amount
-        dailyMap[dateStr].orders += 1
-        dailyMap[dateStr].fees   += fee
-
-        orderRows.push({
-          merchant_code, platform: 'noon',
-          order_id:     String(order.nr || order.id || order.order_id),
-          status:       mapNoonStatus(order.status),
-          product_name: order.items?.[0]?.name || order.item_name,
-          quantity:     order.items?.reduce((s: number, i: any) => s + (i.quantity || 1), 0) || 1,
-          unit_price:   amount,
-          total_amount: amount,
-          platform_fee: fee,
-          currency:     order.currency || 'AED',
-          customer_city: order.delivery_address?.city,
-          order_date:   date.toISOString(),
-        })
+      const query = new URLSearchParams({
+        page: String(page), limit: '100',
+        from: from.toISOString().slice(0, 10),
+        to: to.toISOString().slice(0, 10),
+      })
+      const data = await fetchJsonWithRetry(`${credentials.ordersEndpoint}?${query}`, { headers }, 'Noon API')
+      const orders: any[] = data?.value?.orders || data?.orders || data?.value || []
+      for (const order of orders) {
+        const row = mapNoonOrder(order, merchantCode)
+        if (row) rows.push(row)
       }
-
-      if (items.length < 100) break
-      page++
+      const next = data?.next_page || data?.pagination?.next_page
+      if (!next && orders.length < 100) break
+      page = next ? numberValue(next) : page + 1
+      if (!page || page > 10_000) throw new HttpError(502, 'Invalid Noon pagination response')
     }
 
-    for (const [dateStr, v] of Object.entries(dailyMap)) {
-      await db.from('performance_data').upsert({
-        merchant_code, platform: 'noon', data_date: dateStr,
-        total_sales: Math.round(v.sales), order_count: v.orders,
-        platform_fees: Math.round(v.fees), margin: 0, ad_spend: 0,
-      }, { onConflict: 'merchant_code,platform,data_date' })
-      totalDays++
-    }
-    for (let i = 0; i < orderRows.length; i += 100) {
-      await db.from('orders').upsert(orderRows.slice(i, i + 100), { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: true })
-    }
-
+    await upsertRows(admin, rows)
+    const daily = buildDaily(rows)
+    await upsertPerformance(admin, merchantCode, daily)
     const now = new Date().toISOString()
-    await db.from('sync_logs').update({ status: 'success', records_synced: totalDays, finished_at: now }).eq('id', logId)
-    if (mapping_id) {
-      await db.from('merchant_platform_mappings').update({ last_sync_at: now, last_sync_status: 'success', records_synced: orderRows.length, last_sync_error: null }).eq('id', mapping_id)
-    }
-
-    // Non-blocking WhatsApp notification
-    fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
-      body: JSON.stringify({ merchant_code, event: 'sync_complete', data: { platform: 'noon', orders: orderRows.length, records: totalDays } }),
-    }).catch(() => {})
-
-    return json({ ok: true, records_synced: totalDays, orders: orderRows.length })
-
-  } catch (e: any) {
-    if (logId) await db.from('sync_logs').update({ status: 'error', error_message: e.message, finished_at: new Date().toISOString() }).eq('id', logId)
-    return json({ error: e.message }, 500)
+    await admin.from('sync_logs').update({ status: 'success', records_synced: rows.length, finished_at: now }).eq('id', logId)
+    await admin.from('platform_credentials').update({ last_sync_at: now, records_synced: rows.length })
+      .eq('merchant_code', merchantCode).eq('platform', 'noon')
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_at: now, last_sync_status: 'success', records_synced: rows.length, last_sync_error: null,
+    }).eq('id', mappingId).eq('merchant_code', merchantCode)
+    return json({ ok: true, records_synced: daily.size, orders: rows.length }, 200, corsHeaders)
+  } catch (error: any) {
+    const status = error instanceof HttpError ? error.status : 500
+    if (logId) await admin.from('sync_logs').update({
+      status: 'error', error_message: error.message, finished_at: new Date().toISOString(),
+    }).eq('id', logId)
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_status: 'error', last_sync_error: error.message,
+    }).eq('id', mappingId)
+    return json({ error: error.message }, status, corsHeaders)
   }
 })
 
-async function getNoonToken(sa: Record<string, any>): Promise<string> {
-  const now   = Math.floor(Date.now() / 1000)
-  const claim = { iss: sa.client_email, sub: sa.client_email, aud: sa.token_uri || 'https://idp.noon.partners/token', iat: now, exp: now + 3600 }
+async function resolveCredentials(admin: any, merchantCode: string, mappingId: string) {
+  let data: any
+  if (mappingId) {
+    const result = await admin.from('merchant_platform_mappings')
+      .select('seller_id,merchant_code,platform,platform_connections(extra)')
+      .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'noon').maybeSingle()
+    const connection = result.data?.platform_connections as any
+    if (!result.data || !connection) throw new HttpError(404, 'Noon connection not found')
+    data = { seller_id: result.data.seller_id, extra: connection.extra }
+  } else {
+    const result = await admin.from('platform_credentials').select('seller_id,extra')
+      .eq('merchant_code', merchantCode).eq('platform', 'noon').eq('is_active', true).maybeSingle()
+    data = result.data
+  }
+  const secret = await resolveSecretPayload(data)
+  const serviceAccount = secret.service_account
+  if (!data || !serviceAccount?.client_email || !serviceAccount?.private_key) {
+    throw new HttpError(400, 'حساب خدمة Noon غير موجود أو غير مكتمل')
+  }
+  return {
+    sellerId: data.seller_id,
+    serviceAccount,
+    tokenEndpoint: allowNoonUrl(data.extra?.token_endpoint, DEFAULT_TOKEN_ENDPOINT),
+    ordersEndpoint: allowNoonUrl(data.extra?.orders_endpoint, DEFAULT_ORDERS_ENDPOINT),
+  }
+}
+
+function allowNoonUrl(value: unknown, fallback: string) {
+  if (!value) return fallback
+  const url = new URL(String(value))
+  const allowed = url.protocol === 'https:' && (url.hostname === 'noon.partners' || url.hostname.endsWith('.noon.partners'))
+  if (!allowed) throw new HttpError(400, 'Noon endpoint is not allowed')
+  return url.toString().replace(/\/$/, '')
+}
+
+async function getNoonToken(serviceAccount: Record<string, any>, tokenEndpoint: string) {
+  const now = Math.floor(Date.now() / 1000)
+  const claims = {
+    iss: serviceAccount.client_email,
+    sub: serviceAccount.client_email,
+    aud: tokenEndpoint,
+    iat: now,
+    exp: now + 3600,
+  }
   const header = { alg: 'RS256', typ: 'JWT' }
-  const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-  const msg  = `${b64(header)}.${b64(claim)}`
-  const key  = sa.private_key.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')
-  const keyBuf = Uint8Array.from(atob(key), c => c.charCodeAt(0))
-  const cryptoKey = await crypto.subtle.importKey('pkcs8', keyBuf, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(msg))
-  const jwt = `${msg}.${btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}`
-  const res = await fetch(sa.token_uri || 'https://idp.noon.partners/token', {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  const message = `${base64UrlJson(header)}.${base64UrlJson(claims)}`
+  const pem = String(serviceAccount.private_key).replace(/\\n/g, '\n')
+  const key = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')
+  const keyBytes = Uint8Array.from(atob(key), char => char.charCodeAt(0))
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8', keyBytes, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'],
+  )
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(message))
+  const jwt = `${message}.${base64UrlBytes(new Uint8Array(signature))}`
+  const response = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt,
+    }),
   })
-  const d = await res.json()
-  if (!d.access_token) throw new Error('Noon token error: ' + JSON.stringify(d))
-  return d.access_token
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || !data.access_token) {
+    throw new HttpError(response.status || 401, `Noon token: ${data.error_description || data.error || 'authorization failed'}`)
+  }
+  return data.access_token
 }
 
-function mapNoonStatus(s: string) {
-  return ({ CREATED: 'pending', CONFIRMED: 'processing', SHIPPED: 'shipped', DELIVERED: 'delivered', CANCELLED: 'cancelled', RETURNED: 'returned' } as Record<string, string>)[s] || 'pending'
+function base64UrlJson(value: unknown) {
+  return base64UrlBytes(new TextEncoder().encode(JSON.stringify(value)))
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+function base64UrlBytes(bytes: Uint8Array) {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+function mapNoonOrder(order: any, merchantCode: string) {
+  const externalId = String(order.nr || order.id || order.order_id || '')
+  if (!externalId) return null
+  const items: any[] = order.items || order.order_items || []
+  const quantity = items.reduce((sum, item) => sum + numberValue(item.quantity || item.qty || 1), 0) || 1
+  const itemTotal = items.reduce((sum, item) => sum + numberValue(item.total || item.price) * numberValue(item.quantity || item.qty || 1), 0)
+  const total = numberValue(order.grand_total || order.total || order.order_total) || itemTotal
+  const dateValue = order.created_at || order.date || order.order_date
+  if (!dateValue || Number.isNaN(Date.parse(dateValue))) return null
+  return {
+    merchant_code: merchantCode, platform: 'noon', order_id: externalId,
+    status: mapStatus(String(order.status || '')),
+    product_name: [...new Set(items.map(item => item.name || item.product_name).filter(Boolean))].join(' | ') || order.item_name || null,
+    sku: [...new Set(items.map(item => item.partner_sku || item.sku).filter(Boolean))].join(' | ') || null,
+    noon_sku: [...new Set(items.map(item => item.noon_sku).filter(Boolean))].join(' | ') || null,
+    quantity, unit_price: quantity ? total / quantity : total,
+    total_amount: total, gross_amount: total,
+    // Noon fees must be sourced from its statement/financial API; never estimate them.
+    platform_fee: 0,
+    currency: order.currency || 'SAR',
+    customer_city: order.delivery_address?.city || order.shipping_address?.city || null,
+    order_date: new Date(dateValue).toISOString(),
+  }
+}
+
+function mapStatus(value: string) {
+  return ({
+    CREATED: 'pending', CONFIRMED: 'processing', PROCESSING: 'processing',
+    SHIPPED: 'shipped', DELIVERED: 'delivered', CANCELLED: 'cancelled',
+    CANCELED: 'cancelled', RETURNED: 'returned',
+  } as Record<string, string>)[value.toUpperCase()] || 'pending'
+}
+
+async function upsertRows(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('orders').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,order_id',
+    })
+    if (error) throw error
+  }
+}
+
+function buildDaily(rows: any[]) {
+  const daily = new Map<string, { sales: number; orders: number }>()
+  for (const row of rows) {
+    if (row.status === 'cancelled') continue
+    const date = row.order_date.slice(0, 10)
+    const value = daily.get(date) || { sales: 0, orders: 0 }
+    value.sales += numberValue(row.total_amount); value.orders++
+    daily.set(date, value)
+  }
+  return daily
+}
+
+async function upsertPerformance(admin: any, merchantCode: string, daily: Map<string, any>) {
+  for (const [date, value] of daily) {
+    const { error } = await admin.from('performance_data').upsert({
+      merchant_code: merchantCode, platform: 'noon', data_date: date,
+      total_sales: value.sales, order_count: value.orders,
+      platform_fees: 0, margin: 0, ad_spend: 0,
+    }, { onConflict: 'merchant_code,platform,data_date' })
+    if (error) throw error
+  }
 }

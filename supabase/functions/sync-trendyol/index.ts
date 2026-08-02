@@ -1,4 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  HttpError,
+  authorizeMerchantSync,
+  fetchJsonWithRetry,
+  json,
+  numberValue,
+  parseSyncRange,
+  splitRange,
+} from '../_shared/sync.ts'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,143 +16,212 @@ const corsHeaders = {
 }
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANON_KEY     = Deno.env.get('SUPABASE_ANON_KEY')!
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const TRENDYOL_API = 'https://apigw.trendyol.com/integration/order/sellers'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, corsHeaders)
 
-  const db = createClient(SUPABASE_URL, SERVICE_KEY)
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
+  let mappingId = ''
 
   try {
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '')
-    if (!token) return json({ error: 'Unauthorized' }, 401)
-    const { data: { user } } = await db.auth.getUser(token)
-    if (!user) return json({ error: 'Unauthorized' }, 401)
-    const { data: caller } = await db.from('merchants').select('role').eq('email', user.email!).single()
-    if (!caller || !['admin', 'super_admin'].includes(caller.role)) return json({ error: 'Forbidden' }, 403)
-
     const body = await req.json()
-    const { merchant_code, mapping_id } = body
-    if (!merchant_code) return json({ error: 'merchant_code مطلوب' }, 400)
+    const merchantCode = String(body?.merchant_code || '')
+    mappingId = String(body?.mapping_id || '')
+    if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
+    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
 
-    // ── Resolve credentials ──────────────────────────────────────────────────
-    let apiKey = '', apiSecret = '', sellerId = ''
+    const { data: merchant } = await admin.from('merchants')
+      .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()
+    if (!merchant) throw new HttpError(404, 'Merchant not found')
+    if (merchant.subscription_status !== 'active') throw new HttpError(402, 'SUBSCRIPTION_INACTIVE')
 
-    if (mapping_id) {
-      const { data: mapping } = await db
-        .from('merchant_platform_mappings')
-        .select('seller_id, platform_connections(api_key, api_secret)')
-        .eq('id', mapping_id).single()
-      if (!mapping) return json({ error: 'mapping not found' }, 404)
-      sellerId  = (mapping as any).seller_id
-      const conn = (mapping as any).platform_connections
-      apiKey    = conn?.api_key    || ''
-      apiSecret = conn?.api_secret || ''
-    } else {
-      const { data: cred } = await db.from('platform_credentials').select('*')
-        .eq('merchant_code', merchant_code).eq('platform', 'trendyol').single()
-      if (!cred) return json({ error: 'لا توجد بيانات ربط لتراندايول' }, 400)
-      apiKey = cred.api_key || ''; apiSecret = cred.api_secret || ''; sellerId = cred.seller_id || ''
-    }
+    const credentials = await resolveCredentials(admin, merchantCode, mappingId)
+    const { from, to } = parseSyncRange(body, 90)
 
-    if (!apiKey || !apiSecret || !sellerId) return json({ error: 'بيانات API غير مكتملة (apiKey / apiSecret / sellerId)' }, 400)
+    const { data: log, error: logError } = await admin.from('sync_logs').insert({
+      merchant_code: merchantCode,
+      platform: 'trendyol',
+      status: 'running',
+      records_synced: 0,
+    }).select().single()
+    if (logError) throw logError
+    logId = log.id
 
-    // ── Start sync log ───────────────────────────────────────────────────────
-    const { data: log } = await db.from('sync_logs').insert({ merchant_code, platform: 'trendyol', status: 'running', records_synced: 0 }).select().single()
-    logId = log?.id || ''
-
-    // ── Fetch from Trendyol ──────────────────────────────────────────────────
+    const auth = btoa(`${credentials.apiKey}:${credentials.apiSecret}`)
     const headers = {
-      Authorization: `Basic ${btoa(`${apiKey}:${apiSecret}`)}`,
-      'User-Agent':  `${sellerId} - SellpertIntegration`,
-      'Content-Type': 'application/json',
+      Authorization: `Basic ${auth}`,
+      // Trendyol requires "Seller Id - Integration Company" on every request.
+      'User-Agent': `${credentials.sellerId} - Sellpert`,
+      Accept: 'application/json',
     }
-    const endDate   = Date.now()
-    const startDate = endDate - 90 * 86400000
-    let page = 0, totalDays = 0
-    const dailyMap: Record<string, { sales: number; orders: number; fees: number }> = {}
-    const orderRows: any[] = []
 
-    while (true) {
-      const url = `https://apigw.trendyol.com/sapigw/suppliers/${sellerId}/orders?startDate=${startDate}&endDate=${endDate}&orderByField=CreatedDate&orderByDirection=DESC&page=${page}&size=200`
-      const res = await fetch(url, { headers })
-      if (!res.ok) { const t = await res.text(); throw new Error(`Trendyol API ${res.status}: ${t}`) }
-      const data = await res.json()
-      const content: any[] = data.content || []
-      if (content.length === 0) break
+    const orders = new Map<string, any>()
+    // Trendyol accepts at most a two-week date interval. Slightly smaller
+    // windows avoid boundary/time-zone rejection.
+    for (const window of splitRange(from, to, 13)) {
+      let page = 0
+      while (true) {
+        const query = new URLSearchParams({
+          startDate: String(window.from.getTime()),
+          endDate: String(window.to.getTime()),
+          orderByField: 'PackageLastModifiedDate',
+          orderByDirection: 'ASC',
+          page: String(page),
+          size: '200',
+        })
+        const data = await fetchJsonWithRetry(
+          `${TRENDYOL_API}/${encodeURIComponent(credentials.sellerId)}/orders?${query}`,
+          { headers },
+          'Trendyol API',
+        )
+        const packages: any[] = data?.content || []
+        for (const shipment of packages) mergeShipment(orders, shipment, merchantCode)
 
-      for (const order of content) {
-        if (order.status === 'Cancelled') continue
-        const date    = new Date(order.orderDate)
-        const dateStr = date.toISOString().split('T')[0]
-        const amount  = order.totalPrice || 0
-        const fee     = amount * 0.15
-
-        if (!dailyMap[dateStr]) dailyMap[dateStr] = { sales: 0, orders: 0, fees: 0 }
-        dailyMap[dateStr].sales  += amount
-        dailyMap[dateStr].orders += 1
-        dailyMap[dateStr].fees   += fee
-
-        for (const line of (order.lines || [])) {
-          orderRows.push({
-            merchant_code, platform: 'trendyol',
-            order_id:     String(order.orderNumber),
-            status:       mapTrendyolStatus(order.status),
-            product_name: line.productName,
-            sku:          line.merchantSku || line.barcode,
-            quantity:     line.quantity || 1,
-            unit_price:   line.price || 0,
-            total_amount: (line.price || 0) * (line.quantity || 1),
-            platform_fee: (line.price || 0) * (line.quantity || 1) * 0.15,
-            currency:     'TRY',
-            order_date:   date.toISOString(),
-          })
-        }
+        const totalPages = numberValue(data?.totalPages)
+        if (packages.length < 200 || (totalPages > 0 && page + 1 >= totalPages)) break
+        page++
       }
-      if (!data.totalElements || (page + 1) * 200 >= data.totalElements) break
-      page++
     }
 
-    // ── Upsert to DB ─────────────────────────────────────────────────────────
-    for (const [dateStr, v] of Object.entries(dailyMap)) {
-      await db.from('performance_data').upsert({
-        merchant_code, platform: 'trendyol', data_date: dateStr,
-        total_sales: Math.round(v.sales), order_count: v.orders,
-        platform_fees: Math.round(v.fees), margin: 0, ad_spend: 0,
-      }, { onConflict: 'merchant_code,platform,data_date' })
-      totalDays++
-    }
-    for (let i = 0; i < orderRows.length; i += 100) {
-      await db.from('orders').upsert(orderRows.slice(i, i + 100), { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: true })
-    }
+    const rows = [...orders.values()]
+    await upsertRows(admin, rows)
+    const daily = buildDaily(rows)
+    await upsertPerformance(admin, merchantCode, daily)
 
     const now = new Date().toISOString()
-    await db.from('sync_logs').update({ status: 'success', records_synced: totalDays, finished_at: now }).eq('id', logId)
-    if (mapping_id) {
-      await db.from('merchant_platform_mappings').update({ last_sync_at: now, last_sync_status: 'success', records_synced: orderRows.length, last_sync_error: null }).eq('id', mapping_id)
-    }
+    await admin.from('sync_logs').update({
+      status: 'success', records_synced: rows.length, finished_at: now,
+    }).eq('id', logId)
+    await admin.from('platform_credentials').update({
+      last_sync_at: now, records_synced: rows.length,
+    }).eq('merchant_code', merchantCode).eq('platform', 'trendyol')
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_at: now,
+      last_sync_status: 'success',
+      records_synced: rows.length,
+      last_sync_error: null,
+    }).eq('id', mappingId).eq('merchant_code', merchantCode)
 
-    // Non-blocking WhatsApp notification
-    fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
-      body: JSON.stringify({ merchant_code, event: 'sync_complete', data: { platform: 'trendyol', orders: orderRows.length, records: totalDays } }),
-    }).catch(() => {})
-
-    return json({ ok: true, records_synced: totalDays, orders: orderRows.length })
-
-  } catch (e: any) {
-    if (logId) await db.from('sync_logs').update({ status: 'error', error_message: e.message, finished_at: new Date().toISOString() }).eq('id', logId)
-    return json({ error: e.message }, 500)
+    return json({ ok: true, records_synced: daily.size, orders: rows.length }, 200, corsHeaders)
+  } catch (error: any) {
+    const status = error instanceof HttpError ? error.status : 500
+    if (logId) await admin.from('sync_logs').update({
+      status: 'error', error_message: error.message, finished_at: new Date().toISOString(),
+    }).eq('id', logId)
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_status: 'error', last_sync_error: error.message,
+    }).eq('id', mappingId)
+    return json({ error: error.message }, status, corsHeaders)
   }
 })
 
-function mapTrendyolStatus(s: string) {
-  return ({ Created: 'pending', Picking: 'processing', Invoiced: 'processing', Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled', UnDelivered: 'returned' } as Record<string, string>)[s] || 'pending'
+async function resolveCredentials(admin: any, merchantCode: string, mappingId: string) {
+  if (mappingId) {
+    const { data } = await admin.from('merchant_platform_mappings')
+      .select('seller_id,merchant_code,platform,platform_connections(api_key,api_secret)')
+      .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle()
+    const connection = data?.platform_connections as any
+    if (!data || !connection) throw new HttpError(404, 'Trendyol connection not found')
+    assertCredentials(data.seller_id, connection.api_key, connection.api_secret)
+    return { sellerId: data.seller_id, apiKey: connection.api_key, apiSecret: connection.api_secret }
+  }
+
+  const { data } = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')
+    .eq('merchant_code', merchantCode).eq('platform', 'trendyol').eq('is_active', true).maybeSingle()
+  if (!data) throw new HttpError(400, 'لا توجد بيانات ربط مفعلة لترنديول')
+  const secret = await resolveSecretPayload(data)
+  assertCredentials(secret.seller_id, secret.api_key, secret.api_secret)
+  return { sellerId: secret.seller_id, apiKey: secret.api_key, apiSecret: secret.api_secret }
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+function assertCredentials(sellerId: unknown, apiKey: unknown, apiSecret: unknown) {
+  if (!sellerId || !apiKey || !apiSecret) {
+    throw new HttpError(400, 'بيانات Trendyol غير مكتملة (Seller ID / API Key / API Secret)')
+  }
+}
+
+function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: string) {
+  const externalId = String(shipment.orderNumber || shipment.id || shipment.shipmentPackageId || '')
+  if (!externalId) return
+  const lines: any[] = shipment.lines || []
+  const quantity = lines.reduce((sum, line) => sum + numberValue(line.quantity || 1), 0) || 1
+  const total = lines.reduce((sum, line) => sum + numberValue(line.price) * numberValue(line.quantity || 1), 0)
+  const existing = target.get(externalId)
+  const row = existing || {
+    merchant_code: merchantCode,
+    platform: 'trendyol',
+    order_id: externalId,
+    status: mapStatus(shipment.status),
+    product_name: '',
+    sku: '',
+    quantity: 0,
+    unit_price: 0,
+    total_amount: 0,
+    gross_amount: 0,
+    // Commission is deliberately not estimated. It must come from a financial report/API.
+    platform_fee: 0,
+    currency: shipment.currencyCode || 'TRY',
+    customer_city: shipment.shipmentAddress?.city || null,
+    order_date: new Date(shipment.orderDate || shipment.createdDate || Date.now()).toISOString(),
+  }
+  const names = lines.map(line => line.productName).filter(Boolean)
+  const skus = lines.map(line => line.merchantSku || line.stockCode || line.barcode).filter(Boolean)
+  row.product_name = [...new Set([...(row.product_name ? row.product_name.split(' | ') : []), ...names])].join(' | ')
+  row.sku = [...new Set([...(row.sku ? row.sku.split(' | ') : []), ...skus])].join(' | ')
+  row.quantity += quantity
+  row.total_amount += total || numberValue(shipment.totalPrice)
+  row.gross_amount = row.total_amount
+  row.unit_price = row.quantity ? row.total_amount / row.quantity : row.total_amount
+  row.status = mapStatus(shipment.status)
+  target.set(externalId, row)
+}
+
+function mapStatus(value: string) {
+  return ({
+    Created: 'pending', Picking: 'processing', Invoiced: 'processing',
+    Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
+    UnDelivered: 'returned', Returned: 'returned', UnSupplied: 'cancelled',
+  } as Record<string, string>)[value] || 'pending'
+}
+
+async function upsertRows(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('orders').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,order_id',
+    })
+    if (error) throw error
+  }
+}
+
+function buildDaily(rows: any[]) {
+  const daily = new Map<string, { sales: number; orders: number }>()
+  for (const row of rows) {
+    if (row.status === 'cancelled') continue
+    const date = row.order_date.slice(0, 10)
+    const value = daily.get(date) || { sales: 0, orders: 0 }
+    value.sales += numberValue(row.total_amount)
+    value.orders++
+    daily.set(date, value)
+  }
+  return daily
+}
+
+async function upsertPerformance(admin: any, merchantCode: string, daily: Map<string, any>) {
+  for (const [date, value] of daily) {
+    const { error } = await admin.from('performance_data').upsert({
+      merchant_code: merchantCode,
+      platform: 'trendyol',
+      data_date: date,
+      total_sales: value.sales,
+      order_count: value.orders,
+      platform_fees: 0,
+      margin: 0,
+      ad_spend: 0,
+    }, { onConflict: 'merchant_code,platform,data_date' })
+    if (error) throw error
+  }
 }
