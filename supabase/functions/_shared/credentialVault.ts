@@ -51,6 +51,7 @@ export async function resolveSecretPayload(row: any) {
     api_key: encrypted.api_key || row?.api_key || '',
     api_secret: encrypted.api_secret || row?.api_secret || '',
     refresh_token: encrypted.refresh_token || row?.extra?.refresh_token || '',
+    access_token: encrypted.access_token || '',
     service_account: encrypted.service_account || row?.extra?.service_account || null,
   }
 }

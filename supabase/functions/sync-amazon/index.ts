@@ -124,12 +124,14 @@ async function resolveCredentials(admin: any, merchantCode: string, mappingId: s
   }
   if (!data) throw new HttpError(400, 'لا توجد بيانات ربط مفعلة لأمازون')
   const secret = await resolveSecretPayload(data)
-  if (!secret.api_key || !secret.api_secret || !secret.refresh_token) {
+  const clientId = secret.api_key || (data.extra?.auth_type === 'oauth' ? Deno.env.get('AMAZON_LWA_CLIENT_ID') : '')
+  const clientSecret = secret.api_secret || (data.extra?.auth_type === 'oauth' ? Deno.env.get('AMAZON_LWA_CLIENT_SECRET') : '')
+  if (!clientId || !clientSecret || !secret.refresh_token) {
     throw new HttpError(400, 'بيانات Amazon غير مكتملة (LWA Client ID / Secret / Refresh Token)')
   }
   return {
-    clientId: secret.api_key,
-    clientSecret: secret.api_secret,
+    clientId,
+    clientSecret,
     refreshToken: secret.refresh_token,
     marketplaceId: data.extra?.marketplace_id,
     endpoint: normalizeEndpoint(data.extra?.endpoint),

@@ -45,7 +45,9 @@ Deno.serve(async (req) => {
     if (logError) throw logError
     logId = log.id
 
-    const token = await getNoonToken(credentials.serviceAccount, credentials.tokenEndpoint)
+    const token = credentials.authType === 'oauth'
+      ? await getNoonOAuthToken(credentials)
+      : await getNoonToken(credentials.serviceAccount, credentials.tokenEndpoint)
     const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' }
     const rows: any[] = []
     let page = 1
@@ -106,15 +108,37 @@ async function resolveCredentials(admin: any, merchantCode: string, mappingId: s
   }
   const secret = await resolveSecretPayload(data)
   const serviceAccount = secret.service_account
-  if (!data || !serviceAccount?.client_email || !serviceAccount?.private_key) {
+  const authType = data?.extra?.auth_type === 'oauth' ? 'oauth' : 'service_account'
+  if (!data || (authType === 'service_account' && (!serviceAccount?.client_email || !serviceAccount?.private_key))) {
     throw new HttpError(400, 'حساب خدمة Noon غير موجود أو غير مكتمل')
   }
   return {
     sellerId: data.seller_id,
+    authType,
+    refreshToken: secret.refresh_token,
+    accessToken: secret.access_token,
     serviceAccount,
     tokenEndpoint: allowNoonUrl(data.extra?.token_endpoint, DEFAULT_TOKEN_ENDPOINT),
     ordersEndpoint: allowNoonUrl(data.extra?.orders_endpoint, DEFAULT_ORDERS_ENDPOINT),
   }
+}
+
+async function getNoonOAuthToken(credentials: any) {
+  if (!credentials.refreshToken) {
+    if (credentials.accessToken) return credentials.accessToken
+    throw new HttpError(401, 'انتهى تفويض نون، يرجى إعادة ربط الحساب')
+  }
+  const clientId = Deno.env.get('NOON_OAUTH_CLIENT_ID') || ''
+  const clientSecret = Deno.env.get('NOON_OAUTH_CLIENT_SECRET') || ''
+  const tokenUrl = Deno.env.get('NOON_OAUTH_TOKEN_URL') || ''
+  if (!clientId || !clientSecret || !tokenUrl) throw new HttpError(500, 'إعدادات OAuth الخاصة بنون غير مكتملة')
+  const res = await fetch(tokenUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: credentials.refreshToken, client_id: clientId, client_secret: clientSecret }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.access_token) throw new HttpError(401, data.error_description || 'فشل تحديث تفويض نون')
+  return data.access_token
 }
 
 function allowNoonUrl(value: unknown, fallback: string) {

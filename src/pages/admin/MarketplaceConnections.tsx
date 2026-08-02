@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, KeyRound, Loader2, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, ExternalLink, KeyRound, Loader2, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Merchant } from '../../lib/supabase'
 import { S } from './adminShared'
@@ -37,9 +37,9 @@ const EMPTY_FORM: FormState = {
 }
 
 const PLATFORM_META: Record<Platform, { label: string; icon: string; color: string; description: string }> = {
-  amazon: { label: 'Amazon SP-API', icon: '📦', color: '#ff9900', description: 'LWA OAuth وربط سوق Amazon.sa' },
-  noon: { label: 'نون', icon: '🟡', color: '#f2cf00', description: 'Service Account الممنوح من Noon Partner' },
-  trendyol: { label: 'Trendyol', icon: '🟠', color: '#f27a1a', description: 'Supplier ID ومفاتيح Partner API' },
+  amazon: { label: 'Amazon', icon: '📦', color: '#ff9900', description: 'تفويض آمن عبر حساب البائع في Amazon' },
+  noon: { label: 'نون', icon: '🟡', color: '#f2cf00', description: 'تفويض آمن عبر حساب الشريك في نون' },
+  trendyol: { label: 'Trendyol', icon: '🟠', color: '#f27a1a', description: 'معرّف المورّد ومفاتيح Partner API' },
 }
 
 type MarketplaceConnectionsProps = {
@@ -72,6 +72,38 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
   }, [lockedMerchantCode])
 
   useEffect(() => { void loadCredentials() }, [loadCredentials])
+
+  useEffect(() => {
+    if (!merchantCode) return
+    const params = new URLSearchParams(window.location.search)
+    const amazonCallback = params.get('amazon_callback_uri')
+    const amazonState = params.get('amazon_state')
+    if (!amazonCallback || !amazonState) return
+    const flowKey = `amazon-oauth:${amazonState}`
+    if (sessionStorage.getItem(flowKey)) return
+    sessionStorage.setItem(flowKey, '1')
+    void (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketplace-oauth`, {
+          method: 'POST', headers: functionHeaders(session?.access_token),
+          body: JSON.stringify({
+            platform: 'amazon', merchant_code: merchantCode,
+            amazon_callback_uri: amazonCallback,
+            amazon_state: amazonState,
+            selling_partner_id: params.get('selling_partner_id'),
+            version: params.get('version'),
+          }),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || !data.authorization_url) throw new Error(data.error || 'تعذر متابعة تفويض Amazon')
+        window.location.assign(data.authorization_url)
+      } catch (error: any) {
+        sessionStorage.removeItem(flowKey)
+        setNotice({ type: 'err', text: error.message })
+      }
+    })()
+  }, [merchantCode])
 
   const selectedRows = useMemo(() => {
     const map = new Map<Platform, CredentialStatus>()
@@ -140,6 +172,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const [editing, setEditing] = useState(!status)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [busy, setBusy] = useState<'test' | 'save' | 'delete' | null>(null)
+  const [oauthBusy, setOauthBusy] = useState(false)
   const [verified, setVerified] = useState(false)
 
   useEffect(() => {
@@ -202,6 +235,24 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
     } finally { setBusy(null) }
   }
 
+  async function connectWithOAuth() {
+    setOauthBusy(true); setNotice(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketplace-oauth`, {
+        method: 'POST',
+        headers: functionHeaders(session?.access_token),
+        body: JSON.stringify({ platform, merchant_code: merchantCode }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.authorization_url) throw new Error(data.error || 'تعذر بدء التفويض')
+      window.location.assign(data.authorization_url)
+    } catch (error: any) {
+      setNotice({ type: 'err', text: `${meta.label}: ${error.message}` })
+      setOauthBusy(false)
+    }
+  }
+
   return (
     <article style={{ background: 'var(--surface)', border: `1px solid ${status?.is_active ? meta.color + '66' : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
       <div style={{ height: 3, background: status?.is_active ? meta.color : 'var(--border2)' }} />
@@ -217,7 +268,28 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
           </div>
         </div>
 
-        {!editing && status ? (
+        {platform !== 'trendyol' ? (
+          <div>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, fontSize: 12, lineHeight: 1.8, marginBottom: 14, color: 'var(--text2)' }}>
+              {status?.is_active
+                ? 'الحساب مفوّض ومتصل. يمكنك إعادة التفويض إذا تغيّرت الصلاحيات أو تم إلغاؤها من المنصة.'
+                : `سيتم تحويلك إلى ${meta.label} لتسجيل الدخول والموافقة. لا نطلب منك أي مفاتيح أو كلمات مرور.`}
+            </div>
+            {status ? (
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>حالة الربط</span><strong>{status.is_active ? 'متصل' : 'بانتظار التفويض'}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{ ...S.saveBtn, flex: 1, justifyContent: 'center' }} onClick={() => void connectWithOAuth()} disabled={oauthBusy}>
+                {oauthBusy ? <Loader2 size={14} className="spin" /> : <ExternalLink size={14} />}
+                {status?.is_active ? 'إعادة تفويض الحساب' : `ربط حساب ${meta.label}`}
+              </button>
+              {status ? <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}><Trash2 size={13} /></button> : null}
+            </div>
+          </div>
+        ) : !editing && status ? (
           <div>
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>{platform === 'trendyol' ? 'معرّف البائع (معرّف الكيان)' : 'Seller ID'}</span><code>{status.seller_id}</code></div>
@@ -236,16 +308,6 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <Field label="مفتاح API" secret value={form.api_key} onChange={value => update('api_key', value)} />
               <Field label="سر API" secret value={form.api_secret} onChange={value => update('api_secret', value)} />
             </> : null}
-            {platform === 'amazon' ? <>
-              <Field label="LWA Client ID" secret value={form.api_key} onChange={value => update('api_key', value)} />
-              <Field label="LWA Client Secret" secret value={form.api_secret} onChange={value => update('api_secret', value)} />
-              <Field label="Refresh Token" secret value={form.refresh_token} onChange={value => update('refresh_token', value)} />
-              <Field label="Marketplace ID" value={form.marketplace_id} onChange={value => update('marketplace_id', value)} />
-            </> : null}
-            {platform === 'noon' ? <div style={{ marginBottom: 11 }}>
-              <label style={S.label}>Service Account JSON</label>
-              <textarea style={{ ...S.input, minHeight: 116, resize: 'vertical', direction: 'ltr', fontFamily: 'monospace', fontSize: 11 }} value={form.service_account} onChange={event => update('service_account', event.target.value)} placeholder={'{"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----..."}'} />
-            </div> : null}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color }} onClick={() => void testConnection()} disabled={!!busy}>
                 {busy === 'test' ? <Loader2 size={13} /> : <PlugZap size={13} />} اختبار
