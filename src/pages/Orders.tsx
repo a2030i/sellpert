@@ -19,6 +19,12 @@ const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
 
+function orderSource(o: Order) {
+  if (o.upload_id) return { label: '📄 ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
+  if (o.platform === 'trendyol') return { label: '⚡ API ترنديول', exportLabel: 'API ترنديول', title: 'تم سحب الطلب مباشرة من ربط ترنديول', bg: 'var(--success-bg)', color: 'var(--success-text)' }
+  return { label: 'مصدر غير محدد', exportLabel: 'مصدر غير محدد', title: 'لا توجد بيانات كافية لتحديد مصدر هذا الطلب', bg: 'var(--warning-bg)', color: 'var(--warning-text)' }
+}
+
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
@@ -152,7 +158,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       exportToExcel(filtered.map(o => ({
         'رقم الطلب': o.order_id,
         'المنصة': PLATFORM_MAP[o.platform] || o.platform,
-        'المصدر': o.upload_id ? 'ملف Excel' : 'API مباشر',
+        'المصدر': orderSource(o).exportLabel,
         'المنتج': o.product_name || '',
         'الحالة': STATUS_MAP[o.status]?.label || o.status,
         'الكمية': o.quantity,
@@ -294,8 +300,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       </span>
                     </td>
                     <td style={S.td}>
-                      <span title={o.upload_id ? 'تم استيراد الطلب من ملف مرفوع' : 'تم سحب الطلب مباشرة من ربط المنصة'} style={{ ...S.statusBadge, background: o.upload_id ? 'var(--info-bg)' : 'var(--success-bg)', color: o.upload_id ? 'var(--info-text)' : 'var(--success-text)', whiteSpace: 'nowrap' }}>
-                        {o.upload_id ? '📄 ملف Excel' : '⚡ API مباشر'}
+                      <span title={orderSource(o).title} style={{ ...S.statusBadge, background:orderSource(o).bg, color:orderSource(o).color, whiteSpace:'nowrap' }}>
+                        {orderSource(o).label}
                       </span>
                     </td>
                     <td style={{ ...S.td, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -448,7 +454,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             <div style={S.detailGrid}>
               {[
                 ['المنصة', PLATFORM_MAP[selectedOrder.platform] || selectedOrder.platform],
-                ['مصدر الطلب', selectedOrder.upload_id ? 'ملف Excel' : 'API مباشر'],
+                ['مصدر الطلب', orderSource(selectedOrder).exportLabel],
                 ['الحالة', STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status],
                 ['تاريخ الطلب', new Date(selectedOrder.order_date).toLocaleString('ar-SA-u-ca-gregory-nu-latn')],
                 ['المنتج', selectedOrder.product_name || '—'],
