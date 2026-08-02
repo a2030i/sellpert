@@ -23,7 +23,7 @@ import type { Merchant } from './lib/supabase'
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
 // إلى حزمة الدخول التي تُحمَّل حتى في شاشة تسجيل الدخول
-const Dashboard     = lazy(() => import('./pages/Dashboard'))
+const Dashboard     = lazy(() => import('./pages/DashboardV2'))
 const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
 const Integrations  = lazy(() => import('./pages/Integrations'))
 const Orders        = lazy(() => import('./pages/Orders'))
