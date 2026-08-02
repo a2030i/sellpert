@@ -75,11 +75,12 @@ export const DEPT_LABELS: Record<Department, string> = {
 
 export function getPermissions(m: Merchant | null | undefined): Set<PermKey> {
   if (!m) return new Set()
-  // Admin role always has all permissions (managers)
-  if (m.role === 'admin') return new Set(ALL_PERMISSIONS.map(p => p.key))
-  // Merchants don't use this system
-  if (m.role === 'merchant') return new Set()
-  // Employees: use stored permissions array (jsonb)
+  // Platform managers always have all permissions.
+  if (m.role === 'admin' || m.role === 'super_admin') return new Set(ALL_PERMISSIONS.map(p => p.key))
+  // Only platform staff use this permission namespace. Merchant employees use
+  // merchantPermissions.ts and must never inherit administration permissions.
+  if (m.role !== 'staff') return new Set()
+  // Platform staff: use stored permissions array (jsonb).
   const arr = (m as any).permissions
   if (Array.isArray(arr)) return new Set(arr as PermKey[])
   return new Set()

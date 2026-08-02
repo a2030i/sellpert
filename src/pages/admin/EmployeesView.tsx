@@ -7,12 +7,13 @@ import { toastOk, toastErr } from '../../components/Toast'
 import PermissionsEditor from '../../components/PermissionsEditor'
 import { ALL_PERMISSIONS, PERM_CATEGORIES, DEPT_TEMPLATES, DEPT_LABELS, getPermissions, type Department, type PermKey } from '../../lib/permissions'
 
-export default function EmployeesView({ merchants, currentUserId, onRefresh }: { merchants: Merchant[]; currentUserId?: string; onRefresh: () => void }) {
+export default function EmployeesView({ merchants, currentUser, currentUserId, onRefresh }: { merchants: Merchant[]; currentUser?: Merchant | null; currentUserId?: string; onRefresh: () => void }) {
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
   const [editPerms, setEditPerms] = useState<Merchant | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const canCreateManager = currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
 
   const [addForm, setAddForm] = useState({
     name: '', email: '', password: '', whatsapp_phone: '',
@@ -32,7 +33,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
   }
 
   const staff = useMemo(() => merchants.filter(m =>
-    ['admin', 'employee'].includes(m.role)
+    ['admin', 'super_admin', 'staff'].includes(m.role)
   ).filter(m => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
@@ -44,7 +45,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
     if (addForm.password.length < 8) { toastErr('كلمة المرور 8 أحرف على الأقل'); return }
     setSaving(true)
     try {
-      const role = addForm.department === 'manager' ? 'admin' : 'employee'
+      const role = addForm.department === 'manager' && canCreateManager ? 'admin' : 'staff'
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-merchant`, {
         method: 'POST',
@@ -82,8 +83,8 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
       setDeleteConfirm(null)
       return
     }
-    if (m.role === 'admin') {
-      const count = merchants.filter(x => x.role === 'admin').length
+    if (m.role === 'admin' || m.role === 'super_admin') {
+      const count = merchants.filter(x => x.role === 'admin' || x.role === 'super_admin').length
       if (count <= 1) { toastErr('لا يمكن حذف آخر مدير'); setDeleteConfirm(null); return }
     }
     // الحذف عبر دالة Edge موثّقة: تحذف مستخدم Auth وصف الموظف معاً —
@@ -102,7 +103,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
   }
 
   function deptOf(m: Merchant): Department {
-    return ((m as any).department || (m.role === 'admin' ? 'manager' : 'custom')) as Department
+    return ((m as any).department || (m.role === 'admin' || m.role === 'super_admin' ? 'manager' : 'custom')) as Department
   }
 
   return (
@@ -154,7 +155,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
               <Sparkles size={11} /> ابدأ من قالب (اختياري — يمكنك التعديل بعدها)
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {(Object.keys(DEPT_LABELS) as Department[]).map(d => {
+              {(Object.keys(DEPT_LABELS) as Department[]).filter(d => d !== 'manager' || canCreateManager).map(d => {
                 const active = addForm.department === d
                 return (
                   <button key={d} onClick={() => applyTemplateInForm(d)} style={{
@@ -237,7 +238,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
               ) : staff.map(m => {
                 const dept = deptOf(m)
                 const myPerms = getPermissions(m)
-                const isManager = m.role === 'admin'
+                const isManager = m.role === 'admin' || m.role === 'super_admin'
                 return (
                   <tr key={m.id} style={S.tr}>
                     <td style={S.td}>
@@ -310,7 +311,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
       </div>
 
       {editPerms && (
-        <PermissionsEditor employee={editPerms} onClose={() => setEditPerms(null)} onSaved={onRefresh} />
+        <PermissionsEditor employee={editPerms} canPromoteToManager={canCreateManager} onClose={() => setEditPerms(null)} onSaved={onRefresh} />
       )}
     </div>
   )

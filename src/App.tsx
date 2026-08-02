@@ -413,7 +413,7 @@ export default function App() {
   if (!session) return <Login />
   // Platform administrators use the administration console. Merchant
   // employees stay inside their owner's store with tenant permissions.
-  if ((merchant?.role === 'admin' || merchant?.role === 'super_admin') && !impersonating)
+  if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating)
     return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
 
   const BANNER_H = 44

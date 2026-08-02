@@ -160,10 +160,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-// Filter nav for a given user — admins see everything, employees see only allowed items
+// Filter nav for a given user — managers see everything, platform staff see
+// only their explicit administration permissions.
 function filterNavForUser(user: Merchant | null): NavGroup[] {
   if (!user) return []
-  if (user.role === 'admin') return NAV_GROUPS  // managers see everything
+  if (user.role === 'admin' || user.role === 'super_admin') return NAV_GROUPS
   return NAV_GROUPS.map(g => ({
     ...g,
     items: g.items.filter(item => {
@@ -177,7 +178,7 @@ function filterNavForUser(user: Merchant | null): NavGroup[] {
 
 function canAccessView(user: Merchant | null, view: AdminView): boolean {
   if (!user) return false
-  if (user.role === 'admin') return true
+  if (user.role === 'admin' || user.role === 'super_admin') return true
   if (view === 'overview') return true
   for (const g of NAV_GROUPS) {
     const item = g.items.find(i => i.key === view)
@@ -274,7 +275,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
     return [...preferredItems, ...remaining].slice(0, 4)
   }, [visibleNavFlat])
   const mobileTabKeys = useMemo(() => mobileTabs.map(t => t.key), [mobileTabs])
-  const isManager = adminMerchant?.role === 'admin'
+  const isManager = adminMerchant?.role === 'admin' || adminMerchant?.role === 'super_admin'
 
   function navTo(v: AdminView) {
     if (!canAccessView(adminMerchant, v)) {
@@ -509,9 +510,9 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         {view === 'merchants'   && (
           timelineCode
             ? <MerchantTimelineView merchantCode={timelineCode} onBack={closeTimeline} />
-            : <MerchantsView merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
+            : <MerchantsView currentUser={adminMerchant} merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
         )}
-        {view === 'employees'   && <EmployeesView merchants={merchants} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
+        {view === 'employees'   && <EmployeesView merchants={merchants} currentUser={adminMerchant} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
         {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
         {view === 'ai'          && <AiView merchants={merchantOnly} />}

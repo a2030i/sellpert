@@ -33,15 +33,19 @@ Deno.serve(async (req) => {
 
     // Caller must be a merchant (or admin acting on behalf — but we limit to merchant for self-service)
     const { data: callerMerchant } = await adminClient
-      .from('merchants').select('role,merchant_code')
+      .from('merchants').select('role,merchant_code,permissions')
       .eq('email', caller.email!).maybeSingle()
     if (!callerMerchant) return json({ error: 'Unauthorized' }, 401)
-    if (!['merchant', 'admin', 'super_admin'].includes(callerMerchant.role)) {
-      return json({ error: 'Only merchants/admins can add employees' }, 403)
-    }
 
     const body = await req.json()
     const action = body.action || 'create'
+    const callerCanManageStaff = callerMerchant.role === 'staff'
+      && Array.isArray(callerMerchant.permissions)
+      && callerMerchant.permissions.includes('create_staff')
+    if (!['merchant', 'admin', 'super_admin'].includes(callerMerchant.role)
+        && !(callerCanManageStaff && action === 'delete_auth')) {
+      return json({ error: 'Only merchants/admins can add employees' }, 403)
+    }
 
     // ── DELETE EMPLOYEE (auth user + merchants row) ─────────────────────
     // Ownership is verified HERE because this endpoint is directly callable:
@@ -56,8 +60,11 @@ Deno.serve(async (req) => {
 
       const callerIsAdmin = ['admin', 'super_admin'].includes(callerMerchant.role)
       const ownsTarget = emp.role === 'employee' && emp.owner_merchant_code === callerMerchant.merchant_code
-      if (!callerIsAdmin && !ownsTarget) return json({ error: 'Forbidden: not your employee' }, 403)
-      if (callerIsAdmin && !['employee', 'admin'].includes(emp.role)) {
+      if (callerCanManageStaff && emp.role !== 'staff') {
+        return json({ error: 'Forbidden: staff accounts can only delete platform staff' }, 403)
+      }
+      if (!callerIsAdmin && !callerCanManageStaff && !ownsTarget) return json({ error: 'Forbidden: not your employee' }, 403)
+      if (callerIsAdmin && !['employee', 'staff', 'admin'].includes(emp.role)) {
         return json({ error: 'Forbidden: cannot delete this account type' }, 403)
       }
       if (emp.role === 'admin') {

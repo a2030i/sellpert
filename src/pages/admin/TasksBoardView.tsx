@@ -66,7 +66,7 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus]       = useState<string>('all')
   const [filterPriority, setFilterPriority]   = useState<string>('all')
-  const [filterAssigned, setFilterAssigned]   = useState<string>(currentUserRole === 'employee' ? (currentUserCode || '') : 'all')
+  const [filterAssigned, setFilterAssigned]   = useState<string>(currentUserRole === 'staff' ? (currentUserCode || '') : 'all')
   const [filterMerchant, setFilterMerchant]   = useState<string>('all')
   const [filterPlatform, setFilterPlatform]   = useState<string>('all')
   const [view, setView]                       = useState<'kanban' | 'list'>('kanban')
@@ -75,7 +75,7 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
   const [editing, setEditing]                 = useState<Task | null>(null)
   const PAGE_SIZE = 20
 
-  const isEmployee = currentUserRole === 'employee'
+  const isEmployee = currentUserRole === 'staff'
   const merchantOnly = merchants.filter(m => m.role === 'merchant')
 
   useEffect(() => { load() /* eslint-disable-line */ }, [filterStatus, filterPriority, filterAssigned, filterMerchant, filterPlatform])
@@ -90,7 +90,7 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
     if (filterPlatform !== 'all') query = query.eq('platform', filterPlatform)
     const [{ data }, staffRes] = await Promise.all([
       query,
-      supabase.from('merchants').select('merchant_code, name, role, email').in('role', ['admin', 'employee']),
+      supabase.from('merchants').select('merchant_code, name, role, email').in('role', ['admin', 'super_admin', 'staff']),
     ])
     setTasks((data as Task[]) || [])
     setStaff((staffRes.data as Merchant[]) || [])

@@ -32,6 +32,9 @@ export async function authorizeMerchantSync(
   if (['admin', 'super_admin'].includes(caller.role)) {
     return { kind: 'staff', email: user.email }
   }
+  if (caller.role === 'staff' && permissionEnabled(caller.permissions, 'upload_files')) {
+    return { kind: 'staff', email: user.email }
+  }
 
   if (caller.role === 'employee') {
     const canIntegrate = permissionEnabled(caller.permissions, 'integrations')

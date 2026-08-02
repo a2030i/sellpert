@@ -24,8 +24,12 @@ Deno.serve(async (req) => {
 
     // Check caller is admin/super_admin
     const { data: callerMerchant } = await adminClient
-      .from('merchants').select('role').eq('email', caller.email!).maybeSingle()
-    if (!callerMerchant || !['admin', 'super_admin'].includes(callerMerchant.role)) {
+      .from('merchants').select('role,permissions').eq('email', caller.email!).maybeSingle()
+    const callerIsManager = !!callerMerchant && ['admin', 'super_admin'].includes(callerMerchant.role)
+    const callerCanCreateStaff = callerMerchant?.role === 'staff'
+      && Array.isArray(callerMerchant.permissions)
+      && callerMerchant.permissions.includes('create_staff')
+    if (!callerIsManager && !callerCanCreateStaff) {
       return json({ error: 'Forbidden: admin only' }, 403)
     }
 
@@ -33,9 +37,12 @@ Deno.serve(async (req) => {
     const { name, email, password, currency = 'SAR', role = 'merchant', whatsapp_phone } = body
 
     // الدور من جسم الطلب يجب أن يكون ضمن قائمة مسموحة — منع حقن super_admin
-    const ALLOWED_ROLES = ['merchant', 'admin', 'employee']
+    const ALLOWED_ROLES = ['merchant', 'admin', 'staff']
     if (!ALLOWED_ROLES.includes(role)) {
       return json({ error: 'Invalid role' }, 400)
+    }
+    if (!callerIsManager && role !== 'staff') {
+      return json({ error: 'Forbidden: staff accounts cannot create managers or merchants' }, 403)
     }
 
     if (!name?.trim() || !email?.trim() || !password?.trim()) {
@@ -82,7 +89,7 @@ Deno.serve(async (req) => {
     }
 
     // Generate merchant code
-    const prefix = role === 'merchant' ? 'M' : role === 'employee' ? 'E' : 'A'
+    const prefix = role === 'merchant' ? 'M' : role === 'staff' ? 'S' : 'A'
     const code   = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`
 
     // Insert merchants record
@@ -118,4 +125,3 @@ function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
-

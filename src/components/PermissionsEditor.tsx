@@ -7,11 +7,12 @@ import { toastOk, toastErr } from './Toast'
 
 interface Props {
   employee: Merchant
+  canPromoteToManager?: boolean
   onClose: () => void
   onSaved: () => void
 }
 
-export default function PermissionsEditor({ employee, onClose, onSaved }: Props) {
+export default function PermissionsEditor({ employee, canPromoteToManager = false, onClose, onSaved }: Props) {
   const [perms, setPerms] = useState<Set<PermKey>>(getPermissions(employee))
   const [department, setDepartment] = useState<Department>(((employee as any).department || 'custom') as Department)
   const [saving, setSaving] = useState(false)
@@ -48,7 +49,7 @@ export default function PermissionsEditor({ employee, onClose, onSaved }: Props)
   async function save() {
     setSaving(true)
     const arr = Array.from(perms)
-    const role = department === 'manager' ? 'admin' : 'employee'
+    const role = department === 'manager' && canPromoteToManager ? 'admin' : 'staff'
     const { error } = await supabase.from('merchants')
       .update({ permissions: arr, department, role })
       .eq('id', employee.id)
@@ -81,7 +82,7 @@ export default function PermissionsEditor({ employee, onClose, onSaved }: Props)
             <Sparkles size={11} /> ابدأ من قالب جاهز (يمكنك التعديل بعدها)
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {(Object.keys(DEPT_LABELS) as Department[]).map(d => (
+            {(Object.keys(DEPT_LABELS) as Department[]).filter(d => d !== 'manager' || canPromoteToManager).map(d => (
               <button key={d} onClick={() => applyTemplate(d)} style={{
                 padding: '5px 10px', fontSize: 11, fontWeight: 700,
                 background: department === d ? 'var(--accent-strong)' : 'var(--surface)',

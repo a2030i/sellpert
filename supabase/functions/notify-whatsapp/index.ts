@@ -51,11 +51,14 @@ Deno.serve(async (req) => {
       const { data: callerRow } = await db.from('merchants')
         .select('role, merchant_code, owner_merchant_code, permissions, is_active').eq('email', user.email).maybeSingle()
       const isStaff = callerRow && ['admin', 'super_admin'].includes(callerRow.role)
+      const platformStaffAllowed = callerRow?.role === 'staff'
+        && Array.isArray(callerRow.permissions)
+        && (callerRow.permissions.includes('whatsapp_send') || callerRow.permissions.includes('whatsapp_bulk'))
       const effectiveCode = callerRow?.role === 'employee' ? callerRow.owner_merchant_code : callerRow?.merchant_code
       const requiredPermission = eventPermission(event)
       const employeeAllowed = callerRow?.role !== 'employee' || permissionEnabled(callerRow.permissions, requiredPermission)
       const isSelf  = effectiveCode === merchant_code && employeeAllowed
-      if (!callerRow || callerRow.is_active === false || (!isStaff && !isSelf)) {
+      if (!callerRow || callerRow.is_active === false || (!isStaff && !platformStaffAllowed && !isSelf)) {
         return json({ error: 'Forbidden' }, 403)
       }
     }

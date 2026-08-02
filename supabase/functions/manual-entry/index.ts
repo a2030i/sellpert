@@ -23,10 +23,13 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: 'Unauthorized' }, 401)
 
     const { data: caller } = await callerClient
-      .from('merchants').select('role').eq('email', user.email!).single()
+      .from('merchants').select('role,permissions').eq('email', user.email!).single()
 
     const allowed = ['admin', 'super_admin']
-    if (!caller || !allowed.includes(caller.role))
+    const staffCanEnter = caller?.role === 'staff'
+      && Array.isArray(caller.permissions)
+      && caller.permissions.includes('upload_files')
+    if (!caller || (!allowed.includes(caller.role) && !staffCanEnter))
       return json({ error: 'Forbidden' }, 403)
 
     const db   = createClient(SUPABASE_URL, SERVICE_KEY)

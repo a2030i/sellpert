@@ -4,8 +4,9 @@ import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
 import BulkOpsBar from '../../components/BulkOpsBar'
 import { Activity } from 'lucide-react'
+import { hasPermission } from '../../lib/permissions'
 
-export default function MerchantsView({ merchants, gmvByMerchant, credentials, onRefresh, onImpersonate, onOpenTimeline }: any) {
+export default function MerchantsView({ currentUser, merchants, gmvByMerchant, credentials, onRefresh, onImpersonate, onOpenTimeline }: any) {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant', whatsapp_phone: '' })
@@ -14,6 +15,12 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [editRole, setEditRole] = useState<{ id: string; role: string } | null>(null)
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
+  const canCreate = hasPermission(currentUser, 'create_merchants')
+  const canEdit = hasPermission(currentUser, 'edit_merchants')
+  const canDelete = hasPermission(currentUser, 'delete_merchants')
+  const canImpersonate = hasPermission(currentUser, 'impersonate')
+  const canUseCrm = hasPermission(currentUser, 'crm')
+  const canBulkOperate = canEdit || canDelete
 
   function toggleSelect(code: string) {
     setSelectedCodes(s => {
@@ -124,10 +131,10 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
         <input style={{ ...S.searchInput, flex: 1 }} placeholder="ابحث بالاسم أو الإيميل أو الكود..." value={search} onChange={e => setSearch(e.target.value)} />
-        <button style={S.addBtn} onClick={() => { setShowAdd(!showAdd); setMsg(null) }}>{showAdd ? '✕ إلغاء' : '+ إضافة'}</button>
+        {canCreate && <button style={S.addBtn} onClick={() => { setShowAdd(!showAdd); setMsg(null) }}>{showAdd ? '✕ إلغاء' : '+ إضافة'}</button>}
       </div>
 
-      {showAdd && (
+      {showAdd && canCreate && (
         <div style={{ ...S.formCard, marginBottom: 16 }}>
           <div style={S.formTitle}>إضافة تاجر جديد</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: 8, background: 'var(--surface2)', borderRadius: 6 }}>
@@ -175,11 +182,11 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
         ))}
       </div>
 
-      <BulkOpsBar
+      {canBulkOperate && <BulkOpsBar
         selected={Array.from(selectedCodes)}
         onClear={() => setSelectedCodes(new Set())}
         onDone={() => { setSelectedCodes(new Set()); onRefresh() }}
-      />
+      />}
 
       <div style={S.tableCard}>
         <div style={{ overflowX: 'auto' }}>
@@ -187,11 +194,11 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
             <thead>
               <tr>
                 <th style={{ ...S.th, width: 30 }}>
-                  <input
+                  {canBulkOperate && <input
                     type="checkbox"
                     checked={filtered.length > 0 && filtered.every((m: Merchant) => selectedCodes.has(m.merchant_code))}
                     onChange={() => toggleSelectAll(filtered.map((m: Merchant) => m.merchant_code))}
-                  />
+                  />}
                 </th>
                 {['التاجر', 'البريد الإلكتروني', 'الكود', 'الدور', 'العملة', 'تكاملات', 'GMV الكلي', 'تاريخ الانضمام', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}
               </tr>
@@ -202,11 +209,11 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
               ) : filtered.map((m: Merchant) => (
                 <tr key={m.id} style={S.tr}>
                   <td style={S.td}>
-                    <input
+                    {canBulkOperate && <input
                       type="checkbox"
                       checked={selectedCodes.has(m.merchant_code)}
                       onChange={() => toggleSelect(m.merchant_code)}
-                    />
+                    />}
                   </td>
                   <td style={S.td}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -228,7 +235,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                         <button style={S.miniBtn} onClick={() => setEditRole(null)}>✕</button>
                       </div>
                     ) : (
-                      <span style={{ ...S.roleBadge, background: m.role === 'merchant' ? 'rgba(0,229,176,0.1)' : m.role === 'employee' ? 'rgba(245,158,11,0.1)' : 'rgba(15,149,140,0.15)', color: m.role === 'merchant' ? 'var(--accent2)' : m.role === 'employee' ? '#f59e0b' : 'var(--accent)', cursor: 'pointer' }} onClick={() => setEditRole({ id: m.id, role: m.role })}>
+                      <span style={{ ...S.roleBadge, background: 'rgba(0,229,176,0.1)', color: 'var(--accent2)', cursor: canEdit ? 'pointer' : 'default' }} onClick={() => canEdit && setEditRole({ id: m.id, role: m.role })}>
                         {m.role === 'merchant' ? 'تاجر' : m.role === 'employee' ? 'موظف' : 'مدير'}
                       </span>
                     )}
@@ -247,7 +254,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                       </div>
                     ) : (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        {onOpenTimeline && (
+                        {onOpenTimeline && canUseCrm && (
                           <button
                             style={{ ...S.miniBtn, background: 'rgba(0,184,148,0.1)', color: 'var(--accent2)', border: '1px solid rgba(0,184,148,0.25)' }}
                             onClick={() => onOpenTimeline(m.merchant_code)}
@@ -256,7 +263,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                             <Activity size={11} style={{ display: 'inline-block', verticalAlign: 'middle' }} /> السجل
                           </button>
                         )}
-                        {m.role === 'merchant' || m.role === 'employee' ? (
+                        {m.role === 'merchant' && canImpersonate ? (
                           <button
                             style={{ ...S.miniBtn, background: 'rgba(108,92,231,0.1)', color: 'var(--accent)', border: '1px solid rgba(108,92,231,0.25)' }}
                             onClick={() => impersonate(m)}
@@ -265,7 +272,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                             👁 عرض
                           </button>
                         ) : null}
-                        {m.role === 'merchant' && (
+                        {m.role === 'merchant' && canDelete && (
                           <button
                             style={{ ...S.miniBtn, background: 'rgba(232,64,64,0.08)', color: 'var(--red)', border: '1px solid rgba(232,64,64,0.25)' }}
                             onClick={() => wipeData(m)}
@@ -274,7 +281,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                             🧹 مسح البيانات
                           </button>
                         )}
-                        <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>🗑 حذف</button>
+                        {canDelete && <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>🗑 حذف</button>}
                       </div>
                     )}
                   </td>
