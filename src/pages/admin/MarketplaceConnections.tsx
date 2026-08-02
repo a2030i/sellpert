@@ -3,6 +3,7 @@ import { CheckCircle2, ExternalLink, KeyRound, Loader2, PlugZap, RefreshCw, Shie
 import { supabase } from '../../lib/supabase'
 import type { Merchant } from '../../lib/supabase'
 import { S } from './adminShared'
+import TrendyolActionCenter from '../../components/TrendyolActionCenter'
 
 type Platform = 'amazon' | 'noon' | 'trendyol'
 type FormState = {
@@ -176,6 +177,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const [verified, setVerified] = useState(false)
   const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null } | null>(null)
   const [syncDetails, setSyncDetails] = useState<any>(null)
+  const [showActions, setShowActions] = useState(false)
 
   const syncInProgress = syncJob?.status === 'pending' || syncJob?.status === 'running'
 
@@ -373,6 +375,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>
               <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}>{busy === 'delete' ? <Loader2 size={13} /> : <Trash2 size={13} />}</button>
             </div>
+            {status.is_active ? <button style={{ ...S.saveBtn, width:'100%', justifyContent:'center', marginTop:8, background:meta.color }} onClick={() => setShowActions(true)}><PlugZap size={14}/> مركز عمليات Trendyol الكامل</button> : null}
           </div>
         ) : (
           <div>
@@ -393,6 +396,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
           </div>
         )}
       </div>
+      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => setShowActions(false)} /> : null}
     </article>
   )
 }
