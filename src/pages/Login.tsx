@@ -82,7 +82,7 @@ const styles: Record<string, React.CSSProperties> = {
   glow: {
     position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)',
     width: 600, height: 300,
-    background: 'radial-gradient(ellipse, rgba(124,107,255,0.12) 0%, transparent 70%)',
+    background: 'radial-gradient(ellipse, rgba(15,149,140,0.12) 0%, transparent 70%)',
     pointerEvents: 'none',
   },
   card: {
@@ -100,7 +100,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 24, fontWeight: 800, color: '#fff',
     margin: '0 auto 12px',
-    boxShadow: '0 8px 24px rgba(124,107,255,0.4)',
+    boxShadow: '0 8px 24px rgba(15,149,140,0.4)',
   },
   logoText: {
     fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px',
@@ -123,10 +123,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   btn: {
     width: '100%', padding: '13px',
-    background: 'linear-gradient(135deg, var(--accent), #a594ff)',
+    background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
     border: 'none', borderRadius: 10, color: '#fff',
     fontSize: 14, fontWeight: 700, transition: 'opacity 0.2s',
-    boxShadow: '0 8px 24px rgba(124,107,255,0.35)',
+    boxShadow: '0 8px 24px rgba(15,149,140,0.35)',
     marginTop: 4,
   },
   footer: { fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 20 },

@@ -26,7 +26,7 @@ interface Props {
 }
 
 const NOTE_TYPES = [
-  { value: 'note', label: 'ملاحظة', Icon: MessageSquare, color: '#7c6bff' },
+  { value: 'note', label: 'ملاحظة', Icon: MessageSquare, color: '#0f958c' },
   { value: 'call', label: 'مكالمة', Icon: Phone, color: '#00b894' },
   { value: 'email', label: 'بريد', Icon: Mail, color: '#f0a800' },
   { value: 'whatsapp', label: 'واتساب', Icon: MessageSquare, color: '#25d366' },
@@ -264,7 +264,7 @@ function getKindMeta(item: TimelineItem) {
     if (found) return found
     return NOTE_TYPES[0]
   }
-  if (item.kind === 'task') return { label: 'مهمة', Icon: FileText, color: '#7c6bff', value: 'task' }
+  if (item.kind === 'task') return { label: 'مهمة', Icon: FileText, color: '#0f958c', value: 'task' }
   if (item.kind === 'upload') return { label: 'رفع ملف', Icon: Upload, color: '#00b894', value: 'upload' }
   if (item.kind === 'notification') return { label: 'إشعار', Icon: Bell, color: '#f0a800', value: 'notification' }
   return { label: '', Icon: MessageSquare, color: 'var(--text3)', value: '' }

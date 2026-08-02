@@ -32,7 +32,7 @@ export const S: Record<string, React.CSSProperties> = {
   },
   logoIcon: {
     width: 40, height: 40, borderRadius: 12,
-    background: 'var(--grad-brand)',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
   },
@@ -49,7 +49,7 @@ export const S: Record<string, React.CSSProperties> = {
     transition: 'all 0.15s', fontSize: 13, fontWeight: 500,
     borderRadius: 10,
   },
-  navActive: { color: 'var(--accent-soft)', background: 'rgba(124,107,255,0.18)', fontWeight: 700 },
+  navActive: { color: '#d9fffb', background: 'rgba(15,149,140,0.20)', fontWeight: 700 },
   navIcon: { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' as const },
   groupHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -61,7 +61,7 @@ export const S: Record<string, React.CSSProperties> = {
   adminInfo: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   adminAvatar: {
     width: 36, height: 36, borderRadius: 10,
-    background: 'var(--grad-brand)',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
   },
@@ -106,7 +106,7 @@ export const S: Record<string, React.CSSProperties> = {
   tr: { borderBottom: '1px solid var(--border)' },
   td: { padding: '12px 16px', fontSize: 13, color: 'var(--text)' },
   badge: { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', fontSize: 11, padding: '3px 10px', borderRadius: 20, fontFamily: 'monospace' },
-  codeTag: { background: 'rgba(124,107,255,0.15)', color: 'var(--accent)', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', fontWeight: 700 },
+  codeTag: { background: 'var(--accent-12)', color: 'var(--accent-strong)', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', fontWeight: 700 },
   roleBadge: { padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
   platformTag: { padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600 },
   searchInput: {
@@ -114,7 +114,7 @@ export const S: Record<string, React.CSSProperties> = {
     padding: '10px 14px', borderRadius: 10, fontSize: 13, outline: 'none',
   },
   addBtn: {
-    background: 'linear-gradient(135deg,var(--accent-strong),var(--accent))', border: 'none', color: '#fff',
+    background: 'var(--accent-strong)', border: 'none', color: '#fff',
     padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
     boxShadow: 'var(--e-accent)', cursor: 'pointer',
   },

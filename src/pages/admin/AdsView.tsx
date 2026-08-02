@@ -119,7 +119,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
             <KpiCard label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={20} />} />
             <KpiCard label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={20} />} />
             <KpiCard label="ROAS"  value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
-            <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA')} sub={`${totals.orders} طلب`} color="#7c6bff" icon={<Megaphone size={20} />} />
+            <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA')} sub={`${totals.orders} طلب`} color="#0f958c" icon={<Megaphone size={20} />} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -186,7 +186,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                   {grouped.map((g, i) => {
                     const r = g.spend > 0 ? g.revenue / g.spend : 0
                     const ct = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0
-                    const color = PLATFORM_COLORS[g.platform] || '#7c6bff'
+                    const color = PLATFORM_COLORS[g.platform] || '#0f958c'
                     return (
                       <tr key={i} style={S.tr}>
                         <td style={{ ...S.td, fontSize: 12, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.key}>{g.key}</td>

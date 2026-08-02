@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useEffect } from 'react'
 import type { Merchant } from '../lib/supabase'
@@ -129,11 +129,11 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
           <span style={{
             padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700,
             background: merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
-                        merchant?.subscription_plan === 'pro'   ? 'rgba(124,107,255,0.15)' : 'var(--surface2)',
+                        merchant?.subscription_plan === 'pro'   ? 'rgba(15,149,140,0.15)' : 'var(--surface2)',
             color: merchant?.subscription_plan === 'elite' ? 'var(--warning-text)' :
                    merchant?.subscription_plan === 'pro'   ? 'var(--accent)' : 'var(--text2)',
             border: `1px solid ${merchant?.subscription_plan === 'elite' ? 'var(--warning-bg)' :
-                                  merchant?.subscription_plan === 'pro'   ? 'rgba(124,107,255,0.3)' : 'var(--border)'}`,
+                                  merchant?.subscription_plan === 'pro'   ? 'rgba(15,149,140,0.3)' : 'var(--border)'}`,
           }}>
             {plan.label}
           </span>

@@ -90,8 +90,8 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
         {/* Icon */}
         <div style={{
           width: 80, height: 80, borderRadius: 20,
-          background: 'linear-gradient(135deg, rgba(124,107,255,0.2), rgba(0,229,176,0.1))',
-          border: '1px solid rgba(124,107,255,0.3)',
+          background: 'linear-gradient(135deg, rgba(15,149,140,0.2), rgba(0,229,176,0.1))',
+          border: '1px solid rgba(15,149,140,0.3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 40, margin: '0 auto 20px',
         }}>
@@ -140,11 +140,11 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
                 onClick={finish}
                 style={{
                   flex: 1,
-                  background: 'linear-gradient(135deg, var(--accent), #a594ff)',
+                  background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
                   border: 'none', color: '#fff',
                   padding: '12px', borderRadius: 12, fontSize: 13, fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(124,107,255,0.4)',
+                  boxShadow: '0 4px 16px rgba(15,149,140,0.4)',
                 }}
               >
                 🚀 ترقية الباقة
@@ -155,11 +155,11 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
               onClick={() => setStep(s => s + 1)}
               style={{
                 width: '100%',
-                background: 'linear-gradient(135deg, var(--accent), #a594ff)',
+                background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
                 border: 'none', color: '#fff',
                 padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(124,107,255,0.35)',
+                boxShadow: '0 4px 16px rgba(15,149,140,0.35)',
               }}
             >
               التالي →

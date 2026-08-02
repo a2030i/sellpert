@@ -1,11 +1,11 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { getPlanKey, PLANS as PLAN_CONFIG } from '../lib/subscription'
 
 const PLANS = [
   { key: 'free',       label: 'مجاني',           price: 0,   channels: ['أمازون', 'نون', 'تراندايول'],           color: '#5a5a7a' },
-  { key: 'salla',      label: 'باقة سلة',      price: 99,  channels: ['سلة'],                                    color: '#7c6bff' },
+  { key: 'salla',      label: 'باقة سلة',      price: 99,  channels: ['سلة'],                                    color: '#0f958c' },
   { key: 'growth',     label: 'باقة النمو',     price: 299, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#00e5b0' },
   { key: 'pro',        label: 'باقة المحترف',   price: 599, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#ff9900' },
   { key: 'elite',      label: 'باقة النخبة',    price: 799, channels: ['سلة', 'أمازون', 'نون', 'تراندايول'],    color: '#e5c100' },
@@ -232,7 +232,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
           {selectedPlan && (
             <>
               {/* Step 2: Bank details */}
-              <div style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(124,107,255,0.07)', border: '1px solid rgba(124,107,255,0.2)', marginBottom: 16 }}>
+              <div style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(15,149,140,0.07)', border: '1px solid rgba(15,149,140,0.2)', marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>2. حوّل المبلغ إلى الحساب التالي</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
@@ -277,7 +277,7 @@ export default function Billing({ merchant }: { merchant: Merchant | null }) {
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={submitPaymentRequest} disabled={submitting}
-                  style={{ flex: 1, padding: '13px', borderRadius: 12, background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                  style={{ flex: 1, padding: '13px', borderRadius: 12, background: 'linear-gradient(135deg,var(--accent),#55bdb5)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
                   {submitting ? '⏳ جارٍ الإرسال...' : '📤 إرسال طلب التفعيل'}
                 </button>
                 <button onClick={() => { setShowPayForm(false); setMsg(null) }}

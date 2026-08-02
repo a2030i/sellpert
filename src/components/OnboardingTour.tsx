@@ -67,8 +67,8 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(124,107,255,0.06), rgba(0,184,148,0.04))',
-      border: '1px solid rgba(124,107,255,0.2)',
+      background: 'linear-gradient(135deg, rgba(15,149,140,0.06), rgba(0,184,148,0.04))',
+      border: '1px solid rgba(15,149,140,0.2)',
       borderRadius: 14, padding: 18, marginBottom: 18, position: 'relative',
     }}>
       <button aria-label="إغلاق دليل البدء" onClick={close} style={{ position: 'absolute', top: 10, left: 10, background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4 }}>
@@ -80,7 +80,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{completed} من {total} خطوات</div>
         </div>
         <div style={{ flex: 1, maxWidth: 220, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #7c6bff, var(--green))', borderRadius: 4, transition: 'width 0.6s' }} />
+          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #0f958c, var(--green))', borderRadius: 4, transition: 'width 0.6s' }} />
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>

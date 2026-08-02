@@ -11,7 +11,7 @@ export function InsightHint({ hints }: { hints: Hint[] }) {
   const visible = hints.filter((_, i) => !dismissed.has(i))
   if (visible.length === 0) return null
   const h = visible[idx % visible.length]
-  const colors = h.type === 'warn' ? '#ff9900' : h.type === 'good' ? '#00b894' : '#7c6bff'
+  const colors = h.type === 'warn' ? '#ff9900' : h.type === 'good' ? '#00b894' : '#0f958c'
 
   return (
     <div style={{

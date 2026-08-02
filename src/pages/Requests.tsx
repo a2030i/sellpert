@@ -21,7 +21,7 @@ const CATEGORIES: { key: string; label: string; icon: string; needsPlatform?: bo
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending:     { label: '⏳ قيد المراجعة',   color: '#ffd166' },
-  in_progress: { label: '⚙ قيد التنفيذ',     color: '#7c6bff' },
+  in_progress: { label: '⚙ قيد التنفيذ',     color: '#0f958c' },
   review:      { label: '👀 ينتظر التأكيد',  color: '#4cc9f0' },
   blocked:     { label: '⛔ متوقّف',         color: '#e84040' },
   done:        { label: '✓ مكتمل',           color: '#00b894' },
@@ -31,7 +31,7 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 const PRIORITIES: any = {
   urgent: { label: 'عاجل',    color: 'var(--red)' },
   high:   { label: 'مرتفع',   color: 'var(--gold)' },
-  medium: { label: 'متوسط',   color: '#7c6bff' },
+  medium: { label: 'متوسط',   color: '#0f958c' },
   low:    { label: 'منخفض',   color: '#888' },
 }
 
@@ -111,7 +111,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
                 </div>
                 {t.note && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8, lineHeight: 1.6, paddingRight: 26 }}>{String(t.note).slice(0, 150)}{String(t.note).length > 150 ? '…' : ''}</div>}
                 {t.admin_note && t.status !== 'pending' && (
-                  <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(124,107,255,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--text2)' }}>
+                  <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(15,149,140,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--text2)' }}>
                     <b style={{ color: 'var(--accent)' }}>رد الفريق:</b> {String(t.admin_note).slice(0, 200)}
                   </div>
                 )}
@@ -272,7 +272,7 @@ function TicketDetailModal({ ticket, merchant, onClose }: { ticket: any; merchan
         )}
 
         {ticket.admin_note && (
-          <div style={{ padding: '12px 14px', background: 'rgba(124,107,255,0.08)', border: '1px solid rgba(124,107,255,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
+          <div style={{ padding: '12px 14px', background: 'rgba(15,149,140,0.08)', border: '1px solid rgba(15,149,140,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>رد فريق Sellpert:</div>
             {ticket.admin_note}
           </div>
@@ -286,7 +286,7 @@ function TicketDetailModal({ ticket, merchant, onClose }: { ticket: any; merchan
             {comments.map(c => (
               <div key={c.id} style={{
                 padding: '8px 12px', borderRadius: 8, fontSize: 12,
-                background: c.author_role === 'merchant' ? 'rgba(124,107,255,0.06)' : 'var(--surface2)',
+                background: c.author_role === 'merchant' ? 'rgba(15,149,140,0.06)' : 'var(--surface2)',
                 alignSelf: c.author_role === 'merchant' ? 'flex-end' : 'flex-start',
                 maxWidth: '85%',
               }}>

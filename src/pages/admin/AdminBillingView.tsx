@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 
@@ -7,7 +7,7 @@ const PLAN_LABELS: Record<string, string> = {
   pro: 'باقة المحترف', enterprise: 'المؤسسات',
 }
 const PLAN_COLORS: Record<string, string> = {
-  free: '#888', salla: '#7c6bff', growth: '#00e5b0', pro: '#ff9900', enterprise: '#f27a1a',
+  free: '#888', salla: '#0f958c', growth: '#00e5b0', pro: '#ff9900', enterprise: '#f27a1a',
 }
 
 function RequestCard({ req, onConfirm, onReject }: { req: any; onConfirm: () => void; onReject: () => void }) {

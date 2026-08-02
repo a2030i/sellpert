@@ -220,7 +220,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
         {!editing && status ? (
           <div>
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>Seller ID</span><code>{status.seller_id}</code></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>{platform === 'trendyol' ? 'معرّف البائع (معرّف الكيان)' : 'Seller ID'}</span><code>{status.seller_id}</code></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر اختبار</span><span>{formatDate(status.last_tested_at)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
             </div>
@@ -231,10 +231,10 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
           </div>
         ) : (
           <div>
-            <Field label="Seller / Supplier ID" value={form.seller_id} onChange={value => update('seller_id', value)} />
+            <Field label={platform === 'trendyol' ? 'معرّف البائع (معرّف الكيان)' : 'Seller / Supplier ID'} value={form.seller_id} onChange={value => update('seller_id', value)} />
             {platform === 'trendyol' ? <>
-              <Field label="API Key" secret value={form.api_key} onChange={value => update('api_key', value)} />
-              <Field label="API Secret" secret value={form.api_secret} onChange={value => update('api_secret', value)} />
+              <Field label="مفتاح API" secret value={form.api_key} onChange={value => update('api_key', value)} />
+              <Field label="سر API" secret value={form.api_secret} onChange={value => update('api_secret', value)} />
             </> : null}
             {platform === 'amazon' ? <>
               <Field label="LWA Client ID" secret value={form.api_key} onChange={value => update('api_key', value)} />

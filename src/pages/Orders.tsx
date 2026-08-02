@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
@@ -11,7 +11,7 @@ const ORDER_PAGE_SIZE = 50
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   pending:    { label: 'معلق',      color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
   processing: { label: 'قيد التنفيذ', color: 'var(--info-text)', bg: 'var(--info-bg)' },
-  shipped:    { label: 'تم الشحن',  color: '#7c6bff', bg: 'rgba(124,107,255,0.15)' },
+  shipped:    { label: 'تم الشحن',  color: '#0f958c', bg: 'rgba(15,149,140,0.15)' },
   delivered:  { label: 'تم التسليم', color: 'var(--success-text)', bg: 'var(--success-bg)' },
   cancelled:  { label: 'ملغي',      color: 'var(--danger-text)', bg: 'var(--danger-bg)' },
   returned:   { label: 'مُرتجع',   color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
@@ -234,7 +234,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       {/* KPIs */}
       <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>
         {[
-          { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'💰', color:'#7c6bff' },
+          { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'💰', color:'#0f958c' },
           { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'📦', color:'var(--success-text)' },
           { label:'متوسط الطلب',      value: fmt(aov),                         icon:'🛒', color:'var(--warning-text)' },
           { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'✅', color:'var(--success-text)' },
@@ -342,8 +342,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               {/* Platform cards */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:16, marginBottom:20 }}>
                 {platformCompare.map(p => (
-                  <div key={p.platform} style={{ ...S.card, padding:20, borderTop:`3px solid ${PLATFORM_COLORS[p.platform]||'#7c6bff'}` }}>
-                    <div style={{ fontSize:16, fontWeight:800, marginBottom:14, color:PLATFORM_COLORS[p.platform]||'#7c6bff' }}>
+                  <div key={p.platform} style={{ ...S.card, padding:20, borderTop:`3px solid ${PLATFORM_COLORS[p.platform]||'#0f958c'}` }}>
+                    <div style={{ fontSize:16, fontWeight:800, marginBottom:14, color:PLATFORM_COLORS[p.platform]||'#0f958c' }}>
                       {p.name}
                     </div>
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -374,7 +374,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
                     <Bar dataKey="revenue" radius={[0,6,6,0]}>
                       {platformCompare.map((p,i) => (
-                        <Cell key={i} fill={PLATFORM_COLORS[p.platform]||'#7c6bff'} />
+                        <Cell key={i} fill={PLATFORM_COLORS[p.platform]||'#0f958c'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -399,7 +399,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <XAxis dataKey="date" tick={{ fill:'var(--text3)', fontSize:10 }} />
                   <YAxis tick={{ fill:'var(--text3)', fontSize:10 }} tickFormatter={v => v>=1000?(v/1000).toFixed(0)+'k':v} />
                   <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, color:'var(--text)' }} formatter={(v:number) => [fmt(v), 'الإيراد']} />
-                  <Line type="monotone" dataKey="revenue" stroke="#7c6bff" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="revenue" stroke="#0f958c" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             )}

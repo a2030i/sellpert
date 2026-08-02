@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase, type Merchant, type PerformanceData, type AiInsight } from '../lib/supabase'
 import { useCallback } from 'react'
 import { fetchAll } from '../lib/db'
@@ -188,8 +188,8 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
           {/* Saudi Arabia border */}
           <polygon
             points={polyPoints}
-            fill="rgba(124,107,255,0.08)"
-            stroke="rgba(124,107,255,0.35)"
+            fill="rgba(15,149,140,0.08)"
+            stroke="rgba(15,149,140,0.35)"
             strokeWidth={1 / zoom}
             strokeLinejoin="round"
           />
@@ -201,7 +201,7 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
             const isActive = orders > 0
             const r       = isActive ? Math.max(4, Math.sqrt(orders / maxOrders) * 22) : 3
             const isHov   = hovered === city.key
-            const color   = isActive ? '#7c6bff' : '#3a3a5a'
+            const color   = isActive ? '#0f958c' : '#3a3a5a'
 
             return (
               <g key={city.key}
@@ -214,7 +214,7 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
                 )}
                 <circle
                   cx={cx} cy={cy} r={isHov ? r + 2 : r}
-                  fill={isHov ? '#a594ff' : color}
+                  fill={isHov ? '#55bdb5' : color}
                   opacity={isActive ? 0.9 : 0.4}
                   filter={isActive ? 'url(#glow)' : undefined}
                   style={{ transition: 'r 0.2s, opacity 0.2s' }}
@@ -235,7 +235,7 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
                     x={cx} y={cy + r + 10 / zoom}
                     textAnchor="middle"
                     fontSize={9 / zoom}
-                    fill="#7c6bff"
+                    fill="#0f958c"
                     fontFamily="monospace"
                   >
                     {orders}
@@ -249,9 +249,9 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
         {/* Label — hover tooltip */}
         {hovered && hoveredCity && (
           <g>
-            <rect x="10" y="470" width="200" height="44" rx="8" fill="#1e1b3a" stroke="rgba(124,107,255,0.4)" strokeWidth="1" />
+            <rect x="10" y="470" width="200" height="44" rx="8" fill="#1e1b3a" stroke="rgba(15,149,140,0.4)" strokeWidth="1" />
             <text x="20" y="488" fontSize="12" fill="#eeeef5" fontFamily="inherit" fontWeight="700">{hoveredCity.key}</text>
-            <text x="20" y="504" fontSize="11" fill="#7c6bff" fontFamily="monospace">{hoveredOrders.toLocaleString()} طلب</text>
+            <text x="20" y="504" fontSize="11" fill="#0f958c" fontFamily="monospace">{hoveredOrders.toLocaleString()} طلب</text>
           </g>
         )}
       </svg>
@@ -263,14 +263,14 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
           return (
             <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)' }}>
               <svg width={r * 2 + 4} height={r * 2 + 4} style={{ display: 'block' }}>
-                <circle cx={r + 2} cy={r + 2} r={r} fill="rgba(124,107,255,0.5)" />
+                <circle cx={r + 2} cy={r + 2} r={r} fill="rgba(15,149,140,0.5)" />
               </svg>
               {n}+ طلب
             </div>
           )
         })}
         <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ display: 'inline-block', width: 10, height: 2, background: 'rgba(124,107,255,0.35)' }} />
+          <span style={{ display: 'inline-block', width: 10, height: 2, background: 'rgba(15,149,140,0.35)' }} />
           حدود السعودية
         </div>
       </div>
@@ -282,8 +282,8 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
 }
 
 const mapBtn: React.CSSProperties = {
-  width: 28, height: 28, border: '1px solid rgba(124,107,255,0.4)',
-  background: 'rgba(30,27,58,0.9)', color: '#a594ff',
+  width: 28, height: 28, border: '1px solid rgba(15,149,140,0.4)',
+  background: 'rgba(30,27,58,0.9)', color: '#55bdb5',
   borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 800,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   backdropFilter: 'blur(4px)',
@@ -331,7 +331,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: 'var(--text)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p: any, i: number) => (
-        <div key={i} style={{ color: p.color || '#7c6bff', marginBottom: 2 }}>
+        <div key={i} style={{ color: p.color || '#0f958c', marginBottom: 2 }}>
           {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString('ar-SA') : p.value}
         </div>
       ))}
@@ -546,7 +546,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
   const volumeUnit = amazonOnly ? 'وحدة مباعة' : includesAmazon ? 'طلب/وحدة حسب المصدر' : 'طلب'
   const kpis = [
     { label: costMissing ? 'الربح قبل تكلفة البضاعة' : 'صافي الربح', value: fmt(netProfit), icon: <TrendingUp size={18} />, color: netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)', sub: costMissing ? 'المبيعات − الرسوم − الإعلانات (لم تُدخل تكلفة الشراء)' : 'المبيعات − رسوم المنصات − الإعلانات − التكلفة', d: delta(netProfit, prevNet), hero: true },
-    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: <CircleDollarSign size={18} />, color: '#7c6bff', sub: `${totalOrders.toLocaleString()} ${volumeUnit}`, d: delta(totalSales, prevSales), hero: false },
+    { label: 'إجمالي المبيعات', value: fmt(totalSales), icon: <CircleDollarSign size={18} />, color: '#0f958c', sub: `${totalOrders.toLocaleString()} ${volumeUnit}`, d: delta(totalSales, prevSales), hero: false },
     { label: amazonOnly ? 'متوسط سعر الوحدة' : includesAmazon ? 'متوسط القيمة حسب المصدر' : 'متوسط قيمة الطلب', value: fmt(aov), icon: <ShoppingCart size={18} />, color: '#ffd166', sub: amazonOnly ? 'المبيعات ÷ الوحدات المباعة' : includesAmazon ? 'المبيعات ÷ الطلبات/الوحدات المسجلة' : 'ما ينفقه العميل في الطلب الواحد', d: delta(aov, prevAov), hero: false },
     { label: costMissing ? 'هامش بعد الرسوم' : 'متوسط الهامش', value: costMissing ? '—' : fmt(avgMargin, 'percent'), icon: <Percent size={18} />, color: '#ff6b6b', sub: costMissing ? 'يحتاج تكلفة الشراء لحسابه' : 'نسبة الربح من المبيعات', d: costMissing ? null : delta(avgMargin, prevMargin), hero: false },
   ]
@@ -679,8 +679,8 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <AreaChart data={trendData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#7c6bff" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#7c6bff" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#0f958c" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#0f958c" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -689,7 +689,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <Tooltip content={<ChartTooltip />} />
               <Brush dataKey="date" height={20} stroke="var(--border2)" fill="var(--surface2)" travellerWidth={6}
                 style={{ fontSize: 9 }} />
-              <Area type="monotone" dataKey="المبيعات" stroke="#7c6bff" strokeWidth={2} fill="url(#areaGrad)" dot={false} activeDot={{ r: 4, fill: '#a594ff' }} />
+              <Area type="monotone" dataKey="المبيعات" stroke="#0f958c" strokeWidth={2} fill="url(#areaGrad)" dot={false} activeDot={{ r: 4, fill: '#55bdb5' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -707,7 +707,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie data={platformData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} dataKey="value" paddingAngle={4} strokeWidth={0}>
-                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || ['#7c6bff', 'var(--green)', '#ff9900', 'var(--red)', '#4cc9f0', '#a598ff'][i % 6]} />)}
+                    {platformData.map((p, i) => <Cell key={i} fill={PLT_COLOR[p.platform] || ['#0f958c', 'var(--green)', '#ff9900', 'var(--red)', '#4cc9f0', '#a598ff'][i % 6]} />)}
                   </Pie>
                   <Tooltip content={<ChartTooltip />} formatter={(v: number) => [fmt(v), '']} />
                 </PieChart>
@@ -717,7 +717,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                   const pct = totalSales > 0 ? Math.round((p.value / totalSales) * 100) : 0
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 3, height: 28, borderRadius: 3, background: PLT_COLOR[p.platform] || '#7c6bff', flexShrink: 0 }} />
+                      <div style={{ width: 3, height: 28, borderRadius: 3, background: PLT_COLOR[p.platform] || '#0f958c', flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</span>
@@ -795,7 +795,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
                       <span style={{ fontSize: 11, color: 'var(--accent2)', fontFamily: 'monospace', fontWeight: 700 }}>{c.count.toLocaleString()}</span>
                     </div>
                     <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', borderRadius: 99, width: `${(c.count / maxC) * 100}%`, background: i === 0 ? 'linear-gradient(90deg,var(--accent2),#7c6bff)' : 'var(--accent2)', transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', borderRadius: 99, width: `${(c.count / maxC) * 100}%`, background: i === 0 ? 'linear-gradient(90deg,var(--accent2),#0f958c)' : 'var(--accent2)', transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
                 )
@@ -976,10 +976,10 @@ const S: Record<string, React.CSSProperties> = {
   },
   td: { padding: '11px 16px', fontSize: 13 },
   aiBtn: {
-    background: 'linear-gradient(135deg, var(--accent), #a594ff)',
+    background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
     border: 'none', color: '#fff', padding: '9px 20px',
     borderRadius: 10, fontSize: 13, fontWeight: 700,
-    boxShadow: '0 4px 14px rgba(124,107,255,0.35)', cursor: 'pointer',
+    boxShadow: '0 4px 14px rgba(15,149,140,0.35)', cursor: 'pointer',
     flexShrink: 0,
   },
   aiBox: {
@@ -1017,7 +1017,7 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       if (losingProduct) acts.push({ icon: '📉', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
-      if (urgent) acts.push({ icon: '📦', color: '#7c6bff', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
+      if (urgent) acts.push({ icon: '📦', color: '#0f958c', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
       // كبّر الطلب: طلبات صغيرة + رسوم شحن ثابتة تلتهم نسبة عالية (خاصة أمازون FBA)
       const byPlat: Record<string, { sales: number; orders: number; fees: number }> = {}
       for (const r of (perf || [])) {
@@ -1080,7 +1080,7 @@ function RestockWidget({ merchantCode }: { merchantCode?: string }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it, i) => {
-          const c = colors[it.urgency] || '#7c6bff'
+          const c = colors[it.urgency] || '#0f958c'
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 10, borderRight: `3px solid ${c}` }}>
               <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 12, background: c + '20', color: c, minWidth: 55, textAlign: 'center' }}>{labels[it.urgency]}</span>

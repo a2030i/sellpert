@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { fetchAll } from '../../lib/db'
@@ -48,7 +48,7 @@ const FILE_GUIDES: Record<string, FileGuide[]> = {
 const IMPORTANCE_META: Record<Importance, { label: string; color: string }> = {
   critical:    { label: 'أساسي',    color: '#e84040' },
   recommended: { label: 'موصى به',  color: '#ff9900' },
-  optional:    { label: 'اختياري', color: '#7c6bff' },
+  optional:    { label: 'اختياري', color: '#0f958c' },
 }
 
 // ─── تقرير PDF بسيط للتاجر ─────────────────────────────────────────────────
@@ -128,7 +128,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   }
   .page { max-width: 186mm; margin: 0 auto; padding: 4mm 0; }
   .header {
-    background: linear-gradient(135deg, #7c6bff 0%, #00b894 100%);
+    background: linear-gradient(135deg, #0f958c 0%, #00b894 100%);
     color: white; padding: 22px 24px; border-radius: 10px; margin-bottom: 14px;
     page-break-after: avoid;
   }
@@ -139,7 +139,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   .section { margin-bottom: 14px; page-break-inside: avoid; }
   .section h2 { font-size: 13px; font-weight: 800; margin: 0 0 8px; padding: 6px 0; border-bottom: 2px solid #e5e7f0; color: #1d1f2c; }
   .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .kpi { padding: 10px 12px; border: 1px solid #e5e7f0; border-radius: 8px; background: #fafbff; border-right: 3px solid #7c6bff; }
+  .kpi { padding: 10px 12px; border: 1px solid #e5e7f0; border-radius: 8px; background: #fafbff; border-right: 3px solid #0f958c; }
   .kpi.green  { border-right-color: #00b894; }
   .kpi.red    { border-right-color: #e84040; }
   .kpi.orange { border-right-color: #f27a1a; }
@@ -162,14 +162,14 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     margin-top: 18px; padding-top: 10px; border-top: 1px solid #e5e7f0;
     font-size: 10px; color: #8891b4; text-align: center;
   }
-  .footer b { color: #7c6bff; }
+  .footer b { color: #0f958c; }
   .print-bar {
     position: fixed; top: 14px; left: 14px; display: flex; gap: 8px; z-index: 1000;
   }
   .print-bar button {
-    background: #7c6bff; color: white; border: none; padding: 9px 16px;
+    background: #0f958c; color: white; border: none; padding: 9px 16px;
     border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
-    font-family: inherit; box-shadow: 0 2px 10px rgba(124,107,255,0.3);
+    font-family: inherit; box-shadow: 0 2px 10px rgba(15,149,140,0.3);
   }
   .print-bar button.alt { background: #f5f6fa; color: #1d1f2c; border: 1px solid #e5e7f0; box-shadow: none; }
   @media print {
@@ -832,7 +832,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
           ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', fontSize: 12 }}>
               ⚠️ اختر التاجر أولاً قبل رفع الملفات
             </div>
-          : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(124,107,255,0.06)', border: '1px solid rgba(124,107,255,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               🌐 ارفع أي ملف من نون أو أمازون أو تراندايول (حتى ملفات متعددة دفعة واحدة، أو ملف ZIP) — يُصنَّف كل ملف تلقائياً حسب محتواه
             </div>
         }
@@ -1346,9 +1346,9 @@ function Stat({ label, value, color }: { label: string; value: number; color?: s
 function stageMeta(stage: Stage) {
   switch (stage) {
     case 'queued':    return { label: 'في الانتظار', Icon: ArrowRight,    color: '#8891b4', bg: 'var(--surface2)',                            borderColor: 'var(--border)' }
-    case 'parsing':   return { label: 'تحليل…',      Icon: Loader2,       color: '#7c6bff', bg: 'rgba(124,107,255,0.04)',                     borderColor: 'rgba(124,107,255,0.2)' }
+    case 'parsing':   return { label: 'تحليل…',      Icon: Loader2,       color: '#0f958c', bg: 'rgba(15,149,140,0.04)',                     borderColor: 'rgba(15,149,140,0.2)' }
     case 'parsed':    return { label: 'جاهز للحفظ',  Icon: CheckCircle2,  color: '#00b894', bg: 'var(--success-bg)',                          borderColor: 'var(--success-bg)' }
-    case 'validating':return { label: 'تحقق…',        Icon: Loader2,       color: '#7c6bff', bg: 'rgba(124,107,255,0.04)',                     borderColor: 'rgba(124,107,255,0.2)' }
+    case 'validating':return { label: 'تحقق…',        Icon: Loader2,       color: '#0f958c', bg: 'rgba(15,149,140,0.04)',                     borderColor: 'rgba(15,149,140,0.2)' }
     case 'saving':    return { label: 'حفظ…',         Icon: Loader2,       color: '#ff9900', bg: 'var(--warning-bg)',                          borderColor: 'var(--warning-bg)' }
     case 'saved':     return { label: 'تم الحفظ',     Icon: CheckCircle2,  color: '#00b894', bg: 'var(--success-bg)',                          borderColor: 'var(--success-bg)' }
     case 'rejected':  return { label: 'مرفوض',        Icon: AlertTriangle, color: '#e84040', bg: 'var(--danger-bg)',                           borderColor: 'var(--danger-bg)' }

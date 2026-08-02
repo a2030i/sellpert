@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
@@ -354,7 +354,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         هامش: {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ ...S.reqBtn, background: 'rgba(124,107,255,0.1)', color: 'var(--accent)', borderColor: 'rgba(124,107,255,0.25)' }} onClick={() => openEdit(prod)}>✏️</button>
+                        <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={() => openEdit(prod)}>✏️</button>
                         <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
                       </div>
                     </div>
@@ -403,7 +403,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         </td>
                         <td style={S.td}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button style={{ ...S.reqBtn, background: 'rgba(124,107,255,0.1)', color: 'var(--accent)', borderColor: 'rgba(124,107,255,0.25)' }} onClick={() => openEdit(prod)}>✏️ سعر</button>
+                            <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={() => openEdit(prod)}>✏️ سعر</button>
                             <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
                           </div>
                         </td>
@@ -680,7 +680,7 @@ function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 16 }}>
           {[
             ['الجلسات', metrics.sessions.toLocaleString(), '#ff9900'],
-            ['مشاهدات الصفحة', metrics.pageViews.toLocaleString(), '#7c6bff'],
+            ['مشاهدات الصفحة', metrics.pageViews.toLocaleString(), '#0f958c'],
             ['معدل التحويل', `${metrics.conversion.toFixed(2)}%`, '#28c76f'],
             ['Buy Box المرجّح', `${metrics.buyBox.toFixed(2)}%`, '#00b8d9'],
             ['المبيعات', `${metrics.sales.toLocaleString(undefined, { maximumFractionDigits: 2 })} ر.س`, '#f25f5c'],
@@ -766,7 +766,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
-        <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#7c6bff" />
+        <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#0f958c" />
         <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="var(--green)" />
         <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
         <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? '⚠ يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
@@ -834,9 +834,9 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>🔁 معدّل دوران المخزون</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-        <div style={kpiBox('#7c6bff')}>
+        <div style={kpiBox('#0f958c')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>دوران سنوي</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#7c6bff' }}>{Number(data.turnover_ratio).toFixed(1)}×</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#0f958c' }}>{Number(data.turnover_ratio).toFixed(1)}×</div>
           <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{Number(data.turnover_ratio) >= 4 ? 'سرعة جيدة' : Number(data.turnover_ratio) >= 2 ? 'متوسط' : 'بطيء'}</div>
         </div>
         <div style={kpiBox('var(--green)')}>
@@ -916,7 +916,7 @@ function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
   const counts: any = { launching: 0, new_no_sales: 0, growing: 0, mature: 0, dormant: 0, unknown: 0 }
   for (const d of data) counts[d.lifecycle_stage]++
   const labels: any = { launching: 'إطلاق ناجح', new_no_sales: 'جديد بدون بيع', growing: 'نامي', mature: 'مُنضج', dormant: 'خامل', unknown: 'غير محدّد' }
-  const colors: any = { launching: 'var(--green)', new_no_sales: 'var(--warning-text)', growing: '#7c6bff', mature: 'var(--info-text)', dormant: 'var(--red)', unknown: '#a598ff' }
+  const colors: any = { launching: 'var(--green)', new_no_sales: 'var(--warning-text)', growing: '#0f958c', mature: 'var(--info-text)', dormant: 'var(--red)', unknown: '#a598ff' }
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔄 دورة حياة المنتجات</div>
@@ -1056,7 +1056,7 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
             <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8, alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.product_name}</div>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[bestNet.platform] || '#7c6bff') + '20', color: PLATFORM_COLORS[bestNet.platform] || '#7c6bff', fontWeight: 800, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[bestNet.platform] || '#0f958c') + '20', color: PLATFORM_COLORS[bestNet.platform] || '#0f958c', fontWeight: 800, flexShrink: 0 }}>
                   🏆 أربح على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
                 </span>
               </div>
@@ -1067,7 +1067,7 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
               )}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {ents.map(([plat, v]) => (
-                  <div key={plat} style={{ flex: 1, minWidth: 130, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#7c6bff'}` }}>
+                  <div key={plat} style={{ flex: 1, minWidth: 130, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#0f958c'}` }}>
                     <div style={{ fontSize: 10, color: PLATFORM_COLORS[plat] || 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[plat] || plat}</div>
                     <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3, color: Number(v.net) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{Math.round(v.net).toLocaleString('ar-SA')} <span style={{ fontSize: 10, color: 'var(--text3)' }}>ربح</span></div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{Math.round(v.revenue).toLocaleString('ar-SA')} مبيعات · {v.margin != null ? v.margin + '% هامش' : v.units + ' وحدة'}</div>

@@ -365,7 +365,7 @@ const S: Record<string, React.CSSProperties> = {
   topbar:    { display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 },
   pageTitle: { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
   pageSub:   { fontSize:13, color:'var(--text2)', marginTop:3 },
-  addBtn:    { background:'linear-gradient(135deg,var(--accent),#a594ff)', border:'none', color:'#fff', padding:'10px 20px', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 16px rgba(124,107,255,0.3)', cursor:'pointer' },
+  addBtn:    { background:'linear-gradient(135deg,var(--accent),#55bdb5)', border:'none', color:'#fff', padding:'10px 20px', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 16px rgba(15,149,140,0.3)', cursor:'pointer' },
   statCard:  { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'18px 20px', cursor:'default', transition:'all 0.2s' },
   card:      { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' },
   label:     { display:'block', fontSize:11, fontWeight:700, color:'var(--text2)', marginBottom:5, textTransform:'uppercase' as const, letterSpacing:'0.5px' },
@@ -419,7 +419,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
 
       {/* Value KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
-        <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#7c6bff" />
+        <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#0f958c" />
         <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="var(--green)" />
         <HKpi label="هامش متوقّع" value={fmt(stats.sumRetail - stats.sumCost)} sub={stats.sumCost > 0 ? (((stats.sumRetail - stats.sumCost)/stats.sumCost)*100).toFixed(0)+'%' : '—'} color="var(--info-text)" />
         <HKpi label="خسائر النفاد المتوقّعة" value={fmt(stats.stockoutCost)} sub="30 يوم" color="var(--red)" />

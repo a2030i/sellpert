@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { Truck, PackageCheck, AlertTriangle, Search } from 'lucide-react'
@@ -114,7 +114,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
         <>
           {/* KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <KpiCard label="الإرساليات" value={totals.shipments} icon={<Truck size={20} />} color="#7c6bff" />
+            <KpiCard label="الإرساليات" value={totals.shipments} icon={<Truck size={20} />} color="#0f958c" />
             <KpiCard label="إجمالي المتوقع" value={totals.expected} sub="قطعة" color="#4cc9f0" />
             <KpiCard label="المُستلم فعلياً" value={totals.delivered} sub="قطعة" color="#00b894" />
             <KpiCard label="الفرق" value={totals.variance} sub={totals.variance >= 0 ? 'زيادة' : 'نقص'} color={totals.variance < 0 ? '#e84040' : '#00b894'} />

@@ -164,7 +164,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
         <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
         <Kpi labelNode={<Tooltip text="عائد الإعلان قبل خصم الرسوم: كم ريال مبيعات يجيب كل ريال إنفاق إعلاني حسب تقارير المنصة. الرقم بعد الرسوم في لوحة «العائد الحقيقي» أعلاه"><span>عائد الإعلان (قبل الرسوم) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز (قبل الرسوم)' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
-        <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#7c6bff" />
+        <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#0f958c" />
         <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="var(--info-text)" />
       </div>
 
@@ -240,7 +240,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
               {pagedGrouped.map((g, i) => {
                 const r = g.spend > 0 ? g.revenue / g.spend : 0
                 const ct = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0
-                const color = PLATFORM_COLORS[g.platform] || '#7c6bff'
+                const color = PLATFORM_COLORS[g.platform] || '#0f958c'
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '8px 12px', fontSize: 12, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.key}>{g.key}</td>

@@ -242,7 +242,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
                   <tr key={m.id} style={S.tr}>
                     <td style={S.td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: isManager ? 'linear-gradient(135deg, #7c6bff, #9f8fff)' : 'linear-gradient(135deg, #f59e0b, #fbbf24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: isManager ? 'linear-gradient(135deg, #0f958c, #9f8fff)' : 'linear-gradient(135deg, #f59e0b, #fbbf24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                           {isManager ? <Crown size={14} /> : <Briefcase size={14} />}
                         </div>
                         <span style={{ fontWeight: 600 }}>{m.name}</span>
@@ -253,7 +253,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         padding: '3px 9px', borderRadius: 5,
-                        background: isManager ? 'rgba(124,107,255,0.15)' : 'rgba(245,158,11,0.12)',
+                        background: isManager ? 'rgba(15,149,140,0.15)' : 'rgba(245,158,11,0.12)',
                         color: isManager ? 'var(--accent)' : '#f59e0b',
                         fontWeight: 700, fontSize: 11,
                       }}>
@@ -266,7 +266,7 @@ export default function EmployeesView({ merchants, currentUserId, onRefresh }: {
                           <div style={{
                             height: '100%',
                             width: `${(myPerms.size / ALL_PERMISSIONS.length) * 100}%`,
-                            background: isManager ? '#7c6bff' : myPerms.size > 10 ? 'var(--green)' : myPerms.size > 3 ? '#f59e0b' : 'var(--text3)',
+                            background: isManager ? '#0f958c' : myPerms.size > 10 ? 'var(--green)' : myPerms.size > 3 ? '#f59e0b' : 'var(--text3)',
                           }} />
                         </div>
                         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', minWidth: 60, fontFamily: 'monospace' }}>

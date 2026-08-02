@@ -16,7 +16,7 @@ interface Notif {
 const TYPE_META: Record<string, { color: string; bg: string; Icon: any }> = {
   warning: { color: '#ff9900', bg: 'var(--warning-bg)', Icon: AlertTriangle },
   error:   { color: '#e84040', bg: 'var(--danger-bg)', Icon: AlertCircle },
-  info:    { color: '#7c6bff', bg: 'rgba(124,107,255,0.08)', Icon: Info },
+  info:    { color: '#0f958c', bg: 'rgba(15,149,140,0.08)', Icon: Info },
   success: { color: '#00b894', bg: 'var(--success-bg)', Icon: Check },
 }
 

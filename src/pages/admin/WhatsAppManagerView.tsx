@@ -206,7 +206,7 @@ function BulkSendTab({ connection, merchants }: { connection: any; merchants: an
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 6, maxHeight: 280, overflowY: 'auto', padding: 4 }}>
           {eligible.map(m => (
-            <label key={m.merchant_code} style={{ display: 'flex', gap: 6, padding: '7px 10px', borderRadius: 8, cursor: 'pointer', background: selected.has(m.merchant_code) ? 'rgba(124,107,255,0.1)' : 'var(--surface2)', fontSize: 12, alignItems: 'center' }}>
+            <label key={m.merchant_code} style={{ display: 'flex', gap: 6, padding: '7px 10px', borderRadius: 8, cursor: 'pointer', background: selected.has(m.merchant_code) ? 'rgba(15,149,140,0.1)' : 'var(--surface2)', fontSize: 12, alignItems: 'center' }}>
               <input type="checkbox" checked={selected.has(m.merchant_code)} onChange={e => {
                 const s = new Set(selected)
                 if (e.target.checked) s.add(m.merchant_code); else s.delete(m.merchant_code)
@@ -420,7 +420,7 @@ function ConversationsTab({ connection }: { connection: any }) {
          : convs.map((c, i) => (
            <div key={c.id || i} onClick={() => openConv(c)} style={{
              padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-             background: selected?.id === c.id ? 'rgba(124,107,255,0.08)' : 'transparent',
+             background: selected?.id === c.id ? 'rgba(15,149,140,0.08)' : 'transparent',
            }}>
              <div style={{ fontSize: 13, fontWeight: 700 }}>{c.contact?.name || c.contact?.phone || c.phone || 'محادثة'}</div>
              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.last_message?.text || c.last_message_text || '—'}</div>
@@ -551,8 +551,8 @@ function HistoryTab() {
                 <td style={{ ...S.td, fontSize: 11 }}>{l.merchant_code || '—'}</td>
                 <td style={S.td}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                    background: l.status === 'sent' ? 'var(--success-bg)' : l.status === 'failed' ? 'var(--danger-bg)' : 'rgba(124,107,255,0.1)',
-                    color: l.status === 'sent' ? 'var(--success-text)' : l.status === 'failed' ? 'var(--danger-text)' : '#7c6bff',
+                    background: l.status === 'sent' ? 'var(--success-bg)' : l.status === 'failed' ? 'var(--danger-bg)' : 'rgba(15,149,140,0.1)',
+                    color: l.status === 'sent' ? 'var(--success-text)' : l.status === 'failed' ? 'var(--danger-text)' : '#0f958c',
                   }}>{l.status}</span>
                 </td>
                 <td style={{ ...S.td, fontSize: 10, color: 'var(--text3)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(l.payload)}>

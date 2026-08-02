@@ -50,7 +50,7 @@ export default function AccountSwitcher({ currentCode, onSwitch }: { currentCode
             <div key={a.merchant_code} onClick={() => { onSwitch(a.merchant_code); setOpen(false) }} style={{
               padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-              background: a.merchant_code === currentCode ? 'rgba(124,107,255,0.06)' : 'transparent',
+              background: a.merchant_code === currentCode ? 'rgba(15,149,140,0.06)' : 'transparent',
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.name}</div>

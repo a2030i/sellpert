@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 
 const SUPABASE_PLANS = {
   free:       { label: 'Free',       db_limit_mb: 500,   conn_limit: 60,   color: '#ffd166' },
-  pro:        { label: 'Pro',        db_limit_mb: 8192,  conn_limit: 200,  color: '#7c6bff' },
+  pro:        { label: 'Pro',        db_limit_mb: 8192,  conn_limit: 200,  color: '#0f958c' },
   team:       { label: 'Team',       db_limit_mb: 8192,  conn_limit: 200,  color: '#00e5b0' },
   enterprise: { label: 'Enterprise', db_limit_mb: 99999, conn_limit: 1000, color: '#ff9900' },
 }
@@ -136,7 +136,7 @@ export default function DBHealthView() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             {[
               { label: 'حجم DB',           value: `${dbMb} MB`,                               color: alertColor(dbAlert),  icon: '💾' },
-              { label: 'التجار',            value: health.merchant_count,                       color: '#7c6bff',             icon: '👥' },
+              { label: 'التجار',            value: health.merchant_count,                       color: '#0f958c',             icon: '👥' },
               { label: 'الاشتراكات النشطة', value: health.active_subscriptions,                 color: '#00e5b0',             icon: '💳' },
               { label: 'الطلبات الكلية',    value: Number(health.orders_total).toLocaleString(), color: '#ff9900',            icon: '📦' },
               { label: 'طلبات اليوم',       value: health.orders_today,                         color: '#4cc9f0',             icon: '🕒' },

@@ -104,7 +104,7 @@ export default function TeamDashboardView() {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <KPI Icon={Users} label="إجمالي التجار" value={fmtNumber(k?.total_merchants || 0)} color="#7c6bff" sub={`${k?.active_merchants_30d || 0} نشطون آخر 30 يوم`} />
+        <KPI Icon={Users} label="إجمالي التجار" value={fmtNumber(k?.total_merchants || 0)} color="#0f958c" sub={`${k?.active_merchants_30d || 0} نشطون آخر 30 يوم`} />
         <KPI Icon={CheckSquare} label="المهام المعلقة" value={fmtNumber(k?.pending_tasks || 0)} color="#00b894" sub={(k?.overdue_tasks || 0) > 0 ? `${k?.overdue_tasks} متأخرة!` : 'لا متأخرات'} subRed={(k?.overdue_tasks || 0) > 0} />
         <KPI Icon={Heart} label="متوسط Health" value={(k?.avg_health_score || 0).toFixed(0) + '%'} color="#f0a800" sub="من 100" />
         <KPI Icon={Star} label="NPS" value={npsScore ? npsHealth.toFixed(0) : '—'} color="#ff6b6b" sub={`${promoters} مروج · ${detractors} منتقد`} />
@@ -242,7 +242,7 @@ function Panel({ title, Icon, children }: any) {
 }
 
 function PriorityDot({ priority }: { priority: string }) {
-  const c = priority === 'urgent' ? '#e84040' : priority === 'high' ? '#f59e0b' : priority === 'medium' ? '#7c6bff' : '#94a0b8'
+  const c = priority === 'urgent' ? '#e84040' : priority === 'high' ? '#f59e0b' : priority === 'medium' ? '#0f958c' : '#94a0b8'
   return <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
 }
 

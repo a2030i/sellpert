@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
@@ -151,7 +151,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
 
       {open && (
         <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340, maxWidth: 'calc(100vw - 32px)', maxHeight: 420, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 10000, color: 'var(--text)' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #2c3356', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #1d3b4d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4' }}>الإشعارات</span>
             {unread > 0 && (
               <button onClick={markAllRead} style={{ background: 'transparent', border: 'none', color: '#a598ff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>قراءة الكل</button>
@@ -162,7 +162,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
               <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>لا توجد إشعارات
             </div>
           ) : notifs.map(n => (
-            <div key={n.id} style={{ padding: '12px 16px', background: n.is_read ? 'transparent' : 'rgba(108,92,231,0.08)', borderBottom: '1px solid #2c3356' }}>
+            <div key={n.id} style={{ padding: '12px 16px', background: n.is_read ? 'transparent' : 'rgba(108,92,231,0.08)', borderBottom: '1px solid #1d3b4d' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 {!n.is_read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a598ff', flexShrink: 0, marginTop: 5 }} />}
                 <div style={{ flex: 1 }}>
@@ -584,23 +584,23 @@ const S: Record<string, React.CSSProperties> = {
   sidebar: {
     display: 'flex', flexDirection: 'column',
     position: 'fixed', right: 0, top: 0, bottom: 0, width: 220, zIndex: 100,
-    background: '#1e2239',
-    borderLeft: '1px solid #2c3356',
+    background: '#071c2c',
+    borderLeft: '1px solid #1d3b4d',
   },
   sidebarTop: {
     padding: '18px 16px',
-    borderBottom: '1px solid #2c3356',
+    borderBottom: '1px solid #1d3b4d',
     flexShrink: 0,
   },
   logoIcon: {
     width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-    background: 'var(--grad-brand)',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16, fontWeight: 800, color: '#fff',
   },
   logoIconSm: {
     width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-    background: 'var(--grad-brand)',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13, fontWeight: 800, color: '#fff',
   },
@@ -608,21 +608,21 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 11,
     padding: '10px 12px', cursor: 'pointer',
     fontSize: 13, fontWeight: 500,
-    color: '#8891b4', width: '100%', border: 'none', background: 'transparent',
+    color: '#a9bdc9', width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'inherit', textAlign: 'right',
   },
   navIcon:      { fontSize: 16, flexShrink: 0, width: 20, textAlign: 'center' as const },
-  sidebarBottom: { padding: '14px 16px', borderTop: '1px solid #2c3356', flexShrink: 0 },
+  sidebarBottom: { padding: '14px 16px', borderTop: '1px solid #1d3b4d', flexShrink: 0 },
   merchantCard:  { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   merchantAvatar: {
     width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-    background: 'var(--grad-brand)',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13, fontWeight: 700, color: '#fff',
   },
   logoutBtn: {
-    width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #2c3356',
-    color: '#8891b4', padding: '8px', borderRadius: 9, fontSize: 12, cursor: 'pointer',
+    width: '100%', background: 'rgba(255,255,255,0.035)', border: '1px solid #1d3b4d',
+    color: '#a9bdc9', padding: '8px', borderRadius: 7, fontSize: 12, cursor: 'pointer',
     fontFamily: 'inherit',
   },
   mobileHeader: {

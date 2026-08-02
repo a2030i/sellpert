@@ -21,11 +21,11 @@
   --border:   #e2e8f2;
   --border2:  #cdd5e8;
 
-  --accent:        #7c6bff; /* العلامة — للتوهّج/الحدود/الأسطح الكبيرة */
-  --accent-soft:   #a594ff;
-  --accent-strong: #6450d8; /* تعبئة الأزرار — أبيض عليه 6.38:1 (يمر AA) */
-  --accent-glow:   rgba(124,107,255,0.3);
-  --accent-12:     rgba(124,107,255,0.12); /* تظليل خفيف للعنصر النشط */
+  --accent:        #0f958c; /* العلامة — للتوهّج/الحدود/الأسطح الكبيرة */
+  --accent-soft:   #55bdb5;
+  --accent-strong: #08766f; /* تعبئة الأزرار — أبيض عليه 6.38:1 (يمر AA) */
+  --accent-glow:   rgba(15,149,140,0.3);
+  --accent-12:     rgba(15,149,140,0.12); /* تظليل خفيف للعنصر النشط */
   --on-accent:     #ffffff;
   --accent2: #00b894;
   --accent3: #ff6b6b;
@@ -71,10 +71,10 @@
   color-scheme: dark;
   --bg:       #0f1220;
   --bg2:      #161a2c;
-  --surface:  #1e2239;
+  --surface:  #071c2c;
   --surface2: #252c47;
   --surface3: #2d3455;
-  --border:   #2c3356;
+  --border:   #1d3b4d;
   --border2:  #3a4268;
   --text:     #e2e6f4;
   --text2:    #b3bcd9;
@@ -95,10 +95,10 @@
 .sidebar-dark {
   --bg:       #131627;
   --bg2:      #191d32;
-  --surface:  #1e2239;
+  --surface:  #071c2c;
   --surface2: #252c47;
   --surface3: #2d3455;
-  --border:   #2c3356;
+  --border:   #1d3b4d;
   --border2:  #3a4268;
   --text:     #e2e6f4;
   --text2:    #8891b4;
@@ -207,7 +207,7 @@ body.ltr {
   color: #c8d0ee;
 }
 .sidebar-dark .nav-item.active {
-  background: rgba(124,107,255,0.18);
+  background: rgba(15,149,140,0.18);
   color: var(--accent-soft);
   font-weight: 700;
 }
@@ -258,3 +258,62 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   .entry-actions { flex-direction: column !important; }
   .entry-actions button { width: 100%; }
 }
+
+/* Sellpert Enterprise SaaS visual system */
+:root {
+  --bg: #f5f7f9;
+  --bg2: #eef2f5;
+  --surface: #ffffff;
+  --surface2: #f8fafb;
+  --surface3: #f0f4f6;
+  --border: #dfe6ea;
+  --border2: #cbd6dc;
+  --accent: #0f958c;
+  --accent-soft: #55bdb5;
+  --accent-strong: #08766f;
+  --accent-glow: rgba(15,149,140,0.16);
+  --accent-12: rgba(15,149,140,0.10);
+  --accent2: #0f958c;
+  --grad-brand: var(--accent-strong);
+  --grad-accent: var(--accent-strong);
+  --text: #132432;
+  --text2: #526575;
+  --text3: #748694;
+  --text-faint: #9ba9b3;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --shadow: 0 1px 2px rgba(15,35,48,0.04);
+  --shadow-md: 0 8px 24px rgba(15,35,48,0.08);
+}
+
+.sidebar-dark {
+  --bg: #071c2c;
+  --bg2: #0b2638;
+  --surface: #071c2c;
+  --surface2: #102d40;
+  --surface3: #17384b;
+  --border: #1d3b4d;
+  --border2: #315166;
+  --text: #f5fafc;
+  --text2: #a9bdc9;
+  --text3: #7893a3;
+}
+
+.sidebar-dark .nav-item {
+  border-radius: 7px;
+  margin-inline: 10px;
+}
+
+.sidebar-dark .nav-item.active {
+  background: rgba(15,149,140,0.20);
+  color: #d9fffb;
+}
+
+table { font-variant-numeric: tabular-nums; }
+table th { letter-spacing: 0.01em; }
+button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
+button:active { transform: translateY(1px); }
+.card, [data-kpi-card] { box-shadow: var(--shadow); }

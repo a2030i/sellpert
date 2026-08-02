@@ -99,7 +99,7 @@ export default function Help({ merchant: _merchant }: { merchant: Merchant | nul
         ))
       )}
 
-      <div style={{ marginTop: 30, padding: 18, background: 'linear-gradient(135deg, rgba(124,107,255,0.06), var(--success-bg))', border: '1px solid rgba(124,107,255,0.2)', borderRadius: 12, textAlign: 'center' }}>
+      <div style={{ marginTop: 30, padding: 18, background: 'linear-gradient(135deg, rgba(15,149,140,0.06), var(--success-bg))', border: '1px solid rgba(15,149,140,0.2)', borderRadius: 12, textAlign: 'center' }}>
         <BookOpen size={28} color="var(--accent)" style={{ marginBottom: 8 }} />
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>لم تجد إجابتك؟</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>اسأل المساعد الذكي أو ارفع تذكرة دعم</div>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from './adminShared'
 import type { Merchant, PerformanceData, SyncLog } from '../../lib/supabase'
 import { supabase } from '../../lib/supabase'
@@ -49,7 +49,7 @@ export default function OverviewView({ merchantOnly, totalGMV, activeIntegration
   }
 
   const kpis = [
-    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#7c6bff', sub: `من أصل ${merchantOnly.length} تاجر` },
+    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#0f958c', sub: `من أصل ${merchantOnly.length} تاجر` },
     { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), Icon: Wallet, color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta },
     { label: 'الوحدات / الطلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA'), Icon: PackageCheck, color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA'), delta: ordersDelta },
     { label: 'متوسط GMV / تاجر نشط', value: fmt(avgGMVPerMerchant), Icon: TrendingUp, color: '#4cc9f0', sub: 'لنفس الشهر الحالي' },
@@ -189,8 +189,8 @@ export default function OverviewView({ merchantOnly, totalGMV, activeIntegration
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {topMerchants.map((m: any, i: number) => {
                 const pct = topGMV > 0 ? (m.gmv / topGMV * 100) : 0
-                const rankColors = ['#ffd700', '#c0c0c0', '#cd7f32', '#7c6bff', '#00e5b0']
-                const rc = rankColors[i] || '#7c6bff'
+                const rankColors = ['#ffd700', '#c0c0c0', '#cd7f32', '#0f958c', '#00e5b0']
+                const rc = rankColors[i] || '#0f958c'
                 return (
                   <div key={m.id}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>

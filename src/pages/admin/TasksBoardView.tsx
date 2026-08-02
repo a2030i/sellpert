@@ -10,7 +10,7 @@ type Merchant = { merchant_code: string; name: string; role: string; email: stri
 
 const STATUSES = [
   { key: 'pending',     label: 'قيد المراجعة', color: '#ffd166', icon: Clock },
-  { key: 'in_progress', label: 'قيد التنفيذ',  color: '#7c6bff', icon: Clock },
+  { key: 'in_progress', label: 'قيد التنفيذ',  color: '#0f958c', icon: Clock },
   { key: 'review',      label: 'بانتظار التأكيد', color: '#4cc9f0', icon: AlertTriangle },
   { key: 'blocked',     label: 'متوقّف',       color: '#e84040', icon: X },
   { key: 'done',        label: 'مكتمل',        color: '#00b894', icon: CheckCircle2 },
@@ -20,7 +20,7 @@ const STATUSES = [
 const PRIORITIES: any = {
   urgent: { label: 'عاجل',    color: '#e84040' },
   high:   { label: 'مرتفع',   color: '#ff9900' },
-  medium: { label: 'متوسط',   color: '#7c6bff' },
+  medium: { label: 'متوسط',   color: '#0f958c' },
   low:    { label: 'منخفض',   color: '#888' },
 }
 
@@ -144,10 +144,10 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
 
       {/* KPI strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-        <KpiBox label="الإجمالي" value={summary.total} color="#7c6bff" />
+        <KpiBox label="الإجمالي" value={summary.total} color="#0f958c" />
         <KpiBox label="عاجلة" value={summary.urgent} color="#e84040" highlight={summary.urgent > 0} />
         <KpiBox label="متأخّرة" value={summary.overdue} color="#ff9900" highlight={summary.overdue > 0} />
-        <KpiBox label="قيد التنفيذ" value={summary.in_progress} color="#7c6bff" />
+        <KpiBox label="قيد التنفيذ" value={summary.in_progress} color="#0f958c" />
         <KpiBox label="مكتملة" value={summary.done} color="#00b894" />
       </div>
 

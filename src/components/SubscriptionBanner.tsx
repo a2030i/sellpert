@@ -55,8 +55,8 @@ export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
     const upgradeCfg = PLANS[upgradeTo]
     return (
       <div style={{
-        background: 'linear-gradient(135deg, rgba(124,107,255,0.12), rgba(0,229,176,0.08))',
-        border: '1px solid rgba(124,107,255,0.25)',
+        background: 'linear-gradient(135deg, rgba(15,149,140,0.12), rgba(0,229,176,0.08))',
+        border: '1px solid rgba(15,149,140,0.25)',
         borderRadius: 12, padding: '12px 16px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         margin: '0 0 16px 0',
@@ -78,7 +78,7 @@ export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
             background: 'var(--accent-strong)', border: 'none', color: '#fff',
             padding: '7px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700,
             cursor: 'pointer', flexShrink: 0,
-            boxShadow: '0 3px 12px rgba(124,107,255,0.35)',
+            boxShadow: '0 3px 12px rgba(15,149,140,0.35)',
           }}
         >
           ترقية — {upgradeCfg.price} ر.س/شهر

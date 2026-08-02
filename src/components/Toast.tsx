@@ -29,7 +29,7 @@ export function ToastContainer() {
   return (
     <div style={{ position: 'fixed', top: 70, left: 16, zIndex: 10000, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 360 }}>
       {items.map(t => {
-        const c = t.type === 'ok' ? '#00b894' : t.type === 'err' ? '#e84040' : '#7c6bff'
+        const c = t.type === 'ok' ? '#00b894' : t.type === 'err' ? '#e84040' : '#0f958c'
         return (
           <div key={t.id} onClick={() => dismiss(t.id)} style={{
             background: 'var(--surface)', border: `1px solid ${c}40`, borderRight: `3px solid ${c}`,

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
@@ -228,7 +228,7 @@ export default function MerchantsView({ merchants, gmvByMerchant, credentials, o
                         <button style={S.miniBtn} onClick={() => setEditRole(null)}>✕</button>
                       </div>
                     ) : (
-                      <span style={{ ...S.roleBadge, background: m.role === 'merchant' ? 'rgba(0,229,176,0.1)' : m.role === 'employee' ? 'rgba(245,158,11,0.1)' : 'rgba(124,107,255,0.15)', color: m.role === 'merchant' ? 'var(--accent2)' : m.role === 'employee' ? '#f59e0b' : 'var(--accent)', cursor: 'pointer' }} onClick={() => setEditRole({ id: m.id, role: m.role })}>
+                      <span style={{ ...S.roleBadge, background: m.role === 'merchant' ? 'rgba(0,229,176,0.1)' : m.role === 'employee' ? 'rgba(245,158,11,0.1)' : 'rgba(15,149,140,0.15)', color: m.role === 'merchant' ? 'var(--accent2)' : m.role === 'employee' ? '#f59e0b' : 'var(--accent)', cursor: 'pointer' }} onClick={() => setEditRole({ id: m.id, role: m.role })}>
                         {m.role === 'merchant' ? 'تاجر' : m.role === 'employee' ? 'موظف' : 'مدير'}
                       </span>
                     )}

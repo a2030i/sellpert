@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
@@ -187,7 +187,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Summary KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#7c6bff', icon: '💰', sub: `${summary.totalOrders} طلب` },
+              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '💰', sub: `${summary.totalOrders} طلب` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'عمولة Sellpert',     value: fmt(summary.sellpertComm), color: '#f27a1a', icon: '🏷️', sub: `${commRate}% من الإيراد` },
               { label: 'صافي مستحقاتك (يوصل حسابك)',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '✅', sub: `بعد رسوم المنصة وعمولة Sellpert` },
@@ -301,15 +301,15 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 <AreaChart data={dailyTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="stmtGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#7c6bff" stopOpacity={0.35}/>
-                      <stop offset="95%" stopColor="#7c6bff" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#0f958c" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#0f958c" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v} />
                   <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text)' }} formatter={(v: number) => [fmt(v), 'المبيعات']} />
-                  <Area type="monotone" dataKey="rev" stroke="#7c6bff" strokeWidth={2.5} fill="url(#stmtGrad)" dot={false} />
+                  <Area type="monotone" dataKey="rev" stroke="#0f958c" strokeWidth={2.5} fill="url(#stmtGrad)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -634,7 +634,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
           <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? 'var(--danger-text)' : stats.rateOfOrders > 5 ? 'var(--warning-text)' : 'var(--success-text)'} />
           <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="var(--danger-text)" />
           <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="var(--danger-text)" />
-          <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#7c6bff" />
+          <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#0f958c" />
         </div>
 
         {/* صدق: المرتجعات تعتمد على التقارير المرفوعة — صفر لا يعني «لا مرتجعات» بل قد يعني «لم يُرفع الملف» */}
@@ -815,7 +815,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
                   <td style={S.td}>{r.quantity}</td>
                   <td style={{ ...S.td, color: 'var(--warning-text)', fontWeight: 700 }}>{fmt(r.return_amount)}</td>
                   <td style={S.td}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.status === 'refunded' ? 'var(--success-bg)' : r.status === 'approved' ? 'rgba(124,107,255,0.12)' : 'var(--warning-bg)', color: r.status === 'refunded' ? 'var(--accent2)' : r.status === 'approved' ? 'var(--accent)' : 'var(--warning-text)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.status === 'refunded' ? 'var(--success-bg)' : r.status === 'approved' ? 'rgba(15,149,140,0.12)' : 'var(--warning-bg)', color: r.status === 'refunded' ? 'var(--accent2)' : r.status === 'approved' ? 'var(--accent)' : 'var(--warning-text)' }}>
                       {r.status === 'refunded' ? 'مسترد' : r.status === 'approved' ? 'موافق' : 'قيد المراجعة'}
                     </span>
                   </td>
@@ -890,7 +890,7 @@ function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
         {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-        <ForecastBox label="آخر 30 يوم (فعلي)" value={fmt(Number(data.last_30_sales))} color="#7c6bff" />
+        <ForecastBox label="آخر 30 يوم (فعلي)" value={fmt(Number(data.last_30_sales))} color="#0f958c" />
         <ForecastBox label="الـ 30 يوم القادمة" value={fmt(Number(data.forecast_30))} color="var(--success-text)" />
         <ForecastBox label="الـ 60 يوم القادمة" value={fmt(Number(data.forecast_60))} color="var(--info-text)" />
         <ForecastBox label="الـ 90 يوم القادمة" value={fmt(Number(data.forecast_90))} color="#a598ff" />

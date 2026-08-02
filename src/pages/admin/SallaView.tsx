@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 
@@ -17,7 +17,7 @@ const PLAN_DEFAULTS = [
   { key: 'enterprise', label: 'المؤسسات',        price: 999 },
 ]
 
-const PLAN_COLORS: Record<string, string> = { salla: '#7c6bff', growth: '#00e5b0', pro: '#ff9900', enterprise: '#f27a1a' }
+const PLAN_COLORS: Record<string, string> = { salla: '#0f958c', growth: '#00e5b0', pro: '#ff9900', enterprise: '#f27a1a' }
 const STATUS_COLORS: Record<string, string> = { active: '#00e5b0', suspended: '#ff4d6d', cancelled: '#ffd166' }
 
 function SallaAppSettings() {
@@ -102,7 +102,7 @@ function SallaAppSettings() {
   const webhookUrl  = `${SUPABASE_URL}/functions/v1/salla-webhook`
 
   const urlRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)' }
-  const copyBtnStyle: React.CSSProperties = { flexShrink: 0, padding: '6px 14px', borderRadius: 8, background: 'rgba(124,107,255,0.12)', border: '1px solid rgba(124,107,255,0.3)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
+  const copyBtnStyle: React.CSSProperties = { flexShrink: 0, padding: '6px 14px', borderRadius: 8, background: 'rgba(15,149,140,0.12)', border: '1px solid rgba(15,149,140,0.3)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
 
   const statusDot = (val: string) => val
     ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--success-bg)', color: 'var(--accent2)', fontWeight: 700, marginRight: 6 }}>✓ محفوظ</span>
@@ -316,7 +316,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
-          { label: 'متاجر سلة المثبّتة', value: activeCount,              color: '#7c6bff', icon: '🟣' },
+          { label: 'متاجر سلة المثبّتة', value: activeCount,              color: '#0f958c', icon: '🟣' },
           { label: 'متاجر معلّقة',        value: suspendedCount,           color: '#ff4d6d', icon: '🚫' },
           { label: 'وظائف في الطابور',   value: queue.length,             color: '#ffd166', icon: '⏳' },
           { label: 'إيراد شهري متكرر',   value: fmt(totalRevenue) + '/شهر', color: '#00e5b0', icon: '💰' },

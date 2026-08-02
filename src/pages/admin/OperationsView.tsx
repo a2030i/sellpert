@@ -50,7 +50,7 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
                 <Clock size={16} /> تحليل الشحن (آخر 90 يوم)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                <KpiBox label="إجمالي الطلبات المشحونة" value={fmtNumber(Number(shipping.total_orders))} color="#7c6bff" />
+                <KpiBox label="إجمالي الطلبات المشحونة" value={fmtNumber(Number(shipping.total_orders))} color="#0f958c" />
                 <KpiBox label="متوسط وقت الشحن" value={Number(shipping.avg_ship_hours).toFixed(1) + ' ساعة'} color="#4cc9f0" />
                 <KpiBox label="متوسط وقت التسليم" value={Number(shipping.avg_delivery_hours).toFixed(1) + ' ساعة'} color="#00b894" />
                 <KpiBox label="إجمالي الأيام للوصول" value={Number(shipping.avg_total_days).toFixed(1) + ' يوم'} color="#a598ff" />
@@ -75,7 +75,7 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
                   </thead>
                   <tbody>
                     {fulfillment.map((f, i) => {
-                      const color = PLATFORM_COLORS[f.platform] || '#7c6bff'
+                      const color = PLATFORM_COLORS[f.platform] || '#0f958c'
                       return (
                         <tr key={i} style={S.tr}>
                           <td style={{ ...S.td, color, fontWeight: 700 }}>{PLATFORM_MAP[f.platform] || f.platform}</td>

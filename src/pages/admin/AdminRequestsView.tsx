@@ -86,7 +86,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
               <div key={req.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ background: 'rgba(124,107,255,0.12)', color: 'var(--accent)', padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{TYPE_LABELS[req.type] || req.type}</span>
+                    <span style={{ background: 'rgba(15,149,140,0.12)', color: 'var(--accent)', padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{TYPE_LABELS[req.type] || req.type}</span>
                     <span style={{ fontSize: 13, fontWeight: 700 }}>{getMName(req.merchant_code)}</span>
                     {req.details?.product_name && <span style={{ fontSize: 12, color: 'var(--text2)' }}>— {req.details.product_name}</span>}
                   </div>
@@ -110,7 +110,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
                   </div>
                 )}
                 {req.admin_note && (
-                  <div style={{ background: 'rgba(124,107,255,0.07)', border: '1px solid rgba(124,107,255,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--accent)' }}>
+                  <div style={{ background: 'rgba(15,149,140,0.07)', border: '1px solid rgba(15,149,140,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--accent)' }}>
                     <span style={{ fontWeight: 700 }}>ردك: </span>{req.admin_note}
                   </div>
                 )}

@@ -60,9 +60,9 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
       <button aria-label="فتح مساعد Sellpert الذكي" onClick={() => setOpen(true)} style={{
         position: 'fixed', bottom: isMobile ? 76 : 26, left: isMobile ? 12 : 26, zIndex: 500,
         width: 56, height: 56, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #7c6bff, var(--green))',
+        background: 'linear-gradient(135deg, #0f958c, var(--green))',
         border: 'none', color: '#fff', cursor: 'pointer',
-        boxShadow: '0 6px 24px rgba(124,107,255,0.4)',
+        boxShadow: '0 6px 24px rgba(15,149,140,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transform: open ? 'scale(0)' : 'scale(1)', transition: 'transform 0.2s',
       }} title="اسأل AI عن بياناتك">
@@ -80,7 +80,7 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           <div style={{
-            padding: '14px 18px', background: 'linear-gradient(135deg, #7c6bff, var(--green))',
+            padding: '14px 18px', background: 'linear-gradient(135deg, #0f958c, var(--green))',
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

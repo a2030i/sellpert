@@ -84,7 +84,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
-        <Kpi label="سعر التكلفة" value={fmtCurrency(product.cost_price)} color="#7c6bff" />
+        <Kpi label="سعر التكلفة" value={fmtCurrency(product.cost_price)} color="#0f958c" />
         <Kpi label="سعر البيع المستهدف" value={fmtCurrency(product.target_net_price)} color="#4cc9f0" />
         <Kpi label="إجمالي الوحدات المباعة" value={fmtNumber(profitability?.units_sold || 0)} color="#00b894" />
         <Kpi label="الإيرادات" value={fmtCurrency(profitability?.revenue || 0)} color="#00b894" />
@@ -105,7 +105,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <Section title="📦 المخزون حسب المنصة">
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {inventory.map((i, idx) => {
-              const c = PLATFORM_COLORS[i.platform] || '#7c6bff'
+              const c = PLATFORM_COLORS[i.platform] || '#0f958c'
               return (
                 <div key={idx} style={{ padding: '10px 14px', background: 'var(--surface2)', borderRadius: 10, borderLeft: `3px solid ${c}` }}>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[i.platform] || i.platform}</div>
@@ -124,7 +124,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
             <Kpi label="إنفاق إعلاني" value={fmtCurrency(adTotals.spend)} color="#e84040" />
             <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color="#00b894" />
-            <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color="#7c6bff" />
+            <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color="#0f958c" />
             <Kpi label="ROAS الإعلاني" value={adTotals.spend > 0 ? (adTotals.revenue / adTotals.spend).toFixed(2) + 'x' : '—'} color="#ff9900" />
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -256,13 +256,13 @@ function ProfitSimulator({ product: _product, profitability }: { product: any; p
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>جرّب تغيير الأسعار والإعلانات وشوف تأثيرها على الربح (مرونة الطلب: {Math.abs(demandElasticity)}x)</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
-        <SliderInput label="تغيير السعر" value={pricePct} onChange={setPricePct} min={-30} max={50} suffix="%" color="#7c6bff" />
+        <SliderInput label="تغيير السعر" value={pricePct} onChange={setPricePct} min={-30} max={50} suffix="%" color="#0f958c" />
         <SliderInput label="تغيير الإعلانات" value={adPct} onChange={setAdPct} min={-100} max={100} suffix="%" color="#ff9900" />
         <SliderInput label="تغيير التكلفة" value={costPct} onChange={setCostPct} min={-30} max={30} suffix="%" color="#4cc9f0" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-        <SimBox label="الإيراد الجديد" value={fmtCurrency(newRevenue)} sub={`${newUnits.toFixed(0)} وحدة`} color="#7c6bff" />
+        <SimBox label="الإيراد الجديد" value={fmtCurrency(newRevenue)} sub={`${newUnits.toFixed(0)} وحدة`} color="#0f958c" />
         <SimBox label="الربح الحالي" value={fmtCurrency(baseProfit)} color="var(--text2)" />
         <SimBox label="الربح الجديد" value={fmtCurrency(newProfit)} color={newProfit >= baseProfit ? '#00b894' : '#e84040'} />
         <SimBox label="الفرق" value={(profitDelta >= 0 ? '+' : '') + fmtCurrency(Math.abs(profitDelta))} sub={(profitDelta >= 0 ? '▲' : '▼') + ' ' + Math.abs(profitPct).toFixed(0) + '%'} color={profitDelta >= 0 ? '#00b894' : '#e84040'} />

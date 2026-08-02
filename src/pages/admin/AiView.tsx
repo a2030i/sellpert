@@ -147,7 +147,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
             {merchants.map(m => {
               const checked = selMulti.includes(m.merchant_code)
               return (
-                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'rgba(124,107,255,0.12)' : 'var(--surface2)', cursor: 'pointer', fontSize: 12, fontWeight: checked ? 700 : 400, color: checked ? 'var(--accent)' : 'var(--text2)' }}>
+                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'rgba(15,149,140,0.12)' : 'var(--surface2)', cursor: 'pointer', fontSize: 12, fontWeight: checked ? 700 : 400, color: checked ? 'var(--accent)' : 'var(--text2)' }}>
                   <input type="checkbox" checked={checked} onChange={() => setSelMulti(prev => checked ? prev.filter(c => c !== m.merchant_code) : [...prev, m.merchant_code])} style={{ display: 'none' }} />
                   {m.name}
                 </label>
@@ -159,7 +159,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button style={{ background: 'linear-gradient(135deg,var(--accent),#a594ff)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(124,107,255,0.35)', opacity: (analyzing || getSelectedCodes().length === 0) ? 0.6 : 1 }} onClick={runAnalysis} disabled={analyzing || getSelectedCodes().length === 0}>
+        <button style={{ background: 'linear-gradient(135deg,var(--accent),#55bdb5)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(15,149,140,0.35)', opacity: (analyzing || getSelectedCodes().length === 0) ? 0.6 : 1 }} onClick={runAnalysis} disabled={analyzing || getSelectedCodes().length === 0}>
           {analyzing ? '⟳ جاري التحليل...' : '✨ تشغيل تحليل AI'}
         </button>
         {activeInsight && <span style={{ fontSize: 11, color: 'var(--text3)' }}>آخر تحليل: {new Date(activeInsight.created_at).toLocaleString('ar-SA')}</span>}
@@ -223,7 +223,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {c.recommendations.map((r, i) => (
                   <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: 'var(--bg)', borderRadius: 10, padding: '12px 14px' }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 8, background: 'rgba(124,107,255,0.2)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ width: 24, height: 24, borderRadius: 8, background: 'rgba(15,149,140,0.2)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
                     <span style={{ fontSize: 13, lineHeight: 1.6 }}>{r}</span>
                   </div>
                 ))}

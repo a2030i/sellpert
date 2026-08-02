@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, fmt } from './adminShared'
 import type { Merchant, PerformanceData } from '../../lib/supabase'
@@ -106,7 +106,7 @@ export default function RevenueView({ merchants, perfData }: { merchants: Mercha
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
         {[
-          { label: 'اشتراكات شهرية',       value: fmt(totSub),     color: '#7c6bff', icon: '💳', sub: `${merchants.length} تاجر` },
+          { label: 'اشتراكات شهرية',       value: fmt(totSub),     color: '#0f958c', icon: '💳', sub: `${merchants.length} تاجر` },
           { label: 'عمولة % (كل الوقت)',    value: fmt(totCommAll), color: '#00e5b0', icon: '📊', sub: `متوسط ${avgComm.toFixed(1)}%` },
           { label: 'رسوم ثابتة (كل الوقت)', value: fmt(totFixed),   color: '#f27a1a', icon: '🏷️', sub: 'ر.س/طلب' },
           { label: 'إجمالي هذا الشهر',      value: fmt(totMonth),   color: '#ff9900', icon: '📅', sub: 'اشتراك + عمولة + رسوم' },

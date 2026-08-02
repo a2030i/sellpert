@@ -384,7 +384,7 @@ export default function FeesView() {
               <input type="number" style={S.calcInput} value={targetNet} onChange={e => setTargetNet(e.target.value)} placeholder="مثال: 200" />
             </div>
             {reversePrice && targetNet && (
-              <div style={{ background: 'rgba(124,107,255,0.1)', border: '1px solid rgba(124,107,255,0.3)', borderRadius: 12, padding: '14px', textAlign: 'center' }}>
+              <div style={{ background: 'rgba(15,149,140,0.1)', border: '1px solid rgba(15,149,140,0.3)', borderRadius: 12, padding: '14px', textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>يجب أن يُباع بـ</div>
                 <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--accent)' }}>
                   {reversePrice.listPrice.toLocaleString()} ر.س

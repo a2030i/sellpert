@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
@@ -212,12 +212,12 @@ const S: Record<string, React.CSSProperties> = {
   },
   logoIcon: {
     width: 36, height: 36, borderRadius: 10,
-    background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16, fontWeight: 800, color: '#fff', flexShrink: 0,
   },
   logoText: { fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 },
-  logoBadge: { fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'rgba(124,107,255,0.15)', padding: '2px 7px', borderRadius: 20, marginTop: 3, display: 'inline-block' },
+  logoBadge: { fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'rgba(15,149,140,0.15)', padding: '2px 7px', borderRadius: 20, marginTop: 3, display: 'inline-block' },
   navGroup: { padding: '6px 10px 2px' },
   navGroupHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -231,12 +231,12 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 8, fontSize: 12, fontWeight: 500, marginBottom: 1,
     transition: 'all 0.15s', width: '100%', border: 'none', background: 'transparent', fontFamily: 'inherit', textAlign: 'right',
   },
-  navActive: { color: 'var(--accent)', background: 'rgba(124,107,255,0.1)', fontWeight: 700 },
+  navActive: { color: '#d9fffb', background: 'rgba(15,149,140,0.20)', fontWeight: 700 },
   navIcon: { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' as const },
   sidebarBottom: { padding: '12px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, marginTop: 'auto' },
   adminAvatar: {
     width: 32, height: 32, borderRadius: 8,
-    background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
+    background: 'var(--accent-strong)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0,
   },

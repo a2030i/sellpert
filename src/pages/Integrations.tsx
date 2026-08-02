@@ -78,7 +78,7 @@ function fmtDataDate(d: string) {
 }
 
 function ManagedPlatformCard({ platform, lastUpload, fresh }: { merchant?: Merchant | null; platform: string; lastUpload?: { uploaded_at: string; detected_report: string } | null; fresh?: { last_data_date: string; age_days: number } | null }) {
-  const color = PLATFORM_COLORS[platform] || '#7c6bff'
+  const color = PLATFORM_COLORS[platform] || '#0f958c'
   const label = PLATFORM_MAP[platform] || platform
   const emoji = ({ noon: '🟡', trendyol: '🟠', amazon: '📦' } as Record<string, string>)[platform] || '🛒'
   const isLinked = !!lastUpload
@@ -182,7 +182,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />
       </div>
 
-      <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(124,107,255,0.05)', border: '1px solid rgba(124,107,255,0.15)' }}>
+      <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)' }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
           💡 <b>كيف يعمل التحديث؟</b> أرسل تقارير المنصات الرسمية إلى فريق Sellpert (واتساب أو البريد) ويتم استيرادها واستخراج الطلبات والمنتجات والإعلانات والتسويات تلقائياً ضمن لوحتك.
         </div>

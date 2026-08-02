@@ -7,7 +7,7 @@ export const PLANS = {
     label:    'باقة سلة',
     price:    99,
     channels: ['salla'],
-    color:    '#7c6bff',
+    color:    '#0f958c',
     features: ['مزامنة سلة', 'لوحة تحكم أساسية', 'كشف حساب شهري'],
   },
   growth: {
