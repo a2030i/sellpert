@@ -1,6 +1,7 @@
 // AI-style inline hint component — للظهور في أعلى الصفحات بشكل lightweight
 import { useState, useEffect } from 'react'
-import { Sparkles, X } from 'lucide-react'
+import { Info, X } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export interface Hint { type?: 'info' | 'warn' | 'good'; title: string; body?: string; action?: { label: string; onClick: () => void } }
 
@@ -20,7 +21,7 @@ export function InsightHint({ hints }: { hints: Hint[] }) {
       borderRadius: 12, padding: '12px 16px', marginBottom: 16,
       display: 'flex', alignItems: 'center', gap: 12,
     }}>
-      <Sparkles size={18} color={colors} style={{ flexShrink: 0 }} />
+      <Info size={18} color={colors} style={{ flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{h.title}</div>
         {h.body && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{h.body}</div>}
@@ -43,19 +44,19 @@ export function useGeneratedHints(merchantCode?: string): Hint[] {
     if (!merchantCode) return
     let cancelled = false
     ;(async () => {
-      const { data: scoreData } = await import('../lib/supabase').then(m => m.supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode }))
+      const { data: scoreData } = await supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode })
       const score = scoreData?.score
       const breakdown = scoreData?.breakdown || {}
       const out: Hint[] = []
       if (score !== undefined) {
-        if (score < 50) out.push({ type: 'warn', title: `📊 صحة متجرك: ${score}/100`, body: 'فيه مجال للتحسين — راجع التفاصيل في الإعدادات' })
-        else if (score >= 80) out.push({ type: 'good', title: `🌟 صحة ممتازة: ${score}/100`, body: 'استمر! متجرك يعمل بكفاءة عالية' })
+        if (score < 50) out.push({ type: 'warn', title: `صحة متجرك: ${score}/100`, body: 'توجد فرص للتحسين — راجع التفاصيل في الإعدادات' })
+        else if (score >= 80) out.push({ type: 'good', title: `صحة المتجر ممتازة: ${score}/100`, body: 'متجرك يعمل بكفاءة عالية' })
       }
-      if (breakdown.returns_rate_pct > 15) out.push({ type: 'warn', title: '⚠️ نسبة المرتجعات مرتفعة', body: `${breakdown.returns_rate_pct}% — راجع جودة المنتجات والوصف` })
-      if (breakdown.roas !== undefined && breakdown.roas < 1.5 && breakdown.roas > 0) out.push({ type: 'warn', title: '📉 ROAS منخفض', body: `${breakdown.roas}x — كل ريال إعلان يجيب ${breakdown.roas} ريال فقط` })
-      if (breakdown.stockout_pct > 10) out.push({ type: 'warn', title: '📦 نفاد متكرر في المخزون', body: `${breakdown.stockout_pct}% من المنتجات نفد — تخسر مبيعات` })
-      if (breakdown.revenue_growth_pct < -10) out.push({ type: 'warn', title: '⬇️ تراجع في الإيرادات', body: `${breakdown.revenue_growth_pct}% مقارنة بالفترة السابقة` })
-      if (breakdown.revenue_growth_pct > 15) out.push({ type: 'good', title: '📈 نمو ممتاز', body: `+${breakdown.revenue_growth_pct}% نمو في الإيرادات` })
+      if (breakdown.returns_rate_pct > 15) out.push({ type: 'warn', title: 'نسبة المرتجعات مرتفعة', body: `${breakdown.returns_rate_pct}% — راجع جودة المنتجات والوصف` })
+      if (breakdown.roas !== undefined && breakdown.roas < 1.5 && breakdown.roas > 0) out.push({ type: 'warn', title: 'عائد الإنفاق الإعلاني منخفض', body: `${breakdown.roas}x — كل ريال إعلان يحقق ${breakdown.roas} ريال فقط` })
+      if (breakdown.stockout_pct > 10) out.push({ type: 'warn', title: 'نفاد متكرر في المخزون', body: `${breakdown.stockout_pct}% من المنتجات نفد — قد تفقد مبيعات` })
+      if (breakdown.revenue_growth_pct < -10) out.push({ type: 'warn', title: 'تراجع في الإيرادات', body: `${breakdown.revenue_growth_pct}% مقارنة بالفترة السابقة` })
+      if (breakdown.revenue_growth_pct > 15) out.push({ type: 'good', title: 'نمو قوي في الإيرادات', body: `+${breakdown.revenue_growth_pct}% نمو في الإيرادات` })
       if (!cancelled) setHints(out.slice(0, 4))
     })()
     return () => { cancelled = true }
