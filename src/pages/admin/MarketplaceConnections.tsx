@@ -146,7 +146,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
         <div style={{ ...S.tableCard, padding: 30, textAlign: 'center', color: 'var(--text3)' }}>أضف تاجرًا أولًا لبدء الربط.</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-          {(['amazon', 'noon', 'trendyol'] as Platform[]).map(platform => (
+          {((lockedMerchantCode ? ['trendyol'] : ['amazon', 'noon', 'trendyol']) as Platform[]).map(platform => (
             <PlatformCard
               key={`${merchantCode}-${platform}`}
               platform={platform}
@@ -175,11 +175,12 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
   const [busy, setBusy] = useState<'test' | 'save' | 'delete' | 'sync' | null>(null)
   const [oauthBusy, setOauthBusy] = useState(false)
   const [verified, setVerified] = useState(false)
-  const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null } | null>(null)
+  const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null; created_at?: string | null; started_at?: string | null } | null>(null)
   const [syncDetails, setSyncDetails] = useState<any>(null)
   const [showActions, setShowActions] = useState(false)
 
-  const syncInProgress = syncJob?.status === 'pending' || syncJob?.status === 'running'
+  const syncInProgress = ['pending', 'processing', 'running'].includes(syncJob?.status || '')
+  const syncProcessing = syncJob?.status === 'processing' || syncJob?.status === 'running'
 
   useEffect(() => {
     setEditing(!status)
@@ -195,7 +196,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
       try {
         const data = await callManager({ action: 'sync-status', merchant_code: merchantCode, platform })
         if (cancelled || data.error) return
-        const active = data.job?.status === 'pending' || data.job?.status === 'running'
+        const active = ['pending', 'processing', 'running'].includes(data.job?.status || '')
         setSyncJob(data.job || null)
         setSyncDetails(data.log?.details || null)
         if (wasInProgress && !active) await onChanged()
@@ -341,9 +342,28 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
                 <strong style={{ color: syncInProgress ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
-                  {syncJob?.status === 'pending' ? '⏳ المزامنة في الطابور' : syncJob?.status === 'running' ? '⟳ جارٍ مزامنة بيانات ترنديول' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة ترنديول' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة ترنديول' : 'لم تبدأ بعد'}
+                  {syncJob?.status === 'pending' ? '⏳ المزامنة في الطابور' : syncProcessing ? '⟳ جارٍ مزامنة بيانات ترنديول' : syncJob?.status === 'done' ? '✓ اكتملت مزامنة ترنديول' : syncJob?.status === 'failed' ? '✕ فشلت مزامنة ترنديول' : 'لم تبدأ بعد'}
                 </strong>
               </div>
+              {syncInProgress ? (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: `${meta.color}0D`, border: `1px solid ${meta.color}35` }}>
+                  <style>{`@keyframes trendyol-sync-progress{0%{transform:translateX(0)}100%{transform:translateX(260%)}}`}</style>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, fontWeight: 800, color: meta.color }}>
+                    <span>{syncProcessing ? 'جاري سحب وتحديث البيانات' : 'طلبك بانتظار بدء التنفيذ'}</span>
+                    <span style={{ fontSize: 10 }}>{syncProcessing ? 'يعمل الآن' : 'في الطابور'}</span>
+                  </div>
+                  <div style={{ height: 8, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
+                    {syncProcessing ? (
+                      <div style={{ width: '28%', height: '100%', borderRadius: 99, background: meta.color, animation: 'trendyol-sync-progress 1.6s ease-in-out infinite alternate' }} />
+                    ) : (
+                      <div style={{ width: '12%', height: '100%', borderRadius: 99, background: meta.color }} />
+                    )}
+                  </div>
+                  <div style={{ marginTop: 9, color: 'var(--text3)', fontSize: 10, lineHeight: 1.7 }}>
+                    يشمل التحديث الطلبات والعملاء والمنتجات والصور والمخزون والمرتجعات والتسويات. لا تحتاج للضغط مرة أخرى؛ يتم تحديث الحالة تلقائيًا.
+                  </div>
+                </div>
+              ) : null}
               {syncJob?.status === 'done' ? (
                 <div style={{ marginTop: 9, padding: '8px 10px', borderRadius: 8, background: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700 }}>تم سحب {syncDetails?.orders ?? status.records_synced ?? 0} طلبًا</span>
@@ -369,7 +389,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice }: 
             <div style={{ display: 'flex', gap: 8 }}>
               {status.is_active ? (
                 <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color, opacity: syncInProgress ? 0.65 : 1 }} onClick={() => void requestSync()} disabled={!!busy || syncInProgress}>
-                  {busy === 'sync' || syncInProgress ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {busy === 'sync' ? 'جارٍ الجدولة...' : syncJob?.status === 'pending' ? 'في الطابور...' : syncJob?.status === 'running' ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
+                  {busy === 'sync' || syncInProgress ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {busy === 'sync' ? 'جارٍ الجدولة...' : syncJob?.status === 'pending' ? 'في الطابور...' : syncProcessing ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
                 </button>
               ) : null}
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>

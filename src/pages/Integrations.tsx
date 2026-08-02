@@ -4,6 +4,8 @@ import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import MarketplaceConnections from './admin/MarketplaceConnections'
 
+const SHOW_MANAGED_MARKETPLACES = false
+
 // ─── Salla Card ───────────────────────────────────────────────────────────────
 
 function SallaCard({ merchant }: { merchant: Merchant | null }) {
@@ -175,12 +177,12 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         />
       ) : null}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {SHOW_MANAGED_MARKETPLACES && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>منصات مُدارة</div>
         <ManagedPlatformCard merchant={merchant} platform="noon"     lastUpload={uploads.noon}     fresh={fresh.noon} />
         <ManagedPlatformCard merchant={merchant} platform="trendyol" lastUpload={uploads.trendyol} fresh={fresh.trendyol} />
         <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />
-      </div>
+      </div>}
 
       <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)' }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
