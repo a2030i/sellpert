@@ -461,7 +461,7 @@ export default function App() {
       )}
 
       {/* ── Main Content ── */}
-      <main style={{ flex: 1, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
+      <main style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
         <Suspense fallback={<PageFallback />}>
           {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
           {view === 'products'     && <Products     merchant={activeMerchant} />}

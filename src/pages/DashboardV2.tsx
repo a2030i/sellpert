@@ -41,7 +41,7 @@ function Trend({ current, previous }: { current: number; previous: number }) {
 
 export default function DashboardV2({ merchant }: { merchant: Merchant | null }) {
   const isMobile = useMobile()
-  const [range, setRange] = useState<RangeKey>('30')
+  const [range, setRange] = useState<RangeKey>('90')
   const [orders, setOrders] = useState<Order[]>([])
   const [inventory, setInventory] = useState<InventoryRow[]>([])
   const [payouts, setPayouts] = useState<Payout[]>([])
