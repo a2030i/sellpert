@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, Play, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, PackageCheck, Play, Printer, RefreshCw, Truck, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Risk = 'read' | 'write' | 'destructive'
@@ -62,7 +62,11 @@ const CAPABILITIES: Capability[] = [
   { action:'finance.other',label:'الحركات المالية الأخرى',group:'الماليات',risk:'read',queryHint:'{"transactionType":"PaymentOrder","startDate":0,"endDate":0,"page":0,"size":500}' },
 ]
 
-export default function TrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:string; onClose:()=>void }) {
+export default function TrendyolActionCenter({ merchantCode, onClose, merchantMode=false }:{ merchantCode:string; onClose:()=>void; merchantMode?:boolean }) {
+  return merchantMode ? <MerchantTrendyolCenter merchantCode={merchantCode} onClose={onClose}/> : <AdvancedTrendyolActionCenter merchantCode={merchantCode} onClose={onClose}/>
+}
+
+function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:string; onClose:()=>void }) {
   const [selected,setSelected] = useState(CAPABILITIES[0].action)
   const [path,setPath] = useState('{}'); const [query,setQuery] = useState('{}'); const [payload,setPayload] = useState('{}')
   const [confirmed,setConfirmed] = useState(false); const [busy,setBusy] = useState(false)
@@ -109,4 +113,75 @@ export default function TrendyolActionCenter({ merchantCode, onClose }:{ merchan
   </div></div>
 }
 
+type MerchantAction = 'label'|'status'|'tracking'|'carrier'|'stock'|'approve_return'
+
+function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onClose:()=>void}) {
+  const [action,setAction]=useState<MerchantAction>('label')
+  const [form,setForm]=useState<Record<string,string>>({status:'Picking'})
+  const [busy,setBusy]=useState(false); const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
+  const actions:[MerchantAction,string,string,any][]=[
+    ['label','طباعة ملصق الشحن','أدخل رقم التتبع وحمّل الملصق الجاهز',Printer],
+    ['status','تحديث حالة الشحنة','حدّث الشحنة إلى التجهيز أو إصدار الفاتورة',PackageCheck],
+    ['tracking','تحديث رقم التتبع','اربط الشحنة برقم التتبع الصحيح',Truck],
+    ['carrier','تغيير شركة الشحن','اختر رمز شركة الشحن المعتمد في Trendyol',RefreshCw],
+    ['stock','تحديث السعر والمخزون','حدّث سعر وكمية المنتج مباشرة',RefreshCw],
+    ['approve_return','قبول طلب مرتجع','وافق على عناصر المرتجع من رقم المطالبة',CheckCircle2],
+  ]
+  const set=(key:string,value:string)=>setForm(current=>({...current,[key]:value}))
+  const input=(label:string,key:string,placeholder:string,type='text')=><label style={F.field}><span>{label}</span><input style={M.input} type={type} value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={placeholder}/></label>
+
+  async function run() {
+    setBusy(true); setMessage(null)
+    try {
+      let request:any={merchant_code:merchantCode,confirm:true,storefront:'SA',idempotency_key:crypto.randomUUID()}
+      if(action==='label') {
+        if(!form.tracking?.trim()) throw new Error('أدخل رقم تتبع الشحنة')
+        request={...request,action:'packages.common_label',query:{id:form.tracking.trim()}}
+      } else if(action==='status') {
+        if(!form.packageId?.trim()) throw new Error('أدخل رقم حزمة الشحنة')
+        request={...request,action:'packages.status',path:{packageId:form.packageId.trim()},payload:{status:form.status||'Picking'}}
+      } else if(action==='tracking') {
+        if(!form.packageId?.trim()||!form.tracking?.trim()) throw new Error('أدخل رقم الحزمة ورقم التتبع')
+        request={...request,action:'packages.tracking',path:{packageId:form.packageId.trim()},payload:{trackingNumber:form.tracking.trim()}}
+      } else if(action==='carrier') {
+        if(!form.packageId?.trim()||!form.carrier?.trim()) throw new Error('أدخل رقم الحزمة ورمز شركة الشحن')
+        request={...request,action:'packages.cargo_provider',path:{packageId:form.packageId.trim()},payload:{cargoProviderCode:form.carrier.trim()}}
+      } else if(action==='stock') {
+        if(!form.barcode?.trim()||form.quantity===''||!form.salePrice) throw new Error('أدخل الباركود والكمية وسعر البيع')
+        request={...request,action:'products.price_inventory',payload:{items:[{barcode:form.barcode.trim(),quantity:Number(form.quantity),salePrice:Number(form.salePrice),listPrice:Number(form.listPrice||form.salePrice)}]}}
+      } else {
+        if(!form.claimId?.trim()||!form.claimItems?.trim()) throw new Error('أدخل رقم المطالبة وأرقام عناصر المرتجع')
+        request={...request,action:'claims.approve',path:{claimId:form.claimId.trim()},payload:{claimLineItemIdList:form.claimItems.split(',').map(v=>v.trim()).filter(Boolean)}}
+      }
+      const {data:{session}}=await supabase.auth.getSession()
+      const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session?.access_token||''}`},body:JSON.stringify(request)})
+      const data=await response.json().catch(()=>({}))
+      if(!response.ok||data.error) throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error)||`HTTP ${response.status}`)
+      if(action==='label') {
+        const label=data?.data?.data?.[0]?.label
+        if(!label) throw new Error('لم يُصدر Trendyol ملصقًا لهذه الشحنة بعد. تأكد أن الشحنة في حالة التجهيز أو مفوترة.')
+        if(/^https?:\/\//i.test(label)) window.open(label,'_blank','noopener,noreferrer')
+        else { const blob=new Blob([label],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`trendyol-label-${form.tracking}.zpl`; a.click(); URL.revokeObjectURL(url) }
+      }
+      setMessage({type:'ok',text:action==='label'?'تم تجهيز ملصق الشحن للتحميل.':'تم إرسال الإجراء إلى Trendyol بنجاح.'})
+    } catch(error:any) { setMessage({type:'err',text:error?.message||'تعذر تنفيذ الإجراء'}) } finally { setBusy(false) }
+  }
+
+  return <div style={M.backdrop} onClick={onClose}><div style={{...M.modal,width:'min(760px,100%)'}} onClick={e=>e.stopPropagation()}>
+    <div style={M.header}><div><b style={{fontSize:18}}>خدمات Trendyol</b><div style={M.sub}>نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية</div></div><button style={M.close} onClick={onClose}><X size={18}/></button></div>
+    <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>{setAction(id);setMessage(null)}} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
+    <div style={F.form}>
+      {action==='label'?input('رقم تتبع الشحنة','tracking','مثال: 3941019487'):
+       action==='status'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}<label style={F.field}><span>الحالة الجديدة</span><select style={M.input} value={form.status||'Picking'} onChange={e=>set('status',e.target.value)}><option value="Picking">قيد التجهيز</option><option value="Invoiced">تم إصدار الفاتورة</option></select></label></>:
+       action==='tracking'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم التتبع','tracking','رقم التتبع الجديد')}</>:
+       action==='carrier'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رمز شركة الشحن','carrier','مثال: ARAMEX')}</>:
+       action==='stock'?<>{input('باركود المنتج','barcode','Barcode')}{input('الكمية المتاحة','quantity','0','number')}{input('سعر البيع','salePrice','0.00','number')}{input('السعر قبل الخصم','listPrice','اختياري','number')}</>:
+       <>{input('رقم مطالبة المرتجع','claimId','Claim ID')}{input('أرقام عناصر المرتجع','claimItems','افصل بينها بفاصلة')}</>}
+      {message?<div style={{...F.message,background:message.type==='ok'?'var(--success-bg)':'var(--danger-bg)',color:message.type==='ok'?'var(--success-text)':'var(--danger-text)'}}>{message.text}</div>:null}
+      <button style={{...M.run,width:'100%',gridColumn:'1/-1',opacity:busy?.6:1}} disabled={busy} onClick={run}>{busy?<Loader2 size={15} className="spin"/>:<Play size={15}/>} {busy?'جارٍ التنفيذ...':'تنفيذ الإجراء'}</button>
+    </div>
+  </div></div>
+}
+
 const M:Record<string,React.CSSProperties>={backdrop:{position:'fixed',inset:0,zIndex:1200,background:'rgba(4,15,23,.65)',display:'grid',placeItems:'center',padding:18},modal:{width:'min(940px,100%)',maxHeight:'92vh',overflowY:'auto',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:18,padding:22},header:{display:'flex',justifyContent:'space-between',borderBottom:'1px solid var(--border)',paddingBottom:14,marginBottom:16},sub:{fontSize:11,color:'var(--text3)',marginTop:4},close:{width:34,height:34,borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',cursor:'pointer'},grid:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:14},label:{display:'block',fontSize:11,fontWeight:700,color:'var(--text3)',marginBottom:6},input:{width:'100%',padding:'10px 12px',borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)'},textarea:{width:'100%',minHeight:105,padding:10,borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',fontFamily:'monospace',fontSize:11,resize:'vertical'},risk:{display:'inline-flex',padding:'6px 12px',borderRadius:20,fontSize:11,fontWeight:800},confirm:{display:'flex',alignItems:'center',gap:8,padding:11,borderRadius:9,background:'var(--warning-bg)',color:'var(--warning-text)',fontSize:12,marginBottom:12},run:{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px 18px',border:0,borderRadius:10,background:'var(--accent-strong)',color:'#fff',fontWeight:800,cursor:'pointer'},error:{padding:10,borderRadius:9,background:'var(--danger-bg)',color:'var(--danger-text)',fontSize:12,marginBottom:12},result:{padding:12,borderRadius:10,background:'var(--success-bg)',color:'var(--success-text)',marginBottom:12},pre:{maxHeight:240,overflow:'auto',direction:'ltr',textAlign:'left',fontSize:10,whiteSpace:'pre-wrap'}}
+const F:Record<string,React.CSSProperties>={actions:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:9,marginBottom:16},action:{display:'grid',gridTemplateColumns:'26px 1fr',gap:'3px 8px',alignItems:'center',textAlign:'right',padding:12,border:'1px solid var(--border)',borderRadius:11,color:'var(--text)',cursor:'pointer',fontFamily:'inherit'},form:{padding:16,borderRadius:12,background:'var(--surface2)',border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:12},field:{display:'grid',gap:6,fontSize:11,fontWeight:700,color:'var(--text2)'},message:{gridColumn:'1/-1',padding:10,borderRadius:8,fontSize:12},}

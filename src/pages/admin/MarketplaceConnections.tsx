@@ -397,7 +397,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>
               <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}>{busy === 'delete' ? <Loader2 size={13} /> : <Trash2 size={13} />}</button>
             </div>
-            {status.is_active && showAdvancedActions ? <button style={{ ...S.saveBtn, width:'100%', justifyContent:'center', marginTop:8, background:meta.color }} onClick={() => setShowActions(true)}><PlugZap size={14}/> مركز عمليات Trendyol الكامل</button> : null}
+            {status.is_active ? <button style={{ ...S.saveBtn, width:'100%', justifyContent:'center', marginTop:8, background:meta.color }} onClick={() => setShowActions(true)}><PlugZap size={14}/> {showAdvancedActions ? 'مركز عمليات Trendyol الكامل' : 'خدمات Trendyol'}</button> : null}
           </div>
         ) : (
           <div>
@@ -418,7 +418,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
           </div>
         )}
       </div>
-      {showAdvancedActions && showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => setShowActions(false)} /> : null}
+      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => setShowActions(false)} merchantMode={!showAdvancedActions} /> : null}
     </article>
   )
 }
