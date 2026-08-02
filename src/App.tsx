@@ -298,7 +298,7 @@ export default function App() {
     if (!code) return
     let cancelled = false
     Promise.all([
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('platform', 'trendyol'),
       supabase.from('merchant_requests').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'pending'),
       supabase.from('platform_credentials').select('is_active,last_sync_at').eq('merchant_code', code).eq('platform', 'trendyol').maybeSingle(),
     ]).then(([ordersResult, supportResult, credentialResult]) => {
