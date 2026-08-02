@@ -84,6 +84,8 @@ const ACTIONS: Record<string, Definition> = {
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:cors })
   if (req.method !== 'POST') return json({ error:'Method not allowed' }, 405, cors)
+  const contentLength = Number(req.headers.get('content-length') || 0)
+  if (contentLength > 5_000_000) return json({ error:'حجم الطلب يتجاوز الحد المسموح' }, 413, cors)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
   try {
@@ -98,6 +100,11 @@ Deno.serve(async req => {
       : null
     const definition = ACTIONS[action]
     if (!definition) throw new HttpError(400, 'عملية Trendyol غير مدعومة')
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString()
+    const { count: recentCount } = await admin.from('marketplace_action_logs')
+      .select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode)
+      .eq('platform','trendyol').gte('started_at',oneMinuteAgo)
+    if ((recentCount || 0) >= 60) throw new HttpError(429, 'تم تجاوز حد العمليات المؤقت؛ حاول بعد دقيقة')
     if (definition.risk !== 'read' && input?.confirm !== true) {
       throw new HttpError(409, 'يجب تأكيد العملية قبل إرسالها إلى Trendyol')
     }
