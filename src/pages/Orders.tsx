@@ -556,7 +556,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
               <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{financialMismatch(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
             </div> : null}
-            {selectedOrder.platform === 'trendyol' && selectedOrder.shipment_package_id ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+            {selectedOrder.platform === 'trendyol' && selectedOrder.shipment_package_id && !['delivered','cancelled','returned'].includes(selectedOrder.status) ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
               <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>إجراءات تنفيذ الطلب</div>
               <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>كل إجراء يُرسل مباشرة إلى Trendyol ويُحفظ في سجل التدقيق. لا ترسل «تم إصدار الفاتورة» قبل بدء التجهيز.</div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
