@@ -143,6 +143,7 @@ export interface Order {
   vat_rate?: number | null
   discount_amount?: number | null
   last_synced_at?: string | null
+  raw?: Record<string, any> | null
   created_at: string
 }
 

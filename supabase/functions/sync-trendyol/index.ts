@@ -59,9 +59,12 @@ Deno.serve(async (req) => {
       // Trendyol requires "Seller Id - Integration Company" on every request.
       'User-Agent': `${credentials.sellerId} - Sellpert`,
       Accept: 'application/json',
+      // Saudi storefront selects the Gulf catalogue/currency/localized payload.
+      storeFrontCode: 'SA',
     }
 
     const orders = new Map<string, any>()
+    const shipments: any[] = []
     // Trendyol accepts at most a two-week date interval. Slightly smaller
     // windows avoid boundary/time-zone rejection.
     for (const window of splitRange(from, to, 13)) {
@@ -81,7 +84,10 @@ Deno.serve(async (req) => {
           'Trendyol API',
         )
         const packages: any[] = data?.content || []
-        for (const shipment of packages) mergeShipment(orders, shipment, merchantCode)
+        for (const shipment of packages) {
+          shipments.push(shipment)
+          mergeShipment(orders, shipment, merchantCode)
+        }
 
         const totalPages = numberValue(data?.totalPages)
         if (packages.length < 200 || (totalPages > 0 && page + 1 >= totalPages)) break
@@ -96,6 +102,8 @@ Deno.serve(async (req) => {
 
     const details: Record<string, unknown> = { orders: rows.length, performance_days: daily.size }
     const warnings: string[] = []
+    details.order_items = await optionalResource('order_items', warnings, () =>
+      syncOrderItems(admin, merchantCode, credentials.sellerId, shipments, headers))
     details.returns = await optionalResource('returns', warnings, () =>
       syncReturns(admin, merchantCode, credentials.sellerId, from, to, headers))
     details.settlements = await optionalResource('settlements', warnings, () =>
@@ -219,6 +227,116 @@ async function optionalResource(name: string, warnings: string[], task: () => Pr
   }
 }
 
+async function syncOrderItems(admin: any, merchantCode: string, sellerId: string, shipments: any[], headers: Record<string,string>) {
+  const catalogue = new Map<string, any>()
+  const barcodes = [...new Set(shipments.flatMap(shipment =>
+    (shipment.lines || []).map((line:any) => String(line.barcode || '')).filter(Boolean),
+  ))]
+  // Catalogue lookups are bounded and run in small groups to respect Trendyol
+  // service limits while enriching order lines with product images.
+  for (let start=0; start<barcodes.length; start+=5) {
+    await Promise.all(barcodes.slice(start,start+5).map(async barcode => {
+      try {
+        const data = await fetchJsonWithRetry(
+          `${TRENDYOL_PRODUCT_API}/${encodeURIComponent(sellerId)}/products/approved?barcode=${encodeURIComponent(barcode)}&page=0&size=10`,
+          { headers }, 'Trendyol Product API', 2,
+        )
+        const content = data?.content || data?.items
+        catalogue.set(barcode, Array.isArray(content) ? content[0] || null : content || data?.item || data)
+      } catch (error:any) {
+        console.warn(`[trendyol:catalogue] barcode=${barcode} ${error?.message || error}`)
+      }
+    }))
+  }
+  const now = new Date().toISOString()
+  const rows:any[] = []
+  for (const shipment of shipments) {
+    const orderId = String(shipment.orderNumber || shipment.id || shipment.shipmentPackageId || '')
+    for (let index=0; index<(shipment.lines || []).length; index++) {
+      const line = shipment.lines[index]
+      const barcode = String(line.barcode || '')
+      const product = catalogue.get(barcode) || null
+      const images = product?.images || product?.imageUrls || product?.content?.images || []
+      const firstImage = Array.isArray(images) ? images[0] : null
+      const quantity = Math.max(1, Math.trunc(numberValue(line.quantity || 1)))
+      const unitPrice = numberValue(line.lineUnitPrice || line.price || line.amount)
+      const commissionRate = numberValue(line.commission)
+      rows.push({
+        merchant_code:merchantCode, platform:'trendyol', order_id:orderId,
+        line_id:String(line.lineId || line.id || `${shipment.shipmentPackageId || shipment.id}-${index}`),
+        content_id:String(line.contentId || line.productCode || '') || null,
+        barcode:barcode || null, sku:String(line.merchantSku || line.stockCode || line.sku || '') || null,
+        product_name:product?.title || product?.productName || product?.name || line.productName || null,
+        quantity, unit_price:unitPrice,
+        line_total:numberValue(line.lineGrossAmount || line.amount || unitPrice*quantity),
+        discount_amount:numberValue(line.lineTotalDiscount || line.discount),
+        commission_amount:unitPrice*quantity*commissionRate/100,
+        commission_rate:commissionRate || null, vat_rate:numberValue(line.vatRate) || null,
+        image_url:typeof firstImage === 'string' ? firstImage : firstImage?.url || product?.imageUrl || null,
+        images:Array.isArray(images) ? images : null,
+        product_url:product?.productUrl || product?.url || null,
+        raw:line, catalog_raw:product, last_synced_at:now,
+      })
+    }
+  }
+  await enrichArabicTitles(admin, merchantCode, rows)
+  for (let index=0; index<rows.length; index+=100) {
+    const { error } = await admin.from('order_items').upsert(rows.slice(index,index+100), {
+      onConflict:'merchant_code,platform,order_id,line_id',
+    })
+    if (error) throw error
+  }
+  return rows.length
+}
+
+async function enrichArabicTitles(admin:any, merchantCode:string, rows:any[]) {
+  const titles = [...new Set(rows.map(row => String(row.product_name || '').trim()).filter(Boolean))]
+  if (!titles.length) return
+  const { data: cached } = await admin.from('order_items').select('product_name,product_name_ar')
+    .eq('merchant_code',merchantCode).eq('platform','trendyol').in('product_name',titles)
+    .not('product_name_ar','is',null)
+  const translations = new Map<string,string>()
+  for (const item of cached || []) if (item.product_name && item.product_name_ar) translations.set(item.product_name,item.product_name_ar)
+  const missing = titles.filter(title => !translations.has(title) && !/[ء-ي]/.test(title))
+  if (missing.length) {
+    let apiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
+    if (!apiKey) {
+      const { data } = await admin.from('platform_connections').select('api_key')
+        .eq('platform','openrouter').eq('is_active',true).maybeSingle()
+      apiKey = data?.api_key || ''
+    }
+    if (apiKey) for (let start=0; start<missing.length; start+=25) {
+      const batch = missing.slice(start,start+25)
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method:'POST', headers:{ Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','HTTP-Referer':'https://sellpert.com','X-Title':'Sellpert Product Translation' },
+          body:JSON.stringify({
+            model:Deno.env.get('OPENROUTER_TRANSLATION_MODEL') || 'google/gemini-2.5-flash',
+            temperature:0, max_tokens:2500,
+            messages:[
+              { role:'system', content:'ترجم أسماء المنتجات التالية إلى العربية التجارية الواضحة. حافظ على العلامة التجارية والأوزان والمقاسات والأكواد دون تغيير. أعد فقط JSON array من كائنات source وarabic وبنفس الترتيب.' },
+              { role:'user', content:JSON.stringify(batch) },
+            ],
+          }),
+        })
+        if (!response.ok) throw new Error(`translation HTTP ${response.status}`)
+        const data = await response.json()
+        const content = String(data?.choices?.[0]?.message?.content || '')
+        const jsonText = content.match(/\[[\s\S]*\]/)?.[0] || '[]'
+        const translated = JSON.parse(jsonText)
+        for (const item of translated) if (item?.source && item?.arabic) translations.set(String(item.source),String(item.arabic))
+      } catch (error:any) {
+        console.warn('[trendyol:translate]',error?.message || error)
+      }
+    }
+  }
+  for (const row of rows) {
+    const original = String(row.product_name || '')
+    row.product_name_ar = /[ء-ي]/.test(original) ? original : translations.get(original) || null
+    row.translation_source = row.product_name_ar ? (row.product_name_ar === original ? 'trendyol' : 'ai') : null
+  }
+}
+
 async function pagedContent(url: string, headers: Record<string, string>, pageSize = 200) {
   const rows: any[] = []
   let page = 0
@@ -336,7 +454,7 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
 async function syncProducts(admin: any, merchantCode: string, sellerId: string, headers: Record<string, string>) {
   const items = await pagedContent(`${TRENDYOL_PRODUCT_API}/${encodeURIComponent(sellerId)}/products`, headers)
   const now = new Date().toISOString()
-  const products = items.map((item: any) => {
+  const productCandidates = items.map((item: any) => {
     const sku = String(item.stockCode || item.merchantSku || item.barcode || item.id || '')
     return {
       merchant_code: merchantCode, name: item.title || item.productName || sku, sku,
@@ -350,11 +468,12 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
       platform_source: 'trendyol_api', raw: item, last_synced_at: now,
     }
   }).filter((item: any) => item.sku)
+  const products = [...new Map(productCandidates.map((item:any) => [item.sku,item])).values()]
   for (let index = 0; index < products.length; index += 100) {
     const { error } = await admin.from('products').upsert(products.slice(index, index + 100), { onConflict: 'merchant_code,sku' })
     if (error) throw error
   }
-  const inventory = items.map((item: any) => ({
+  const inventoryCandidates = items.map((item: any) => ({
     merchant_code: merchantCode, platform: 'trendyol',
     sku: String(item.stockCode || item.merchantSku || item.barcode || item.id || ''),
     product_name: item.title || item.productName || null,
@@ -362,6 +481,7 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
     low_stock_threshold: 5, cost_price: null, image_url: item.images?.[0]?.url || item.imageUrl || null,
     is_active: item.approved !== false && !item.archived, last_updated: now, raw: item,
   })).filter((item: any) => item.sku)
+  const inventory = [...new Map(inventoryCandidates.map((item:any) => [item.sku,item])).values()]
   for (let index = 0; index < inventory.length; index += 100) {
     const { error } = await admin.from('inventory').upsert(inventory.slice(index, index + 100), { onConflict: 'merchant_code,sku,platform' })
     if (error) throw error

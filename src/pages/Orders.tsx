@@ -39,6 +39,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [selectedItems, setSelectedItems] = useState<any[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
   const isMobile = useMobile()
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
@@ -168,6 +170,16 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn'),
       })), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
     })
+  }
+
+  async function openOrder(order: Order) {
+    setSelectedOrder(order); setSelectedItems([]); setDetailLoading(true)
+    const [detail, items] = await Promise.all([
+      supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('id', order.id).maybeSingle(),
+      supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
+    ])
+    if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
+    setSelectedItems(items.data || []); setDetailLoading(false)
   }
 
   if (loading) return (
@@ -290,7 +302,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ) : pageRows.map(o => (
                   <tr key={o.id} style={S.tr}>
                     <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>
-                      <button onClick={() => setSelectedOrder(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
+                      <button onClick={() => void openOrder(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
                         {o.order_id}
                       </button>
                     </td>
@@ -478,7 +490,30 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 </div>
               ))}
             </div>
-            <div style={S.modalNote}>تظهر هنا البيانات المحفوظة في Sellpert حالياً. سيتم توسيعها عند ربط حقول الشحن والخصومات والعمولات من ترنديول.</div>
+            {detailLoading ? <div style={S.modalNote}>جارٍ تحميل بيانات العميل والمنتجات…</div> : <>
+              {selectedOrder.platform === 'trendyol' ? <>
+                <div style={S.sectionTitle}>بيانات العميل</div>
+                <div style={S.detailGrid}>
+                  {(() => {
+                    const raw:any = selectedOrder.raw || {}
+                    const address:any = raw.shipmentAddress || selectedOrder.shipment_address || {}
+                    return [
+                      ['الاسم', raw.customerFirstName || raw.customerLastName ? `${raw.customerFirstName || ''} ${raw.customerLastName || ''}`.trim() : address.fullName || '—'],
+                      ['البريد الإلكتروني', raw.customerEmail || '—'], ['رقم الهاتف', address.phone || '—'],
+                      ['رقم العميل', raw.customerId || '—'], ['العنوان', address.fullAddress || address.address1 || '—'],
+                      ['الحي / المنطقة', address.district || address.countyName || '—'], ['الرمز البريدي', address.postalCode || '—'],
+                    ].map(([label,value]) => <div key={label} style={S.detailItem}><div style={S.detailLabel}>{label}</div><div style={S.detailValue}>{String(value)}</div></div>)
+                  })()}
+                </div>
+              </> : null}
+              <div style={S.sectionTitle}>منتجات الطلب ({selectedItems.length || selectedOrder.quantity})</div>
+              {selectedItems.length ? <div style={{ display:'grid', gap:10 }}>
+                {selectedItems.map(item => <div key={item.id} style={S.productRow}>
+                  <div style={S.productImage}>{item.image_url ? <img src={item.image_url} alt={item.product_name || 'المنتج'} style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : '📦'}</div>
+                  <div style={{ flex:1, minWidth:0 }}><div style={{ fontWeight:800, fontSize:13 }}>{item.product_name_ar || item.product_name || '—'}</div>{item.product_name_ar && item.product_name_ar !== item.product_name ? <div dir="ltr" style={{ fontSize:10, color:'var(--text3)', marginTop:3, textAlign:'right' }}>{item.product_name}</div> : null}<div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>الباركود: {item.barcode || '—'} · SKU: {item.sku || '—'}</div><div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>الكمية {item.quantity} · سعر الوحدة {fmt(Number(item.unit_price || 0))} · الخصم {fmt(Number(item.discount_amount || 0))} · العمولة {item.commission_rate || 0}% · الضريبة {item.vat_rate || 0}%</div></div>
+                </div>)}
+              </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة بعد مطابقة الباركود مع كتالوج Trendyol.</div>}
+            </>}
           </div>
         </div>
       )}
@@ -521,4 +556,7 @@ const S: Record<string, React.CSSProperties> = {
   detailLabel:{ fontSize:11, color:'var(--text3)', fontWeight:700, marginBottom:5 },
   detailValue:{ fontSize:13, color:'var(--text)', fontWeight:700, overflowWrap:'anywhere' },
   modalNote:  { marginTop:16, padding:'10px 12px', borderRadius:10, background:'var(--info-bg)', color:'var(--info-text)', fontSize:11, lineHeight:1.7 },
+  sectionTitle:{ fontSize:13, fontWeight:800, marginTop:18, marginBottom:9, paddingTop:14, borderTop:'1px solid var(--border)' },
+  productRow: { display:'flex', gap:12, alignItems:'center', padding:10, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:11 },
+  productImage:{ width:70, height:70, flexShrink:0, display:'grid', placeItems:'center', background:'#fff', border:'1px solid var(--border)', borderRadius:9, overflow:'hidden', fontSize:24 },
 }
