@@ -541,8 +541,15 @@ const TABLE_LABELS: Record<string, string> = {
 function arabicTable(t: string) { return TABLE_LABELS[t] || t }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
-export default function ImportFilesView({ merchants }: { merchants: Merchant[] }) {
-  const [merchantCode, setMerchantCode] = useState<string>('')
+type ImportFilesViewProps = {
+  merchants: Merchant[]
+  lockedMerchantCode?: string
+  merchantMode?: boolean
+  allowedPlatforms?: string[]
+}
+
+export default function ImportFilesView({ merchants, lockedMerchantCode, merchantMode = false, allowedPlatforms }: ImportFilesViewProps) {
+  const [merchantCode, setMerchantCode] = useState<string>(lockedMerchantCode || '')
   // الوضع التلقائي افتراضي: المنصة تُكتشف من محتوى كل ملف، فلا حاجة لاختيارها يدوياً
   const [platform]                      = useState<string>('auto')
   const [files, setFiles]               = useState<FileEntry[]>([])
@@ -551,6 +558,11 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [lastUploads, setLastUploads]   = useState<Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>>({})
   const [refreshTick, setRefreshTick]   = useState(0)
+  const allowedPlatformSet = useMemo(() => new Set(allowedPlatforms || []), [allowedPlatforms])
+
+  useEffect(() => {
+    if (lockedMerchantCode) setMerchantCode(lockedMerchantCode)
+  }, [lockedMerchantCode])
 
   // ── Fetch last upload per file kind for current merchant (كل المنصات) ──
   useEffect(() => {
@@ -633,6 +645,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
       try {
         const parsed = await parsePlatformFile(entry.file, merchantCode, snapshotDate)
         const validation = validateMatch(parsed, platform)
+        if (validation?.ok && allowedPlatformSet.size > 0 && !allowedPlatformSet.has(parsed.platform)) {
+          validation.ok = false
+          validation.errors.push(`هذا الملف يخص ${PLATFORM_MAP[parsed.platform] || parsed.platform}، والمنصة غير متاحة في هذه الشاشة`)
+        }
         const isOk = validation?.ok ?? false
         // بصمة + كشف رفعة سابقة مطابقة لنفس التاجر
         const fingerprint = await fileFingerprint(entry.file)
@@ -800,8 +816,8 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1100, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📥 استيراد ملفات المنصات</h3>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>اختر التاجر ثم ارفع أي ملف Excel/CSV — نتعرّف على نوعه ومنصته تلقائياً</p>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>استيراد ملفات المنصات</h3>
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>{merchantMode ? 'ارفع ملف Excel أو CSV الرسمي من المنصة، وسيتعرف النظام على نوع التقرير وبياناته تلقائيًا.' : 'اختر التاجر ثم ارفع أي ملف Excel/CSV — نتعرّف على نوعه ومنصته تلقائياً'}</p>
       </div>
 
       {/* ── Step 1: التاجر فقط (المنصة تُكتشف تلقائياً) ── */}
@@ -819,13 +835,16 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
               ))}
             </select>
           </div>
-          <div>
+          {!lockedMerchantCode ? <div>
             <label style={S.label}>تاريخ التقرير / اللقطة</label>
             <input type="date" value={snapshotDate}
               onChange={e => { setSnapshotDate(e.target.value); clearAll() }}
               title="يُستخدم للتقارير التي لا تحتوي تاريخاً صريحاً داخل الملف"
               style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', color: 'var(--text2)' }} />
-          </div>
+          </div> : <div>
+            <label style={S.label}>الحساب</label>
+            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)' }}>{merchant?.name || merchantCode}</div>
+          </div>}
         </div>
 
         {!merchantCode
@@ -833,14 +852,14 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
               ⚠️ اختر التاجر أولاً قبل رفع الملفات
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              🌐 ارفع أي ملف من نون أو أمازون أو تراندايول (حتى ملفات متعددة دفعة واحدة، أو ملف ZIP) — يُصنَّف كل ملف تلقائياً حسب محتواه
+              ارفع ملفات Amazon أو Noon أو سلة أو زد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.
             </div>
         }
       </div>
 
       {/* ── دليل الملفات المتوقّعة (اختياري، يشمل كل المنصات في الوضع التلقائي) ── */}
       {merchantCode && (
-        <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} onChanged={() => setRefreshTick(t => t + 1)} />
+        <FileChecklist platform={platform} color={color} lastUploads={lastUploads} pendingKinds={files.filter(f => f.parsed?.kind).map(f => f.parsed!.kind)} onChanged={() => setRefreshTick(t => t + 1)} allowedPlatforms={allowedPlatforms} allowDelete={!merchantMode} />
       )}
 
       {/* ── Step 2: Upload zone ── */}
@@ -943,7 +962,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
                   <span style={{ ...S.btn, background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}>
                     <CheckCircle2 size={14} /> اكتمل
                   </span>
-                  <button onClick={() => {
+                  {!merchantMode && <button onClick={() => {
                     const saved = files.filter(f => f.stage === 'saved' && f.parsed && f.result).map(f => ({
                       kind: f.parsed!.kind, label: f.parsed!.label, platform: f.parsed!.platform,
                       rows: f.result!.inserted,
@@ -951,8 +970,8 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
                     generateMerchantReport(merchantCode, merchant?.name || merchantCode, saved)
                   }} style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <FileText size={14} /> تقرير PDF للتاجر
-                  </button>
-                  <button onClick={async () => {
+                  </button>}
+                  {!merchantMode && <button onClick={async () => {
                     const { data: { session } } = await supabase.auth.getSession()
                     await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-whatsapp`, {
                       method: 'POST',
@@ -966,7 +985,7 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
                     setGlobalMsg({ type: 'ok', text: '📲 تم إرسال إشعار واتساب للتاجر' })
                   }} style={{ ...S.btn, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
                     📲 إرسال على واتساب
-                  </button>
+                  </button>}
                 </>
               )}
             </div>
@@ -990,10 +1009,10 @@ export default function ImportFilesView({ merchants }: { merchants: Merchant[] }
       )}
 
       {/* الرفعات السابقة (مع زر حذف) */}
-      {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} />}
+      {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} readOnly={merchantMode} />}
 
       {/* رصد: ملفات لم تُقبل مؤخراً (لاكتشاف صيغ جديدة/متغيّرة) */}
-      <RecentRejectionsPanel refreshTick={refreshTick} />
+      {!merchantMode && <RecentRejectionsPanel refreshTick={refreshTick} />}
     </div>
   )
 }
@@ -1037,15 +1056,17 @@ function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
 }
 
 // ─── File Checklist (per platform) ───────────────────────────────────────────
-function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }: {
+function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged, allowedPlatforms, allowDelete = true }: {
   platform: string; color: string;
   lastUploads: Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>;
   pendingKinds: string[];
   onChanged?: () => void;
+  allowedPlatforms?: string[];
+  allowDelete?: boolean;
 }) {
   // الوضع التلقائي: نعرض ملفات كل المنصات مجموعة، وإلا منصة واحدة
   const groups: [string, FileGuide[]][] = platform === 'auto'
-    ? Object.entries(FILE_GUIDES)
+    ? Object.entries(FILE_GUIDES).filter(([key]) => !allowedPlatforms?.length || allowedPlatforms.includes(key))
     : [[platform, FILE_GUIDES[platform] || []]]
   const totalGuides = groups.reduce((a, [, g]) => a + g.length, 0)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -1146,7 +1167,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged }
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic' }}>لم يُرفع بعد</div>
                   )}
                 </div>
-                {last && (
+                {last && allowDelete && (
                   <button onClick={() => deleteOne(last.id, g.label, last.rows_inserted)} disabled={deleting === last.id}
                     title="حذف هذا الملف وكل البيانات المرتبطة"
                     style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
@@ -1357,7 +1378,7 @@ function stageMeta(stage: Stage) {
 }
 
 // ─── Previous Uploads Panel (with delete) ────────────────────────────────────
-function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
+function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode: string; readOnly?: boolean }) {
   const [uploads, setUploads] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -1402,11 +1423,11 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginTop: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>📋 الرفعات السابقة لهذا التاجر ({uploads.length})</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>الحذف يزيل الملف وكل البيانات اللي رُفعت معه ثم يعيد بناء الأداء</div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>الملفات المرفوعة سابقًا ({uploads.length})</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{readOnly ? 'يمكنك متابعة حالة كل ملف وعدد السجلات التي تمت إضافتها.' : 'الحذف يزيل الملف وكل البيانات اللي رُفعت معه ثم يعيد بناء الأداء'}</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => { window.history.pushState(null, '', '/admin/uploads'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>عرض السجل الكامل</button>
+          {!readOnly && <button onClick={() => { window.history.pushState(null, '', '/admin/uploads'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>عرض السجل الكامل</button>}
           <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
         </div>
       </div>
@@ -1446,12 +1467,12 @@ function PreviousUploadsPanel({ merchantCode }: { merchantCode: string }) {
             }}>
               {statusMeta.label}
             </span>
-            <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
+            {!readOnly && <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
               style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
                 padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', gap: 4 }}>
               <X size={11} /> {deletingId === u.id ? 'حذف...' : 'حذف'}
-            </button>
+            </button>}
           </div>
           )
         })}

@@ -16,7 +16,7 @@ import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell,
+  Search, MoreHorizontal, X, Bell, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -55,33 +55,45 @@ export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'sett
 const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'billing', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View }
-type NavGroup = { key: string; label: string; items: NavItem[] }
+type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
-  { key: 'main',      label: 'الرئيسية', items: [
-    { Icon: LayoutDashboard, label: 'لوحة التحكم', key: 'dashboard' },
+  { key: 'main', label: 'الرئيسية', items: [
+    { Icon: LayoutDashboard, label: 'نظرة عامة', key: 'dashboard' },
   ]},
-  { key: 'finance', label: 'المبيعات والمال', items: [
-    { Icon: Package,  label: 'المبيعات والطلبات',      key: 'orders'    },
-    { Icon: FileText, label: 'كشف الحساب والتحويلات', key: 'statement' },
+  { key: 'store', label: 'إدارة المتجر', items: [
+    { Icon: Package, label: 'الطلبات', key: 'orders' },
+    { Icon: Tags, label: 'المنتجات', key: 'products' },
+    { Icon: Boxes, label: 'المخزون', key: 'inventory' },
   ]},
-  { key: 'catalog', label: 'المنتجات والمخزون', items: [
-    { Icon: Tags,  label: 'المنتجات والربحية', key: 'products'  },
-    { Icon: Boxes, label: 'إدارة المخزون',      key: 'inventory' },
+  { key: 'analytics', label: 'التقارير والتحليلات', items: [
+    { Icon: FileText, label: 'المال والتحويلات', key: 'statement' },
+    { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing' },
   ]},
-  { key: 'growth',    label: 'النمو',      items: [
-    { Icon: Megaphone,  label: 'الإعلانات والأداء',  key: 'marketing' },
+  { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
+    { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations' },
+    { Icon: Users, label: 'الفريق والصلاحيات', key: 'team' },
+    { Icon: CreditCard, label: 'الاشتراك والفواتير', key: 'billing' },
+    { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings' },
   ]},
-  { key: 'management', label: 'الإدارة', items: [
-    { Icon: Users,         label: 'الفريق والصلاحيات',     key: 'team'         },
-    { Icon: Link2,         label: 'مصادر البيانات والمنصات', key: 'integrations' },
-    { Icon: CreditCard,    label: 'الباقة والفواتير',       key: 'billing'      },
-    { Icon: SettingsIcon,  label: 'إعدادات الحساب',         key: 'settings'     },
-  ]},
-  { key: 'support', label: 'المساعدة', items: [
+  { key: 'support', label: 'المساعدة', placement: 'secondary', items: [
     { Icon: LifeBuoy, label: 'الدعم ومركز المعرفة', key: 'requests' },
   ]},
 ]
+
+const SIDEBAR_STORAGE_KEY = 'sellpert:merchant-sidebar:v1'
+const DEFAULT_COLLAPSED_GROUPS = new Set<string>(['support'])
+const NAV_PARENT: Partial<Record<View, View>> = {
+  help: 'requests', 'quick-inventory': 'inventory',
+  'product-detail': 'products', 'product-compare': 'products',
+  notifications: 'dashboard',
+}
+
+type SidebarBadges = {
+  orders: number
+  support: number
+  integrationNeedsUpdate: boolean
+}
 
 const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
@@ -190,6 +202,13 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showUpgrade, setShowUpgrade]       = useState(false)
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(SIDEBAR_STORAGE_KEY) || 'null')
+      return Array.isArray(stored) ? new Set(stored) : new Set(DEFAULT_COLLAPSED_GROUPS)
+    } catch { return new Set(DEFAULT_COLLAPSED_GROUPS) }
+  })
+  const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, support: 0, integrationNeedsUpdate: false })
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
 
@@ -261,6 +280,49 @@ export default function App() {
     return () => { subscription.unsubscribe(); window.removeEventListener('popstate', onPopState) }
   }, [])
 
+  useEffect(() => {
+    const activeKey = NAV_PARENT[view] || view
+    const activeGroup = NAV_GROUPS.find(group => group.items.some(item => item.key === activeKey))
+    if (!activeGroup) return
+    setCollapsedGroups(current => {
+      if (!current.has(activeGroup.key)) return current
+      const next = new Set(current)
+      next.delete(activeGroup.key)
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }, [view])
+
+  useEffect(() => {
+    const code = (impersonating || merchant)?.merchant_code
+    if (!code) return
+    let cancelled = false
+    Promise.all([
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code),
+      supabase.from('merchant_requests').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'pending'),
+      supabase.from('platform_credentials').select('is_active,last_sync_at').eq('merchant_code', code).eq('platform', 'trendyol').maybeSingle(),
+    ]).then(([ordersResult, supportResult, credentialResult]) => {
+      if (cancelled) return
+      const credential = credentialResult.data
+      const lastSyncAge = credential?.last_sync_at ? Date.now() - new Date(credential.last_sync_at).getTime() : Number.POSITIVE_INFINITY
+      setSidebarBadges({
+        orders: ordersResult.count || 0,
+        support: supportResult.count || 0,
+        integrationNeedsUpdate: !credential?.is_active || lastSyncAge > 24 * 60 * 60 * 1000,
+      })
+    })
+    return () => { cancelled = true }
+  }, [merchant?.merchant_code, impersonating?.merchant_code])
+
+  function toggleNavGroup(key: string) {
+    setCollapsedGroups(current => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
   async function fetchMerchant(email: string) {
     const { data, error } = await supabase.from('merchants').select('*').eq('email', email).maybeSingle()
     if (error) toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
@@ -288,11 +350,6 @@ export default function App() {
   }
 
   // خريطة ابن→أب: تمييز «أين أنا» في القائمة يبقى مضاءً على المسارات الثانوية (كشف/مساعدة/مخزون...)
-  const NAV_PARENT: Record<string, View> = {
-    help: 'requests', 'quick-inventory': 'inventory',
-    'product-detail': 'products', 'product-compare': 'products',
-    notifications: 'dashboard',
-  }
   const isActiveNav = (key: View) => view === key || NAV_PARENT[view] === key
 
   if (loading) return (
@@ -426,12 +483,20 @@ export default function App() {
           {/* Nav */}
           <nav style={{ flex: 1, padding: '8px 0 12px', overflowY: 'auto' }}>
             {NAV_GROUPS.map(group => (
-              <div key={group.key} style={{ padding: '6px 8px 2px' }}>
-                <div style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, color: '#7d86ac', letterSpacing: '0.2px' }}>
-                  {group.label}
-                </div>
-                {group.items.map(item => {
+              <div key={group.key} style={{
+                padding: '6px 8px 2px',
+                marginTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 0,
+                paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
+                borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
+              }}>
+                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '8px 12px 5px', display: 'flex', alignItems: 'center', gap: 8, color: '#7d86ac', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
+                  <span style={{ flex: 1 }}>{group.label}</span>
+                  <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                </button>
+                {!collapsedGroups.has(group.key) ? group.items.map(item => {
                   const Icon = item.Icon
+                  const numericBadge = item.key === 'orders' ? sidebarBadges.orders : item.key === 'requests' ? sidebarBadges.support : 0
+                  const statusBadge = item.key === 'integrations' && sidebarBadges.integrationNeedsUpdate ? 'تحديث مطلوب' : ''
                   return (
                     <button type="button" key={item.key}
                       className={`nav-item${isActiveNav(item.key) ? ' active' : ''}`}
@@ -440,10 +505,14 @@ export default function App() {
                     >
                       <Icon size={16} style={{ flexShrink: 0 }} />
                       <span style={{ flex: 1 }}>{item.label}</span>
+                      {numericBadge > 0 ? <span style={{ minWidth: 22, height: 19, padding: '0 6px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.11)', color: '#d7dcf2', fontSize: 9, fontWeight: 800 }}>
+                        {numericBadge > 999 ? '999+' : numericBadge.toLocaleString('ar-SA')}
+                      </span> : null}
+                      {statusBadge ? <span style={{ padding: '3px 7px', borderRadius: 9, background: 'rgba(242,122,26,.18)', color: '#ffb36f', fontSize: 8, fontWeight: 800, whiteSpace: 'nowrap' }}>{statusBadge}</span> : null}
                       {isActiveNav(item.key) && <div className="nav-dot" />}
                     </button>
                   )
-                })}
+                }) : null}
               </div>
             ))}
           </nav>

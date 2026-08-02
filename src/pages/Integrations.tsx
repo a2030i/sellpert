@@ -1,10 +1,19 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
+import { FileSpreadsheet, Upload, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import MarketplaceConnections from './admin/MarketplaceConnections'
 
 const SHOW_MANAGED_MARKETPLACES = false
+const MERCHANT_FILE_IMPORT_ENABLED = false
+const MerchantFileImport = lazy(() => import('./admin/ImportFilesView'))
+const FILE_UPLOAD_PLATFORMS = [
+  { key: 'amazon', label: 'Amazon', status: 'مدعوم' },
+  { key: 'noon', label: 'Noon', status: 'مدعوم' },
+  { key: 'salla', label: 'سلة', status: 'تُضاف التعريفات دوريًا' },
+  { key: 'zid', label: 'زد', status: 'تُضاف التعريفات دوريًا' },
+] as const
 
 // ─── Salla Card ───────────────────────────────────────────────────────────────
 
@@ -133,6 +142,7 @@ function relativeTime(iso: string) {
 export default function Integrations({ merchant }: { merchant: Merchant | null }) {
   const [uploads, setUploads] = useState<Record<string, { uploaded_at: string; detected_report: string }>>({})
   const [fresh, setFresh] = useState<Record<string, { last_data_date: string; age_days: number }>>({})
+  const [showFileUpload, setShowFileUpload] = useState(false)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
@@ -171,6 +181,35 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
           compactHeader
         />
       ) : null}
+
+      {merchant ? <section style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+              <FileSpreadsheet size={20} color="var(--accent)" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>رفع ملفات المنصات</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4, lineHeight: 1.7 }}>استخدم ملفات Excel أو CSV الرسمية حتى يكتمل الربط المباشر. يتعرف النظام على التقرير تلقائيًا.</div>
+            </div>
+          </div>
+          <button disabled={!MERCHANT_FILE_IMPORT_ENABLED} onClick={() => setShowFileUpload(value => !value)} style={{ background: showFileUpload ? 'var(--surface2)' : 'var(--accent-strong)', border: '1px solid var(--border)', color: showFileUpload ? 'var(--text)' : '#fff', padding: '9px 15px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: MERCHANT_FILE_IMPORT_ENABLED ? 'pointer' : 'not-allowed', opacity: MERCHANT_FILE_IMPORT_ENABLED ? 1 : .55, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            {showFileUpload ? <X size={15} /> : <Upload size={15} />}
+            {showFileUpload ? 'إغلاق' : MERCHANT_FILE_IMPORT_ENABLED ? 'رفع ملفات الآن' : 'قريبًا'}
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', gap: 8, marginTop: 16 }}>
+          {FILE_UPLOAD_PLATFORMS.map(item => <div key={item.key} style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>{item.label}</div>
+            <div style={{ fontSize: 10, color: item.status === 'مدعوم' ? 'var(--success-text)' : 'var(--text3)', marginTop: 3 }}>{item.status}</div>
+          </div>)}
+        </div>
+        {MERCHANT_FILE_IMPORT_ENABLED && showFileUpload ? <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+          <Suspense fallback={<div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)' }}>جاري تجهيز أداة رفع الملفات...</div>}>
+            <MerchantFileImport merchants={[merchant]} lockedMerchantCode={merchant.merchant_code} merchantMode allowedPlatforms={['amazon', 'noon', 'salla', 'zid']} />
+          </Suspense>
+        </div> : null}
+      </section> : null}
 
       {SHOW_MANAGED_MARKETPLACES && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>منصات مُدارة</div>
