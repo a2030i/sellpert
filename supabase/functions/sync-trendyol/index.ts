@@ -212,7 +212,7 @@ function buildDaily(rows: any[]) {
 
 async function upsertPerformance(admin: any, merchantCode: string, daily: Map<string, any>) {
   for (const [date, value] of daily) {
-    const { error } = await admin.from('performance_data').upsert({
+    const row = {
       merchant_code: merchantCode,
       platform: 'trendyol',
       data_date: date,
@@ -221,7 +221,16 @@ async function upsertPerformance(admin: any, merchantCode: string, daily: Map<st
       platform_fees: 0,
       margin: 0,
       ad_spend: 0,
-    }, { onConflict: 'merchant_code,platform,data_date' })
+    }
+    // performance_data uses a partial unique index for aggregate rows
+    // (product_name IS NULL), which PostgREST cannot infer from onConflict.
+    const { data: existing, error: lookupError } = await admin.from('performance_data')
+      .select('id').eq('merchant_code', merchantCode).eq('platform', 'trendyol')
+      .eq('data_date', date).is('product_name', null).maybeSingle()
+    if (lookupError) throw lookupError
+    const { error } = existing
+      ? await admin.from('performance_data').update(row).eq('id', existing.id)
+      : await admin.from('performance_data').insert(row)
     if (error) throw error
   }
 }

@@ -16,10 +16,19 @@ const PLATFORM_FUNCTION: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return ok({ skipped: true })
 
-  const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
-  if (token !== SERVICE_KEY) return ok({ ok: false, error: 'Unauthorized' }, 401)
-
+  const bearerToken = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
+  const apiKeyToken = req.headers.get('apikey') || ''
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  const { data: anonSetting } = await admin.from('app_settings').select('value')
+    .eq('key', 'SUPABASE_ANON_KEY').maybeSingle()
+  const configuredAnonKey = String(anonSetting?.value || '')
+  // Cron uses the project's signed anon JWT; direct internal calls use service_role.
+  // pg_net may preserve apikey while normalizing Authorization, so validate both.
+  const authorized = [bearerToken, apiKeyToken].some(token =>
+    token === SERVICE_KEY || (configuredAnonKey.length > 0 && token === configuredAnonKey)
+  )
+  if (!authorized) return ok({ ok: false, error: 'Unauthorized' }, 401)
+
   const startedAt = Date.now()
 
   try {
