@@ -368,7 +368,12 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         })
         const result = await response.json().catch(() => ({}))
         if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol طلب التعديل')
-        setSaveMessage({ type: 'ok', text: `تم إرسال التعديل إلى Trendyol للمراجعة${result.batchRequestId ? ` — رقم المتابعة: ${result.batchRequestId}` : ''}` })
+        setSaveMessage({
+          type: 'ok',
+          text: result.pendingApproval || result.batchRequestId
+            ? 'تم إرسال التعديل إلى Trendyol، وهو الآن قيد المعالجة. سنحدّث الحالة بعد اعتماد المنصة.'
+            : 'تم تطبيق التعديل في Trendyol بنجاح.',
+        })
       } catch (error: any) {
         setSaveMessage({ type: 'err', text: error.message || 'تعذر إرسال التعديل إلى Trendyol' })
         setSaving(false)

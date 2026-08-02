@@ -354,8 +354,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         هامش: {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={() => openEdit(prod)}>✏️</button>
-                        <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                        <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={e => { e.stopPropagation(); openEdit(prod) }}>تعديل</button>
+                        <button style={S.reqBtn} onClick={e => { e.stopPropagation(); setShowRequest(prod) }}>طلب تعديل</button>
                       </div>
                     </div>
                   </div>
@@ -403,8 +403,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         </td>
                         <td style={S.td}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={() => openEdit(prod)}>✏️ سعر</button>
-                            <button style={S.reqBtn} onClick={() => setShowRequest(prod)}>طلب تعديل</button>
+                            <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={e => { e.stopPropagation(); openEdit(prod) }}>تعديل السعر</button>
+                            <button style={S.reqBtn} onClick={e => { e.stopPropagation(); setShowRequest(prod) }}>طلب تعديل</button>
                           </div>
                         </td>
                       </tr>

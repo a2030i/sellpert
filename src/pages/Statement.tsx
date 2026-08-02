@@ -13,7 +13,7 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
   trendyol: { label: 'Trendyol', color: '#f27a1a' },
 }
 
-function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
+function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const now = new Date()
@@ -23,7 +23,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [perfData, setPerfData]     = useState<any[]>([])
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
-  const [commRate, setCommRate]     = useState(5)   // Sellpert commission %
+  // الباقة الحالية مجانية، لذلك لا تُحتسب أي عمولة للمنصة.
+  const commRate = 0
   const [loading, setLoading]       = useState(true)
   const isMobile = useMobile()
 
@@ -37,7 +38,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [perf, rets, { data: tgts }, { data: merch }] = await Promise.all([
+    const [perf, rets, { data: tgts }] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', merchant!.merchant_code)
@@ -50,13 +51,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       supabase.from('sales_targets').select('*')
         .eq('merchant_code', merchant!.merchant_code)
         .eq('year', year).eq('month', month),
-      supabase.from('merchants').select('sellpert_commission_rate')
-        .eq('merchant_code', merchant!.merchant_code).maybeSingle(),
     ])
     setPerfData(perf)
     setReturns(rets)
     setTargets(tgts || [])
-    setCommRate((merch as any)?.sellpert_commission_rate ?? 5)
     setLoading(false)
   }
 
@@ -200,8 +198,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             {[
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: `${summary.totalOrders} طلب` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
-              { label: 'عمولة Sellpert',     value: fmt(summary.sellpertComm), color: '#f27a1a', icon: '🏷️', sub: `${commRate}% من الإيراد` },
-              { label: 'صافي مستحقاتك',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: `بعد رسوم المنصة وعمولة Sellpert` },
+              { label: 'المرتجعات', value: fmt(summary.totalReturns), color: 'var(--warning-text)', icon: '', sub: 'بحسب البيانات المستوردة' },
+              { label: 'الصافي التشغيلي التقديري', value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: 'ليس مبلغ تسوية أو تحويلًا بنكيًا' },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -227,10 +225,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 { label: 'الإنفاق الإعلاني',          value: -summary.adSpend,      color: 'var(--danger-text)', sign: '−' },
                 { label: 'قيمة المرتجعات',            value: -summary.totalReturns, color: 'var(--warning-text)', sign: '−' },
                 null, // divider
-                { label: 'الإيراد قبل عمولة Sellpert', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
-                { label: `عمولة Sellpert (${commRate}%)`, value: -summary.sellpertComm, color: '#f27a1a', sign: '−' },
+                { label: 'الصافي بعد الرسوم والإعلانات والمرتجعات', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 null,
-                { label: 'صافي مستحقاتك — يوصل حسابك',    value: summary.netPayout,     color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
+                { label: 'الصافي التشغيلي التقديري — لا يمثل تسوية بنكية', value: summary.netPayout, color: summary.netPayout >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
                 <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
               ) : (

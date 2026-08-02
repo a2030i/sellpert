@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     if (!supplierId) return json({ error: 'supplierId missing' }, 400)
 
     // Find the merchant who owns this supplierId
-    const { data: cred } = await admin
+    const { data: directCredential } = await admin
       .from('platform_credentials')
       .select('merchant_code')
       .eq('platform', 'trendyol')
@@ -60,29 +60,50 @@ Deno.serve(async (req) => {
       .eq('is_active', true)
       .maybeSingle()
 
-    // Log every event to webhook_events (even if merchant not found)
-    await admin.from('webhook_events').insert({
-      source:        'trendyol',
-      event_type:    eventType,
-      store_id:      supplierId,
-      merchant_code: cred?.merchant_code || null,
-      payload:       body,
-      status:        cred ? 'processed' : 'unmatched',
-      received_at:   new Date().toISOString(),
+    let merchantCode = directCredential?.merchant_code || null
+    if (!merchantCode) {
+      const { data: mapping } = await admin.from('merchant_platform_mappings')
+        .select('merchant_code').eq('platform', 'trendyol').eq('seller_id', supplierId)
+        .eq('is_active', true).maybeSingle()
+      merchantCode = mapping?.merchant_code || null
+    }
+
+    const orderPayload = body.order || body.content || body
+    const providerEventId = String(body.eventId || body.event_id || body.id || '')
+    const eventKey = providerEventId || await stableEventKey({
+      supplierId, eventType,
+      orderId: orderPayload.orderNumber || orderPayload.orderId || orderPayload.id || '',
+      status: orderPayload.status || orderPayload.orderStatus || '',
+      modifiedAt: orderPayload.lastModifiedDate || orderPayload.packageLastModifiedDate || orderPayload.updatedAt || '',
+      amount: orderPayload.grossAmount || orderPayload.totalPrice || orderPayload.amount || 0,
     })
 
-    if (!cred) {
+    // Log every event to webhook_events (even if merchant not found)
+    const { data: insertedEvent, error: eventError } = await admin.from('webhook_events').upsert({
+      source:        'trendyol',
+      event_key:     eventKey,
+      event_type:    eventType,
+      store_id:      supplierId,
+      merchant_code: merchantCode,
+      payload:       body,
+      status:        merchantCode ? 'processing' : 'unmatched',
+      received_at:   new Date().toISOString(),
+    }, { onConflict: 'source,event_key', ignoreDuplicates: true }).select('id').maybeSingle()
+    if (eventError) throw eventError
+    if (!insertedEvent) return json({ ok: true, duplicate: true })
+
+    if (!merchantCode) {
       console.warn(`[trendyol-webhook] No merchant found for supplierId=${supplierId}`)
       return json({ ok: true, skipped: true })
     }
-
-    const merchantCode = cred.merchant_code
 
     // Test events — just log, no order processing needed
     const isTestEvent = eventType.includes('test') || eventType === 'unknown' ||
       (!body.order && !body.content && !body.orderNumber)
     if (isTestEvent) {
       console.log(`[trendyol-webhook] test event received for merchant=${merchantCode}`)
+      await admin.from('webhook_events').update({ status: 'processed', processed_at: new Date().toISOString() })
+        .eq('id', insertedEvent.id)
       return json({ ok: true, test: true })
     }
 
@@ -98,45 +119,27 @@ Deno.serve(async (req) => {
       const productName = lines[0]?.productName || lines[0]?.name || null
       const qty         = lines.reduce((s: number, l: any) => s + (l.quantity || 1), 0) || 1
 
-      await admin.from('orders').upsert({
+      const currency = String(order.currencyCode || order.currency || lines[0]?.currencyCode || 'SAR').toUpperCase()
+      const { error: orderError } = await admin.from('orders').upsert({
         merchant_code: merchantCode,
         platform:      'trendyol',
         order_id:      orderId,
         status,
         product_name:  productName,
         quantity:      qty,
-        unit_price:    qty > 0 ? Math.round(totalPrice / qty) : totalPrice,
+        unit_price:    qty > 0 ? totalPrice / qty : totalPrice,
         total_amount:  totalPrice,
         platform_fee:  0,
         shipping_cost: parseFloat(order.cargoFee || 0),
-        currency:      'TRY',
+        currency,
         order_date:    orderDate,
       }, { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: false })
+      if (orderError) throw orderError
 
       const today = orderDate.split('T')[0]
-      const { data: existing } = await admin
-        .from('performance_data')
-        .select('total_sales, order_count')
-        .eq('merchant_code', merchantCode)
-        .eq('platform', 'trendyol')
-        .eq('data_date', today)
-        .maybeSingle()
-
-      if (existing) {
-        await admin.from('performance_data').update({
-          total_sales: existing.total_sales + totalPrice,
-          order_count: existing.order_count + (eventType === 'order/created' ? 1 : 0),
-        }).eq('merchant_code', merchantCode).eq('platform', 'trendyol').eq('data_date', today)
-      } else {
-        await admin.from('performance_data').insert({
-          merchant_code: merchantCode,
-          platform:      'trendyol',
-          data_date:     today,
-          total_sales:   totalPrice,
-          order_count:   1,
-          margin: 0, ad_spend: 0, platform_fees: 0,
-        })
-      }
+      await rebuildDay(admin, merchantCode, today)
+      await admin.from('webhook_events').update({ status: 'processed', processed_at: new Date().toISOString() })
+        .eq('id', insertedEvent.id)
 
       console.log(`[trendyol-webhook] ${eventType} order=${orderId} merchant=${merchantCode} amount=${totalPrice}`)
     }
@@ -155,6 +158,30 @@ function timingSafeEqual(a: string, b: string): boolean {
   let diff = 0
   for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i]
   return diff === 0
+}
+
+async function stableEventKey(value: Record<string, unknown>) {
+  const input = new TextEncoder().encode(JSON.stringify(value))
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input))
+  return [...digest].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function rebuildDay(admin: any, merchantCode: string, date: string) {
+  const from = `${date}T00:00:00.000Z`
+  const until = new Date(from); until.setUTCDate(until.getUTCDate() + 1)
+  const { data, error } = await admin.from('orders')
+    .select('total_amount,platform_fee,status').eq('merchant_code', merchantCode).eq('platform', 'trendyol')
+    .gte('order_date', from).lt('order_date', until.toISOString())
+  if (error) throw error
+  const valid = (data || []).filter((row: any) => !['cancelled', 'returned'].includes(row.status))
+  const totalSales = valid.reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0)
+  const platformFees = valid.reduce((sum: number, row: any) => sum + Number(row.platform_fee || 0), 0)
+  const { error: performanceError } = await admin.from('performance_data').upsert({
+    merchant_code: merchantCode, platform: 'trendyol', data_date: date,
+    total_sales: totalSales, order_count: valid.length, platform_fees: platformFees,
+    margin: totalSales - platformFees, ad_spend: 0,
+  }, { onConflict: 'merchant_code,platform,data_date' })
+  if (performanceError) throw performanceError
 }
 
 function mapStatus(raw: string): string {

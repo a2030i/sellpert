@@ -17,7 +17,7 @@ const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string
   returned:   { label: 'مُرتجع',   color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
 }
 
-function fmt(v: number) { return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س' }
+function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 function fmtExact(v: number) { return Number(v || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 function trendyolCommission(order: Order) {
   if (order.platform !== 'trendyol' || !order.commission_rate) return Number(order.platform_fee || 0)
@@ -70,7 +70,6 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }, [merchant])
 
   const filtered = useMemo(() => {
-    setOrderPage(0)
     let d = orders
     if (platform !== 'all') d = d.filter(o => o.platform === platform)
     if (status !== 'all') d = d.filter(o => o.status === status)
@@ -79,7 +78,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       d = d.filter(o =>
         o.order_id.toLowerCase().includes(q) ||
         o.product_name?.toLowerCase().includes(q) ||
-        o.customer_city?.toLowerCase().includes(q)
+        o.customer_city?.toLowerCase().includes(q) ||
+        o.cargo_tracking_number?.toLowerCase().includes(q)
       )
     }
     const now = Date.now()
@@ -92,6 +92,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }
     return d
   }, [orders, platform, status, search, preset])
+
+  useEffect(() => { setOrderPage(0) }, [platform, status, search, preset])
 
   const totalPages = Math.ceil(filtered.length / ORDER_PAGE_SIZE)
   const pageRows   = filtered.slice(orderPage * ORDER_PAGE_SIZE, (orderPage + 1) * ORDER_PAGE_SIZE)
@@ -221,7 +223,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       <div style={S.topbar}>
         <div>
           <h2 style={S.pageTitle}>الطلبات</h2>
-          <p style={S.pageSub}>{totalOrders.toLocaleString()} طلب في الفترة المحددة</p>
+          <p style={S.pageSub}>عرض {totalOrders.toLocaleString()} من أصل {orders.length.toLocaleString()} طلب</p>
         </div>
         <button style={S.exportBtn} onClick={exportCSV}>⬇ تصدير CSV</button>
       </div>
@@ -249,12 +251,19 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           </select>
           <input
             style={{ ...S.select, flex:1, minWidth:200 }}
-            placeholder="ابحث برقم الطلب أو المنتج..."
+            placeholder="ابحث برقم الطلب أو المنتج أو رقم التتبع..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
       </div>
+
+      {(platform !== 'all' || status !== 'all' || preset !== 'all' || search.trim()) && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, margin:'-8px 0 16px', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:10, background:'var(--surface)' }}>
+          <span style={{ fontSize:12, color:'var(--text2)' }}>هناك فلاتر مفعّلة — تظهر {filtered.length.toLocaleString()} من {orders.length.toLocaleString()} طلب</span>
+          <button onClick={() => { setPlatform('all'); setStatus('all'); setPreset('all'); setSearch('') }} style={{ border:'none', background:'transparent', color:'var(--accent)', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>مسح كل الفلاتر</button>
+        </div>
+      )}
 
       {/* KPIs */}
       <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>

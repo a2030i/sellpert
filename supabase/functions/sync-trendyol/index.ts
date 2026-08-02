@@ -115,20 +115,23 @@ Deno.serve(async (req) => {
     details.warnings = warnings
 
     const now = new Date().toISOString()
+    const syncStatus = warnings.length > 0 ? 'partial' : 'success'
     await admin.from('sync_logs').update({
-      status: 'success', records_synced: rows.length, finished_at: now, details,
+      status: syncStatus, records_synced: rows.length,
+      error_message: warnings.length ? warnings.join(' | ').slice(0, 4000) : null,
+      finished_at: now, details,
     }).eq('id', logId)
     await admin.from('platform_credentials').update({
       last_sync_at: now, records_synced: rows.length,
     }).eq('merchant_code', merchantCode).eq('platform', 'trendyol')
     if (mappingId) await admin.from('merchant_platform_mappings').update({
       last_sync_at: now,
-      last_sync_status: 'success',
+      last_sync_status: syncStatus,
       records_synced: rows.length,
-      last_sync_error: null,
+      last_sync_error: warnings.length ? warnings.join(' | ').slice(0, 4000) : null,
     }).eq('id', mappingId).eq('merchant_code', merchantCode)
 
-    return json({ ok: true, records_synced: rows.length, ...details }, 200, corsHeaders)
+    return json({ ok: true, status: syncStatus, partial: warnings.length > 0, records_synced: rows.length, ...details }, 200, corsHeaders)
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
     if (logId) await admin.from('sync_logs').update({

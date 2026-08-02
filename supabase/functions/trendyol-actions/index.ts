@@ -115,7 +115,9 @@ Deno.serve(async req => {
       const { data: previous } = await admin.from('marketplace_action_logs')
         .select('status,response,error_message,external_batch_id').eq('merchant_code', merchantCode)
         .eq('platform','trendyol').eq('action',action).eq('idempotency_key',idempotencyKey).maybeSingle()
-      if (previous?.status === 'success') return json({ ok:true, replayed:true, data:previous.response, batchRequestId:previous.external_batch_id }, 200, cors)
+      if (['success','accepted','processing','partial'].includes(previous?.status)) {
+        return json({ ok:true, replayed:true, status:previous.status, data:previous.response, batchRequestId:previous.external_batch_id }, 200, cors)
+      }
       if (previous?.status === 'running') throw new HttpError(409, 'العملية نفسها قيد التنفيذ')
     }
 
@@ -158,10 +160,12 @@ Deno.serve(async req => {
     }
     if (!response.ok) throw new HttpError(response.status, trendyolError(result, response.status))
     const batchId = String(result?.batchRequestId || result?.batch_request_id || '') || null
+    const finalStatus = batchId ? 'accepted' : 'success'
     await admin.from('marketplace_action_logs').update({
-      status:'success', response:sanitize(result), external_batch_id:batchId, finished_at:new Date().toISOString(),
+      status:finalStatus, response:sanitize(result), external_batch_id:batchId,
+      finished_at:batchId ? null : new Date().toISOString(),
     }).eq('id',logId)
-    return json({ ok:true, action, risk:definition.risk, batchRequestId:batchId, data:result }, 200, cors)
+    return json({ ok:true, status:finalStatus, pendingApproval:Boolean(batchId), action, risk:definition.risk, batchRequestId:batchId, data:result }, 200, cors)
   } catch (error:any) {
     if (logId) await admin.from('marketplace_action_logs').update({
       status:'failed', error_message:String(error?.message || error).slice(0,4000), finished_at:new Date().toISOString(),
