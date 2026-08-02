@@ -102,7 +102,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* Inventory by platform */}
       {inventory.length > 0 && (
-        <Section title="📦 المخزون حسب المنصة">
+        <Section title="المخزون حسب المنصة">
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {inventory.map((i, idx) => {
               const c = PLATFORM_COLORS[i.platform] || '#0f958c'
@@ -120,7 +120,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* Ad metrics */}
       {adMetrics.length > 0 && (
-        <Section title={`📣 الإعلانات (${adMetrics.length})`}>
+        <Section title={`الإعلانات (${adMetrics.length})`}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
             <Kpi label="إنفاق إعلاني" value={fmtCurrency(adTotals.spend)} color="#e84040" />
             <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color="#00b894" />
@@ -152,7 +152,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* Returns */}
       {returns.length > 0 && (
-        <Section title={`↩️ المرتجعات (${returns.length})`}>
+        <Section title={`المرتجعات (${returns.length})`}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead><tr>{['التاريخ','المنصة','السبب','المبلغ'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -173,7 +173,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* Recent orders */}
       {orders.length > 0 && (
-        <Section title={`📦 آخر ${Math.min(orders.length, 50)} طلب`}>
+        <Section title={`آخر ${Math.min(orders.length, 50)} طلب`}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead><tr>{['التاريخ','المنصة','الكمية','المبلغ','الحالة'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -252,7 +252,7 @@ function ProfitSimulator({ product: _product, profitability }: { product: any; p
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🧪 محاكي الربحية (What-If)</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>محاكي الربحية</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>جرّب تغيير الأسعار والإعلانات وشوف تأثيرها على الربح (مرونة الطلب: {Math.abs(demandElasticity)}x)</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
@@ -270,7 +270,7 @@ function ProfitSimulator({ product: _product, profitability }: { product: any; p
 
       {(pricePct !== 0 || adPct !== 0 || costPct !== 0) && (
         <div style={{ marginTop: 14, padding: '10px 14px', background: profitDelta >= 0 ? 'rgba(0,184,148,0.06)' : 'rgba(232,64,64,0.06)', borderRadius: 9, fontSize: 12, color: 'var(--text2)' }}>
-          💡 {profitDelta >= 0
+          {profitDelta >= 0
             ? `بهذا التغيير، ربحك يزيد ${fmtCurrency(profitDelta)} (${profitPct.toFixed(0)}%). جرّب تطبيقه على المنتج.`
             : `هذا التغيير يخفّض ربحك ${fmtCurrency(Math.abs(profitDelta))}. أعد المحاولة.`}
         </div>
@@ -439,7 +439,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       </div>
       <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={save} disabled={saving} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          {saving ? 'جارٍ الإرسال...' : activePlatform === 'trendyol' ? 'إرسال التعديل إلى Trendyol' : '💾 حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
+          {saving ? 'جارٍ الإرسال...' : activePlatform === 'trendyol' ? 'إرسال التعديل إلى Trendyol' : 'حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
         </button>
       </div>
       {saveMessage ? <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, fontSize:12, lineHeight:1.6, background:saveMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:saveMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{saveMessage.text}</div> : null}

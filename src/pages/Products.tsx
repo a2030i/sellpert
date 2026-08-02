@@ -8,7 +8,7 @@ import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantR
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
 import { Pagination } from '../components/UI'
 
-const PLATFORMS = ['trendyol', 'noon', 'amazon'] as const
+const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
 
 function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
@@ -112,7 +112,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
 
-    setMsg({ type: 'ok', text: '✅ تم إضافة المنتج وحساب الأسعار' })
+    setMsg({ type: 'ok', text: 'تمت إضافة المنتج وحساب الأسعار' })
     setForm({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
     setShowAdd(false)
     loadData()
@@ -143,7 +143,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
     }
 
-    setMsg({ type: 'ok', text: '✅ تم تحديث الأسعار وإعادة الحساب' })
+    setMsg({ type: 'ok', text: 'تم تحديث الأسعار وإعادة الحساب' })
     setEditProduct(null)
     setEditSaving(false)
     loadData()
@@ -163,7 +163,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       note: reqNote.trim(),
     })
     if (error) setMsg({ type: 'err', text: 'فشل إرسال الطلب' })
-    else setMsg({ type: 'ok', text: '✅ تم إرسال طلبك للفريق' })
+    else setMsg({ type: 'ok', text: 'تم إرسال الطلب بنجاح' })
     setShowRequest(null); setReqNote(''); setReqNewPrice('')
     setReqSending(false)
   }
@@ -205,7 +205,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     <div style={S.wrap}>
       {/* Page Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0, overflowX: 'auto' }}>
-        {([['catalog', '🏷️ الكتالوج'], ['analytics', '📊 الربحية والتحليلات']] as const).map(([k, lbl]) => (
+        {([['catalog', 'الكتالوج'], ['analytics', 'الربحية والتحليلات']] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => setTab(k)} style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -2, padding: '8px 18px', fontSize: 14, fontWeight: tab === k ? 800 : 500, color: tab === k ? 'var(--accent)' : 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
             {lbl}
           </button>
@@ -315,7 +315,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       {/* Products table */}
       {filtered.length === 0 ? (
         <div style={S.empty}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>لا توجد منتجات</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>لا توجد منتجات بعد</div>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>أضف منتجك الأول وسيحسب النظام أسعاره تلقائياً</div>
         </div>
@@ -791,7 +791,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
           {/* Worst products */}
           {stats.worst.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>📉 أقل المنتجات ربحاً</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>أقل المنتجات ربحًا</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {stats.worst.map((p, i) => (
                   <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
@@ -919,7 +919,7 @@ function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
   const colors: any = { launching: 'var(--green)', new_no_sales: 'var(--warning-text)', growing: '#0f958c', mature: 'var(--info-text)', dormant: 'var(--red)', unknown: '#a598ff' }
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔄 دورة حياة المنتجات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>دورة حياة المنتجات</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تصنيف منتجاتك حسب العمر والأداء</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
         {Object.keys(labels).filter(k => counts[k] > 0).map(k => (
@@ -986,7 +986,7 @@ function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📦 تنبيه Buy Box</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>تنبيه Buy Box</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>منتجاتك اللي سعرها أعلى من سعر باي بوكس — تخسر الصندوق</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
         <div style={{ background: 'var(--danger-bg)', borderRadius: 10, padding: 12, borderTop: '3px solid var(--red)' }}>

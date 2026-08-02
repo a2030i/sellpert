@@ -62,7 +62,7 @@ export default function SubscriptionBanner({ merchant, onUpgrade }: Props) {
         margin: '0 0 16px 0',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>✨</span>
+          <span style={{ width:4,height:34,borderRadius:4,background:'var(--accent)',display:'inline-block' }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
               أنت على {cfg.label} — {cfg.channels.length} قناة متاحة

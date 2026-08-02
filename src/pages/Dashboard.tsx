@@ -13,7 +13,6 @@ import OnboardingTour from '../components/OnboardingTour'
 import { InsightHint, useGeneratedHints } from '../components/InsightHint'
 import DataFreshness from '../components/DataFreshness'
 import PayoutCalendar from '../components/PayoutCalendar'
-import AmazonSalesInsights from '../components/AmazonSalesInsights'
 import { TrendingUp, CircleDollarSign, ShoppingCart, Percent, MapPin, Table2, ListChecks, RefreshCw, BarChart3, CalendarClock } from 'lucide-react'
 
 // عنوان قسم بأيقونة (بدل الإيموجي — يرث لون الثيم ويظهر متسقاً عبر الأنظمة)
@@ -275,7 +274,7 @@ function SaudiMap({ cityData }: { cityData: Record<string, number> }) {
         </div>
       </div>
       <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
-        🖱 سكرول للتكبير · اسحب للتنقل
+        استخدم التمرير للتكبير والسحب للتنقل
       </div>
     </div>
   )
@@ -360,11 +359,11 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: الجلب المقسّم يتجاوز سقف الـ 1000 صف الصامت في PostgREST
       fetchAll<PerformanceData>((f, t) =>
-        supabase.from('performance_data').select('*').eq('merchant_code', merchant.merchant_code)
+        supabase.from('performance_data').select('*').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol')
           .order('data_date', { ascending: false }).order('platform').range(f, t), 'بيانات الأداء'),
       // كان يطلب عمود order_count غير الموجود في orders فيفشل بصمت — الصحيح quantity
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('customer_city,quantity,total_amount,platform,order_date').eq('merchant_code', merchant.merchant_code)
+        supabase.from('orders').select('customer_city,quantity,total_amount,platform,order_date').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol')
           .order('id').range(f, t), 'الطلبات'),
       supabase.from('ai_insights').select('*').eq('merchant_code', merchant.merchant_code).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       // تغطية تكلفة الشراء: لو أغلب المنتجات بلا تكلفة، «صافي الربح» ليس صافياً فعلياً
@@ -570,7 +569,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, marginBottom: 12, fontSize: 13, fontWeight: 700,
           background: healthIssues.length ? 'var(--danger-bg)' : 'var(--success-bg)',
           color: healthIssues.length ? 'var(--danger-text)' : 'var(--success-text)' }}>
-          <span style={{ fontSize: 16 }}>{healthIssues.length ? '🔴' : '🟢'}</span>
+          <span style={{ width:9,height:9,borderRadius:'50%',background:healthIssues.length?'var(--danger-text)':'var(--success-text)',display:'inline-block' }} />
           {healthIssues.length
             ? `متجرك يحتاج انتباهك — ${healthIssues.length === 1 ? healthIssues[0] : `${healthIssues.length} أمور: ${healthIssues.join(' · ')}`}`
             : 'متجرك تمام — لا شيء يحتاج انتباهك الآن'}
@@ -583,7 +582,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       {/* ── تنبيه صدق: الأرقام قبل تكلفة البضاعة حتى تُدخل التكاليف ── */}
       {costMissing && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, fontWeight: 600 }}>
-          <span style={{ fontSize: 16 }}>⚠️</span>
+          <span style={{ width:4,alignSelf:'stretch',borderRadius:4,background:'var(--warning-text)' }} />
           <span>لم نُدخل تكلفة شراء منتجاتك بعد، فأرقام «الربح» هنا قبل خصم تكلفة البضاعة — ربحك الفعلي أقل. زوّد فريق Sellpert بأسعار الشراء ليظهر رقمك الحقيقي.</span>
         </div>
       )}
@@ -601,7 +600,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, marginLeft: 4 }}>المنصة:</span>
-          {[{ key: 'all', label: 'كل المنصات' }, { key: 'trendyol', label: 'تراندايول' }, { key: 'noon', label: 'نون' }, { key: 'amazon', label: 'أمازون' }].map(p => (
+          {[{ key: 'all', label: 'كل البيانات' }, { key: 'trendyol', label: 'Trendyol' }].map(p => (
             <button key={p.key} onClick={() => setPlatform(p.key)}
               style={{ ...S.chip, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6, ...(platform === p.key ? { ...S.chipActive, background: PLT_COLOR[p.key] || 'var(--accent-strong)', borderColor: PLT_COLOR[p.key] || 'var(--accent)' } : {}) }}>
               {p.key !== 'all' && <span style={{ width: 8, height: 8, borderRadius: '50%', background: PLT_COLOR[p.key] || 'var(--text3)', flexShrink: 0 }} />}
@@ -635,21 +634,18 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
         ))}
       </div>
 
-      {(platform === 'all' || platform === 'amazon') && (
-        <AmazonSalesInsights merchantCode={merchant?.merchant_code} showEmpty={platform === 'amazon'} />
-      )}
 
       {/* ── Empty state (أول شيء للتاجر بلا بيانات) ── */}
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 16, border: '1px dashed var(--border)', marginBottom: 20 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+          <BarChart3 size={32} color="var(--text3)" style={{marginBottom:12}} />
           <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات في هذه الفترة</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20, lineHeight: 1.7 }}>
             فريق Sellpert يستلم تقارير منصاتك (تراندايول، نون، أمازون) ويرفعها لك<br />بمجرد وصول أول تقرير ستظهر بيانات متجرك هنا
           </div>
           <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
             style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            📨 تواصل مع الفريق
+            فتح مصادر البيانات
           </button>
         </div>
       )}
@@ -767,7 +763,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
           </div>
           {topProducts.length === 0 ? (
             <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text3)', fontSize: 12, textAlign: 'center', padding: '0 16px' }}>
-              <span style={{ fontSize: 28 }}>📦</span>
+              <ShoppingCart size={24} color="var(--accent)" />
               ارفع تقرير تراندايول لرؤية أفضل منتجاتك هنا
             </div>
           ) : (
@@ -828,20 +824,20 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       <div style={{ ...S.card, marginTop: 16, borderTop: '3px solid var(--accent)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: insight ? 16 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 22 }}>🤖</span>
+            <BarChart3 size={20} color="var(--accent)" />
             <div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>تحليل الذكاء الاصطناعي</div>
               {insight && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')}</div>}
             </div>
           </div>
           <button style={S.aiBtn} onClick={requestAi} disabled={aiLoading}>
-            {aiLoading ? '⟳ جاري...' : insight ? '🔄 تحديث' : '✨ ابدأ التحليل'}
+            {aiLoading ? 'جاري التحليل...' : insight ? 'تحديث التحليل' : 'بدء التحليل'}
           </button>
         </div>
         {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
         {insightIsStale && (
           <div role="status" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', borderRadius: 10, padding: '12px 14px', marginTop: 12, fontSize: 12, lineHeight: 1.7 }}>
-            ⚠️ هذا التحليل مؤرشف لأنه أقدم من أحدث بياناتك. آخر تحليل بتاريخ {new Date(insight!.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}، وأحدث بيانات بتاريخ {new Date(maxDataDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}. اضغط «تحديث» لبناء توصيات دقيقة.
+            هذا التحليل مؤرشف لأنه أقدم من أحدث بياناتك. آخر تحليل بتاريخ {new Date(insight!.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}، وأحدث بيانات بتاريخ {new Date(maxDataDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}. اضغط «تحديث التحليل» لبناء توصيات دقيقة.
           </div>
         )}
         {insight && !insightIsStale && (
@@ -854,7 +850,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
               {insightContent.recommendations.length > 0 && (
                 <div style={S.aiBox}>
-                  <div style={S.aiBoxTitle}>💡 التوصيات</div>
+                  <div style={S.aiBoxTitle}>التوصيات</div>
                   {insightContent.recommendations.map((r, i) => (
                     <div key={i} style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 6, paddingRight: 12, borderRight: '2px solid var(--accent)' }}>
                       {r}
@@ -1011,13 +1007,13 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       // ad_roas = عائد الإعلانات وحدها (لا المبيعات العضوية) — كان roas المخلوط يمنع التوصية من الانطلاق أبداً
       const losingAd = (prof || []).filter((p: any) => Number(p.ad_spend) > 0 && p.ad_roas !== null && Number(p.ad_roas) < 1)
         .sort((a: any, b: any) => Number(a.ad_roas) - Number(b.ad_roas))[0]
-      if (losingAd) acts.push({ icon: '🔴', color: 'var(--danger-text)', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
+      if (losingAd) acts.push({ icon: '•', color: 'var(--danger-text)', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
       const losingProduct = (prof || []).filter((p: any) => Number(p.revenue) > 0 && Number(p.net_profit) < 0)
         .sort((a: any, b: any) => Number(a.net_profit) - Number(b.net_profit))[0]
-      if (losingProduct) acts.push({ icon: '📉', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
+      if (losingProduct) acts.push({ icon: '•', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
-      if (urgent) acts.push({ icon: '📦', color: '#0f958c', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
+      if (urgent) acts.push({ icon: '•', color: '#0f958c', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
       // كبّر الطلب: طلبات صغيرة + رسوم شحن ثابتة تلتهم نسبة عالية (خاصة أمازون FBA)
       const byPlat: Record<string, { sales: number; orders: number; fees: number }> = {}
       for (const r of (perf || [])) {
@@ -1027,7 +1023,7 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       const smallOrder = Object.entries(byPlat).map(([plat, v]) => ({
         plat, aov: v.orders ? v.sales / v.orders : 0, feePct: v.sales ? (v.fees / v.sales) * 100 : 0,
       })).filter(x => x.aov > 0 && x.aov < 45 && x.feePct > 28).sort((a, b) => b.feePct - a.feePct)[0]
-      if (smallOrder) acts.push({ icon: '📦', color: 'var(--warning-text)', text: `كبّر متوسط الطلب في ${PLATFORM_MAP[smallOrder.plat] || smallOrder.plat}`, sub: `متوسط طلبك ${Math.round(smallOrder.aov)} ر.س والرسوم تلتهم ${Math.round(smallOrder.feePct)}% — اعمل بندل بحد أدنى ${Math.max(60, Math.ceil(smallOrder.aov * 2 / 10) * 10)} ر.س`, path: '/products' })
+      if (smallOrder) acts.push({ icon: '•', color: 'var(--warning-text)', text: `كبّر متوسط الطلب في ${PLATFORM_MAP[smallOrder.plat] || smallOrder.plat}`, sub: `متوسط طلبك ${Math.round(smallOrder.aov)} ر.س والرسوم تلتهم ${Math.round(smallOrder.feePct)}% — أنشئ حزمة بحد أدنى ${Math.max(60, Math.ceil(smallOrder.aov * 2 / 10) * 10)} ر.س`, path: '/products' })
       setActions(acts.slice(0, 3))
     })()
     return () => { cancelled = true }
@@ -1185,7 +1181,7 @@ function HeatmapWidget({ data }: { data: any[] }) {
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>آخر 90 يوم</div>
       {peakHour && (
         <div style={{ fontSize: 12, color: 'var(--success-text)', fontWeight: 700, marginBottom: 12 }}>
-          ⭐ ذروة: {dayNames[peakHour.day_of_week]} الساعة {peakHour.hour_of_day}:00 ({peakHour.orders} طلب)
+          الذروة: {dayNames[peakHour.day_of_week]} الساعة {peakHour.hour_of_day}:00 ({peakHour.orders} طلب)
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>

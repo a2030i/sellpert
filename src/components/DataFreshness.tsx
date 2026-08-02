@@ -26,7 +26,7 @@ export default function DataFreshness({ merchantCode, compact }: { merchantCode?
   useEffect(() => {
     if (!merchantCode) return
     supabase.rpc('data_freshness', { p_merchant_code: merchantCode })
-      .then(({ data }) => { setRows((data as Row[]) || []); setLoaded(true) })
+      .then(({ data }) => { setRows(((data as Row[]) || []).filter(row => row.platform === 'trendyol')); setLoaded(true) })
   }, [merchantCode])
 
   if (!loaded || rows.length === 0) return null
@@ -55,7 +55,7 @@ export default function DataFreshness({ merchantCode, compact }: { merchantCode?
       })}
       {stale.length > 0 && !compact && (
         <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 'auto' }}>
-          بياناتك متأخرة — اطلب من فريق Sellpert رفع أحدث التقارير
+          بياناتك متأخرة — شغّل مزامنة Trendyol من صفحة مصادر البيانات
         </span>
       )}
     </div>

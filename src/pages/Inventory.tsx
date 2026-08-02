@@ -123,7 +123,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         headers: { Authorization: `Bearer ${session?.access_token}`, apikey: ANON_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ merchant_code: merchant!.merchant_code, event: 'low_stock', data: { products: lowProducts } }),
       })
-      setMsg({ type: 'ok', text: `✅ تم إرسال تنبيه مخزون لـ ${lowProducts.length} منتج` })
+      setMsg({ type: 'ok', text: `تم إرسال تنبيه مخزون لـ ${lowProducts.length} منتج` })
     } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
     setAlertSending(false)
   }
@@ -184,10 +184,10 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {/* ALERT CARDS */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:14, marginBottom:20 }}>
         {[
-          { label:'إجمالي المنتجات', value:stats.total,  icon:'📦', color:'var(--accent)' },
-          { label:'منتجات فريدة (SKU)', value:stats.skus, icon:'🏷️', color:'#4cc9f0'     },
-          { label:'مخزون منخفض',     value:stats.low,   icon:'⚠️', color:'#ffd166',     active: filter==='low', onClick:()=>setFilter(filter==='low'?'all':'low') },
-          { label:'نفذ المخزون',      value:stats.out,   icon:'🚨', color:'#ff4d6d',     active: filter==='out', onClick:()=>setFilter(filter==='out'?'all':'out') },
+          { label:'إجمالي المنتجات', value:stats.total,  icon:'', color:'var(--accent)' },
+          { label:'منتجات فريدة (SKU)', value:stats.skus, icon:'', color:'#4cc9f0'     },
+          { label:'مخزون منخفض',     value:stats.low,   icon:'', color:'#ffd166',     active: filter==='low', onClick:()=>setFilter(filter==='low'?'all':'low') },
+          { label:'نفد المخزون',      value:stats.out,   icon:'', color:'#ff4d6d',     active: filter==='out', onClick:()=>setFilter(filter==='out'?'all':'out') },
         ].map((k,i) => (
           <div
             key={i}
@@ -278,7 +278,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ padding: isMobile ? '12px' : '14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                     <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
-                      📦
+                      لا توجد صورة
                     </div>
                     <div>
                       <div style={{ fontWeight:700, fontSize:15 }}>{skuItems[0].product_name}</div>
@@ -415,7 +415,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>📊 صحة المخزون</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>صحة المخزون</div>
 
       {/* Value KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
@@ -561,7 +561,7 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, display: 'inline-flex', alignItems: 'center' }}>
-        📦 رحلة بضاعتك: الإرسال ← الاستلام ← البيع
+        رحلة البضاعة: الإرسال ← الاستلام ← البيع
         <InfoIcon text="الإرسالية (ASN) = ما أرسلته لمستودع المنصة. تقرير الاستلام (GRN) = ما استلمه المستودع فعلياً. الفحص (QC) = الكمية المرفوضة لعيب أو تلف." />
       </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تتبّع كل إرسالية من الإرسال حتى البيع</div>

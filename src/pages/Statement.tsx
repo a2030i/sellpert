@@ -158,7 +158,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         <>
           {/* تبويبات فرعية: بدل 14 قسماً مكدّساً بعمود واحد */}
           <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', padding: 4, borderRadius: 10, marginBottom: 20, width: 'fit-content', flexWrap: 'wrap' }}>
-            {[{ k: 'month', l: '📄 كشف الشهر' }, { k: 'trends', l: '📈 تحليلات واتجاهات' }, { k: 'returns', l: '↩️ المرتجعات' }].map(t => (
+            {[{ k: 'month', l: 'كشف الشهر' }, { k: 'trends', l: 'تحليلات واتجاهات' }, { k: 'returns', l: 'المرتجعات' }].map(t => (
               <button key={t.k} onClick={() => setStab(t.k as any)} style={{
                 padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
                 background: stab === t.k ? 'var(--surface)' : 'transparent',
@@ -187,10 +187,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Summary KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '💰', sub: `${summary.totalOrders} طلب` },
+              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: `${summary.totalOrders} طلب` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'عمولة Sellpert',     value: fmt(summary.sellpertComm), color: '#f27a1a', icon: '🏷️', sub: `${commRate}% من الإيراد` },
-              { label: 'صافي مستحقاتك (يوصل حسابك)',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '✅', sub: `بعد رسوم المنصة وعمولة Sellpert` },
+              { label: 'صافي مستحقاتك',     value: fmt(summary.netPayout), color: summary.netPayout >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: `بعد رسوم المنصة وعمولة Sellpert` },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -207,7 +207,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Detailed breakdown */}
           <div style={{ ...S.card, marginBottom: 20, overflow: 'hidden', padding: 0 }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-              📊 تفصيل الحساب
+              تفصيل الحساب
             </div>
             <div style={{ padding: '20px' }}>
               {[
@@ -296,7 +296,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Daily trend chart */}
           {dailyTrend.length > 1 && (
             <div style={{ ...S.card, marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>📈 المبيعات اليومية</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>المبيعات اليومية</div>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={dailyTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
@@ -509,7 +509,7 @@ function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-        💰 توقّع التدفق النقدي (المستحقات القادمة)
+        توقّع التدفق النقدي (المستحقات القادمة)
       </div>
       <div style={{ padding: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 14 }}>
@@ -625,7 +625,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
   return (
     <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-        📊 تحليل المرتجعات
+        تحليل المرتجعات
       </div>
       <div style={{ padding: 20 }}>
         {/* KPIs */}
@@ -763,7 +763,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>↩️ المرتجعات</span>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>المرتجعات</span>
           {returns.length > 0 && <span style={{ fontSize: 12, color: 'var(--warning-text)', marginRight: 10 }}>إجمالي: {fmt(totalReturns)}</span>}
         </div>
         <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? '✕ إلغاء' : '+ إضافة مرتجع'}</button>
@@ -884,7 +884,7 @@ function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
   const growth = data.growth_rate_pct
   return (
     <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>📈 توقّع الإيرادات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>توقّع الإيرادات</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
         مبني على المتوسط اليومي للـ 30 يوم الماضية
         {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}

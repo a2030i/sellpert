@@ -16,7 +16,7 @@ import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, CreditCard, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X,
+  Search, MoreHorizontal, X, Bell,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -141,7 +141,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={() => { setOpen(v => !v); if (!open) loadNotifs() }}
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <span style={{ fontSize: 16 }}>🔔</span>
+        <Bell size={17} />
         {unread > 0 && (
           <span style={{ position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%', background: 'var(--red)', color: '#fff', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {unread > 9 ? '9+' : unread}
@@ -159,7 +159,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
           </div>
           {notifs.length === 0 ? (
             <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>لا توجد إشعارات
+              <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--text3)' }}>لا توجد إشعارات</div>
             </div>
           ) : notifs.map(n => (
             <div key={n.id} style={{ padding: '12px 16px', background: n.is_read ? 'transparent' : 'rgba(108,92,231,0.08)', borderBottom: '1px solid #1d3b4d' }}>
@@ -321,7 +321,7 @@ export default function App() {
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,18,40,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 20, padding: '36px 28px', maxWidth: 440, width: '100%', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🚀</div>
+          <div style={{ width:48,height:4,borderRadius:4,background:'var(--accent)',margin:'0 auto 18px' }} />
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, color: 'var(--text)' }}>ترقية إلى {upgradeCfg.label}</h2>
           <p style={{ color: 'var(--text2)', fontSize: 13, marginBottom: 20, lineHeight: 1.7 }}>فتح قنوات إضافية: {upgradeCfg.channels.join(' · ')}</p>
           <div style={{ background: 'var(--surface2)', borderRadius: 12, padding: '16px', marginBottom: 24, textAlign: 'right' }}>
@@ -468,7 +468,7 @@ export default function App() {
               </div>
             )}
             <button style={S.logoutBtn} onClick={impersonating ? stopImpersonate : signOut}>
-              {impersonating ? '← العودة للأدمن' : '🚪 تسجيل الخروج'}
+              {impersonating ? 'العودة للإدارة' : <><LogOut size={14}/> تسجيل الخروج</>}
             </button>
           </div>
         </aside>

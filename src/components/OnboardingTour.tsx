@@ -6,9 +6,9 @@ const STEPS = [
   { key: 'has_products',   label: 'إضافة المنتجات',     desc: 'أضف منتجاتك الأولى — ستراها في "منتجاتي"', path: '/products' },
   { key: 'has_costs',      label: 'تحديد سعر التكلفة',  desc: 'أدخل تكلفة المنتجات لحساب الربحية', path: '/products' },
   { key: 'has_inventory',  label: 'تسجيل المخزون',      desc: 'سجّل كميات المخزون للحصول على تنبيهات النفاد', path: '/inventory' },
-  { key: 'has_orders',     label: 'استقبال الطلبات',    desc: 'تظهر تلقائياً عند رفع تقارير المنصات أو ربط سلة', path: '/orders' },
-  { key: 'has_ad_metrics', label: 'تتبّع الإعلانات',    desc: 'ارفع تقارير الإعلانات لتحليل عائد الإنفاق الإعلاني (ROAS)', path: '/marketing' },
-  { key: 'has_salla',      label: 'ربط سلة',            desc: 'ربط متجرك على سلة لمزامنة تلقائية', path: '/integrations' },
+  { key: 'has_orders',     label: 'استقبال الطلبات',    desc: 'تظهر تلقائيًا بعد ربط Trendyol وتشغيل المزامنة', path: '/orders' },
+  { key: 'has_ad_metrics', label: 'تتبّع الإعلانات',    desc: 'تابع عائد الإنفاق الإعلاني عند توفر بيانات الحملات', path: '/marketing' },
+  { key: 'has_salla',      label: 'ربط منصة البيع',     desc: 'اربط Trendyol لمزامنة بيانات المتجر تلقائيًا', path: '/integrations' },
   { key: 'has_ai_insight', label: 'التحليل الذكي الأول', desc: 'احصل على تحليل ذكي لمتجرك من لوحة التحكم', path: '/dashboard' },
 ]
 
@@ -76,7 +76,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
       </button>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 14 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>👋 ابدأ مع Sellpert — {pct}% مكتمل</div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>إعداد حساب Sellpert — {pct}% مكتمل</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{completed} من {total} خطوات</div>
         </div>
         <div style={{ flex: 1, maxWidth: 220, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>

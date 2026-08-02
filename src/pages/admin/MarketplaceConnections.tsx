@@ -38,9 +38,9 @@ const EMPTY_FORM: FormState = {
 }
 
 const PLATFORM_META: Record<Platform, { label: string; icon: string; color: string; description: string }> = {
-  amazon: { label: 'Amazon', icon: '📦', color: '#ff9900', description: 'تفويض آمن عبر حساب البائع في Amazon' },
-  noon: { label: 'نون', icon: '🟡', color: '#f2cf00', description: 'تفويض آمن عبر حساب الشريك في نون' },
-  trendyol: { label: 'Trendyol', icon: '🟠', color: '#f27a1a', description: 'معرّف المورّد ومفاتيح Partner API' },
+  amazon: { label: 'Amazon', icon: 'A', color: '#ff9900', description: 'تفويض آمن عبر حساب البائع في Amazon' },
+  noon: { label: 'نون', icon: 'N', color: '#f2cf00', description: 'تفويض آمن عبر حساب الشريك في نون' },
+  trendyol: { label: 'Trendyol', icon: 'T', color: '#f27a1a', description: 'معرّف البائع ومفاتيح Partner API' },
 }
 
 type MarketplaceConnectionsProps = {
@@ -304,7 +304,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
       <div style={{ height: 3, background: status?.is_active ? meta.color : 'var(--border2)' }} />
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-          <div style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: meta.color + '18', fontSize: 22 }}>{meta.icon}</div>
+          <div style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: meta.color + '18', color:meta.color, fontSize: 16, fontWeight:900 }}>{meta.icon}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <strong>{meta.label}</strong>

@@ -145,7 +145,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1300, margin: '0 auto' }}>
       <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>📣 التسويق</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>الإعلانات والأداء</h2>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>أداء حملاتك الإعلانية عبر كل المنصات</p>
       </div>
 
@@ -171,7 +171,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       {/* Recommendations */}
       {recommendations.length > 0 && (
         <div style={{ marginBottom: 16, padding: 16, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>💡 توصيات سريعة</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>توصيات سريعة</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {recommendations.map((r, i) => (
               <div key={i} style={{
@@ -225,7 +225,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       {/* Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
-          {groupBy === 'campaign' ? '🎯 الحملات' : groupBy === 'sku' ? '📦 المنتجات' : '🔍 كلمات البحث'} ({grouped.length})
+          {groupBy === 'campaign' ? 'الحملات' : groupBy === 'sku' ? 'المنتجات' : 'كلمات البحث'} ({grouped.length})
         </div>
         <div style={{ overflowX: 'auto', maxHeight: 600, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -410,7 +410,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
       </div>
 
       <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text3)', lineHeight: 1.7, padding: 10, background: 'var(--surface2)', borderRadius: 8 }}>
-        💡 <strong>كيف يحسبها النظام؟</strong> النظام يحلل ملف كشف الحساب الفعلي ويستخرج نسبتين: نسبة الرسوم (عمولة + FBA + ضريبة محجوزة ÷ المبيعات الإجمالية) ونسبة المرتجعات. ثم يطبقهما على الإيراد المعلن من تقارير Ads. كلما رفعت المزيد من ملفات الكشوف (Settlement)، ارتفعت دقة الحساب.
+        <strong>منهجية الحساب:</strong> يحلل النظام كشف الحساب الفعلي ويستخرج نسبة الرسوم ونسبة المرتجعات، ثم يطبقهما على الإيراد المعلن من تقارير الحملات. تتحسن الدقة كلما توفرت بيانات مالية أحدث.
       </div>
     </div>
   )

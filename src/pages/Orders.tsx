@@ -57,7 +57,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol').order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
@@ -200,7 +200,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     <div style={S.wrap}>
       <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الصافي المستحق', path: '/statement' }]} />
       <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
-        <div style={{ fontSize:56, marginBottom:16 }}>📦</div>
+          <div style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>لا توجد طلبات بعد</div>
         <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
         <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
           فريق Sellpert يستلم تقارير منصاتك ويرفعها لك — بمجرد وصول أول تقرير ستظهر طلباتك هنا.<br />
@@ -208,7 +208,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         </p>
         <button onClick={() => { window.history.pushState(null,'','/requests'); window.dispatchEvent(new PopStateEvent('popstate')) }}
           style={{ background:'var(--accent-strong)', border:'none', color:'#fff', padding:'12px 28px', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-          📨 تواصل مع الفريق
+          فتح الدعم
         </button>
       </div>
     </div>
@@ -259,11 +259,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       {/* KPIs */}
       <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>
         {[
-          { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'💰', color:'#0f958c' },
-          { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'📦', color:'var(--success-text)' },
+          { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'', color:'#0f958c' },
+          { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'', color:'var(--success-text)' },
           { label:'متوسط الطلب',      value: fmt(aov),                         icon:'🛒', color:'var(--warning-text)' },
-          { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'✅', color:'var(--success-text)' },
-          { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'❌', color:'var(--danger-text)' },
+          { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'', color:'var(--success-text)' },
+          { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'', color:'var(--danger-text)' },
         ].map((k,i) => (
           <div key={i} style={S.kpiCard}>
             <div style={{ ...S.kpiBar, background:k.color }} />
@@ -518,7 +518,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               <div style={S.sectionTitle}>منتجات الطلب ({selectedItems.length || selectedOrder.quantity})</div>
               {selectedItems.length ? <div style={{ display:'grid', gap:10 }}>
                 {selectedItems.map(item => <div key={item.id} style={S.productRow}>
-                  <div style={S.productImage}>{item.image_url ? <img src={item.image_url} alt={item.product_name || 'المنتج'} style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : '📦'}</div>
+                  <div style={S.productImage}>{item.image_url ? <img src={item.image_url} alt={item.product_name || 'المنتج'} style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : <span style={{fontSize:11,color:'var(--text3)'}}>لا توجد صورة</span>}</div>
                   <div style={{ flex:1, minWidth:0 }}><div style={{ fontWeight:800, fontSize:13 }}>{item.product_name_ar || item.product_name || '—'}</div>{item.product_name_ar && item.product_name_ar !== item.product_name ? <div dir="ltr" style={{ fontSize:10, color:'var(--text3)', marginTop:3, textAlign:'right' }}>{item.product_name}</div> : null}<div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>الباركود: {item.barcode || '—'} · SKU: {item.sku || '—'}</div><div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>الكمية {item.quantity} · سعر الوحدة {fmt(Number(item.unit_price || 0))} · الخصم {fmt(Number(item.discount_amount || 0))} · العمولة {item.commission_rate || 0}% · الضريبة {item.vat_rate || 0}%</div></div>
                 </div>)}
               </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة بعد مطابقة الباركود مع كتالوج Trendyol.</div>}

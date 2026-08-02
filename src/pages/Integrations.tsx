@@ -24,7 +24,7 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
   async function requestSync() {
     if (!merchant) return; setSyncing(true)
     await supabase.from('sync_queue').insert({ merchant_code: merchant.merchant_code, platform: 'salla', job_type: 'sync_all', priority: 1, status: 'pending', scheduled_at: new Date().toISOString() })
-    setMsg('✅ تم جدولة المزامنة — ستظهر البيانات خلال دقيقة'); setSyncing(false)
+    setMsg('تمت جدولة المزامنة — ستظهر البيانات خلال دقيقة'); setSyncing(false)
     setTimeout(() => setMsg(''), 4000)
   }
 
@@ -161,7 +161,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
     <div style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>ربط المنصات</h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>سلة بربط مباشر — باقي المنصات يستلم فريق Sellpert تقاريرها ويحدّث بياناتك تلقائياً</p>
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>أدِر اتصالات منصات البيع وتابع حالة المزامنة من مكان واحد.</p>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -186,7 +186,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
       <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)' }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
-          💡 <b>كيف يعمل التحديث؟</b> أرسل تقارير المنصات الرسمية إلى فريق Sellpert (واتساب أو البريد) ويتم استيرادها واستخراج الطلبات والمنتجات والإعلانات والتسويات تلقائياً ضمن لوحتك.
+          <b>المزامنة المباشرة:</b> عند ربط Trendyol تُسحب الطلبات والمنتجات والمخزون والمرتجعات والتسويات تلقائيًا، ويمكنك تشغيل المزامنة ومتابعة نتيجتها من بطاقة الاتصال.
         </div>
       </div>
     </div>

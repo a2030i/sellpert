@@ -59,7 +59,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
       <PageTabs tabs={[{ label: 'تذاكر الدعم', path: '/requests' }, { label: 'الأسئلة الشائعة', path: '/help' }]} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 22 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>🎫 تذاكر الدعم</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>تذاكر الدعم</h2>
           <p style={{ fontSize: 13, color: 'var(--text3)' }}>اكتب طلبك أو استفسارك وفريق Sellpert يتابعه ويرد عليك</p>
         </div>
         <button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
