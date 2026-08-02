@@ -88,7 +88,12 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <Kpi label="سعر البيع المستهدف" value={fmtCurrency(product.target_net_price)} color="#4cc9f0" />
         <Kpi label="إجمالي الوحدات المباعة" value={fmtNumber(profitability?.units_sold || 0)} color="#00b894" />
         <Kpi label="الإيرادات" value={fmtCurrency(profitability?.revenue || 0)} color="#00b894" />
-        <Kpi label="صافي الربح" value={fmtCurrency(profitability?.net_profit || 0)} sub={profitability?.profit_margin_pct !== null ? fmtPercent(profitability?.profit_margin_pct) + ' هامش' : undefined} color={(profitability?.net_profit || 0) >= 0 ? '#00b894' : '#e84040'} />
+        <Kpi
+          label={Number(product.cost_price || 0) > 0 ? 'صافي الربح التقديري' : 'الربحية'}
+          value={Number(product.cost_price || 0) > 0 ? fmtCurrency(profitability?.net_profit || 0) : 'غير مكتملة'}
+          sub={Number(product.cost_price || 0) > 0 && profitability?.profit_margin_pct !== null ? fmtPercent(profitability?.profit_margin_pct) + ' هامش' : 'أدخل سعر التكلفة أولًا'}
+          color={Number(product.cost_price || 0) <= 0 ? 'var(--warning-text)' : (profitability?.net_profit || 0) >= 0 ? '#00b894' : '#e84040'}
+        />
         <Kpi label="ROAS" value={profitability?.roas ? Number(profitability.roas).toFixed(2) + 'x' : '—'} color="#ff9900" />
       </div>
 
