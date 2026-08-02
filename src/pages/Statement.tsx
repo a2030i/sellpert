@@ -149,7 +149,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>الأرباح والتسويات</h2>
-          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>اعرف ما بعته، ما خُصم عليك، وصافي المبلغ المتوقع تحويله من كل منصة.</p>
+          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>راجع المبيعات والرسوم والإعلانات والمرتجعات، وافصل الأداء التشغيلي عن التسويات البنكية.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '6px 12px' }}>
           <button style={S.navBtn} onClick={prevMonth}>›</button>
@@ -163,7 +163,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,1fr)', gap:10, marginBottom:20 }}>
         {[
           ['ملخص الربحية','المبيعات ناقص رسوم المنصات والإعلانات والمرتجعات.'],
-          ['التسويات القادمة','المبالغ المتوقع تحويلها ومواعيد وصولها إلى حسابك.'],
+          ['التسويات المسجّلة','المبالغ والمواعيد التي تم تسجيلها أو تأكيدها في النظام.'],
           ['كشف المعاملات','تفاصيل المدين والدائن والخصومات لكل منصة.'],
         ].map(([title, desc]) => <div key={title} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'13px 15px' }}>
           <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', marginBottom:4 }}>{title}</div>
@@ -176,7 +176,6 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
       {perfData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text3)' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>لا توجد بيانات لهذا الشهر</div>
           <div style={{ fontSize: 13 }}>لم يتم إدخال مبيعات لـ {MONTHS[month-1]} {year}</div>
         </div>
@@ -199,7 +198,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {monthTarget > 0 && (
             <div style={{ ...S.card, marginBottom: 16, padding: '14px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>🎯 الهدف الشهري</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>الهدف الشهري</span>
                 <span style={{ fontSize: 13, fontWeight: 800, color: targetPct >= 100 ? 'var(--accent2)' : 'var(--accent)' }}>
                   {fmt(summary.grossRevenue)} / {fmt(monthTarget)} ({targetPct.toFixed(0)}%)
                 </span>
@@ -214,7 +213,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: `${summary.totalOrders} طلب` },
-              { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '📤', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
+              { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'المرتجعات', value: fmt(summary.totalReturns), color: 'var(--warning-text)', icon: '', sub: 'بحسب البيانات المستوردة' },
               { label: summary.costsComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكلفة المنتجات', value: fmt(summary.costsComplete ? summary.estimatedProfit : summary.netPayout), color: (summary.costsComplete ? summary.estimatedProfit : summary.netPayout) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: summary.costsComplete ? `${summary.margin?.toFixed(1)}% هامش تقديري` : 'الربحية غير مكتملة حتى تُدخل تكاليف المنتجات' },
             ].map((k, i) => (
@@ -272,7 +271,6 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
               <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 10,
                 background: 'var(--warning-bg)', border: '1px solid rgba(255,153,0,0.3)',
                 display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <span style={{ fontSize: 18 }}>⚠️</span>
                 <div style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}>
                   <div style={{ fontWeight: 700, color: 'var(--warning-text)', marginBottom: 4 }}>تنبيه: تقارير ناقصة لهذا الشهر</div>
                   <div style={{ color: 'var(--text2)' }}>
@@ -287,7 +285,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {Object.keys(byPlatform).length > 0 && (
             <div style={{ ...S.card, marginBottom: 20, overflow: 'hidden', padding: 0 }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-                🏪 تفصيل المنصات
+                تفصيل المنصات
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -402,7 +400,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
   return (
     <div style={{ ...S.card, marginBottom: 20, overflow: 'hidden', padding: 0 }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>🧾 كشف المعاملات المالية ({filtered.length})</div>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>كشف المعاملات المالية ({filtered.length})</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['all', 'amazon', 'trendyol'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
@@ -701,7 +699,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           {topProducts.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>🏷️ أكثر المنتجات إرجاعاً</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أكثر المنتجات إرجاعاً</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {topProducts.map((p, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
