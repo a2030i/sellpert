@@ -67,6 +67,11 @@ export interface Merchant {
   salla_store_id?: string
   onboarding_done?: boolean
   signup_source?: string
+  owner_merchant_code?: string | null
+  permissions?: Record<string, boolean> | null
+  is_active?: boolean | null
+  job_title?: string | null
+  department?: string | null
   created_at: string
 }
 

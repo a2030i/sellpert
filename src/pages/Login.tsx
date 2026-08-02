@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -7,6 +8,8 @@ export default function Login() {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -20,15 +23,20 @@ export default function Login() {
   }
 
   async function handleRegister() {
-    if (!name.trim() || !email.trim() || password.length < 8) {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || password.length < 8) {
       setError('أدخل اسم المتجر وبريدًا صحيحًا وكلمة مرور من 8 أحرف على الأقل')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('كلمتا المرور غير متطابقتين')
       return
     }
     setLoading(true)
     setError('')
     setSuccess('')
     const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       password,
       options: {
         data: {
@@ -38,13 +46,30 @@ export default function Login() {
         },
       },
     })
-    if (signUpError) setError(signUpError.message.includes('already') ? 'هذا البريد مسجل مسبقًا' : 'تعذر إنشاء الحساب: ' + signUpError.message)
+    if (signUpError) setError(/already|registered/i.test(signUpError.message) ? 'هذا البريد مسجل مسبقًا' : 'تعذر إنشاء الحساب الآن. حاول مرة أخرى بعد قليل.')
     else if (!data.session) setSuccess('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')
     setLoading(false)
   }
 
+  async function handleForgotPassword() {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setError('أدخل بريدك الإلكتروني أولًا لاستعادة كلمة المرور')
+      return
+    }
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: window.location.origin,
+    })
+    if (resetError) setError('تعذر إرسال رابط الاستعادة الآن. حاول مرة أخرى لاحقًا.')
+    else setSuccess('إذا كان البريد مسجلًا فسيصلك رابط آمن لتعيين كلمة مرور جديدة.')
+    setLoading(false)
+  }
+
   return (
-    <div style={styles.wrap}>
+    <div style={styles.wrap} dir="rtl">
       <div style={styles.grid} />
       <div style={styles.glow} />
 
@@ -52,7 +77,7 @@ export default function Login() {
         <div style={styles.logo}>
           <div style={styles.logoIcon}>S</div>
           <h1 style={styles.logoText}>Sellpert</h1>
-          <p style={styles.logoSub}>منصة تحليلات المبيعات الموحدة</p>
+          <p style={styles.logoSub}>إدارة موحدة لعمليات متجرك وقنوات البيع</p>
         </div>
 
         <div style={styles.tabs}>
@@ -87,13 +112,42 @@ export default function Login() {
           <label style={styles.label}>كلمة المرور</label>
           <input
             style={styles.input}
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && (mode === 'login' ? handleLogin() : handleRegister())}
           />
+          <button type="button" aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onClick={() => setShowPassword(v => !v)} style={styles.passwordToggle}>
+            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
         </div>
+
+        {mode === 'register' && <>
+          <div style={styles.field}>
+            <label style={styles.label}>تأكيد كلمة المرور</label>
+            <input
+              style={styles.input}
+              type={showPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRegister()}
+            />
+          </div>
+          <div style={styles.securityNote}>
+            <ShieldCheck size={17} />
+            <span>حساب مستقل ومجاني. تُعزل طلباتك ومنتجاتك وملفاتك عن جميع المتاجر الأخرى.</span>
+          </div>
+          <div style={styles.passwordRules}>
+            <span style={{ color: password.length >= 8 ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> 8 أحرف على الأقل</span>
+            <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
+          </div>
+        </>}
+
+        {mode === 'login' && (
+          <button type="button" onClick={handleForgotPassword} disabled={loading} style={styles.forgot}>نسيت كلمة المرور؟</button>
+        )}
 
         {error && <div style={styles.error}>{error}</div>}
         {success && <div style={styles.success}>{success}</div>}
@@ -107,7 +161,7 @@ export default function Login() {
         </button>
 
         <p style={styles.footer}>
-          منصة مخصصة لتجار التجارة الإلكترونية في المملكة العربية السعودية
+          بإنشاء الحساب أنت توافق على سياسة الخصوصية وشروط الاستخدام
         </p>
       </div>
     </div>
@@ -156,7 +210,7 @@ const styles: Record<string, React.CSSProperties> = {
   tabs: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 4, background: 'var(--bg2)', borderRadius: 11, marginBottom: 22 },
   tab: { border: 0, borderRadius: 8, padding: '9px 8px', background: 'transparent', color: 'var(--text3)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
   tabActive: { background: 'var(--surface)', color: 'var(--accent)', boxShadow: 'var(--shadow)' },
-  field: { marginBottom: 16 },
+  field: { marginBottom: 16, position: 'relative' },
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 },
   input: {
     width: '100%', padding: '12px 14px',
@@ -164,6 +218,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
     transition: 'border-color 0.2s',
   },
+  passwordToggle: { position: 'absolute', left: 10, bottom: 9, width: 32, height: 32, border: 0, background: 'transparent', color: 'var(--text3)', display: 'grid', placeItems: 'center', cursor: 'pointer' },
+  securityNote: { display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 9, background: 'rgba(15,149,140,.07)', color: 'var(--text2)', fontSize: 11, lineHeight: 1.7, marginBottom: 10 },
+  passwordRules: { display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 10, marginBottom: 14 },
+  forgot: { display: 'block', margin: '-6px 0 14px auto', padding: 0, border: 0, background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   error: {
     background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)',
     color: 'var(--red)', borderRadius: 8, padding: '10px 14px',

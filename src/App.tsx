@@ -223,7 +223,7 @@ export default function App() {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ data, error }) => {
         if (!error && data.session) {
           setSession(data.session)
-          fetchMerchant(data.session.user.email!)
+          fetchMerchant(data.session.user.id)
         } else {
           setLoading(false)
         }
@@ -233,7 +233,7 @@ export default function App() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchMerchant(session.user.email!)
+      if (session) fetchMerchant(session.user.id)
       else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -261,7 +261,7 @@ export default function App() {
       // SIGNED_IN, PASSWORD_RECOVERY
       explicitSignOut.current = false
       setSession(session)
-      if (session) fetchMerchant(session.user.email!)
+      if (session) fetchMerchant(session.user.id)
       else { setMerchant(null); setLoading(false) }
     })
     const onPopState = () => setView(readView())
@@ -300,12 +300,42 @@ export default function App() {
     })
   }
 
-  async function fetchMerchant(email: string) {
-    const { data, error } = await supabase.from('merchants').select('*').eq('email', email).maybeSingle()
+  async function fetchMerchant(userId: string) {
+    const { data: identity, error } = await supabase
+      .from('merchants')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle()
+
     if (error) toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
-    setMerchant(data)
+
+    let resolved = identity as Merchant | null
+    if (identity?.role === 'employee' && identity.owner_merchant_code) {
+      const { data: owner, error: ownerError } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('merchant_code', identity.owner_merchant_code)
+        .maybeSingle()
+
+      if (ownerError) toastErr('تعذر تحميل المتجر المرتبط بالموظف: ' + ownerError.message)
+      if (owner) {
+        resolved = {
+          ...owner,
+          id: identity.id,
+          email: identity.email,
+          role: identity.role,
+          owner_merchant_code: identity.owner_merchant_code,
+          permissions: identity.permissions,
+          is_active: identity.is_active,
+          job_title: identity.job_title,
+          department: identity.department,
+        } as Merchant
+      }
+    }
+
+    setMerchant(resolved)
     setLoading(false)
-    if (data && !data.onboarding_done && data.role === 'merchant') setShowOnboarding(true)
+    if (resolved && !resolved.onboarding_done && resolved.role === 'merchant') setShowOnboarding(true)
   }
 
   function goTo(v: View) {
