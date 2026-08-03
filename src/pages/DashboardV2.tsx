@@ -54,6 +54,40 @@ type SalesForecast = {
   data_age_days: number | null
   caveat: string
 }
+type ExecutiveBrief = {
+  available: boolean
+  confidence: HealthConfidence
+  evidence_coverage_pct: number
+  data_as_of: string | null
+  data_age_days: number | null
+  period: { start: string | null; end: string | null; previous_start: string | null; previous_end: string | null }
+  week: {
+    sales: number; previous_sales: number; sales_change_pct: number | null
+    orders: number; previous_orders: number; units: number; average_order_value: number
+    contribution_before_product_cost: number; previous_contribution_before_product_cost: number
+    contribution_change_pct: number | null; cancelled_or_returned_orders: number
+    exception_rate_pct: number | null; previous_exception_rate_pct: number | null
+  }
+  confirmed_deductions: {
+    platform_fees: number; shipping: number; discounts: number
+    return_claims_count: number; return_claims_amount: number; total_excluding_returns: number
+  }
+  inventory_risk: {
+    available: boolean; items: number; fresh_items: number; cost_coverage_pct: number
+    stockout_skus: number; stockout_historical_30d_demand_value: number
+    slow_stock_value: number; unanalysed_stock_value: number
+  }
+  profitability: {
+    available: boolean; sold_products: number; costed_products: number
+    cost_coverage_pct: number; net_profit: number | null; net_margin_pct: number | null
+    minimum_coverage_pct: number
+  }
+  cash: { available: boolean; month: string | null; cash_in: number; cash_out: number; net: number }
+  top_priority: {
+    source_key: string; title: string; detail: string; path: string
+    priority: ActionPriority; category: string; actionable: boolean
+  }
+}
 
 const RANGE_LABELS: Record<RangeKey, string> = { '30': '30 يومًا', '90': '90 يومًا', '180': '180 يومًا' }
 
@@ -97,6 +131,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [abc, setAbc] = useState<AbcRow[]>([])
   const [health, setHealth] = useState<MerchantHealth | null>(null)
   const [forecast, setForecast] = useState<SalesForecast | null>(null)
+  const [executiveBrief, setExecutiveBrief] = useState<ExecutiveBrief | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -122,6 +157,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       supabase.from('product_abc_analysis').select('abc_class,product_id,revenue,net_profit').eq('merchant_code', merchantCode).order('rank').limit(250),
       supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode }),
       supabase.rpc('revenue_forecast', { p_merchant_code: merchantCode }),
+      supabase.rpc('merchant_executive_brief', { p_merchant_code: merchantCode }),
     ]).then(results => {
       if (cancelled) return
       const orderRows = settledValue(results[0]) as Order[] | null
@@ -134,6 +170,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       const abcResult = settledValue(results[7]) as { data?: AbcRow[]; error?: unknown } | null
       const healthResult = settledValue(results[8]) as { data?: MerchantHealth; error?: unknown } | null
       const forecastResult = settledValue(results[9]) as { data?: SalesForecast; error?: unknown } | null
+      const executiveResult = settledValue(results[10]) as { data?: ExecutiveBrief; error?: unknown } | null
 
       setOrders(orderRows || [])
       setInventory(inventoryRows || [])
@@ -143,12 +180,13 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setAbc(abcResult?.data || [])
       setHealth(healthResult?.data || null)
       setForecast(forecastResult?.data || null)
+      setExecutiveBrief(executiveResult?.data || null)
       const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
-      const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9]
+      const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9, 10]
       const criticalRequestFailed = criticalIndexes.some(index => results[index].status === 'rejected')
-      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult].some(result => Boolean(result?.error)))
+      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult].some(result => Boolean(result?.error)))
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -271,6 +309,31 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     }
   }
 
+  async function trackExecutivePriority() {
+    const brief = executiveBrief
+    const priority = brief?.top_priority
+    if (!merchant?.merchant_code || !brief || !priority?.actionable) return
+    setTracking(priority.source_key)
+    try {
+      const result = await createMerchantAction({
+        sourceKey: priority.source_key,
+        title: priority.title,
+        category: priority.category,
+        priority: priority.priority,
+        note: priority.detail,
+        expectedImpact: 'تحسين المؤشر التشغيلي الأعلى أولوية',
+        details: { source: 'weekly_executive_brief', destination: priority.path, data_as_of: brief.data_as_of },
+        dueDate: dueDateFromNow(priority.priority === 'urgent' ? 3 : 7),
+      })
+      if (result.created) toastOk('أُضيفت الأولوية الأسبوعية إلى خطة العمل')
+      else toastInfo('هذه الأولوية موجودة بالفعل في خطة العمل')
+    } catch {
+      toastErr('تعذر إضافة الأولوية الأسبوعية إلى خطة العمل')
+    } finally {
+      setTracking(null)
+    }
+  }
+
   function changeRange(value: RangeKey) {
     setRange(value)
     const url = new URL(window.location.href)
@@ -293,6 +356,12 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         <HealthPanel health={health} />
         <ForecastPanel forecast={forecast} />
       </section>
+
+      <ExecutiveBriefPanel
+        brief={executiveBrief}
+        tracking={tracking === executiveBrief?.top_priority.source_key}
+        onTrack={() => void trackExecutivePriority()}
+      />
 
       <section className="db-kpis" aria-label="ملخص القيمة التجارية">
         <Kpi Icon={CircleDollarSign} label="المساهمة بعد رسوم البيع" value={money(model.contribution, 2)} note="قبل تكلفة المنتج والإعلان"><Trend current={model.contribution} previous={model.previousContribution} /></Kpi>
@@ -346,6 +415,70 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       <footer className="db-freshness"><RefreshCw size={14} /><span>آخر تحديث للمصادر: {lastUpdated ? new Date(lastUpdated).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : 'غير متاح'}</span><span>· فترة الطلبات تنتهي في {model.referenceDate.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' })}</span><button onClick={() => go('/integrations')}>إدارة مصادر البيانات</button></footer>
     </div>
   )
+}
+
+function ExecutiveBriefPanel({ brief, tracking, onTrack }: { brief: ExecutiveBrief | null; tracking: boolean; onTrack: () => void }) {
+  const periodLabel = brief?.period.start && brief.period.end
+    ? `${new Date(`${brief.period.start}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })} – ${new Date(`${brief.period.end}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : 'آخر أسبوع مكتمل في البيانات'
+  const priority = brief?.top_priority
+
+  return <section className="db-panel db-executive" aria-labelledby="executive-title">
+    <div className="db-executive-head">
+      <div><span className="db-eyebrow"><Banknote size={14} /> ملخص أسبوعي موحد</span><h2 id="executive-title">الملخص التنفيذي</h2><p>{periodLabel} · يقارن بالأيام السبعة السابقة مباشرة.</p></div>
+      {brief ? <div className="db-executive-trust"><span className={`db-confidence db-confidence--${brief.confidence}`}>{CONFIDENCE_LABELS[brief.confidence]}</span><small>تغطية الأدلة {percent(brief.evidence_coverage_pct)}</small></div> : null}
+    </div>
+
+    {!brief || !brief.available ? <div className="db-executive-empty"><strong>لا يوجد أسبوع قابل للتحليل بعد</strong><p>اربط قناة البيع أو ارفع ملف الطلبات، ثم سيظهر الأداء والاستقطاعات والأولوية التشغيلية هنا.</p><button onClick={() => go('/integrations')}>إدارة مصادر البيانات <ChevronLeft size={15} /></button></div> : <>
+      {priority ? <div className={`db-executive-priority db-executive-priority--${priority.actionable ? priority.priority : 'stable'}`}>
+        <div><small>{priority.actionable ? 'الأولوية الأولى لهذا الأسبوع' : 'الوضع التشغيلي'}</small><strong>{priority.title}</strong><p>{priority.detail}</p></div>
+        <div className="db-executive-priority-actions">
+          {priority.actionable ? <button className="db-track" disabled={tracking} onClick={onTrack}><ClipboardPlus size={14} />{tracking ? 'جارٍ الإضافة' : 'إضافة للمتابعة'}</button> : null}
+          <button className="db-action-cta" onClick={() => go(priority.path)}>{priority.actionable ? 'تنفيذ الإجراء' : 'عرض خطة العمل'}<ChevronLeft size={15} /></button>
+        </div>
+      </div> : null}
+
+      <div className="db-executive-metrics">
+        <ExecutiveMetric label="مبيعات الأسبوع" value={money(brief.week.sales, 2)} delta={brief.week.sales_change_pct} note={`${brief.week.orders.toLocaleString('ar-SA-u-nu-latn')} طلبًا مكتملًا`} />
+        <ExecutiveMetric label="بعد استقطاعات البيع" value={money(brief.week.contribution_before_product_cost, 2)} delta={brief.week.contribution_change_pct} note="قبل تكلفة المنتج والإعلان" />
+        <ExecutiveMetric label="متوسط الطلب" value={money(brief.week.average_order_value, 2)} note={`${Number(brief.week.units || 0).toLocaleString('ar-SA-u-nu-latn')} وحدة مباعة`} />
+        <ExecutiveMetric label="إلغاءات ومرتجعات الطلبات" value={brief.week.exception_rate_pct == null ? 'غير متاح' : percent(brief.week.exception_rate_pct, 1)} delta={brief.week.previous_exception_rate_pct == null || brief.week.exception_rate_pct == null ? null : brief.week.exception_rate_pct - brief.week.previous_exception_rate_pct} inverse note={`${brief.week.cancelled_or_returned_orders.toLocaleString('ar-SA-u-nu-latn')} طلبًا في الفترة`} />
+      </div>
+
+      <div className="db-executive-details">
+        <article className="db-executive-block">
+          <header><div><h3>الاستقطاعات المؤكدة</h3><p>لا تشمل تكلفة المنتج أو الإعلان أو مرتجعات غير مسجلة.</p></div><strong>{money(brief.confirmed_deductions.total_excluding_returns, 2)}</strong></header>
+          <div className="db-deduction-list">
+            <ExecutiveLine label="عمولات ورسوم المنصة" value={money(brief.confirmed_deductions.platform_fees, 2)} total={brief.week.sales} amount={brief.confirmed_deductions.platform_fees} />
+            <ExecutiveLine label="تكلفة الشحن المسجلة" value={money(brief.confirmed_deductions.shipping, 2)} total={brief.week.sales} amount={brief.confirmed_deductions.shipping} />
+            <ExecutiveLine label="الخصومات" value={money(brief.confirmed_deductions.discounts, 2)} total={brief.week.sales} amount={brief.confirmed_deductions.discounts} />
+            <div className="db-executive-line db-executive-line--plain"><span>مطالبات مرتجعات منفصلة</span><strong>{brief.confirmed_deductions.return_claims_count ? `${money(brief.confirmed_deductions.return_claims_amount, 2)} · ${brief.confirmed_deductions.return_claims_count.toLocaleString('ar-SA-u-nu-latn')} مطالبة` : 'لا توجد مطالبات مسجلة'}</strong></div>
+          </div>
+        </article>
+
+        <article className="db-executive-block">
+          <header><div><h3>قابلية اعتماد الربح والمخزون</h3><p>الأرقام غير المكتملة تبقى معلّمة بوضوح ولا تدخل في صافي الربح.</p></div></header>
+          <div className="db-reliability-list">
+            <div><span><strong>صافي الربح</strong><small>تغطية تكلفة المنتجات {percent(brief.profitability.cost_coverage_pct, 1)}</small></span><b>{brief.profitability.available && brief.profitability.net_profit != null ? money(brief.profitability.net_profit, 2) : 'محجوب حتى اكتمال 80%'}</b></div>
+            <div><span><strong>أصناف نافدة ذات طلب سابق</strong><small>{brief.inventory_risk.available ? 'مخزون محدث خلال يومين' : 'بيانات المخزون غير كافية أو قديمة'}</small></span><b>{brief.inventory_risk.available ? brief.inventory_risk.stockout_skus.toLocaleString('ar-SA-u-nu-latn') : 'غير متاح'}</b></div>
+            <div><span><strong>قيمة طلب 30 يومًا مرتبطة بالنفاد</strong><small>قيمة تاريخية وليست خسارة مضمونة</small></span><b>{brief.inventory_risk.available ? money(brief.inventory_risk.stockout_historical_30d_demand_value, 2) : 'غير متاح'}</b></div>
+            <div><span><strong>آخر صافي حركة نقدية</strong><small>{brief.cash.month ? new Date(`${brief.cash.month}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' }) : 'لا توجد معاملات مالية'}</small></span><b>{brief.cash.available ? money(brief.cash.net, 2) : 'غير متاح'}</b></div>
+          </div>
+        </article>
+      </div>
+      <p className="db-executive-note">آخر يوم بيانات: {brief.data_as_of ? new Date(`${brief.data_as_of}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : 'غير متاح'}. الاستقطاعات المعروضة مؤكدة من حقول الطلب؛ صافي الربح لا يظهر قبل اكتمال تكاليف 80% من المنتجات المباعة.</p>
+    </>}
+  </section>
+}
+
+function ExecutiveMetric({ label, value, delta = null, inverse = false, note }: { label: string; value: string; delta?: number | null; inverse?: boolean; note: string }) {
+  const favourable = delta == null ? null : inverse ? delta <= 0 : delta >= 0
+  return <article className="db-executive-metric"><span>{label}</span><strong>{value}</strong><small>{note}</small>{delta == null ? <em>لا توجد مقارنة قابلة للاعتماد</em> : <em className={favourable ? 'is-positive' : 'is-negative'}>{delta >= 0 ? 'ارتفاع' : 'انخفاض'} {percent(Math.abs(delta), 1)} عن الأسبوع السابق</em>}</article>
+}
+
+function ExecutiveLine({ label, value, total, amount }: { label: string; value: string; total: number; amount: number }) {
+  const share = total > 0 ? Math.min(100, Math.max(0, amount / total * 100)) : 0
+  return <div className="db-executive-line"><span>{label}</span><strong>{value}</strong><div aria-label={`${label}: ${percent(share, 1)} من المبيعات`}><i style={{ width: `${share}%` }} /></div><small>{percent(share, 1)} من المبيعات</small></div>
 }
 
 function Trend({ current, previous }: { current: number; previous: number }) {
