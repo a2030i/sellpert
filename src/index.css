@@ -51,9 +51,10 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --font-body: 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Tajawal', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --t-micro:11px; --t-cap:12px; --t-label:13px; --t-sm:14px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
+  --font-body: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-data: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --t-micro:12px; --t-cap:12px; --t-label:13px; --t-sm:14px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
   --lh-base:1.7; --lh-tight:1.25;
@@ -120,6 +121,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-synthesis: none;
+  font-optical-sizing: auto;
 }
 
 body.ltr {
@@ -129,22 +132,22 @@ body.ltr {
 
 /*
  * النظام الطباعي المؤسسي:
- * Tajawal للعناوين القصيرة والواضحة، وNoto Sans Arabic للمحتوى والجداول
- * وعناصر التحكم. هذا الفصل يحافظ على شخصية العنوان من دون إضعاف القراءة
- * داخل الواجهات التشغيلية الكثيفة.
+ * IBM Plex Sans Arabic لكل الواجهة حتى تبقى العربية والإنجليزية والأرقام
+ * متجانسة. الاختلاف بين العناوين والمحتوى يأتي من الوزن والحجم، لا من مزج
+ * عائلتين تختلفان في ارتفاع السطر وبنية الحروف.
  */
 :where(h1, h2) {
   font-family: var(--font-heading) !important;
-  font-weight: 700;
-  line-height: 1.4;
+  font-weight: 700 !important;
+  line-height: 1.35;
   letter-spacing: 0;
   text-wrap: balance;
 }
 
 :where(h3, h4, h5, h6) {
-  font-family: var(--font-body) !important;
-  font-weight: 600;
-  line-height: 1.5;
+  font-family: var(--font-heading) !important;
+  font-weight: 600 !important;
+  line-height: 1.45;
   letter-spacing: 0;
 }
 
@@ -156,16 +159,16 @@ body.ltr {
   line-height: 1.6;
 }
 
-main h1 { font-size: 26px; font-weight: 700; }
-main h2 { font-size: 21px; font-weight: 700; }
-main h3 { font-size: 16px; }
-main h4 { font-size: 14px; }
+main h1 { font-size: 28px; font-weight: 700; }
+main h2 { font-size: 22px; font-weight: 700; }
+main h3 { font-size: 17px; }
+main h4 { font-size: 15px; }
 body p { font-size: var(--t-sm); }
 body small { font-size: var(--t-cap); line-height: 1.55; }
 body label { font-size: var(--t-label); font-weight: 500; }
 body table { font-size: var(--t-label); line-height: 1.55; }
-table th { font-size: 12px; font-weight: 600; line-height: 1.55; }
-table td { font-size: 13px; line-height: 1.6; }
+table th { font-size: 13px; font-weight: 600; line-height: 1.55; }
+table td { font-size: 13px; line-height: 1.65; }
 input, select, textarea { font-size: var(--t-sm); font-weight: 400; }
 button { font-size: 13px; font-weight: 500; }
 
@@ -198,12 +201,18 @@ strong, b, .tabular-nums, table {
   font-feature-settings: 'tnum' 1, 'kern' 1;
 }
 
+/* الأرقام والمعرّفات تحتاج محاذاة دقيقة، من دون مظهر monospace البرمجي. */
+:where(.tabular-nums, [dir="ltr"], time, data) {
+  font-family: var(--font-data);
+}
+
 /* حماية النصوص القديمة ذات المقاسات المضمّنة من النزول تحت حد القراءة. */
 body :where(
   [style*="font-size: 7px"],
   [style*="font-size: 8px"],
   [style*="font-size: 9px"],
-  [style*="font-size: 10px"]
+  [style*="font-size: 10px"],
+  [style*="font-size: 11px"]
 ) {
   font-size: var(--t-micro) !important;
 }
@@ -405,6 +414,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   --text2: #a9bdc9;
   --text3: #7893a3;
   font-family: var(--font-body);
+  font-synthesis: none;
 }
 
 .sidebar-dark :where(button, input) {
@@ -412,17 +422,18 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 }
 
 .sidebar-dark nav > div > button {
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  line-height: 1.6 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.55 !important;
+  letter-spacing: 0 !important;
 }
 
 .sidebar-dark .nav-item {
   border-radius: 7px;
   margin-inline: 10px;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 500 !important;
-  line-height: 1.6 !important;
+  line-height: 1.55 !important;
 }
 
 .sidebar-dark .nav-item.active {
