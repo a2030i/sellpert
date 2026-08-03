@@ -79,6 +79,7 @@ async function authorizeScope(admin: any, caller: any, userId: string, requested
   if (caller.role === 'employee') {
     if (!caller.owner_merchant_code || !permissionEnabled(caller.permissions, 'settings')) throw new HttpError(403, 'سجل النشاط متاح لمالك المتجر أو الموظف المخوّل بالإعدادات.')
     if (requested && requested !== caller.owner_merchant_code) throw new HttpError(403, 'لا يمكنك عرض نشاط متجر آخر.')
+    await requireActiveWorkspace(admin, caller.owner_merchant_code)
     return { kind: 'merchant', merchantCode: caller.owner_merchant_code }
   }
   if (caller.role !== 'merchant' || !caller.merchant_code) throw new HttpError(403, 'الحساب غير مخوّل بعرض سجل النشاط.')
@@ -86,7 +87,15 @@ async function authorizeScope(admin: any, caller: any, userId: string, requested
   const { data: link } = await admin.from('merchant_account_links').select('id')
     .eq('user_id', userId).eq('merchant_code', requested).maybeSingle()
   if (!link) throw new HttpError(403, 'لا يمكنك عرض نشاط متجر آخر.')
+  await requireActiveWorkspace(admin, requested)
   return { kind: 'merchant', merchantCode: requested }
+}
+
+async function requireActiveWorkspace(admin: any, merchantCode: string) {
+  const { data: workspace, error } = await admin.from('merchants')
+    .select('is_active').eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()
+  if (error) throw error
+  if (!workspace || workspace.is_active === false) throw new HttpError(403, 'Merchant account is inactive')
 }
 
 function sanitizeEntry(row: any) {

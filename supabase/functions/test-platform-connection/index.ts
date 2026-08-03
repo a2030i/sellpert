@@ -23,8 +23,8 @@ Deno.serve(async (req) => {
 
     // يجب أن يكون للمستدعي حساب في النظام (تاجر أو طاقم) — ليس مجرد توكن صالح
     const { data: callerRow } = await caller
-      .from('merchants').select('role').eq('id', user.id).maybeSingle()
-    if (!callerRow) return json({ error: 'Forbidden' }, 403)
+      .from('merchants').select('role,is_active').eq('id', user.id).maybeSingle()
+    if (!callerRow || callerRow.is_active === false) return json({ error: 'Forbidden' }, 403)
 
     const { platform, seller_id, api_key, api_secret, extra } = await req.json()
     if (!platform) return json({ error: 'platform required' }, 400)

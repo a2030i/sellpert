@@ -50,6 +50,10 @@ async function startAuthorization(req: Request, admin: any) {
     throw new HttpError(403, 'غير مصرح لهذا المتجر')
   }
 
+  const { data: workspace } = await admin.from('merchants')
+    .select('is_active').eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()
+  if (!workspace || workspace.is_active === false) throw new HttpError(403, 'Merchant account is inactive')
+
   if (body?.action === 'capabilities') {
     return respond({
       providers: {
@@ -104,6 +108,10 @@ async function finishAuthorization(req: Request, admin: any) {
     .maybeSingle()
   if (consumeError) throw consumeError
   if (!pending) throw new Error('انتهت جلسة التفويض أو تم استخدامها، حاول مرة أخرى')
+
+  const { data: workspace } = await admin.from('merchants')
+    .select('is_active').eq('merchant_code', pending.merchant_code).eq('role', 'merchant').maybeSingle()
+  if (!workspace || workspace.is_active === false) throw new Error('Merchant account is inactive')
 
   const tokenData = pending.platform === 'amazon' ? await exchangeAmazonCode(code) : await exchangeNoonCode(code)
   const sellerId = url.searchParams.get('selling_partner_id') || tokenData.seller_id || tokenData.account_id || null

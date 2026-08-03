@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: callerRecord } = await adminClient
       .from('merchants').select('*').eq('id', user.id).maybeSingle()
-    if (!callerRecord) return json({ error: 'merchant not found' }, 404)
+    if (!callerRecord || callerRecord.is_active === false) return json({ error: 'Forbidden' }, 403)
 
     // Parse body early for permission checks
     let body: any = {}
@@ -146,6 +146,7 @@ async function analyzeOne(adminClient: any, openrouterKey: string, merchantCode:
   const { data: merchant } = await adminClient
     .from('merchants').select('*').eq('merchant_code', merchantCode).maybeSingle()
   if (!merchant) return { error: `تاجر غير موجود: ${merchantCode}` }
+  if (merchant.is_active === false) return { error: 'Merchant account is inactive' }
 
   // Cache check
   const { data: cached } = await adminClient

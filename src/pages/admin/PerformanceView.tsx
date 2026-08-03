@@ -3,6 +3,7 @@ import { S, fmt, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import type { Merchant, PerformanceData } from '../../lib/supabase'
 import { useEffect } from 'react'
 import { filterPerformanceRows, performanceDateKey, summarizePerformance, type PerformancePreset } from '../../lib/adminPerformance'
+import { downloadCsv } from '../../lib/csv'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const PERF_PAGE_SIZE = 50
@@ -74,10 +75,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
             PLATFORM_MAP[r.platform] || r.platform,
             r.order_count, r.total_sales, r.platform_fees || 0, r.margin.toFixed(1), r.ad_spend || 0
           ])
-          const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
-          const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a'); a.href = url; a.download = `sellpert-perf-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+          downloadCsv([headers, ...rows], `sellpert-perf-${new Date().toISOString().split('T')[0]}.csv`)
         }}>تصدير CSV</button>
       </div>
 

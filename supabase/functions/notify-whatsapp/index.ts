@@ -83,10 +83,11 @@ Deno.serve(async (req) => {
     // Get merchant info
     const { data: merchant } = await db
       .from('merchants')
-      .select('name, whatsapp_phone')
+      .select('name, whatsapp_phone, is_active')
       .eq('merchant_code', merchant_code)
       .single()
 
+    if (merchant?.is_active === false) return json({ error: 'Merchant account is inactive' }, 409)
     if (!merchant?.whatsapp_phone) return json({ skipped: true, reason: 'لا يوجد رقم واتساب للتاجر' })
 
     const apiKey   = conn.api_key

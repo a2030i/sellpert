@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
       const { data: { user } } = await db.auth.getUser(bearer)
       if (!user?.email) return json({ error: 'Unauthorized' }, 401)
       const { data: callerRow } = await db.from('merchants')
-        .select('role').eq('id', user.id).maybeSingle()
-      if (!callerRow || !['admin', 'super_admin'].includes(callerRow.role)) {
+        .select('role,is_active').eq('id', user.id).maybeSingle()
+      if (!callerRow || callerRow.is_active === false || !['admin', 'super_admin'].includes(callerRow.role)) {
         return json({ error: 'Forbidden' }, 403)
       }
     }

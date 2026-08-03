@@ -79,13 +79,23 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
-    let storeInfo: any = {}
-    if (storeRes.ok) {
-      const body = await storeRes.json()
-      storeInfo = body.data || {}
+    if (!storeRes.ok) {
+      console.error('Salla store verification failed:', storeRes.status)
+      return redirect(`${APP_URL}?error=store_verification_failed`)
+    }
+    const storeBody = await storeRes.json().catch(() => ({}))
+    const storeInfo: any = storeBody.data || {}
+    const verifiedStoreId = String(storeInfo.id || '').trim()
+    if (!verifiedStoreId) {
+      console.error('Salla store verification returned no store id')
+      return redirect(`${APP_URL}?error=store_verification_failed`)
+    }
+    if (storeId && String(storeId) !== verifiedStoreId) {
+      console.error('Salla callback store id did not match the verified token store')
+      return redirect(`${APP_URL}?error=store_mismatch`)
     }
 
-    const sallaStoreId  = String(storeInfo.id || storeId || 'unknown')
+    const sallaStoreId  = verifiedStoreId
     const storeName     = storeInfo.name  || 'متجر سلة'
     const storeDomain   = storeInfo.domain || ''
     const storeCurrency = storeInfo.currency?.currency_iso || 'SAR'

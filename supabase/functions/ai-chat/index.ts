@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await db.auth.getUser(token)
     if (!user) return j({ error: 'Unauthorized' }, 401)
     const { data: m } = await db.from('merchants').select('*').eq('id', user.id).maybeSingle()
-    if (!m) return j({ error: 'merchant not found' }, 404)
+    if (!m || m.is_active === false) return j({ error: 'Forbidden' }, 403)
 
     const body = await req.json()
     const question: string = body.question || ''
@@ -41,6 +41,10 @@ Deno.serve(async (req) => {
     const targetCode: string = body.merchant_code || effectiveCode
     const employeeCanUseAi = m.role !== 'employee' || permissionEnabled(m.permissions, 'dashboard')
     if (!employeeCanUseAi || (!isAdmin && targetCode !== effectiveCode)) return j({ error: 'Forbidden' }, 403)
+
+    const { data: targetWorkspace } = await db.from('merchants')
+      .select('is_active').eq('merchant_code', targetCode).eq('role', 'merchant').maybeSingle()
+    if (!targetWorkspace || targetWorkspace.is_active === false) return j({ error: 'Forbidden' }, 403)
 
     let openrouterKey = Deno.env.get('OPENROUTER_API_KEY') || ''
     if (!openrouterKey) {

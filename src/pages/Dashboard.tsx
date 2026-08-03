@@ -5,6 +5,7 @@ import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP, PLATFORM_COLORS as PLT_COLOR, DATE_PRESETS as PRESETS } from '../lib/constants'
 import { normalizeAiInsightContent } from '../lib/aiInsights'
+import { downloadCsv } from '../lib/csv'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Brush,
@@ -515,9 +516,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
       Math.round(toSAR(r.platform_fees || 0, r.platform)),
       rowMargin(r) === null ? '' : (rowMargin(r) as number).toFixed(1) + '%',
     ])
-    const csv = [['التاريخ', 'المنصة', 'المنتج', 'الطلبات', 'المبيعات', 'الرسوم', 'الهامش'], ...rows].map(r => r.join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sellpert.csv'; a.click()
+    downloadCsv([['التاريخ', 'المنصة', 'المنتج', 'الطلبات', 'المبيعات', 'الرسوم', 'الهامش'], ...rows], 'sellpert.csv')
   }
 
   if (loading) return (

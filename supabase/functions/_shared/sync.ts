@@ -17,7 +17,10 @@ export async function authorizeMerchantSync(
 
   // Queue workers and scheduled jobs use the service key. Never accept it from
   // the request body or a public environment variable.
-  if (token === serviceKey) return { kind: 'service' }
+  if (token === serviceKey) {
+    await requireActiveWorkspace(admin, merchantCode)
+    return { kind: 'service' }
+  }
 
   const { data: { user }, error } = await admin.auth.getUser(token)
   if (error || !user) throw new HttpError(401, 'Unauthorized')
@@ -30,9 +33,11 @@ export async function authorizeMerchantSync(
 
   if (!caller || caller.is_active === false) throw new HttpError(403, 'Forbidden')
   if (['admin', 'super_admin'].includes(caller.role)) {
+    await requireActiveWorkspace(admin, merchantCode)
     return { kind: 'staff', email: user.email }
   }
   if (caller.role === 'staff' && permissionEnabled(caller.permissions, 'upload_files')) {
+    await requireActiveWorkspace(admin, merchantCode)
     return { kind: 'staff', email: user.email }
   }
 
@@ -41,12 +46,16 @@ export async function authorizeMerchantSync(
     if (!canIntegrate || caller.owner_merchant_code !== merchantCode) {
       throw new HttpError(403, 'Forbidden')
     }
+    await requireActiveWorkspace(admin, merchantCode)
     return { kind: 'merchant', email: user.email }
   }
 
   const ownedCode = caller.merchant_code
 
-  if (ownedCode === merchantCode) return { kind: 'merchant', email: user.email }
+  if (ownedCode === merchantCode) {
+    await requireActiveWorkspace(admin, merchantCode)
+    return { kind: 'merchant', email: user.email }
+  }
 
   const { data: link } = await admin
     .from('merchant_account_links')
@@ -56,7 +65,21 @@ export async function authorizeMerchantSync(
     .maybeSingle()
 
   if (!link) throw new HttpError(403, 'Forbidden')
+  await requireActiveWorkspace(admin, merchantCode)
   return { kind: 'merchant', email: user.email }
+}
+
+async function requireActiveWorkspace(admin: any, merchantCode: string) {
+  const { data: workspace, error } = await admin.from('merchants')
+    .select('is_active,subscription_status')
+    .eq('merchant_code', merchantCode)
+    .eq('role', 'merchant')
+    .maybeSingle()
+  if (error) throw error
+  if (!workspace) throw new HttpError(404, 'Merchant not found')
+  if (workspace.is_active === false || workspace.subscription_status !== 'active') {
+    throw new HttpError(403, 'ACCOUNT_SUSPENDED')
+  }
 }
 
 export function permissionEnabled(value: unknown, permission: string): boolean {

@@ -24,19 +24,20 @@ Deno.serve(async (req) => {
     // Look up by email (auth user ID may differ from merchants.id)
     const { data: caller } = await admin
       .from('merchants')
-      .select('role')
+      .select('role,is_active')
       .eq('id', user.id)
       .maybeSingle()
 
-    if (!caller || !['admin', 'super_admin'].includes(caller.role)) {
+    if (!caller || caller.is_active === false || !['admin', 'super_admin'].includes(caller.role)) {
       return json({ error: 'Forbidden' }, 403)
     }
 
     const { merchant_code } = await req.json()
     if (!merchant_code) return json({ error: 'merchant_code required' }, 400)
 
-    const { data: merchant } = await admin.from('merchants').select('email').eq('merchant_code', merchant_code).maybeSingle()
+    const { data: merchant } = await admin.from('merchants').select('email,is_active').eq('merchant_code', merchant_code).eq('role', 'merchant').maybeSingle()
     if (!merchant?.email) return json({ error: 'Merchant not found' }, 404)
+    if (merchant.is_active === false) return json({ error: 'Merchant account is inactive' }, 409)
 
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'magiclink',

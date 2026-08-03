@@ -128,6 +128,12 @@ $protectedFunctions = @(
   'test-platform-connection',
   'trendyol-actions',
   'impersonate-merchant',
+  'daily-report',
+  'manual-entry',
+  'respondly-info',
+  'ai-chat',
+  'analyze-merchant',
+  'notify-whatsapp',
   'account-lifecycle',
   'activity-feed'
 )
