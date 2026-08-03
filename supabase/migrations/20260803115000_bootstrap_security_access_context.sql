@@ -11,7 +11,7 @@ AS $function$
     SELECT 1 FROM public.merchants
     WHERE id = (SELECT auth.uid()) AND role = 'staff' AND COALESCE(is_active, true)
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.can_access_all_merchants()
  RETURNS boolean
@@ -25,7 +25,7 @@ AS $function$
       AND role IN ('admin','super_admin','staff')
       AND COALESCE(is_active, true)
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.current_accessible_merchant_codes()
  RETURNS text[]
@@ -67,7 +67,7 @@ AS $function$
       AND member.role = 'employee'
       AND COALESCE(member.is_active, true)
   ) accessible
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.can_access_merchant(p_merchant_code text)
  RETURNS boolean
@@ -77,7 +77,7 @@ CREATE OR REPLACE FUNCTION security.can_access_merchant(p_merchant_code text)
 AS $function$
   SELECT security.can_access_all_merchants()
       OR p_merchant_code = ANY(security.current_accessible_merchant_codes())
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.has_platform_permission(p_permission text)
  RETURNS boolean
@@ -99,7 +99,7 @@ AS $function$
         )
       )
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.current_has_merchant_permission(p_permission text)
  RETURNS boolean
@@ -124,7 +124,7 @@ AS $function$
         )
       )
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.current_has_any_merchant_permission(p_permissions text[])
  RETURNS boolean
@@ -134,7 +134,7 @@ CREATE OR REPLACE FUNCTION security.current_has_any_merchant_permission(p_permis
 AS $function$
   SELECT COALESCE(bool_or(security.current_has_merchant_permission(permission)), false)
   FROM unnest(p_permissions) permission
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION security.has_merchant_permission(p_merchant_code text, p_permission text)
  RETURNS boolean
@@ -147,5 +147,4 @@ AS $function$
        security.has_platform_permission(p_permission)
        OR security.current_has_merchant_permission(p_permission)
      )
-$function$
-
+$function$;

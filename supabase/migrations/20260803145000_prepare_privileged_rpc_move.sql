@@ -24,7 +24,7 @@ AS $function$
       OR (owner.id IS NOT NULL AND COALESCE(owner.is_active, true))
     )
   LIMIT 1
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.delete_employee(p_employee_code text)
  RETURNS jsonb
@@ -59,7 +59,7 @@ BEGIN
   DELETE FROM public.merchants WHERE id = v_employee_id;
   RETURN jsonb_build_object('ok', true, 'auth_id', v_employee_id);
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.delete_upload_cascade(p_upload_id uuid)
  RETURNS jsonb
@@ -88,7 +88,7 @@ BEGIN
 
   RETURN public.delete_upload_cascade_internal(p_upload_id);
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.delete_upload_with_data(p_upload_id uuid)
  RETURNS jsonb
@@ -117,7 +117,7 @@ BEGIN
 
   RETURN public.delete_upload_with_data_internal(p_upload_id);
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_db_health()
  RETURNS jsonb
@@ -172,7 +172,7 @@ begin
     )
   );
 end
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.is_admin()
  RETURNS boolean
@@ -187,7 +187,7 @@ AS $function$
       AND role IN ('admin', 'super_admin')
       AND COALESCE(is_active, true)
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.is_staff()
  RETURNS boolean
@@ -202,7 +202,7 @@ AS $function$
       AND role IN ('admin', 'super_admin')
       AND COALESCE(is_active, true)
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.merchant_payouts(p_merchant_code text)
  RETURNS jsonb
@@ -248,7 +248,7 @@ BEGIN
   ) INTO result;
   RETURN result;
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.my_employees()
  RETURNS TABLE(id uuid, merchant_code text, name text, email text, whatsapp_phone text, job_title text, permissions jsonb, is_active boolean, created_at timestamp with time zone)
@@ -267,7 +267,7 @@ AS $function$
    AND employee.owner_merchant_code = owner.merchant_code
   WHERE employee.role = 'employee'
   ORDER BY employee.created_at DESC
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.my_linked_merchants()
  RETURNS TABLE(merchant_code text, name text, role text, is_default boolean)
@@ -301,7 +301,7 @@ AS $function$
   SELECT accessible.merchant_code, accessible.name, accessible.role, accessible.is_default
   FROM accessible
   ORDER BY accessible.is_default DESC, accessible.name
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.my_owner_merchant()
  RETURNS text
@@ -319,7 +319,7 @@ AS $function$
     AND employee.role = 'employee'
     AND COALESCE(employee.is_active, true)
   LIMIT 1
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.rebuild_all_derived_data(p_merchant_code text)
  RETURNS jsonb
@@ -389,7 +389,7 @@ BEGIN
     'alerts_generated', alerts
   );
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.team_dashboard_kpis()
  RETURNS jsonb
@@ -415,7 +415,7 @@ BEGIN
     'gmv_30d', (SELECT coalesce(round(sum(total_sales)), 0) FROM public.performance_data WHERE data_date >= CURRENT_DATE - 30)
   );
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_employee(p_employee_code text, p_permissions jsonb DEFAULT NULL::jsonb, p_is_active boolean DEFAULT NULL::boolean, p_job_title text DEFAULT NULL::text, p_name text DEFAULT NULL::text)
  RETURNS jsonb
@@ -473,7 +473,7 @@ BEGIN
 
   RETURN jsonb_build_object('ok', true);
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_my_store_profile(p_name text DEFAULT NULL::text, p_whatsapp_phone text DEFAULT NULL::text, p_logo_url text DEFAULT NULL::text, p_merchant_code text DEFAULT NULL::text)
  RETURNS jsonb
@@ -526,7 +526,7 @@ BEGIN
   END IF;
   RETURN v_result;
 END
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.wipe_merchant_data(p_merchant_code text)
  RETURNS jsonb
@@ -574,6 +574,5 @@ BEGIN
 
   RETURN v_deleted;
 END
-$function$
-
+$function$;
 
