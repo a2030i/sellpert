@@ -93,7 +93,13 @@ GRANT EXECUTE ON FUNCTION public.get_db_health() TO authenticated, service_role;
 
 -- These read/mutate only tenant-scoped rows and should therefore obey RLS.
 ALTER FUNCTION public.generate_proactive_alerts(text) SECURITY INVOKER;
-ALTER FUNCTION public.tasks_summary(text) SECURITY INVOKER;
+DO $$
+BEGIN
+  IF to_regprocedure('public.tasks_summary(text)') IS NOT NULL THEN
+    ALTER FUNCTION public.tasks_summary(text) SECURITY INVOKER;
+  END IF;
+END
+$$;
 
 -- Trigger functions are invoked by their trigger and never directly by a
 -- browser client.
