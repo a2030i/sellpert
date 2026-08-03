@@ -14,6 +14,8 @@ import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import AccountAccessState from './components/AccountAccessState'
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
@@ -420,6 +422,9 @@ export default function App() {
 
   // خريطة ابن→أب: تمييز «أين أنا» في القائمة يبقى مضاءً على المسارات الثانوية (كشف/مساعدة/مخزون...)
   const isActiveNav = (key: View) => view === key || NAV_PARENT[view] === key
+
+  if (window.location.pathname === '/privacy') return <Privacy />
+  if (window.location.pathname === '/terms') return <Terms />
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>

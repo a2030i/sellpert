@@ -163,7 +163,7 @@ export default function Login() {
         </button>
 
         <p style={styles.footer}>
-          بإنشاء الحساب أنت توافق على سياسة الخصوصية وشروط الاستخدام
+          بإنشاء الحساب أنت توافق على <a href="/privacy" style={styles.footerLink}>سياسة الخصوصية</a> و<a href="/terms" style={styles.footerLink}>شروط الاستخدام</a>
         </p>
       </div>
     </div>
@@ -239,4 +239,5 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 4,
   },
   footer: { fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginTop: 20 },
+  footerLink: { color: 'var(--accent)', fontWeight: 700, textDecoration: 'none' },
 }
