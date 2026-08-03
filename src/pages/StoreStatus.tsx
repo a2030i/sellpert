@@ -28,7 +28,8 @@ export default function StoreStatus({ merchant }: { merchant: Merchant | null })
 
   const load = useCallback(async (manual = false) => {
     if (!merchant?.merchant_code) return
-    manual ? setRefreshing(true) : setLoading(true)
+    if (manual) setRefreshing(true)
+    else setLoading(true)
     setLoadError('')
     const code = merchant.merchant_code
     const results = await Promise.allSettled([

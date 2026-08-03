@@ -51,13 +51,13 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --font-body: 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Alexandria', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-data: 'IBM Plex Sans', 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
-  --t-micro:12.5px; --t-cap:13px; --t-label:13.5px; --t-sm:14.5px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
+  --font-body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'Alexandria', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-data: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --t-micro:12.5px; --t-cap:13.5px; --t-label:14px; --t-sm:15px; --t-base:15.5px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
-  --lh-base:1.75; --lh-tight:1.35;
+  --lh-base:1.78; --lh-tight:1.45;
 
   --radius:    16px;
   --radius-sm: 10px;
@@ -195,7 +195,7 @@ body.ltr {
 :where(h1, h2) {
   font-family: var(--font-heading) !important;
   font-weight: 700 !important;
-  line-height: 1.35;
+  line-height: 1.45;
   letter-spacing: 0;
   text-wrap: balance;
 }
@@ -203,7 +203,7 @@ body.ltr {
 :where(h3, h4, h5, h6) {
   font-family: var(--font-heading) !important;
   font-weight: 600 !important;
-  line-height: 1.45;
+  line-height: 1.55;
   letter-spacing: 0;
 }
 
@@ -216,7 +216,7 @@ body.ltr {
 }
 
 main h1 { font-size: 28px; font-weight: 700; }
-main h2 { font-size: 22px; font-weight: 700; }
+main h2 { font-size: 21px; font-weight: 600; }
 main h3 { font-size: 17px; font-weight: 600; }
 main h4 { font-size: 15px; font-weight: 600; }
 body p { font-size: var(--t-sm); }
@@ -308,7 +308,7 @@ body :where([style*="font-size: 14px"], [style*="font-size:14px"]) {
     -webkit-overflow-scrolling: touch;
   }
   /* Default table cells smaller on mobile */
-  table { font-size: 12px; }
+  table { font-size: var(--t-cap); }
   table th, table td { padding: 6px 8px; }
 
   /* Modals full-screen on mobile */
@@ -503,10 +503,10 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 }
 
 .sidebar-dark nav > div > button {
-  font-family: var(--font-heading) !important;
-  font-size: 12.5px !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
-  line-height: 1.65 !important;
+  line-height: 1.7 !important;
   letter-spacing: 0 !important;
 }
 
@@ -514,9 +514,9 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   border-radius: 7px;
   margin-inline: 10px;
   font-family: var(--font-body) !important;
-  font-size: 14.5px !important;
+  font-size: 14.25px !important;
   font-weight: 500 !important;
-  line-height: 1.7 !important;
+  line-height: 1.75 !important;
 }
 
 .sidebar-dark .nav-item.active {
@@ -554,3 +554,28 @@ table th { letter-spacing: 0.01em; }
 button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
 button:active { transform: translateY(1px); }
 .card, [data-kpi-card] { box-shadow: var(--shadow); }
+
+/* Enterprise typography guardrails: keep every merchant-facing surface readable. */
+main :where(p, li, dd, dt) {
+  font-family: var(--font-body);
+}
+
+main :where(table, thead, tbody, th, td) {
+  font-family: var(--font-body) !important;
+}
+
+main :where(code, kbd, samp, .tabular-nums, [style*="monospace"]) {
+  font-family: var(--font-data) !important;
+}
+
+main :where(.card, article, section, dialog) :where(p, li) {
+  line-height: 1.75;
+}
+
+@media (max-width: 768px) {
+  main h1 { font-size: 24px; line-height: 1.5; }
+  main h2 { font-size: 19px; line-height: 1.55; }
+  main h3 { font-size: 16px; line-height: 1.6; }
+  body p, body li { font-size: var(--t-sm); }
+  table, table th, table td { font-size: var(--t-cap); }
+}

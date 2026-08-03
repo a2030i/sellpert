@@ -556,7 +556,7 @@ export default function App() {
                 paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
                 borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
               }}>
-                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.6, cursor: 'pointer', textAlign: 'right' }}>
+                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.7, cursor: 'pointer', textAlign: 'right' }}>
                   <span style={{ flex: 1 }}>{group.label}</span>
                   <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                 </button>
@@ -740,7 +740,7 @@ const S: Record<string, React.CSSProperties> = {
   navItem: {
     display: 'flex', alignItems: 'center', gap: 11,
     padding: '10px 12px', cursor: 'pointer',
-    fontSize: 13, fontWeight: 500, lineHeight: 1.45,
+    fontSize: 14.25, fontWeight: 500, lineHeight: 1.75,
     color: '#b8c9d2', width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'inherit', textAlign: 'right',
   },
