@@ -8,6 +8,7 @@ import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
 import { userErrorMessage } from '../lib/userError'
+import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -309,7 +310,22 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       const result = await response.json().catch(() => ({}))
       if (!response.ok || result.error) throw new Error(result.error || `رفض Trendyol ${label}`)
       setSelectedActions(current => [{ id:crypto.randomUUID(), action, status:result.status || 'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
-      setOrderActionMessage({ type:'ok', text:`تم ${label} في Trendyol بنجاح. استخدم «تحديث من Trendyol» لقراءة الحالة الجديدة.` })
+      setSelectedPackages(current => current.map(packageRow => {
+        if (String(packageRow.shipment_package_id) !== activePackageId) return packageRow
+        if (action === 'packages.status') return {
+          ...packageRow,
+          status:'processing',
+          provider_status:String(payload.status || packageRow.provider_status || ''),
+          invoice_number:(payload as any)?.params?.invoiceNumber || packageRow.invoice_number,
+        }
+        if (action === 'packages.tracking') return {
+          ...packageRow,
+          cargo_tracking_number:String(payload.cargoSenderNumber || packageRow.cargo_tracking_number || ''),
+          cargo_provider:String(payload.providerCode || packageRow.cargo_provider || ''),
+        }
+        return packageRow
+      }))
+      setOrderActionMessage({ type:'ok', text:`تم ${label} في Trendyol بنجاح.` })
     } catch (error:any) {
       console.error('order marketplace action', error)
       setOrderActionMessage({ type:'err', text:userErrorMessage(error, `تعذّر ${label}.`) })
@@ -318,7 +334,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   const activePackage = selectedPackages.find(item => String(item.shipment_package_id) === activePackageId) || null
   const activePackageItems = selectedItems.filter(item => !item.shipment_package_id || String(item.shipment_package_id) === activePackageId)
-  const activePackageClosed = ['delivered','cancelled','returned','unsupplied'].includes(String(activePackage?.status || selectedOrder?.status || '').toLowerCase())
+  const packageWorkflow = trendyolPackageWorkflow(activePackage, selectedOrder?.status)
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
@@ -640,31 +656,31 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 {selectedPackages.map((shipment, index) => {
                   const selected = String(shipment.shipment_package_id) === activePackageId
                   return <button key={shipment.id} onClick={() => void selectOrderPackage(String(shipment.shipment_package_id))} style={{ ...S.actionBtn, minWidth:120, borderColor:selected ? 'var(--accent)' : 'var(--border)', color:selected ? 'var(--accent)' : 'var(--text2)', background:selected ? 'rgba(15,149,140,.08)' : 'var(--surface)' }}>
-                    الشحنة {index + 1} · {packageStatusLabel(shipment.status)}
+                    الشحنة {index + 1} · {packageStatusLabel(shipment.provider_status || shipment.raw?.shipmentPackageStatus || shipment.raw?.status || shipment.status)}
                   </button>
                 })}
               </div>
               {activePackage ? <div style={{ ...S.detailGrid, marginTop:10 }}>
                 {[
-                  ['حالة الشحنة', packageStatusLabel(activePackage.status)],
+                  ['حالة الشحنة', packageStatusLabel(packageWorkflow.providerStatus || activePackage.status)],
                   ['شركة الشحن', activePackage.cargo_provider || '—'],
                   ['رقم التتبع', activePackage.cargo_tracking_number || '—'],
                   ['حالة الفاتورة', activePackage.invoice_status ? packageStatusLabel(activePackage.invoice_status) : activePackage.invoice_number ? 'مسجلة' : 'غير مسجلة'],
                 ].map(([label,value]) => <div key={label} style={S.detailItem}><div style={S.detailLabel}>{label}</div><div style={S.detailValue}>{value}</div></div>)}
               </div> : null}
             </div> : null}
-            {selectedOrder.platform === 'trendyol' && activePackageId && !activePackageClosed ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+            {selectedOrder.platform === 'trendyol' && activePackageId ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
               <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>إجراءات تنفيذ الطلب</div>
-              <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>كل إجراء يُرسل مباشرة إلى Trendyol ويُحفظ في سجل التدقيق. لا ترسل «تم إصدار الفاتورة» قبل بدء التجهيز.</div>
+              <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>{packageWorkflow.guidance} كل إجراء يُرسل مباشرة إلى Trendyol ويُحفظ في سجل التدقيق.</div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
-                <button disabled={orderActionLoading || activePackageItems.length === 0} onClick={() => void runPackageAction('packages.status', { lines:activePackageItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{}, status:'Picking' }, 'بدء تجهيز الطلب')} style={S.actionBtn}>بدء التجهيز</button>
-                <input value={packageForm.invoiceNumber} onChange={e => setPackageForm({...packageForm,invoiceNumber:e.target.value})} placeholder="رقم الفاتورة" style={{...S.select,minWidth:150}}/>
-                <button disabled={orderActionLoading || activePackageItems.length === 0 || !packageForm.invoiceNumber.trim()} onClick={() => void runPackageAction('packages.status', { lines:activePackageItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{ invoiceNumber:packageForm.invoiceNumber.trim() }, status:'Invoiced' }, 'تسجيل إصدار الفاتورة')} style={S.actionBtn}>تسجيل الفاتورة</button>
+                <button disabled={orderActionLoading || !packageWorkflow.canStartPicking || activePackageItems.length === 0} onClick={() => void runPackageAction('packages.status', { lines:activePackageItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{}, status:'Picking' }, 'بدء تجهيز الطلب')} style={{...S.actionBtn,opacity:packageWorkflow.canStartPicking ? 1 : .5}}>بدء التجهيز</button>
+                <input disabled={!packageWorkflow.canInvoice} value={packageForm.invoiceNumber} onChange={e => setPackageForm({...packageForm,invoiceNumber:e.target.value})} placeholder="رقم الفاتورة" style={{...S.select,minWidth:150,opacity:packageWorkflow.canInvoice ? 1 : .55}}/>
+                <button disabled={orderActionLoading || !packageWorkflow.canInvoice || activePackageItems.length === 0 || !packageForm.invoiceNumber.trim()} onClick={() => void runPackageAction('packages.status', { lines:activePackageItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{ invoiceNumber:packageForm.invoiceNumber.trim() }, status:'Invoiced' }, 'تسجيل إصدار الفاتورة')} style={{...S.actionBtn,opacity:packageWorkflow.canInvoice ? 1 : .5}}>تسجيل الفاتورة</button>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) minmax(150px,1fr) auto', gap:8 }}>
-                <input value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={S.select}/>
-                <select value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={S.select}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
-                <button disabled={orderActionLoading || !packageForm.trackingNumber.trim()} onClick={() => void runPackageAction('packages.tracking', { cargoSenderNumber:packageForm.trackingNumber.trim(), providerCode:packageForm.providerCode }, 'تسجيل بيانات الشحن')} style={S.actionBtn}>حفظ الشحن</button>
+                <input disabled={!packageWorkflow.canUpdateTracking} value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}/>
+                <select disabled={!packageWorkflow.canUpdateTracking} value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
+                <button disabled={orderActionLoading || !packageWorkflow.canUpdateTracking || !packageForm.trackingNumber.trim()} onClick={() => void runPackageAction('packages.tracking', { cargoSenderNumber:packageForm.trackingNumber.trim(), providerCode:packageForm.providerCode }, 'تسجيل بيانات الشحن')} style={{...S.actionBtn,opacity:packageWorkflow.canUpdateTracking ? 1 : .5}}>حفظ الشحن</button>
               </div>
               {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>

@@ -10,6 +10,12 @@ import {
 } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { normalizeTrendyolClaimStatus } from '../_shared/trendyolClaims.ts'
+import {
+  mapTrendyolOrderStatus,
+  mergeTrendyolShipment,
+  trendyolLineFinancials,
+  trendyolPackageId,
+} from '../_shared/trendyolOrders.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,7 +78,7 @@ Deno.serve(async (req) => {
       const packages = await fetchShipmentStream(credentials.sellerId, window.from, window.to, headers)
       for (const shipment of packages) {
         shipments.push(shipment)
-        mergeShipment(orders, shipment, merchantCode)
+        mergeTrendyolShipment(orders, shipment, merchantCode)
       }
     }
 
@@ -205,7 +211,7 @@ async function fetchShipmentStream(
 async function syncOrderPackages(admin: any, merchantCode: string, shipments: any[]) {
   const now = new Date().toISOString()
   const rows = shipments.flatMap((shipment:any) => {
-    const packageId = String(shipment.shipmentPackageId || shipment.id || '')
+    const packageId = trendyolPackageId(shipment)
     const orderId = String(shipment.orderNumber || '')
     if (!packageId || !orderId) return []
     const lines = Array.isArray(shipment.lines) ? shipment.lines : []
@@ -214,7 +220,8 @@ async function syncOrderPackages(admin: any, merchantCode: string, shipments: an
       platform: 'trendyol',
       order_id: orderId,
       shipment_package_id: packageId,
-      status: mapStatus(shipment.status || shipment.shipmentPackageStatus),
+      status: mapTrendyolOrderStatus(shipment.shipmentPackageStatus || shipment.status),
+      provider_status: String(shipment.shipmentPackageStatus || shipment.status || '') || null,
       cargo_tracking_number: String(shipment.cargoTrackingNumber || shipment.trackingNumber || '') || null,
       cargo_tracking_link: shipment.cargoTrackingLink || null,
       cargo_sender_number: String(shipment.cargoSenderNumber || '') || null,
@@ -246,64 +253,6 @@ function safeIsoDate(value: unknown) {
   const numeric = Number(value)
   const date = Number.isFinite(numeric) && numeric > 0 ? new Date(numeric) : new Date(String(value || ''))
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: string) {
-  const externalId = String(shipment.orderNumber || shipment.id || shipment.shipmentPackageId || '')
-  if (!externalId) return
-  const lines: any[] = shipment.lines || []
-  const quantity = lines.reduce((sum, line) => sum + numberValue(line.quantity || 1), 0) || 1
-  const total = lines.reduce((sum, line) => sum + numberValue(line.price) * numberValue(line.quantity || 1), 0)
-  const commissionIncludingVat = lines.reduce((sum, line) => {
-    const lineQuantity = Math.max(1, numberValue(line.quantity || 1))
-    const lineAmount = numberValue(line.lineUnitPrice || line.price || line.amount) * lineQuantity
-    return sum + lineAmount * numberValue(line.commission) / 100 * 1.15
-  }, 0)
-  const commissionRate = lines.reduce((rate, line) => Math.max(rate, numberValue(line.commission)), 0)
-  const existing = target.get(externalId)
-  const row = existing || {
-    merchant_code: merchantCode,
-    platform: 'trendyol',
-    order_id: externalId,
-    status: mapStatus(shipment.status),
-    product_name: '',
-    sku: '',
-    quantity: 0,
-    unit_price: 0,
-    total_amount: 0,
-    gross_amount: 0,
-    platform_fee: 0,
-    currency: shipment.currencyCode || 'TRY',
-    customer_city: shipment.shipmentAddress?.city || null,
-    order_date: new Date(shipment.orderDate || shipment.createdDate || Date.now()).toISOString(),
-    shipment_package_id: String(shipment.id || shipment.shipmentPackageId || '') || null,
-    cargo_tracking_number: String(shipment.cargoTrackingNumber || shipment.trackingNumber || '') || null,
-    cargo_provider: shipment.cargoProviderName || shipment.cargoSenderNumber || null,
-    shipping_cost: numberValue(shipment.cargoFee || shipment.shippingCost),
-    shipment_address: shipment.shipmentAddress || null,
-    invoice_address: shipment.invoiceAddress || null,
-    discount_amount: numberValue(shipment.totalDiscount || shipment.discount),
-    commission_rate: null,
-    vat_rate: null,
-    raw: shipment,
-    last_synced_at: new Date().toISOString(),
-  }
-  const names = lines.map(line => line.productName).filter(Boolean)
-  const skus = lines.map(line => line.merchantSku || line.stockCode || line.barcode).filter(Boolean)
-  row.product_name = [...new Set([...(row.product_name ? row.product_name.split(' | ') : []), ...names])].join(' | ')
-  row.sku = [...new Set([...(row.sku ? row.sku.split(' | ') : []), ...skus])].join(' | ')
-  row.quantity += quantity
-  row.total_amount += total || numberValue(shipment.totalPrice)
-  row.platform_fee += commissionIncludingVat
-  row.commission_rate = Math.max(numberValue(row.commission_rate), commissionRate) || null
-  row.gross_amount = row.total_amount
-  row.unit_price = row.quantity ? row.total_amount / row.quantity : row.total_amount
-  row.status = mapStatus(shipment.status)
-  row.shipment_package_id ||= String(shipment.id || shipment.shipmentPackageId || '') || null
-  row.cargo_tracking_number ||= String(shipment.cargoTrackingNumber || shipment.trackingNumber || '') || null
-  row.raw = shipment
-  row.last_synced_at = new Date().toISOString()
-  target.set(externalId, row)
 }
 
 async function optionalResource(name: string, warnings: string[], task: () => Promise<any>) {
@@ -347,9 +296,7 @@ async function syncOrderItems(admin: any, merchantCode: string, sellerId: string
       const product = catalogue.get(barcode) || null
       const images = product?.images || product?.imageUrls || product?.content?.images || []
       const firstImage = Array.isArray(images) ? images[0] : null
-      const quantity = Math.max(1, Math.trunc(numberValue(line.quantity || 1)))
-      const unitPrice = numberValue(line.lineUnitPrice || line.price || line.amount)
-      const commissionRate = numberValue(line.commission)
+      const financials = trendyolLineFinancials(line)
       rows.push({
         merchant_code:merchantCode, platform:'trendyol', order_id:orderId,
         shipment_package_id:String(shipment.shipmentPackageId || shipment.id || '') || null,
@@ -357,12 +304,12 @@ async function syncOrderItems(admin: any, merchantCode: string, sellerId: string
         content_id:String(line.contentId || line.productCode || '') || null,
         barcode:barcode || null, sku:String(line.merchantSku || line.stockCode || line.sku || '') || null,
         product_name:product?.title || product?.productName || product?.name || line.productName || null,
-        quantity, unit_price:unitPrice,
-        line_total:numberValue(line.lineGrossAmount || line.amount || unitPrice*quantity),
-        discount_amount:numberValue(line.lineTotalDiscount || line.discount),
+        quantity:financials.quantity, unit_price:financials.unitPrice,
+        line_total:financials.lineTotal,
+        discount_amount:financials.discountTotal,
         // Trendyol Saudi displays commission inclusive of 15% VAT in the seller panel.
-        commission_amount:unitPrice*quantity*commissionRate/100*1.15,
-        commission_rate:commissionRate || null, vat_rate:numberValue(line.vatRate) || null,
+        commission_amount:financials.commissionAmount,
+        commission_rate:financials.commissionRate || null, vat_rate:financials.vatRate || null,
         image_url:typeof firstImage === 'string' ? firstImage : firstImage?.url || product?.imageUrl || null,
         images:Array.isArray(images) ? images : null,
         product_url:product?.productUrl || product?.url || null,
@@ -583,14 +530,6 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
     if (error) throw error
   }
   return { products: products.length, inventory: inventory.length }
-}
-
-function mapStatus(value: string) {
-  return ({
-    Created: 'pending', Picking: 'processing', Invoiced: 'processing',
-    Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
-    UnDelivered: 'returned', Returned: 'returned', UnSupplied: 'cancelled',
-  } as Record<string, string>)[value] || 'pending'
 }
 
 async function upsertRows(admin: any, rows: any[]) {

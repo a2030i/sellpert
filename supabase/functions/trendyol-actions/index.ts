@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
+import { trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -109,6 +110,7 @@ Deno.serve(async req => {
       throw new HttpError(409, 'يجب تأكيد العملية قبل إرسالها إلى Trendyol')
     }
     validateActionInput(action, input)
+    await validatePackageContext(admin, merchantCode, action, input)
     const idempotencyKey = clean(req.headers.get('idempotency-key') || input?.idempotency_key)
     if (definition.risk !== 'read' && !idempotencyKey) throw new HttpError(400, 'idempotency_key مطلوب للعمليات التي تغيّر البيانات')
 
@@ -210,6 +212,21 @@ function buildPath(template:string, values:Record<string,unknown>) {
   })
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
+async function validatePackageContext(admin:any,merchantCode:string,action:string,input:any) {
+  if (!action.startsWith('packages.') || action === 'packages.common_label') return
+  const packageId = clean(String(input?.path?.packageId || ''))
+  if (!/^\d+$/.test(packageId)) throw new HttpError(400, 'رقم شحنة Trendyol غير صالح')
+
+  const { data: packageRow, error } = await admin.from('order_packages')
+    .select('provider_status,status,raw')
+    .eq('merchant_code',merchantCode).eq('platform','trendyol')
+    .eq('shipment_package_id',packageId).maybeSingle()
+  if (error) throw error
+  if (!packageRow) throw new HttpError(404, 'الشحنة غير موجودة في هذا المتجر؛ حدّث الطلبات ثم حاول مجددًا')
+
+  const transitionError = trendyolPackageTransitionError(packageRow,action,String(input?.payload?.status || ''))
+  if (transitionError) throw new HttpError(409,transitionError)
+}
 function validateActionInput(action:string,input:any) {
   if (action === 'products.v2_update_content') {
     const items = input?.payload?.items
