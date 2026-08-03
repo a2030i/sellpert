@@ -6,7 +6,7 @@ import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
 import { reconcileAmazonReportTotals } from '../../lib/amazonReportReconciliation'
 import { uploadDisplayStatus } from '../../lib/uploadStatus'
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox } from 'lucide-react'
 
 // ─── File guides per platform ────────────────────────────────────────────────
 type Importance = 'critical' | 'recommended' | 'optional'
@@ -825,9 +825,8 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
         <div style={{ display: 'grid', gridTemplateColumns: merchantMode ? '1fr' : '2fr 1fr', gap: 14, alignItems: 'end' }}>
           {merchantMode ? <div>
             <label style={S.label}>المتجر المرتبط</label>
-            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ ...S.input, fontSize: 13, background: 'var(--surface2)' }}>
               <strong>{merchant?.name || merchantCode}</strong>
-              <span style={{ color: 'var(--text3)', fontFamily: 'monospace' }}>{merchantCode}</span>
             </div>
           </div> : <div>
             <label style={S.label}>التاجر</label>
@@ -1046,7 +1045,7 @@ function RecentRejectionsPanel({ refreshTick }: { refreshTick: number }) {
           ملفات لم تُقبل مؤخراً <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— راجعها؛ قد تكون صيغة تقرير تغيّرت</span>
         </div>
         <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: 'var(--danger-bg)', color: 'var(--danger-text)' }}>{rows.length}</span>
-        <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
+        {open ? <ChevronUp size={16} color="var(--text3)" /> : <ChevronDown size={16} color="var(--text3)" />}
       </button>
       {open && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1104,7 +1103,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged, 
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
           الملفات المتوقّعة <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)' }}>— دليل اختياري لكل تقرير وآخر مرة رُفع</span>
         </div>
-        <span style={{ fontSize: 13, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
+        {open ? <ChevronUp size={16} color="var(--text3)" /> : <ChevronDown size={16} color="var(--text3)" />}
       </button>
 
       {open && groups.map(([pf, guides]) => {
@@ -1436,12 +1435,13 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {!readOnly && <button onClick={() => { window.history.pushState(null, '', '/admin/uploads'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>عرض السجل الكامل</button>}
-          <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>↻ تحديث</button>
+          <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)', padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}><RefreshCw size={13} /> تحديث</button>
         </div>
       </div>
       {uploads.length === 0 && (
-        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)', fontSize: 12, background: 'var(--surface2)', borderRadius: 9 }}>
-          📭 لا توجد رفعات سابقة لهذا التاجر
+        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)', fontSize: 12, background: 'var(--surface2)', borderRadius: 9, display: 'grid', justifyItems: 'center', gap: 8 }}>
+          <Inbox size={22} strokeWidth={1.6} />
+          <span>لا توجد ملفات مرفوعة سابقًا</span>
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>

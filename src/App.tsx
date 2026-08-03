@@ -526,7 +526,7 @@ export default function App() {
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
-                  <div style={{ fontSize: 10, color: '#a598ff', fontFamily: 'monospace', marginTop: 3 }}>{activeMerchant.merchant_code}</div>
+                  <div style={{ fontSize: 10, color: '#aab2c8', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
                 </div>
               </div>
             )}

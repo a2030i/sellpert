@@ -54,7 +54,6 @@ export default function AccountSwitcher({ currentCode, onSwitch }: { currentCode
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'monospace', marginTop: 2 }}>{a.merchant_code}</div>
               </div>
               {a.merchant_code === currentCode && <Check size={14} color="var(--accent)" />}
             </div>
