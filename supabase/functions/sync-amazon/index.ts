@@ -8,6 +8,12 @@ import {
   parseSyncRange,
 } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
+import {
+  amazonRequestHeaders,
+  mapAmazonOrder,
+  mapAmazonOrderItems,
+  mapAmazonPackages,
+} from '../_shared/amazonOrders.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,8 +57,10 @@ Deno.serve(async (req) => {
     logId = log.id
 
     const accessToken = await getLwaToken(credentials)
-    const headers = { 'x-amz-access-token': accessToken, Accept: 'application/json' }
     const rows: any[] = []
+    const itemRows: any[] = []
+    const packageRows: any[] = []
+    let customerDataAvailable = credentials.includeCustomerData
     let paginationToken = ''
 
     do {
@@ -61,23 +69,43 @@ Deno.serve(async (req) => {
         createdAfter: from.toISOString(),
         createdBefore: to.toISOString(),
         maxResultsPerPage: '100',
-        includedData: 'PROCEEDS,EXPENSE,FULFILLMENT,CANCELLATION',
+        includedData: customerDataAvailable
+          ? 'PROCEEDS,FULFILLMENT,CANCELLATION,PACKAGES,BUYER,RECIPIENT'
+          : 'PROCEEDS,FULFILLMENT,CANCELLATION,PACKAGES',
       })
       if (paginationToken) query.set('paginationToken', paginationToken)
-      const data = await fetchJsonWithRetry(
-        `${endpoint}/orders/2026-01-01/orders?${query}`,
-        { headers },
-        'Amazon Orders API',
-      )
+      let data: any
+      try {
+        data = await fetchJsonWithRetry(
+          `${endpoint}/orders/2026-01-01/orders?${query}`,
+          { headers: amazonRequestHeaders(accessToken) },
+          'Amazon Orders API',
+        )
+      } catch (error) {
+        // Buyer and recipient datasets require Amazon's restricted roles. A
+        // missing PII grant must not stop orders, items, amounts and packages.
+        if (!(error instanceof HttpError) || error.status !== 403 || !customerDataAvailable) throw error
+        customerDataAvailable = false
+        query.set('includedData', 'PROCEEDS,FULFILLMENT,CANCELLATION,PACKAGES')
+        data = await fetchJsonWithRetry(
+          `${endpoint}/orders/2026-01-01/orders?${query}`,
+          { headers: amazonRequestHeaders(accessToken) },
+          'Amazon Orders API',
+        )
+      }
       const orders: any[] = data?.orders || data?.payload?.orders || []
       for (const order of orders) {
         const row = mapAmazonOrder(order, merchantCode)
         if (row) rows.push(row)
+        itemRows.push(...mapAmazonOrderItems(order, merchantCode))
+        packageRows.push(...mapAmazonPackages(order, merchantCode))
       }
       paginationToken = String(data?.nextToken || data?.pagination?.nextToken || '')
     } while (paginationToken)
 
     await upsertRows(admin, rows)
+    await upsertOrderItems(admin, itemRows)
+    await upsertPackages(admin, packageRows)
     const daily = buildDaily(rows)
     await upsertPerformance(admin, merchantCode, daily)
 
@@ -95,7 +123,15 @@ Deno.serve(async (req) => {
       last_sync_error: null,
     }).eq('id', mappingId).eq('merchant_code', merchantCode)
 
-    return json({ ok: true, records_synced: daily.size, orders: rows.length }, 200, corsHeaders)
+    return json({
+      ok: true,
+      records_synced: daily.size,
+      orders: rows.length,
+      order_items: itemRows.length,
+      packages: packageRows.length,
+      customer_data: customerDataAvailable ? 'included' : 'permission_required',
+      fees_source: 'Amazon Finances API',
+    }, 200, corsHeaders)
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
     if (logId) await admin.from('sync_logs').update({
@@ -135,6 +171,7 @@ async function resolveCredentials(admin: any, merchantCode: string, mappingId: s
     refreshToken: secret.refresh_token,
     marketplaceId: data.extra?.marketplace_id,
     endpoint: normalizeEndpoint(data.extra?.endpoint),
+    includeCustomerData: data.extra?.include_customer_data !== false,
   }
 }
 
@@ -165,81 +202,28 @@ async function getLwaToken(credentials: any) {
   return data.access_token
 }
 
-function mapAmazonOrder(order: any, merchantCode: string) {
-  const externalId = String(order.orderId || order.amazonOrderId || '')
-  if (!externalId) return null
-  const items: any[] = order.orderItems || order.items || []
-  const quantity = items.reduce((sum, item) => sum + numberValue(item.quantityOrdered || item.quantity), 0) || 1
-  const itemNames = items.map(item => item.product?.title || item.title).filter(Boolean)
-  const skus = items.map(item => item.product?.sellerSku || item.sellerSku).filter(Boolean)
-  const itemProceeds = items.reduce((sum, item) => sum + proceedsValue(item.proceeds), 0)
-  const orderProceeds = proceedsValue(order.proceeds)
-  const total = itemProceeds || orderProceeds || moneyValue(order.orderTotal)
-  const expense = Math.abs(items.reduce((sum, item) => sum + expenseValue(item.expense), 0) || expenseValue(order.expense))
-  const createdTime = order.createdTime || order.purchaseDate || new Date().toISOString()
-  const status = String(order.fulfillmentStatus || order.orderStatus || 'PENDING')
-
-  return {
-    merchant_code: merchantCode,
-    platform: 'amazon',
-    order_id: externalId,
-    status: mapStatus(status),
-    product_name: [...new Set(itemNames)].join(' | ') || null,
-    sku: [...new Set(skus)].join(' | ') || null,
-    quantity,
-    unit_price: quantity ? total / quantity : total,
-    total_amount: total,
-    gross_amount: total,
-    platform_fee: expense,
-    currency: detectCurrency(order, items) || 'SAR',
-    fulfillment_model: String(order.fulfilledBy || order.fulfillment?.fulfilledBy || ''),
-    order_date: new Date(createdTime).toISOString(),
-  }
-}
-
-function moneyValue(value: any): number {
-  if (value == null) return 0
-  if (typeof value === 'number' || typeof value === 'string') return numberValue(value)
-  return numberValue(value.amount ?? value.value ?? value.total ?? value.subtotal)
-}
-
-function proceedsValue(value: any): number {
-  if (!value) return 0
-  const direct = moneyValue(value.total ?? value.subtotal ?? value)
-  if (direct) return direct
-  const breakdowns: any[] = value.breakdowns || []
-  return breakdowns.reduce((sum, entry) => {
-    const amount = moneyValue(entry.subtotal ?? entry.value ?? entry.amount)
-    return sum + (String(entry.type).toUpperCase() === 'DISCOUNT' ? -Math.abs(amount) : amount)
-  }, 0)
-}
-
-function expenseValue(value: any): number {
-  if (!value) return 0
-  const direct = moneyValue(value.total ?? value.subtotal ?? value)
-  if (direct) return direct
-  return (value.breakdowns || []).reduce((sum: number, entry: any) => {
-    return sum + moneyValue(entry.subtotal ?? entry.value ?? entry.amount)
-  }, 0)
-}
-
-function detectCurrency(order: any, items: any[]) {
-  return order.proceeds?.currencyCode || order.orderTotal?.currencyCode ||
-    items[0]?.proceeds?.currencyCode || items[0]?.product?.price?.unitPrice?.currencyCode
-}
-
-function mapStatus(value: string) {
-  return ({
-    PENDING_AVAILABILITY: 'pending', PENDING: 'pending', UNSHIPPED: 'processing',
-    PARTIALLY_SHIPPED: 'processing', SHIPPED: 'shipped', DELIVERED: 'delivered',
-    CANCELLED: 'cancelled', UNFULFILLABLE: 'cancelled',
-  } as Record<string, string>)[value.toUpperCase()] || 'pending'
-}
-
 async function upsertRows(admin: any, rows: any[]) {
   for (let index = 0; index < rows.length; index += 100) {
     const { error } = await admin.from('orders').upsert(rows.slice(index, index + 100), {
       onConflict: 'merchant_code,platform,order_id',
+    })
+    if (error) throw error
+  }
+}
+
+async function upsertOrderItems(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('order_items').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,order_id,line_id',
+    })
+    if (error) throw error
+  }
+}
+
+async function upsertPackages(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('order_packages').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,shipment_package_id',
     })
     if (error) throw error
   }

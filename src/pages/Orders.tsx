@@ -225,9 +225,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     const [detail, items, packages, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
-      order.platform === 'trendyol'
-        ? supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', 'trendyol').eq('order_id', order.order_id).order('modified_at', { ascending:false })
-        : Promise.resolve({data:[] as any[]}),
+      supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('modified_at', { ascending:false }),
       order.platform === 'trendyol'
         ? supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at,request').eq('merchant_code',order.merchant_code).eq('platform','trendyol').order('started_at',{ascending:false}).limit(50)
         : Promise.resolve({data:[] as any[]}),
@@ -692,9 +690,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
               <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{orderFinancialIssue(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
             </div> : null}
-            {selectedOrder.platform === 'trendyol' && selectedPackages.length ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10 }}>
+            {selectedPackages.length ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
-                <div><div style={{ fontSize:12, fontWeight:800 }}>شحنات الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>قد تقسم Trendyol الطلب إلى أكثر من شحنة؛ اختر الشحنة لمتابعتها أو تنفيذ إجراء عليها.</div></div>
+                <div><div style={{ fontSize:12, fontWeight:800 }}>شحنات الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>اختر الشحنة لعرض حالتها وشركة الشحن ورقم التتبع. إجراءات التنفيذ المباشر تظهر فقط عندما تدعمها المنصة.</div></div>
                 <span style={{ ...S.statusBadge, background:'var(--surface2)', color:'var(--text2)' }}>{selectedPackages.length.toLocaleString('ar-SA')} شحنة</span>
               </div>
               <div style={{ display:'flex', gap:7, overflowX:'auto', paddingBottom:4 }}>
@@ -771,17 +769,18 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               ))}
             </div>
             {detailLoading ? <div style={S.modalNote}>جارٍ تحميل بيانات العميل والمنتجات…</div> : <>
-              {selectedOrder.platform === 'trendyol' ? <>
+              {['trendyol', 'amazon', 'noon'].includes(selectedOrder.platform) ? <>
                 <div style={S.sectionTitle}>بيانات العميل</div>
                 <div style={S.detailGrid}>
                   {(() => {
                     const raw:any = selectedOrder.raw || {}
-                    const address:any = raw.shipmentAddress || selectedOrder.shipment_address || {}
+                    const address:any = raw.recipient?.deliveryAddress || raw.shipmentAddress || raw.delivery_address || selectedOrder.shipment_address || {}
+                    const buyer:any = raw.buyer || {}
                     return [
-                      ['الاسم', raw.customerFirstName || raw.customerLastName ? `${raw.customerFirstName || ''} ${raw.customerLastName || ''}`.trim() : address.fullName || '—'],
-                      ['البريد الإلكتروني', raw.customerEmail || '—'], ['رقم الهاتف', address.phone || '—'],
-                      ['رقم العميل', raw.customerId || '—'], ['العنوان', address.fullAddress || address.address1 || '—'],
-                      ['الحي / المنطقة', address.district || address.countyName || '—'], ['الرمز البريدي', address.postalCode || '—'],
+                      ['الاسم', buyer.buyerName || (raw.customerFirstName || raw.customerLastName ? `${raw.customerFirstName || ''} ${raw.customerLastName || ''}`.trim() : address.name || address.fullName || '—')],
+                      ['البريد الإلكتروني', buyer.buyerEmail || raw.customerEmail || '—'], ['رقم الهاتف', address.phone || '—'],
+                      ['رقم العميل', raw.customerId || '—'], ['العنوان', address.fullAddress || [address.addressLine1, address.addressLine2, address.addressLine3].filter(Boolean).join('، ') || address.address1 || '—'],
+                      ['الحي / المنطقة', address.district || address.districtOrCounty || address.stateOrRegion || address.countyName || '—'], ['الرمز البريدي', address.postalCode || '—'],
                     ].map(([label,value]) => <div key={label} style={S.detailItem}><div style={S.detailLabel}>{label}</div><div style={S.detailValue}>{String(value)}</div></div>)
                   })()}
                 </div>
