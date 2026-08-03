@@ -4,6 +4,9 @@ import { useMobile } from '../lib/hooks'
 import { InfoIcon, Pagination } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
+import { ClipboardPlus, ShieldAlert } from 'lucide-react'
+import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
+import { toastErr, toastInfo, toastOk } from '../components/Toast'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -372,12 +375,83 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 
       {/* لوحات تحليلية أسفل القائمة (كانت تدفن مهمة الصفحة الأساسية: عرض/تعديل الكميات) */}
       <div style={{ marginTop: 28 }}>
+        <ReorderRecommendationsPanel merchant={merchant} />
         <InventoryHealthPanel merchant={merchant} />
         {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
         {merchant && <InventoryPipelinePanel merchantCode={merchant.merchant_code} />}
       </div>
     </div>
   )
+}
+
+type ReorderRecommendation = {
+  inventory_id: string; platform: string; sku: string; product_name: string | null
+  current_quantity: number; daily_velocity: number; days_of_stock: number | null
+  recommended_quantity: number; estimated_cost: number; urgency: 'critical' | 'high' | 'medium'
+  data_as_of: string; data_age_days: number
+}
+
+function ReorderRecommendationsPanel({ merchant }: { merchant: Merchant | null }) {
+  const [rows, setRows] = useState<ReorderRecommendation[]>([])
+  const [gate, setGate] = useState<'ready' | 'stale' | 'costs' | 'empty'>('empty')
+  const [tracking, setTracking] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!merchant?.merchant_code) return
+    let alive = true
+    Promise.all([
+      supabase.from('inventory_reorder_recommendations').select('*').eq('merchant_code', merchant.merchant_code).order('urgency').order('days_of_stock').limit(20),
+      supabase.from('inventory_health').select('data_age_days,cost_price,daily_velocity').eq('merchant_code', merchant.merchant_code),
+    ]).then(([recommendations, health]) => {
+      if (!alive) return
+      const nextRows = (recommendations.data || []) as ReorderRecommendation[]
+      const healthRows = health.data || []
+      setRows(nextRows)
+      if (nextRows.length) setGate('ready')
+      else if (healthRows.some(item => item.data_age_days != null && Number(item.data_age_days) > 2)) setGate('stale')
+      else if (healthRows.some(item => Number(item.daily_velocity) > 0 && Number(item.cost_price) <= 0)) setGate('costs')
+      else setGate('empty')
+    })
+    return () => { alive = false }
+  }, [merchant?.merchant_code])
+
+  const totalCost = useMemo(() => rows.reduce((sum, row) => sum + Number(row.estimated_cost || 0), 0), [rows])
+
+  async function track(row: ReorderRecommendation) {
+    setTracking(row.inventory_id)
+    try {
+      const result = await createMerchantAction({
+        sourceKey: `reorder:${row.inventory_id}:${row.data_as_of}`,
+        title: `مراجعة شراء ${row.recommended_quantity} وحدة من ${row.product_name || row.sku}`,
+        category: 'inventory', priority: row.urgency === 'critical' ? 'urgent' : 'high',
+        note: `المخزون الحالي ${row.current_quantity} وحدة، والتغطية ${row.days_of_stock ?? 0} يومًا وفق آخر حركة بيع متاحة.`,
+        expectedImpact: 'تغطية مبيعات 30 يومًا',
+        details: { source: 'reorder_recommendation', inventory_id: row.inventory_id, platform: row.platform, sku: row.sku, recommended_quantity: row.recommended_quantity, estimated_cost: row.estimated_cost, data_as_of: row.data_as_of },
+        dueDate: dueDateFromNow(row.urgency === 'critical' ? 2 : 4),
+      })
+      if (result.created) toastOk('أُضيفت توصية الشراء إلى خطة العمل')
+      else toastInfo('توصية الشراء موجودة بالفعل في خطة العمل')
+    } catch {
+      toastErr('تعذر إضافة توصية الشراء إلى خطة العمل')
+    } finally {
+      setTracking(null)
+    }
+  }
+
+  if (!merchant) return null
+  if (!rows.length) {
+    const content = gate === 'stale'
+      ? ['توصيات الشراء متوقفة مؤقتًا', 'بيانات حركة البيع أقدم من يومين. حدّث الطلبات والمخزون قبل إصدار قرار شراء.']
+      : gate === 'costs'
+        ? ['التكلفة مطلوبة قبل التوصية', 'أكمل تكاليف المنتجات حتى نحسب كمية الشراء والالتزام النقدي بدقة.']
+        : ['لا توجد حاجة شراء عاجلة', 'لا توجد أصناف ببيانات حديثة تقل تغطيتها عن 14 يومًا.']
+    return <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}><span style={{ width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: gate === 'stale' || gate === 'costs' ? 'var(--warning-bg)' : 'var(--success-bg)', color: gate === 'stale' || gate === 'costs' ? 'var(--warning-text)' : 'var(--success-text)' }}><ShieldAlert size={19} /></span><div><strong style={{ fontSize: 13 }}>{content[0]}</strong><p style={{ margin: '4px 0 0', fontSize: 10, color: 'var(--text3)' }}>{content[1]}</p></div></section>
+  }
+
+  return <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 13, flexWrap: 'wrap' }}><div><strong style={{ fontSize: 14 }}>توصيات إعادة الشراء</strong><p style={{ fontSize: 10, color: 'var(--text3)', margin: '4px 0 0' }}>كمية تغطي 30 يومًا، محسوبة فقط من بيانات لا يتجاوز عمرها يومين ومن تكلفة منتج معروفة.</p></div><div style={{ textAlign: 'left' }}><small style={{ display: 'block', fontSize: 9, color: 'var(--text3)' }}>الالتزام النقدي التقديري</small><strong style={{ fontSize: 17 }}>{totalCost.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س</strong></div></div>
+    <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr>{['المنتج', 'المنصة', 'المخزون', 'تغطية', 'الكمية المقترحة', 'التكلفة التقديرية', 'الإجراء'].map(label => <th key={label} style={{ textAlign: 'right', padding: '8px 10px', color: 'var(--text3)', fontSize: 9, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.inventory_id} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '10px', minWidth: 170 }}><strong>{row.product_name || row.sku}</strong><small style={{ display: 'block', color: 'var(--text3)', marginTop: 2 }}>{row.sku}</small></td><td style={{ padding: '10px' }}>{PLATFORM_MAP[row.platform] || row.platform}</td><td style={{ padding: '10px' }}>{row.current_quantity}</td><td style={{ padding: '10px', color: row.urgency === 'critical' ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight: 750 }}>{row.days_of_stock ?? 0} يوم</td><td style={{ padding: '10px', fontWeight: 800 }}>{row.recommended_quantity}</td><td style={{ padding: '10px' }}>{Number(row.estimated_cost).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س</td><td style={{ padding: '10px' }}><button disabled={tracking === row.inventory_id} onClick={() => void track(row)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', padding: '7px 9px', borderRadius: 6, fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer', whiteSpace: 'nowrap' }}><ClipboardPlus size={13} />{tracking === row.inventory_id ? 'جارٍ الإضافة' : 'إضافة للخطة'}</button></td></tr>)}</tbody></table></div>
+  </section>
 }
 
 const S: Record<string, React.CSSProperties> = {
@@ -453,7 +527,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
       {/* Status counts */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, fontSize: 12 }}>
         <span style={pill('#e84040')}>نفد: <b>{stats.out}</b></span>
-        <span style={pill('#ff9900')}>⏳ إعادة طلب قريبة: <b>{stats.reorder}</b></span>
+        <span style={pill('#ff9900')}>إعادة طلب قريبة: <b>{stats.reorder}</b></span>
         <span style={pill('#a598ff')}>بطيء الحركة (30+ يوم): <b>{stats.slow}</b></span>
       </div>
 
@@ -461,7 +535,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
         {/* Reorder soon */}
         {reorderList.length > 0 && (
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning-text)', marginBottom: 8 }}>⏳ إعادة طلب قريبة</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning-text)', marginBottom: 8 }}>إعادة طلب قريبة</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {reorderList.map((r, i) => (
                 <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

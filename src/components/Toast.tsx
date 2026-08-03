@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 
 interface ToastMsg { id: number; type: 'ok' | 'err' | 'info'; text: string }
 
@@ -30,6 +31,7 @@ export function ToastContainer() {
     <div style={{ position: 'fixed', top: 70, left: 16, zIndex: 10000, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 360 }}>
       {items.map(t => {
         const c = t.type === 'ok' ? '#00b894' : t.type === 'err' ? '#e84040' : '#0f958c'
+        const Icon = t.type === 'ok' ? CheckCircle2 : t.type === 'err' ? AlertTriangle : Info
         return (
           <div key={t.id} onClick={() => dismiss(t.id)} style={{
             background: 'var(--surface)', border: `1px solid ${c}40`, borderRight: `3px solid ${c}`,
@@ -38,7 +40,7 @@ export function ToastContainer() {
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
             animation: 'toastIn 0.25s ease',
           }}>
-            <span style={{ fontSize: 18 }}>{t.type === 'ok' ? '✅' : t.type === 'err' ? '⚠️' : 'ℹ️'}</span>
+            <Icon size={18} color={c} aria-hidden="true" />
             <span>{t.text}</span>
           </div>
         )

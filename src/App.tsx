@@ -15,7 +15,7 @@ import NPSWidget from './components/NPSWidget'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown,
+  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -30,6 +30,7 @@ const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
 const Integrations  = lazy(() => import('./pages/Integrations'))
 const Orders        = lazy(() => import('./pages/Orders'))
 const Inventory     = lazy(() => import('./pages/Inventory'))
+const Actions       = lazy(() => import('./pages/Actions'))
 const Settings      = lazy(() => import('./pages/Settings'))
 const Products      = lazy(() => import('./pages/Products'))
 const Requests      = lazy(() => import('./pages/Requests'))
@@ -49,9 +50,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'actions' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -61,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: LayoutDashboard, label: 'مركز القرارات', key: 'dashboard', permission: 'dashboard' },
   ]},
   { key: 'store', label: 'إدارة المتجر', items: [
+    { Icon: ListChecks, label: 'خطة العمل', key: 'actions', permission: 'dashboard' },
     { Icon: Package, label: 'الطلبات', key: 'orders', permission: 'orders' },
     { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
@@ -96,7 +98,7 @@ const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
 
 const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
-  dashboard: 'dashboard', notifications: 'dashboard',
+  dashboard: 'dashboard', actions: 'dashboard', notifications: 'dashboard',
   orders: 'orders',
   products: 'products', 'product-detail': 'products', 'product-compare': 'products',
   inventory: 'inventory', 'quick-inventory': 'inventory',
@@ -541,6 +543,7 @@ export default function App() {
       <main style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
         <Suspense fallback={<PageFallback />}>
           {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
+          {view === 'actions'      && <Actions      merchant={activeMerchant} />}
           {view === 'products'     && <Products     merchant={activeMerchant} />}
           {view === 'orders'       && <Orders       merchant={activeMerchant} />}
           {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}

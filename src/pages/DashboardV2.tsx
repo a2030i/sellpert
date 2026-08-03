@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
-  Database, Megaphone, RefreshCw, ShieldCheck, Target, WalletCards,
+  ClipboardPlus, Database, Megaphone, RefreshCw, ShieldCheck, Target, WalletCards,
 } from 'lucide-react'
 import { supabase, type Merchant, type Order } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { PLATFORM_MAP } from '../lib/constants'
 import { useMobile } from '../lib/hooks'
+import { createMerchantAction, dueDateFromNow, type ActionPriority } from '../lib/merchantActions'
+import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import './DashboardV2.css'
 
 type RangeKey = '30' | '90' | '180'
@@ -71,6 +73,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [tracking, setTracking] = useState<string | null>(null)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
@@ -181,31 +184,59 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       title: `أدخل تكلفة الشراء لـ ${(model.totalProducts - model.costedProducts).toLocaleString('ar-SA-u-nu-latn')} منتج`,
       detail: 'بدون التكلفة لا يمكن اعتماد صافي الربح أو هامش المنتج أو قرار زيادة الإعلان.',
       impact: 'يفتح الربحية الحقيقية', cta: 'استكمال التكاليف', path: '/products?costs=import',
+      sourceKey: 'cost_coverage', category: 'profitability', actionPriority: 'urgent' as ActionPriority,
     } : null,
     model.velocityCoverage === 0 && model.inventoryItems > 0 ? {
       Icon: Boxes, tone: 'amber', priority: 'جودة بيانات',
       title: 'اربط حركة البيع بالمخزون قبل قرارات إعادة الطلب',
       detail: `${model.outOfStock.toLocaleString('ar-SA-u-nu-latn')} صنفًا يظهر نافدًا، لكن سرعة البيع غير محسوبة؛ إعادة الشراء الآن قد تكون قرارًا مضللًا.`,
       impact: 'يمنع شراء مخزون راكد', cta: 'مراجعة المخزون', path: '/inventory',
+      sourceKey: 'inventory_velocity_missing', category: 'inventory', actionPriority: 'high' as ActionPriority,
     } : model.inventoryDataAgeDays > 2 ? {
       Icon: RefreshCw, tone: 'amber', priority: 'تحديث مطلوب',
       title: `بيانات حركة المخزون متأخرة ${model.inventoryDataAgeDays.toLocaleString('ar-SA-u-nu-latn')} يومًا`,
       detail: 'تم احتساب السرعة من آخر نافذة مبيعات متاحة، لكن قرارات إعادة الطلب تحتاج مزامنة حديثة.',
       impact: 'قرارات شراء أحدث', cta: 'تحديث البيانات', path: '/integrations',
+      sourceKey: 'inventory_data_stale', category: 'data_quality', actionPriority: 'high' as ActionPriority,
     } : null,
     model.confirmedLosses.length > 0 ? {
       Icon: AlertTriangle, tone: 'red', priority: 'خسارة مؤكدة',
       title: `${model.confirmedLosses.length.toLocaleString('ar-SA-u-nu-latn')} منتجات خاسرة حتى قبل احتساب تكلفة الشراء`,
       detail: `المرتجعات سحبت ${money(model.returnLeakage, 2)} من قيمة المنتجات المسجلة.`,
       impact: 'إيقاف تسرب نقدي', cta: 'فحص المنتجات', path: '/products',
+      sourceKey: 'confirmed_product_losses', category: 'profitability', actionPriority: 'urgent' as ActionPriority,
     } : null,
     model.bestChannel ? {
       Icon: Megaphone, tone: 'green', priority: 'فرصة نمو',
       title: `${PLATFORM_MAP[model.bestChannel.platform] || model.bestChannel.platform} يحقق أعلى عائد إعلاني صافي`,
       detail: `${Number(model.bestChannel.net_roas || 0).toFixed(2)}× بعد الرسوم والمرتجعات المتاحة، وقبل تكلفة المنتج.`,
       impact: 'توجيه أفضل للميزانية', cta: 'تحليل الإعلانات', path: '/marketing',
+      sourceKey: `best_ad_channel:${model.bestChannel.platform}`, category: 'marketing', actionPriority: 'medium' as ActionPriority,
     } : null,
-  ].filter(Boolean) as { Icon: typeof AlertTriangle; tone: string; priority: string; title: string; detail: string; impact: string; cta: string; path: string }[], [model])
+  ].filter(Boolean) as { Icon: typeof AlertTriangle; tone: string; priority: string; title: string; detail: string; impact: string; cta: string; path: string; sourceKey: string; category: string; actionPriority: ActionPriority }[], [model])
+
+  async function trackDecision(decision: typeof decisions[number]) {
+    if (!merchant?.merchant_code) return
+    setTracking(decision.sourceKey)
+    try {
+      const result = await createMerchantAction({
+        sourceKey: decision.sourceKey,
+        title: decision.title,
+        category: decision.category,
+        priority: decision.actionPriority,
+        note: decision.detail,
+        expectedImpact: decision.impact,
+        details: { source: 'decision_center', destination: decision.path },
+        dueDate: dueDateFromNow(decision.actionPriority === 'urgent' ? 3 : 7),
+      })
+      if (result.created) toastOk('أُضيف القرار إلى خطة العمل')
+      else toastInfo('هذا القرار موجود بالفعل في خطة العمل')
+    } catch {
+      toastErr('تعذر إضافة القرار إلى خطة العمل')
+    } finally {
+      setTracking(null)
+    }
+  }
 
   function changeRange(value: RangeKey) {
     setRange(value)
@@ -242,12 +273,13 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
 
       <section className="db-attention" aria-labelledby="decisions-title">
         <div className="db-section-heading"><div><h2 id="decisions-title">قرارات مرتبة حسب الأثر</h2><p>كل بند يوضح لماذا يهم وما النتيجة المتوقعة من معالجته.</p></div><span className="db-count">{decisions.length}</span></div>
-        <div className="db-action-list">{decisions.map(({ Icon, tone, priority, title, detail, impact, cta, path }) => <button key={title} className="db-action" onClick={() => go(path)}>
-          <span className={`db-action-icon db-action-icon--${tone}`}><Icon size={18} /></span>
-          <span className="db-action-copy"><small className="db-priority">{priority}</small><strong>{title}</strong><span>{detail}</span></span>
-          <span className="db-impact"><small>الأثر</small><strong>{impact}</strong></span>
-          <span className="db-action-cta">{cta}<ChevronLeft size={16} /></span>
-        </button>)}</div>
+        <div className="db-action-list">{decisions.map(decision => <div key={decision.sourceKey} className="db-action">
+          <span className={`db-action-icon db-action-icon--${decision.tone}`}><decision.Icon size={18} /></span>
+          <span className="db-action-copy"><small className="db-priority">{decision.priority}</small><strong>{decision.title}</strong><span>{decision.detail}</span></span>
+          <span className="db-impact"><small>الأثر</small><strong>{decision.impact}</strong></span>
+          <span className="db-action-buttons"><button className="db-track" disabled={tracking === decision.sourceKey} onClick={() => void trackDecision(decision)}><ClipboardPlus size={14} />{tracking === decision.sourceKey ? 'جارٍ الإضافة' : 'إضافة للمتابعة'}</button><button className="db-action-cta" onClick={() => go(decision.path)}>{decision.cta}<ChevronLeft size={16} /></button></span>
+        </div>)}</div>
+        <button className="db-plan-link" onClick={() => go('/actions')}>عرض خطة العمل كاملة <ChevronLeft size={15} /></button>
       </section>
 
       <div className="db-analysis-grid">
