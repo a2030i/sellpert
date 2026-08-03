@@ -65,7 +65,7 @@ begin
     (select max(created_at) from public.orders where merchant_code = p_merchant_code),
     (select max(last_updated) from public.inventory where merchant_code = p_merchant_code),
     (select max(uploaded_at) from public.platform_file_uploads where merchant_code = p_merchant_code),
-    (select max(last_sync_at) from public.platform_credentials where merchant_code = p_merchant_code)
+    (select security.latest_platform_sync_at(p_merchant_code))
   );
   v_data_age_days := case when v_data_as_of is null then null
     else greatest(0, current_date - v_data_as_of::date) end;

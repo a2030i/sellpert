@@ -40,10 +40,20 @@ BEGIN
     AND p.proname = 'merchant_health_score'
     AND pg_get_function_identity_arguments(p.oid) = 'p_merchant_code text';
 
-  updated_definition := replace(function_definition, old_expression, new_expression);
-  IF function_definition IS NULL OR updated_definition = function_definition THEN
+  IF function_definition IS NULL THEN
+    RAISE EXCEPTION 'expected credential freshness expression not found';
+  ELSIF position(old_expression in function_definition) > 0 THEN
+    updated_definition := replace(function_definition, old_expression, new_expression);
+    EXECUTE updated_definition;
+  ELSIF position(new_expression in function_definition) > 0 THEN
+    NULL;
+  ELSIF position('public.platform_credentials' in function_definition) = 0 THEN
+    -- A compatibility implementation can precede the complete analytics RPC
+    -- on a clean rebuild. It does not read the credential vault, so no rewrite
+    -- is necessary; the complete implementation below uses the safe helper.
+    NULL;
+  ELSE
     RAISE EXCEPTION 'expected credential freshness expression not found';
   END IF;
-  EXECUTE updated_definition;
 END
 $$;
