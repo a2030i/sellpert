@@ -1395,6 +1395,19 @@ CREATE INDEX client_incidents_user_rate_idx ON security.client_incidents USING b
 
 -- Legacy RPC signatures referenced by the earliest permission migration. Their
 -- hardened implementations are replaced by the later dated migrations.
+create or replace function public.current_merchant_code()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select merchant_code
+  from public.merchants
+  where id = (select auth.uid())
+  limit 1;
+$$;
+
 create or replace function public.is_staff()
 returns boolean
 language sql
