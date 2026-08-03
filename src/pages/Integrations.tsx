@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
-import { FileSpreadsheet, Upload, X, Store, RefreshCw, ExternalLink, Plug } from 'lucide-react'
+import { FileSpreadsheet, Upload, X, Store, RefreshCw, ExternalLink, Plug, Activity } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
@@ -215,10 +215,13 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />
       </div>}
 
-      <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)' }}>
+      <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
           <b>المزامنة المباشرة:</b> عند ربط Trendyol تُسحب الطلبات والمنتجات والمخزون والمرتجعات والتسويات تلقائيًا، ويمكنك تشغيل المزامنة ومتابعة نتيجتها من بطاقة الاتصال.
         </div>
+        <button type="button" onClick={() => { window.history.pushState(null, '', '/store-status'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <Activity size={15} /> عرض حالة المتجر كاملة
+        </button>
       </div>
     </div>
   )

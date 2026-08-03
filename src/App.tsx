@@ -19,7 +19,7 @@ import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks,
+  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -46,6 +46,7 @@ const ProductCompare = lazy(() => import('./pages/ProductCompare'))
 const Help = lazy(() => import('./pages/Help'))
 const QuickInventory = lazy(() => import('./pages/QuickInventory'))
 const Team = lazy(() => import('./pages/Team'))
+const StoreStatus = lazy(() => import('./pages/StoreStatus'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -54,9 +55,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'actions' | 'integrations' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing', permission: 'marketing' },
   ]},
   { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
+    { Icon: Activity, label: 'حالة المتجر', key: 'store-status', permission: 'integrations' },
     { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations', permission: 'integrations' },
     { Icon: Users, label: 'الفريق والصلاحيات', key: 'team', permission: 'team' },
     { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings', permission: 'settings' },
@@ -109,6 +111,7 @@ const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
   marketing: 'marketing',
   statement: 'statement',
   integrations: 'integrations',
+  'store-status': 'integrations',
   team: 'team',
   settings: 'settings',
 }
@@ -581,6 +584,7 @@ export default function App() {
           {view === 'requests'     && <Requests     merchant={activeMerchant} />}
           {view === 'statement'    && <Statement    merchant={activeMerchant} />}
           {view === 'integrations' && <Integrations merchant={activeMerchant} />}
+          {view === 'store-status' && <StoreStatus merchant={activeMerchant} />}
           {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
           {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
           {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
