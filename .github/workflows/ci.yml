@@ -8,9 +8,13 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      # Tests must never depend on a developer's local .env or production secrets.
+      VITE_SUPABASE_URL: https://test-project.supabase.co
+      VITE_SUPABASE_ANON_KEY: ci-public-anon-key
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -21,3 +25,5 @@ jobs:
         run: npm run lint
       - name: Tests
         run: npm test
+      - name: Production build
+        run: npm run build
