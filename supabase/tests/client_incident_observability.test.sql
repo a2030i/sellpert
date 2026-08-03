@@ -92,7 +92,11 @@ begin
 
   select (item ->> 'id')::uuid into target_id
   from jsonb_array_elements(health -> 'recent_client_incidents') item
-  where item ->> 'page_path' = '/product-detail/:id';
+  limit 1;
+
+  if target_id is null then
+    raise exception 'health payload did not expose a triageable incident id';
+  end if;
 
   if not public.update_client_incident_status(target_id, 'resolved') then
     raise exception 'privileged incident resolution failed';
