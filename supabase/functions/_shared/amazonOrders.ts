@@ -103,6 +103,59 @@ export function mapAmazonPackages(order: any, merchantCode: string, syncedAt = n
   })
 }
 
+export function mapAmazonFinancialTransaction(transaction: any, merchantCode: string) {
+  const transactionNo = String(transaction?.transactionId || '')
+  if (!transactionNo) return null
+  const identifiers = identifierMap(transaction.relatedIdentifiers)
+  const items: any[] = transaction.items || []
+  const productContext = items.flatMap(item => item.contexts || [])
+    .find(context => String(context.contextType).toLowerCase() === 'productcontext') || {}
+  const total = moneyValue(transaction.totalAmount)
+  return {
+    merchant_code: merchantCode,
+    platform: 'amazon',
+    transaction_no: transactionNo,
+    transaction_date: transaction.postedDate || null,
+    posted_date: transaction.postedDate || null,
+    transaction_type: transaction.transactionType || null,
+    order_id: identifiers.ORDER_ID || null,
+    description: transaction.description || null,
+    product_name: items[0]?.description || null,
+    product_sku: productContext.sku || null,
+    amount_type: transaction.transactionStatus || null,
+    amount_description: expenseLabels(transaction).join(' | ') || null,
+    debit: total < 0 ? Math.abs(total) : 0,
+    credit: total > 0 ? total : 0,
+    net_amount: total,
+    currency: transaction.totalAmount?.currencyCode || 'SAR',
+    marketplace: transaction.marketplaceDetails?.marketplaceName || transaction.marketplaceDetails?.marketplaceId || null,
+    settlement_id: identifiers.SETTLEMENT_ID || identifiers.FINANCIAL_EVENT_GROUP_ID || null,
+    shipment_id: identifiers.SHIPMENT_ID || null,
+    quantity_purchased: numberValue(productContext.quantityShipped) || null,
+    raw: transaction,
+  }
+}
+
+export function amazonFeeByOrder(transactions: any[]) {
+  const fees = new Map<string, number>()
+  for (const transaction of transactions) {
+    const orderId = identifierMap(transaction?.relatedIdentifiers).ORDER_ID
+    if (!orderId) continue
+    fees.set(orderId, (fees.get(orderId) || 0) + amazonTransactionFee(transaction))
+  }
+  return fees
+}
+
+export function amazonTransactionFee(transaction: any): number {
+  const roots: any[] = transaction?.breakdowns || []
+  const expenseRoots = roots.filter(entry => /expense|fee|commission/i.test(String(entry.breakdownType)))
+  if (expenseRoots.length) {
+    return -expenseRoots.reduce((sum, entry) => sum + moneyValue(entry.breakdownAmount), 0)
+  }
+  const leaves = flattenBreakdowns(roots).filter(entry => /fee|commission/i.test(String(entry.breakdownType)))
+  return -leaves.reduce((sum, entry) => sum + moneyValue(entry.breakdownAmount), 0)
+}
+
 function moneyValue(value: any): number {
   if (value == null) return 0
   if (typeof value === 'number' || typeof value === 'string') return numberValue(value)
@@ -127,6 +180,24 @@ function discountValue(value: any): number {
 function detectCurrency(order: any, items: any[]) {
   return order.proceeds?.grandTotal?.currencyCode || order.orderTotal?.currencyCode ||
     items[0]?.proceeds?.proceedsTotal?.currencyCode || items[0]?.product?.price?.unitPrice?.currencyCode
+}
+
+function identifierMap(identifiers: any[]) {
+  return (identifiers || []).reduce((result: Record<string, string>, identifier: any) => {
+    const name = String(identifier.relatedIdentifierName || '')
+    if (name) result[name] = String(identifier.relatedIdentifierValue || '')
+    return result
+  }, {})
+}
+
+function flattenBreakdowns(breakdowns: any[]): any[] {
+  return (breakdowns || []).flatMap(entry => [entry, ...flattenBreakdowns(entry.breakdowns || [])])
+}
+
+function expenseLabels(transaction: any) {
+  return [...new Set(flattenBreakdowns(transaction?.breakdowns || [])
+    .filter(entry => /expense|fee|commission/i.test(String(entry.breakdownType)))
+    .map(entry => String(entry.breakdownType)))]
 }
 
 export function mapAmazonStatus(value: string) {

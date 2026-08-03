@@ -6,10 +6,13 @@ import {
   json,
   numberValue,
   parseSyncRange,
+  splitRange,
 } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import {
   amazonRequestHeaders,
+  amazonFeeByOrder,
+  mapAmazonFinancialTransaction,
   mapAmazonOrder,
   mapAmazonOrderItems,
   mapAmazonPackages,
@@ -103,9 +106,15 @@ Deno.serve(async (req) => {
       paginationToken = String(data?.nextToken || data?.pagination?.nextToken || '')
     } while (paginationToken)
 
+    const financialTransactions = await fetchAmazonTransactions(endpoint, accessToken, marketplaceId, from, to)
+    const feeByOrder = amazonFeeByOrder(financialTransactions)
+    for (const row of rows) row.platform_fee = feeByOrder.get(row.order_id) || 0
+
     await upsertRows(admin, rows)
     await upsertOrderItems(admin, itemRows)
     await upsertPackages(admin, packageRows)
+    await upsertTransactions(admin, financialTransactions.map(transaction =>
+      mapAmazonFinancialTransaction(transaction, merchantCode)).filter(Boolean))
     const daily = buildDaily(rows)
     await upsertPerformance(admin, merchantCode, daily)
 
@@ -130,7 +139,9 @@ Deno.serve(async (req) => {
       order_items: itemRows.length,
       packages: packageRows.length,
       customer_data: customerDataAvailable ? 'included' : 'permission_required',
-      fees_source: 'Amazon Finances API',
+      financial_transactions: financialTransactions.length,
+      fees_source: 'amazon_finances_api_2024_06_19',
+      financial_data_delay_hours: 48,
     }, 200, corsHeaders)
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
@@ -227,6 +238,42 @@ async function upsertPackages(admin: any, rows: any[]) {
     })
     if (error) throw error
   }
+}
+
+async function upsertTransactions(admin: any, rows: any[]) {
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('account_transactions').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,transaction_no',
+    })
+    if (error) throw error
+  }
+}
+
+async function fetchAmazonTransactions(endpoint: string, accessToken: string, marketplaceId: string, from: Date, to: Date) {
+  const transactions: any[] = []
+  for (const window of splitRange(from, to, 180)) {
+    let nextToken = ''
+    const seenTokens = new Set<string>()
+    do {
+      const query = new URLSearchParams({
+        postedAfter: window.from.toISOString(),
+        postedBefore: window.to.toISOString(),
+        marketplaceId,
+      })
+      if (nextToken) query.set('nextToken', nextToken)
+      const data = await fetchJsonWithRetry(
+        `${endpoint}/finances/2024-06-19/transactions?${query}`,
+        { headers: amazonRequestHeaders(accessToken) },
+        'Amazon Finances API',
+      )
+      transactions.push(...(data?.payload?.transactions || []))
+      const candidate = String(data?.payload?.nextToken || '')
+      if (candidate && seenTokens.has(candidate)) throw new HttpError(502, 'Amazon Finances API returned a repeated pagination token')
+      if (candidate) seenTokens.add(candidate)
+      nextToken = candidate
+    } while (nextToken)
+  }
+  return transactions
 }
 
 function buildDaily(rows: any[]) {

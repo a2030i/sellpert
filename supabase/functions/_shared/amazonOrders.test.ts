@@ -1,5 +1,12 @@
 import { assertEquals } from 'jsr:@std/assert'
-import { amazonRequestHeaders, mapAmazonOrder, mapAmazonOrderItems, mapAmazonPackages } from './amazonOrders.ts'
+import {
+  amazonFeeByOrder,
+  amazonRequestHeaders,
+  mapAmazonFinancialTransaction,
+  mapAmazonOrder,
+  mapAmazonOrderItems,
+  mapAmazonPackages,
+} from './amazonOrders.ts'
 
 const sample = {
   orderId: 'ORDER-1',
@@ -41,4 +48,22 @@ Deno.test('adds every required Amazon request header', () => {
   assertEquals(headers['x-amz-access-token'], 'TOKEN')
   assertEquals(headers['x-amz-date'], '20260803T123456Z')
   assertEquals(headers['user-agent'].startsWith('Sellpert/'), true)
+})
+
+Deno.test('uses Amazon Finances breakdowns as the authoritative order fee', () => {
+  const transaction = {
+    transactionId: 'TX-1', postedDate: '2026-08-03T00:00:00Z', transactionType: 'Shipment', transactionStatus: 'RELEASED',
+    relatedIdentifiers: [{ relatedIdentifierName: 'ORDER_ID', relatedIdentifierValue: 'ORDER-1' }],
+    totalAmount: { currencyAmount: 47.79, currencyCode: 'SAR' },
+    breakdowns: [
+      { breakdownType: 'Sales', breakdownAmount: { currencyAmount: 54, currencyCode: 'SAR' } },
+      { breakdownType: 'Expenses', breakdownAmount: { currencyAmount: -6.21, currencyCode: 'SAR' }, breakdowns: [
+        { breakdownType: 'CommissionFee', breakdownAmount: { currencyAmount: -6.21, currencyCode: 'SAR' } },
+      ] },
+    ],
+  }
+  const row = mapAmazonFinancialTransaction(transaction, 'MERCHANT-1')!
+  assertEquals(row.net_amount, 47.79)
+  assertEquals(row.order_id, 'ORDER-1')
+  assertEquals(amazonFeeByOrder([transaction]).get('ORDER-1'), 6.21)
 })
