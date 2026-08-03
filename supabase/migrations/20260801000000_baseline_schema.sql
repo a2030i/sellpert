@@ -1,5 +1,6 @@
 -- Baseline captured from the production schema so a new environment can be
 -- rebuilt before applying the dated hardening and feature migrations.
+create extension if not exists pg_cron with schema pg_catalog;
 create schema if not exists security;
 
 create sequence public.mfa_recovery_attempts_id_seq as bigint increment by 1 minvalue 1 maxvalue 9223372036854775807 start with 1 cache 1 no cycle;
