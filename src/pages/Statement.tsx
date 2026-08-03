@@ -24,14 +24,37 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
   const [costInfo, setCostInfo] = useState({ cogs: 0, costedUnits: 0, missingUnits: 0 })
+  const [qualityInfo, setQualityInfo] = useState({
+    orders: 0, apiOrders: 0, uploadedOrders: 0, costCoverage: 0,
+    transactions: 0, settlements: 0, adRows: 0, uploadedAdRows: 0,
+    latestSync: '', latestTransaction: '', latestAdReport: '',
+  })
   // الباقة الحالية مجانية، لذلك لا تُحتسب أي عمولة للمنصة.
   const commRate = 0
   const [loading, setLoading]       = useState(true)
+  const [periodReady, setPeriodReady] = useState(false)
   const isMobile = useMobile()
+
+  // Open on the latest month that actually contains financial data. A new
+  // calendar month should not make the first merchant view look empty.
+  useEffect(() => {
+    if (!merchant) return
+    setPeriodReady(false); setLoading(true)
+    supabase.from('performance_data').select('data_date')
+      .eq('merchant_code', merchant.merchant_code)
+      .order('data_date', { ascending:false }).limit(1).maybeSingle()
+      .then(({ data }) => {
+        if (data?.data_date) {
+          const latest = new Date(`${data.data_date}T00:00:00`)
+          setYear(latest.getFullYear()); setMonth(latest.getMonth() + 1)
+        }
+        setPeriodReady(true)
+      })
+  }, [merchant?.merchant_code])
 
   // Reload only for the selected merchant and accounting period.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (merchant) load() }, [merchant, year, month])
+  useEffect(() => { if (merchant && periodReady) load() }, [merchant, year, month, periodReady])
 
   async function load() {
     setLoading(true)
@@ -39,7 +62,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [perf, rets, { data: tgts }, monthOrders, productCosts] = await Promise.all([
+    const [perf, rets, { data: tgts }, monthOrders, productCosts, monthTransactions, monthAds] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', merchant!.merchant_code)
@@ -52,11 +75,17 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       supabase.from('sales_targets').select('*')
         .eq('merchant_code', merchant!.merchant_code)
         .eq('year', year).eq('month', month),
-      fetchAll<any>((f, t) => supabase.from('orders').select('sku,quantity,status')
+      fetchAll<any>((f, t) => supabase.from('orders').select('sku,quantity,status,platform,platform_fee,upload_id,last_synced_at')
         .eq('merchant_code', merchant!.merchant_code).gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
         .order('id').range(f, t), 'تكلفة الطلبات'),
       fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
         .eq('merchant_code', merchant!.merchant_code).order('id').range(f, t), 'تكلفة المنتجات'),
+      fetchAll<any>((f, t) => supabase.from('account_transactions').select('id,platform,settlement_id,transaction_date,upload_id')
+        .eq('merchant_code', merchant!.merchant_code).gte('transaction_date', `${start}T00:00:00`).lte('transaction_date', `${end}T23:59:59`)
+        .order('id').range(f, t), 'معاملات الشهر'),
+      fetchAll<any>((f, t) => supabase.from('ad_metrics').select('id,platform,report_date,upload_id')
+        .eq('merchant_code', merchant!.merchant_code).gte('report_date', start).lte('report_date', end)
+        .order('id').range(f, t), 'بيانات إعلانات الشهر'),
     ])
     setPerfData(perf)
     setReturns(rets)
@@ -64,12 +93,27 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const costs = new Map<string, number>()
     for (const product of productCosts) if (product.sku && Number(product.cost_price) > 0) costs.set(String(product.sku).toLowerCase(), Number(product.cost_price))
     let cogs = 0, costedUnits = 0, missingUnits = 0
-    for (const order of monthOrders.filter((row: any) => !['cancelled','returned'].includes(row.status))) {
+    const activeOrders = monthOrders.filter((row: any) => !['cancelled','returned'].includes(row.status))
+    for (const order of activeOrders) {
       const units = Number(order.quantity || 1)
       const cost = order.sku ? costs.get(String(order.sku).toLowerCase()) : undefined
       if (cost) { cogs += cost * units; costedUnits += units } else missingUnits += units
     }
     setCostInfo({ cogs, costedUnits, missingUnits })
+    const totalUnits = costedUnits + missingUnits
+    setQualityInfo({
+      orders: activeOrders.length,
+      apiOrders: activeOrders.filter((row: any) => !row.upload_id).length,
+      uploadedOrders: activeOrders.filter((row: any) => row.upload_id).length,
+      costCoverage: totalUnits > 0 ? costedUnits / totalUnits * 100 : 0,
+      transactions: monthTransactions.length,
+      settlements: new Set(monthTransactions.map((row: any) => row.settlement_id).filter(Boolean)).size,
+      adRows: monthAds.length,
+      uploadedAdRows: monthAds.filter((row: any) => row.upload_id).length,
+      latestSync: activeOrders.map((row: any) => row.last_synced_at).filter(Boolean).sort().slice(-1)[0] || '',
+      latestTransaction: monthTransactions.map((row: any) => row.transaction_date).filter(Boolean).sort().slice(-1)[0] || '',
+      latestAdReport: monthAds.map((row: any) => row.report_date).filter(Boolean).sort().slice(-1)[0] || '',
+    })
     setLoading(false)
   }
 
@@ -169,6 +213,45 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', marginBottom:4 }}>{title}</div>
           <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.6 }}>{desc}</div>
         </div>)}
+      </div>
+
+      <div style={{ ...S.card, marginBottom:20, padding:0, overflow:'hidden' }}>
+        <div style={{ padding:'14px 17px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+          <div><div style={{ fontSize:13, fontWeight:800 }}>حالة بيانات الشهر</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3 }}>توضح ما هو مؤكد، وما يعتمد على ملف، وما يحتاج استكمالًا قبل اتخاذ قرار مالي.</div></div>
+          <span style={{ fontSize:10, color:'var(--text3)' }}>{MONTHS[month - 1]} {year}</span>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(4,1fr)' }}>
+          {[
+            {
+              label:'المبيعات',
+              value: qualityInfo.orders ? `${qualityInfo.orders.toLocaleString('ar-SA')} طلب` : 'لا توجد طلبات',
+              detail: qualityInfo.orders ? `${qualityInfo.apiOrders.toLocaleString('ar-SA')} عبر الربط · ${qualityInfo.uploadedOrders.toLocaleString('ar-SA')} عبر الملفات` : 'اربط منصة أو ارفع ملف الطلبات',
+              ok: qualityInfo.orders > 0,
+            },
+            {
+              label:'تكاليف المنتجات',
+              value: qualityInfo.orders ? `${qualityInfo.costCoverage.toFixed(0)}% مكتملة` : 'لا توجد مبيعات',
+              detail: qualityInfo.costCoverage >= 100 ? 'صافي الربح قابل للحساب' : 'الصافي المعروض لا يشمل التكاليف الناقصة',
+              ok: qualityInfo.orders === 0 || qualityInfo.costCoverage >= 100,
+            },
+            {
+              label:'المعاملات والتسويات',
+              value: qualityInfo.transactions ? `${qualityInfo.transactions.toLocaleString('ar-SA')} معاملة` : 'غير متوفرة',
+              detail: qualityInfo.settlements ? `${qualityInfo.settlements.toLocaleString('ar-SA')} تسوية مرجعية مسجّلة` : 'لا يوجد رقم تسوية مؤكد لهذا الشهر',
+              ok: qualityInfo.transactions > 0,
+            },
+            {
+              label:'بيانات الإعلانات',
+              value: qualityInfo.adRows ? `${qualityInfo.adRows.toLocaleString('ar-SA')} سجل` : 'غير متوفرة',
+              detail: qualityInfo.adRows ? `${qualityInfo.uploadedAdRows.toLocaleString('ar-SA')} من ملفات التقارير${qualityInfo.latestAdReport ? ` · حتى ${new Date(qualityInfo.latestAdReport).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}` : ''}` : 'لن تُخصم الإعلانات من الربحية',
+              ok: qualityInfo.adRows > 0,
+            },
+          ].map((item, index) => <div key={item.label} style={{ padding:'14px 16px', borderLeft:!isMobile && index < 3 ? '1px solid var(--border)' : undefined, borderBottom:isMobile && index < 3 ? '1px solid var(--border)' : undefined }}>
+            <div style={{ fontSize:10, color:'var(--text3)', marginBottom:5 }}>{item.label}</div>
+            <div style={{ fontSize:13, fontWeight:800, color:item.ok ? 'var(--text)' : 'var(--warning-text)' }}>{item.value}</div>
+            <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginTop:4 }}>{item.detail}</div>
+          </div>)}
+        </div>
       </div>
 
       {/* القادم لحسابك: أول ما يبحث عنه التاجر — كم ومتى تصله مستحقاته */}

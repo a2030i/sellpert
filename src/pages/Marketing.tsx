@@ -23,6 +23,7 @@ interface AdRow {
   cpc: number | null
   acos: number | null
   report_date: string
+  upload_id: string | null
 }
 
 export default function Marketing({ merchant }: { merchant: Merchant | null }) {
@@ -116,16 +117,16 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
     const best = grouped.filter(g => g.spend > 50).sort((a, b) => (b.revenue/Math.max(b.spend,1)) - (a.revenue/Math.max(a.spend,1)))[0]
     if (best && best.spend > 0) {
       const r = best.revenue / best.spend
-      if (r > 3) recs.push({ type: 'good', title: '🏆 أفضل حملة: ' + best.key, desc: `ROAS ${r.toFixed(2)}x — ضاعف ميزانيتها` })
+      if (r > 3) recs.push({ type: 'good', title: 'حملة ذات عائد مرتفع: ' + best.key, desc: `عائد ${r.toFixed(2)}x — مرشحة لزيادة مدروسة بعد مراجعة هامش المنتج` })
     }
     // حملات خاسرة
     const losing = grouped.filter(g => g.spend > 100 && (g.revenue / g.spend) < 1)
     for (const l of losing.slice(0, 2)) {
-      recs.push({ type: 'bad', title: '⚠️ حملة خاسرة: ' + l.key, desc: `أنفقت ${l.spend.toFixed(0)} ر.س وعادت ${l.revenue.toFixed(0)} — أوقفها` })
+      recs.push({ type: 'bad', title: 'حملة تحتاج مراجعة: ' + l.key, desc: `أنفقت ${l.spend.toFixed(0)} ر.س وعادت ${l.revenue.toFixed(0)} ر.س — راجع الاستهداف والهامش قبل الاستمرار` })
     }
     // كلمات بحث ناجحة بدون حملة
     if (groupBy === 'query' && grouped[0] && grouped[0].orders > 5) {
-      recs.push({ type: 'good', title: '🔍 كلمة قوية: ' + grouped[0].key, desc: `${grouped[0].orders} طلب — استثمر فيها أكثر` })
+      recs.push({ type: 'good', title: 'كلمة بحث ذات تحويل مرتفع: ' + grouped[0].key, desc: `${grouped[0].orders} طلب — راجع إمكانية تخصيص حملة مستقلة لها` })
     }
     return recs
   }, [grouped, groupBy])
@@ -137,7 +138,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ padding: '60px 32px', textAlign: 'center', maxWidth: 600, margin: '0 auto' }}>
         <Megaphone size={56} color="var(--text3)" style={{ marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات إعلانية بعد</h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>يقوم فريق Sellpert برفع تقارير إعلاناتك من المنصات وستظهر هنا تلقائياً</p>
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>ارفع تقرير الإعلانات من صفحة الربط ورفع الملفات، وستظهر المؤشرات هنا بعد اكتمال المعالجة.</p>
       </div>
     )
   }
@@ -147,6 +148,15 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ marginBottom: 22 }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>الإعلانات والأداء</h2>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>أداء حملاتك الإعلانية عبر كل المنصات</p>
+      </div>
+
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'13px 16px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+        <div><div style={{ fontSize:12, fontWeight:800 }}>مصدر بيانات الإعلانات</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3 }}>الأرقام أدناه مأخوذة من تقارير المنصات، وليست خصمًا بنكيًا نهائيًا.</div></div>
+        <div style={{ display:'flex', gap:18, flexWrap:'wrap' }}>
+          <div><div style={{ fontSize:10, color:'var(--text3)' }}>المصدر</div><div style={{ fontSize:11, fontWeight:700 }}>{rows.some(row => row.upload_id) ? 'ملفات تقارير مرفوعة' : 'ربط مباشر'}</div></div>
+          <div><div style={{ fontSize:10, color:'var(--text3)' }}>تواريخ التقارير</div><div style={{ fontSize:11, fontWeight:700 }}>{new Set(rows.map(row => row.report_date)).size.toLocaleString('ar-SA')} يوم</div></div>
+          <div><div style={{ fontSize:10, color:'var(--text3)' }}>آخر تاريخ تقرير</div><div style={{ fontSize:11, fontWeight:700 }}>{new Date(rows.map(row => row.report_date).sort().slice(-1)[0] || '').toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</div></div>
+        </div>
       </div>
 
       {/* True ROAS panel */}
@@ -163,7 +173,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
         <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
-        <Kpi labelNode={<Tooltip text="عائد الإعلان قبل خصم الرسوم: كم ريال مبيعات يجيب كل ريال إنفاق إعلاني حسب تقارير المنصة. الرقم بعد الرسوم في لوحة «العائد الحقيقي» أعلاه"><span>عائد الإعلان (قبل الرسوم) ⓘ</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز (قبل الرسوم)' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
+        <Kpi labelNode={<Tooltip text="عائد الإعلان قبل خصم الرسوم: كم ريال مبيعات يحقق كل ريال إنفاق إعلاني حسب تقرير المنصة. راجع العائد بعد الرسوم للمقارنة"><span>عائد الإعلان (قبل الرسوم)</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? 'مرتفع قبل الرسوم' : roas >= 1.5 ? 'متوسط' : 'منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
         <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#0f958c" />
         <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="var(--info-text)" />
       </div>
@@ -321,7 +331,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎯 العائد الحقيقي للإعلان — بعد العمولة والشحن والمرتجعات</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>العائد بعد رسوم المنصة والمرتجعات</div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>
             تقارير المنصات تعرض GMV الإجمالي. الـ ROAS الحقيقي يخصم عمولة المنصة + رسوم FBA + الضريبة المحجوزة + المرتجعات
           </div>
@@ -330,14 +340,14 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
           background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)',
           padding: '6px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
         }}>
-          {showDetails ? '▲ إخفاء التفاصيل' : '▼ عرض تفاصيل الرسوم'}
+          {showDetails ? 'إخفاء تفاصيل الرسوم' : 'عرض تفاصيل الرسوم'}
         </button>
       </div>
 
       {/* Inflation banner */}
       {inflationPct > 5 && (
         <div style={{ marginBottom: 12, padding: '12px 14px', background: 'linear-gradient(135deg,rgba(245,158,11,0.10),var(--danger-bg))', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 9, fontSize: 12, color: 'var(--text)' }}>
-          <div style={{ fontWeight: 800, marginBottom: 4 }}>⚠ الـ ROAS اللي تشوفه في تقارير المنصة متضخّم بنسبة {inflationPct.toFixed(0)}%</div>
+          <div style={{ fontWeight: 800, marginBottom: 4 }}>عائد تقرير المنصة أعلى من العائد بعد الرسوم بنسبة {inflationPct.toFixed(0)}%</div>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>
             تقرير المنصة يقول: <strong style={{ color: 'var(--success-text)' }}>{grossRoas.toFixed(2)}x ROAS</strong> ·
             بعد خصم العمولة والرسوم والمرتجعات الفعلي: <strong style={{ color: netRoas >= 1 ? 'var(--success-text)' : 'var(--danger-text)' }}>{netRoas.toFixed(2)}x ROAS</strong>
@@ -359,12 +369,12 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
 
       {losses.length > 0 && (
         <div style={{ marginBottom: 12, padding: '10px 14px', background: 'var(--danger-bg)', border: '1px solid rgba(232,64,64,0.2)', borderRadius: 9, fontSize: 12, color: 'var(--danger-text)', fontWeight: 600 }}>
-          ⚠️ {losses.length} إعلان خاسر فعلياً بعد احتساب الرسوم والمرتجعات — راجعها أو أوقفها
+          {losses.length} إعلان عائده أقل من الإنفاق بعد احتساب الرسوم والمرتجعات — يحتاج مراجعة
         </div>
       )}
       {inflated.length > 0 && (
         <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 9, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
-          🚨 {inflated.length} إعلان يبدو مربحاً جداً بـROAS ≥ 2x لكن صافياً خاسر — تنبيه للتضخّم
+          {inflated.length} إعلان يظهر بعائد لا يقل عن 2x في تقرير المنصة، لكنه أقل من الإنفاق بعد الرسوم
         </div>
       )}
 

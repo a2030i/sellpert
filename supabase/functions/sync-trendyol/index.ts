@@ -505,7 +505,9 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
       debit: isDebit ? Math.abs(gross) : numberValue(tx.debt),
       credit: isDebit ? numberValue(tx.credit) : Math.abs(gross),
       net_amount: isDebit ? -Math.abs(sellerRevenue) : sellerRevenue,
-      currency: tx.currencyCode || tx.currency || 'TRY', marketplace: 'Trendyol',
+      // This integration is explicitly scoped to the Saudi storefront.
+      // Never label a missing currency as TRY in a Saudi merchant ledger.
+      currency: tx.currencyCode || tx.currency || 'SAR', marketplace: 'Trendyol',
       settlement_id: String(tx.settlementId || tx.paymentOrderId || '') || null, raw: tx,
     }
   })
