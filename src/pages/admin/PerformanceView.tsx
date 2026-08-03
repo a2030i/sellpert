@@ -78,7 +78,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
           const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a'); a.href = url; a.download = `sellpert-perf-${new Date().toISOString().split('T')[0]}.csv`; a.click()
-        }}>⬇ تصدير CSV</button>
+        }}>تصدير CSV</button>
       </div>
 
       <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>

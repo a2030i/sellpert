@@ -143,7 +143,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
           {shipments.length > 0 && (
             <div style={{ ...S.tableCard }}>
               <div style={S.tableHeader}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>📦 الإرساليات (ASN)</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>الإرساليات (ASN)</div>
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>{shipments.length} إرسالية</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
@@ -170,7 +170,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                           </td>
                           <td style={S.td}>
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.status === 'received' ? 'var(--success-bg)' : 'var(--warning-bg)', color: s.status === 'received' ? 'var(--success-text)' : 'var(--warning-text)' }}>
-                              {s.status === 'received' ? '✓ مُستلم' : 'قيد الإرسال'}
+                              {s.status === 'received' ? 'مُستلم' : 'قيد الإرسال'}
                             </span>
                           </td>
                         </tr>
@@ -220,7 +220,7 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
                             background: g.qc_status === 'failed' ? 'var(--danger-bg)' : 'var(--success-bg)',
                             color: g.qc_status === 'failed' ? 'var(--danger-text)' : 'var(--success-text)',
                           }}>
-                            {g.qc_status === 'failed' ? '✗ مرفوض' : '✓ مقبول'}
+                            {g.qc_status === 'failed' ? 'مرفوض' : 'مقبول'}
                           </span>
                         </td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)' }}>{g.qc_status === 'failed' ? rejectReasonAr(g.reject_reason) : '—'}</td>
@@ -285,7 +285,7 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>📈 صحة سلسلة التوريد حسب المنصة</div>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>صحة سلسلة التوريد حسب المنصة</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead><tr>{['المنصة','إرساليات','متوقع','مُستلم','الفقد','نسبة الفقد','رفض QC'].map(h => (
@@ -313,7 +313,7 @@ function SupplyChainHealth({ merchantCode }: { merchantCode: string }) {
 
       {topFails.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً في فحص الجودة</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>أكثر الأصناف رفضاً في فحص الجودة</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {topFails.map((f, i) => (
               <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
@@ -346,7 +346,7 @@ function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
   if (data.length === 0 && topFailing.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>📊 جودة الموردين عبر الزمن</div>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>جودة الموردين عبر الزمن</div>
       {data.length > 0 && (
         <div style={{ overflowX: 'auto', marginBottom: 14 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -374,7 +374,7 @@ function SupplierQualityTrend({ merchantCode }: { merchantCode: string }) {
       )}
       {topFailing.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🔻 أكثر الأصناف رفضاً (top 10)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>أكثر الأصناف رفضاً (أعلى 10)</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {topFailing.map((r, i) => (
               <div key={i} style={{ padding: '7px 12px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>

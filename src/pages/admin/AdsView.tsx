@@ -118,7 +118,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             <KpiCard label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={20} />} />
             <KpiCard label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={20} />} />
-            <KpiCard label="ROAS"  value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? '✓ ممتاز' : roas >= 1.5 ? 'جيد' : '⚠ منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
+            <KpiCard label="ROAS"  value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? 'ممتاز' : roas >= 1.5 ? 'جيد' : 'منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
             <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA')} sub={`${totals.orders} طلب`} color="#0f958c" icon={<Megaphone size={20} />} />
           </div>
 
@@ -172,7 +172,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
           <div style={{ ...S.tableCard }}>
             <div style={S.tableHeader}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>
-                {groupBy === 'campaign' ? '🎯 الحملات' : groupBy === 'sku' ? '📦 المنتجات' : '🔍 كلمات البحث'} ({grouped.length})
+                {groupBy === 'campaign' ? 'الحملات' : groupBy === 'sku' ? 'المنتجات' : 'كلمات البحث'} ({grouped.length})
               </div>
             </div>
             <div style={{ overflowX: 'auto', maxHeight: 600, overflowY: 'auto' }}>

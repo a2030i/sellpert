@@ -107,15 +107,15 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
       <div style={{ ...S.chartCard, marginBottom: 20, padding: '16px 20px', borderRight: savedKey ? '3px solid var(--accent2)' : '3px solid var(--gold)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>{savedKey ? '🔒' : '🔑'}</span>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>{savedKey ? 'محفوظ' : 'غير مضبوط'}</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>مفتاح OpenRouter</div>
-              {savedKey ? <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>✓ محفوظ · {savedKey.slice(0, 10)}••••••••</div>
+              {savedKey ? <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>محفوظ · {savedKey.slice(0, 10)}••••••••</div>
                 : <div style={{ fontSize: 11, color: 'var(--warning-text)', marginTop: 2 }}>غير مضبوط — أدخل مفتاحك من openrouter.ai</div>}
             </div>
           </div>
           <button style={{ ...S.miniBtn, background: savedKey ? 'transparent' : 'var(--warning-bg)', borderColor: savedKey ? 'var(--border)' : 'var(--gold)', color: savedKey ? 'var(--text2)' : 'var(--warning-text)' }} onClick={() => { setEditKey(v => !v); setKeyErr('') }}>
-            {editKey ? 'إلغاء' : savedKey ? '✏️ تعديل' : '+ إضافة'}
+            {editKey ? 'إلغاء' : savedKey ? 'تعديل' : 'إضافة'}
           </button>
         </div>
         {editKey && (
@@ -124,8 +124,8 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
             <button style={{ ...S.btn, padding: '8px 18px' }} onClick={saveKey} disabled={savingKey || !keyInput.trim()}>{savingKey ? '...' : 'حفظ'}</button>
           </div>
         )}
-        {keyErr && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 8 }}>✗ {keyErr}</div>}
-        {keyMsg && <div style={{ fontSize: 12, color: 'var(--accent2)', marginTop: 8 }}>✓ {keyMsg}</div>}
+        {keyErr && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 8 }}>{keyErr}</div>}
+        {keyMsg && <div style={{ fontSize: 12, color: 'var(--accent2)', marginTop: 8 }}>{keyMsg}</div>}
       </div>
 
       <div style={{ ...S.chartCard, marginBottom: 20, padding: '16px 20px' }}>
@@ -160,7 +160,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
         <button style={{ background: 'linear-gradient(135deg,var(--accent),#55bdb5)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(15,149,140,0.35)', opacity: (analyzing || getSelectedCodes().length === 0) ? 0.6 : 1 }} onClick={runAnalysis} disabled={analyzing || getSelectedCodes().length === 0}>
-          {analyzing ? '⟳ جاري التحليل...' : '✨ تشغيل تحليل AI'}
+          {analyzing ? 'جاري التحليل...' : 'تشغيل تحليل AI'}
         </button>
         {activeInsight && <span style={{ fontSize: 11, color: 'var(--text3)' }}>آخر تحليل: {new Date(activeInsight.created_at).toLocaleString('ar-SA')}</span>}
       </div>
@@ -180,7 +180,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
 
       {!activeInsight && !analyzing && (
         <div style={{ ...S.chartCard, padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: 'var(--text3)' }}>لا يوجد تحليل محفوظ</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>لا يوجد تحليل بعد</div>
           <div style={{ fontSize: 12 }}>اختر التجار واضغط "تشغيل تحليل AI"</div>
         </div>
@@ -197,14 +197,14 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px,1fr))', gap: 14, marginBottom: 16 }}>
             {c.forecast_next_week && (
               <div style={{ ...S.chartCard, padding: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>🔮 توقع الأسبوع القادم</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>توقع الأسبوع القادم</div>
                 <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--accent)' }}>{c.forecast_next_week.amount?.toLocaleString()} ر.س</div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>ثقة: <strong style={{ color: 'var(--text)' }}>{c.forecast_next_week.confidence}</strong></div>
               </div>
             )}
             {c.best_days.length > 0 && (
               <div style={{ ...S.chartCard, padding: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>📅 أفضل أيام البيع</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 10 }}>أفضل أيام البيع</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {c.best_days.map((d, i) => <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{d}</span>)}
                 </div>
@@ -212,14 +212,14 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
             )}
             {c.low_stock_alert.length > 0 && (
               <div style={{ ...S.chartCard, padding: 20, borderRight: '3px solid var(--red)' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger-text)', marginBottom: 10 }}>🚨 تحذير مخزون</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger-text)', marginBottom: 10 }}>تحذير مخزون</div>
                 {c.low_stock_alert.map((p, i) => <div key={i} style={{ fontSize: 13, color: 'var(--danger-text)', marginBottom: 5 }}>• {p}</div>)}
               </div>
             )}
           </div>
           {c.recommendations.length > 0 && (
             <div style={{ ...S.chartCard, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 14 }}>💡 التوصيات</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 14 }}>التوصيات</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {c.recommendations.map((r, i) => (
                   <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: 'var(--bg)', borderRadius: 10, padding: '12px 14px' }}>
@@ -235,7 +235,7 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
 
       {history.length > 1 && (
         <div style={{ ...S.tableCard, marginTop: 20 }}>
-          <div style={S.tableHeader}><div style={S.chartTitle}>📋 سجل التحليلات</div></div>
+          <div style={S.tableHeader}><div style={S.chartTitle}>سجل التحليلات</div></div>
           <table style={S.table}>
             <thead><tr>{['التاريخ', 'ملخص مختصر', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>

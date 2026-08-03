@@ -40,7 +40,7 @@ export default function WhatsAppManagerView({ merchants }: { merchants: any[] })
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}>...</div>
   if (!conn) return (
-    <EmptyState icon="📲" title="Respondly غير مربوط" description="اربط حساب Respondly من صفحة الاتصالات أولاً"
+    <EmptyState icon={<MessageSquare size={28} />} title="Respondly غير مربوط" description="اربط حساب Respondly من صفحة الاتصالات أولاً"
       action={<button onClick={() => { window.history.pushState(null, '', '/admin/connections'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>← الذهاب للاتصالات</button>}
     />
   )
@@ -57,7 +57,7 @@ export default function WhatsAppManagerView({ merchants }: { merchants: any[] })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1200, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>📲 إدارة الواتساب (Respondly)</h3>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>إدارة الواتساب (Respondly)</h3>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>مركز موحّد لكل عمليات الواتساب — قوالب، إرسال، محادثات، أحداث</p>
       </div>
 
@@ -115,7 +115,7 @@ function SendQuickTab({ connection: _connection, merchants }: { connection: any;
       })
       const data = await res.json()
       if (data.error) toastErr(data.error)
-      else { toastOk('✓ تم الإرسال'); setMessage('') }
+      else { toastOk('تم الإرسال'); setMessage('') }
     } catch (e: any) { toastErr(e.message) }
     setSending(false)
   }
@@ -233,7 +233,7 @@ function BulkSendTab({ connection, merchants }: { connection: any; merchants: an
           {results.map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
               <span style={{ fontFamily: 'monospace' }}>{r.to}</span>
-              <span style={{ color: r.ok ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{r.ok ? '✓' : '✗ ' + (r.error || 'فشل')}</span>
+              <span style={{ color: r.ok ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{r.ok ? 'نجح' : r.error || 'فشل'}</span>
             </div>
           ))}
         </div>
@@ -273,7 +273,7 @@ function TemplatesTab({ connection }: { connection: any }) {
     })
     const data = await res.json()
     if (data.error) toastErr(data.error)
-    else { toastOk('✓ أُنشئ القالب'); setCreating(false); setForm({ name: '', body: '', language: 'ar', category: 'utility' }); load() }
+    else { toastOk('أُنشئ القالب'); setCreating(false); setForm({ name: '', body: '', language: 'ar', category: 'utility' }); load() }
   }
 
   async function del(id: string) {
@@ -285,7 +285,7 @@ function TemplatesTab({ connection }: { connection: any }) {
       body: JSON.stringify({ connection_id: connection.id, action: 'delete_template', template_id: id }),
     })
     const data = await res.json()
-    if (data.error) toastErr(data.error); else { toastOk('✓ حُذف'); load() }
+    if (data.error) toastErr(data.error); else { toastOk('حُذف'); load() }
   }
 
   return (
@@ -329,7 +329,7 @@ function TemplatesTab({ connection }: { connection: any }) {
       )}
 
       {loading ? null : templates.length === 0 ? (
-        <EmptyState icon="📄" title="لا توجد قوالب" description="أنشئ قالباً جديداً لإرسال رسائل سريعة وموحّدة" />
+        <EmptyState icon={<FileText size={28} />} title="لا توجد قوالب" description="أنشئ قالباً جديداً لإرسال رسائل سريعة وموحّدة" />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {templates.map((t, i) => (
@@ -477,7 +477,7 @@ function EventsTab({ connection, onUpdate }: { connection: any; onUpdate: () => 
     }).eq('id', connection.id)
     setSaving(false)
     if (error) toastErr(error.message)
-    else { toastOk('✓ حُفظت الإعدادات'); onUpdate() }
+    else { toastOk('حُفظت الإعدادات'); onUpdate() }
   }
 
   function toggle(eventKey: string) {
@@ -509,7 +509,7 @@ function EventsTab({ connection, onUpdate }: { connection: any; onUpdate: () => 
         })}
       </div>
       <button onClick={save} disabled={saving} style={{ marginTop: 14, background: 'var(--accent)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-        {saving ? '...' : '💾 حفظ الإعدادات'}
+        {saving ? '...' : 'حفظ الإعدادات'}
       </button>
     </div>
   )

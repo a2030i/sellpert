@@ -103,7 +103,7 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
                     <td style={S.td}><span style={{ fontSize: 11, fontWeight: 600, color: PLATFORM_COLORS[l.platform] || 'var(--text2)' }}>{PLATFORM_MAP[l.platform] || l.platform}</span></td>
                     <td style={S.td}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: l.status === 'success' ? 'var(--success-bg)' : l.status === 'error' ? 'var(--danger-bg)' : 'var(--warning-bg)', color: l.status === 'success' ? 'var(--green)' : l.status === 'error' ? 'var(--red)' : 'var(--warning-text)' }}>
-                        {l.status === 'success' ? '✓ نجح' : l.status === 'error' ? '✕ خطأ' : '⟳ جاري'}
+                        {l.status === 'success' ? 'نجح' : l.status === 'error' ? 'خطأ' : 'جاري'}
                       </span>
                     </td>
                     <td style={{ ...S.td, fontFamily: 'monospace' }}>{l.records_synced?.toLocaleString() || 0}</td>
@@ -120,4 +120,3 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
     </div>
   )
 }
-

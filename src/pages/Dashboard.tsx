@@ -561,7 +561,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             مرحباً {merchant?.name} — {new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>⬇ تصدير CSV</button>}
+        {filtered.length > 0 && <button onClick={exportCSV} style={S.exportBtn}>تصدير CSV</button>}
       </div>
 
       {/* ── سطر الحالة الواحد: نظرة واحدة تقول تمام أو مشكلة ── */}
@@ -667,7 +667,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               <div style={S.cardTitle}>اتجاه المبيعات</div>
               {trendData.length > 1
                 ? <div style={S.cardSub}>يمكن سحب المنطقة السفلية للتكبير والتصغير</div>
-                : <div style={{ fontSize: 11, color: 'var(--warning-text)' }}>⚠️ نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
+                : <div style={{ fontSize: 11, color: 'var(--warning-text)' }}>نقطة بيانات واحدة — ارفع تقارير لفترات مختلفة لرؤية الاتجاه</div>
               }
             </div>
           </div>
@@ -834,7 +834,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             {aiLoading ? 'جاري التحليل...' : insight ? 'تحديث التحليل' : 'بدء التحليل'}
           </button>
         </div>
-        {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>⚠ {aiError}</div>}
+        {aiError && <div style={{ color: 'var(--danger-text)', fontSize: 12, marginTop: 8 }}>{aiError}</div>}
         {insightIsStale && (
           <div role="status" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', borderRadius: 10, padding: '12px 14px', marginTop: 12, fontSize: 12, lineHeight: 1.7 }}>
             هذا التحليل مؤرشف لأنه أقدم من أحدث بياناتك. آخر تحليل بتاريخ {new Date(insight!.created_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}، وأحدث بيانات بتاريخ {new Date(maxDataDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}. اضغط «تحديث التحليل» لبناء توصيات دقيقة.
@@ -860,7 +860,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               )}
               {insightContent.forecast_next_week && (
                 <div style={S.aiBox}>
-                  <div style={S.aiBoxTitle}>🔮 توقع الأسبوع القادم</div>
+                  <div style={S.aiBoxTitle}>توقع الأسبوع القادم</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
                     {insightContent.forecast_next_week.amount.toLocaleString()} ر.س
                   </div>
@@ -872,7 +872,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
               )}
               {insightContent.best_days.length > 0 && (
                 <div style={S.aiBox}>
-                  <div style={S.aiBoxTitle}>📅 أفضل أيام البيع</div>
+                  <div style={S.aiBoxTitle}>أفضل أيام البيع</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                     {insightContent.best_days.map((d, i) => (
                       <span key={i} style={{ background: 'var(--success-bg)', color: 'var(--accent2)', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{d}</span>

@@ -138,7 +138,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
       {notice ? (
         <div style={{ ...S.msgBox, ...(notice.type === 'err' ? S.msgErr : S.msgOk), marginBottom: 16 }}>
           {notice.text}
-          <button style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setNotice(null)}>✕</button>
+          <button aria-label="إغلاق الرسالة" style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setNotice(null)}>إغلاق</button>
         </div>
       ) : null}
 
@@ -384,7 +384,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                       <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>
                     </div>
                   ))}
-                  {syncDetails.warnings?.length ? <div style={{ gridColumn:'1/-1', color:'var(--warning-text)', fontSize:10, lineHeight:1.6 }}>⚠ تعذر تحديث بعض الأقسام: {syncDetails.warnings.join('، ')}</div> : null}
+                  {syncDetails.warnings?.length ? <div style={{ gridColumn:'1/-1', color:'var(--warning-text)', fontSize:10, lineHeight:1.6 }}>تعذر تحديث بعض الأقسام: {syncDetails.warnings.join('، ')}</div> : null}
                 </div>
               ) : null}
               {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color: 'var(--danger-text)', fontSize: 10, marginTop: 7 }}>{syncJob.error_message}</div> : null}

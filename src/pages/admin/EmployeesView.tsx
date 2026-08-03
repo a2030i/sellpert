@@ -71,7 +71,7 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
         }).eq('merchant_code', data.merchant_code)
       }
 
-      toastOk(`✓ تمت إضافة ${addForm.name} (${addForm.perms.size} صلاحية)`)
+      toastOk(`تمت إضافة ${addForm.name} (${addForm.perms.size} صلاحية)`)
       setAddForm({ name: '', email: '', password: '', whatsapp_phone: '', department: 'data_entry', perms: new Set(DEPT_TEMPLATES['data_entry']) })
       setShowAdd(false); onRefresh()
     } catch (e: any) { toastErr(e.message) }
@@ -111,7 +111,7 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
     <div>
       {/* Intro */}
       <div style={{ marginBottom: 14, padding: 12, background: 'var(--surface2)', borderRadius: 9, fontSize: 12, color: 'var(--text2)', lineHeight: 1.7 }}>
-        <strong style={{ color: 'var(--text)' }}>👥 الموظفون الداخليون</strong> — فريقك في Sellpert.
+        <strong style={{ color: 'var(--text)' }}>الموظفون الداخليون</strong> — فريقك في Sellpert.
         كل موظف له <strong>صلاحيات مخصصة</strong> تقرّر ما يستطيع رؤيته/تعديله.
         يمكنك البدء من قالب جاهز للقسم ثم التعديل.
         <br/>
@@ -122,7 +122,7 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         <input aria-label="البحث في الموظفين والمدراء" style={{ ...S.searchInput, flex: '1 1 220px', minWidth: 0 }} placeholder="ابحث بالاسم أو البريد..." value={search} onChange={e => setSearch(e.target.value)} />
         <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? '✕ إلغاء' : <><UserPlus size={14} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> إضافة موظف</>}
+          {showAdd ? 'إلغاء' : <><UserPlus size={14} style={{ display: 'inline-block', marginLeft: 4, verticalAlign: 'middle' }} /> إضافة موظف</>}
         </button>
       </div>
 
@@ -215,11 +215,11 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button style={S.saveBtn} onClick={addStaff} disabled={saving}>
-              {saving ? '⟳ جاري الإنشاء...' : '✓ إنشاء حساب'}
+              {saving ? 'جاري الإنشاء...' : 'إنشاء حساب'}
             </button>
             <span style={{ fontSize: 11, color: 'var(--text3)' }}>
               {addForm.department === 'manager'
-                ? '⚠ سيكون مدير — وصول كامل للنظام'
+                ? 'سيكون مديرًا بصلاحية وصول كاملة للنظام'
                 : `سيدخل من لوحة الموظف ويرى ${addForm.perms.size} ميزة فقط`}
             </span>
           </div>

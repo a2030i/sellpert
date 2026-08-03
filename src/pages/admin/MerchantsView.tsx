@@ -71,7 +71,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
       const data = await res.json()
       if (!res.ok || data.error) { setMsg({ type: 'err', text: data.error || 'خطأ في الإنشاء' }) }
       else {
-        setMsg({ type: 'ok', text: `✓ تمت إضافة ${addForm.name} — الكود: ${data.merchant_code}` })
+        setMsg({ type: 'ok', text: `تمت إضافة ${addForm.name} — الكود: ${data.merchant_code}` })
         setAddForm({ name: '', email: '', password: '', currency: 'SAR', role: 'merchant', whatsapp_phone: '' })
         setShowAdd(false); onRefresh()
       }
@@ -100,7 +100,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
 
   async function wipeData(m: Merchant) {
     const ok = confirm(
-      `⚠️ مسح كامل لبيانات ${m.name}؟\n\n` +
+      `مسح كامل لبيانات ${m.name}؟\n\n` +
       `سيتم حذف:\n` +
       `• كل الملفات المرفوعة\n` +
       `• الطلبات، المنتجات، المخزون\n` +
@@ -116,7 +116,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
     setSaving(false)
     if (error) setMsg({ type: 'err', text: error.message })
     else {
-      setMsg({ type: 'ok', text: `✓ تم مسح بيانات ${m.name} — ${data?.uploads || 0} ملف محذوف` })
+      setMsg({ type: 'ok', text: `تم مسح بيانات ${m.name} — ${data?.uploads || 0} ملف محذوف` })
       onRefresh()
     }
   }
@@ -126,20 +126,20 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
       {msg && (
         <div style={{ ...S.msgBox, ...(msg.type === 'err' ? S.msgErr : S.msgOk), marginBottom: 16 }}>
           {msg.text}
-          <button style={{ marginRight: 12, background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14 }} onClick={() => setMsg(null)}>✕</button>
+          <button aria-label="إغلاق الرسالة" style={{ marginRight: 12, background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14 }} onClick={() => setMsg(null)}>إغلاق</button>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
         <input style={{ ...S.searchInput, flex: 1 }} placeholder="ابحث بالاسم أو الإيميل أو الكود..." value={search} onChange={e => setSearch(e.target.value)} />
-        {canCreate && <button style={S.addBtn} onClick={() => { setShowAdd(!showAdd); setMsg(null) }}>{showAdd ? '✕ إلغاء' : '+ إضافة'}</button>}
+        {canCreate && <button style={S.addBtn} onClick={() => { setShowAdd(!showAdd); setMsg(null) }}>{showAdd ? 'إلغاء' : 'إضافة'}</button>}
       </div>
 
       {showAdd && canCreate && (
         <div style={{ ...S.formCard, marginBottom: 16 }}>
           <div style={S.formTitle}>إضافة تاجر جديد</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: 8, background: 'var(--surface2)', borderRadius: 6 }}>
-            💡 لإضافة موظف أو مدير، اذهب إلى قسم <strong>"الموظفون"</strong>
+            لإضافة موظف أو مدير، اذهب إلى قسم <strong>"الموظفون"</strong>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
             {[
@@ -164,7 +164,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
             {/* الدور دائماً تاجر هنا */}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button style={S.saveBtn} onClick={addMerchant} disabled={saving}>{saving ? '⟳ جاري الإنشاء...' : '✓ إضافة وإنشاء حساب'}</button>
+            <button style={S.saveBtn} onClick={addMerchant} disabled={saving}>{saving ? 'جاري الإنشاء...' : 'إضافة وإنشاء حساب'}</button>
             <span style={{ fontSize: 12, color: 'var(--text3)' }}>سيتم إنشاء حساب دخول فوري</span>
           </div>
         </div>
@@ -232,8 +232,8 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                           <option value="employee">موظف</option>
                           <option value="admin">مدير</option>
                         </select>
-                        <button style={{ ...S.miniBtn, background: 'var(--accent)' }} onClick={() => updateRole(m.id, editRole.role)}>✓</button>
-                        <button style={S.miniBtn} onClick={() => setEditRole(null)}>✕</button>
+                        <button style={{ ...S.miniBtn, background: 'var(--accent)' }} onClick={() => updateRole(m.id, editRole.role)}>حفظ</button>
+                        <button style={S.miniBtn} onClick={() => setEditRole(null)}>إلغاء</button>
                       </div>
                     ) : (
                       <span style={{ ...S.roleBadge, background: 'rgba(0,229,176,0.1)', color: 'var(--accent2)', cursor: canEdit ? 'pointer' : 'default' }} onClick={() => canEdit && setEditRole({ id: m.id, role: m.role })}>
@@ -270,7 +270,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                             onClick={() => impersonate(m)}
                             title="عرض حساب التاجر"
                           >
-                            👁 عرض
+                            عرض
                           </button>
                         ) : null}
                         {m.role === 'merchant' && canDelete && (
@@ -279,10 +279,10 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                             onClick={() => wipeData(m)}
                             title="مسح كل بيانات الملفات لهذا التاجر"
                           >
-                            🧹 مسح البيانات
+                            مسح البيانات
                           </button>
                         )}
-                        {canDelete && <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>🗑 حذف</button>}
+                        {canDelete && <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => setDeleteConfirm(m.id)}>حذف</button>}
                       </div>
                     )}
                   </td>

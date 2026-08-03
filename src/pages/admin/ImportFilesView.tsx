@@ -14,7 +14,6 @@ type Importance = 'critical' | 'recommended' | 'optional'
 interface FileGuide {
   kind: string
   label: string
-  icon: string
   desc: string
   importance: Importance
   dependsOn?: string
@@ -23,26 +22,26 @@ interface FileGuide {
 
 const FILE_GUIDES: Record<string, FileGuide[]> = {
   noon: [
-    { kind: 'noon_sales',    label: 'تقرير المبيعات',         icon: '💰', desc: 'كل الطلبات المشحونة والمسلّمة — يحدّث جدول الطلبات والإيرادات', importance: 'critical' },
-    { kind: 'noon_products', label: 'تقرير الأصناف Live',     icon: '📦', desc: 'كاتالوج المنتجات + الأسعار + المخزون FBN/Xdock', importance: 'critical' },
-    { kind: 'noon_asn',      label: 'إرسالية للمستودع (ASN)', icon: '🚚', desc: 'ما أرسلته إلى مستودع نون قبل استلامه', importance: 'recommended' },
-    { kind: 'noon_grn',      label: 'تقرير الاستلام (GRN)',   icon: '📥', desc: 'ما استلمه نون فعلياً + الأصناف المرفوضة من الجودة', importance: 'recommended', dependsOn: 'noon_asn', dependsNote: 'يُفضّل رفع ASN قبله ليربط بياناته' },
-    { kind: 'noon_ads',      label: 'تقرير الإعلانات',         icon: '📣', desc: 'أداء حملات الإعلانات (Campaign × SKU × Query)', importance: 'optional' },
+    { kind: 'noon_sales',    label: 'تقرير المبيعات',         desc: 'كل الطلبات المشحونة والمسلّمة — يحدّث جدول الطلبات والإيرادات', importance: 'critical' },
+    { kind: 'noon_products', label: 'تقرير الأصناف Live',     desc: 'كاتالوج المنتجات + الأسعار + المخزون FBN/Xdock', importance: 'critical' },
+    { kind: 'noon_asn',      label: 'إرسالية للمستودع (ASN)', desc: 'ما أرسلته إلى مستودع نون قبل استلامه', importance: 'recommended' },
+    { kind: 'noon_grn',      label: 'تقرير الاستلام (GRN)',   desc: 'ما استلمه نون فعلياً + الأصناف المرفوضة من الجودة', importance: 'recommended', dependsOn: 'noon_asn', dependsNote: 'يُفضّل رفع ASN قبله ليربط بياناته' },
+    { kind: 'noon_ads',      label: 'تقرير الإعلانات',         desc: 'أداء حملات الإعلانات (Campaign × SKU × Query)', importance: 'optional' },
   ],
   trendyol: [
-    { kind: 'trendyol_sales',     label: 'مبيعات حسب المنتج (Sales by Product)', icon: '💰', desc: 'لقطة دورية للمنتجات + أسباب الإلغاءات والمرتجعات', importance: 'critical' },
-    { kind: 'trendyol_products',  label: 'الكاتالوج (Products)',                  icon: '📦', desc: 'تفاصيل المنتجات + الصور + الأوصاف + المخزون', importance: 'critical' },
-    { kind: 'trendyol_statement', label: 'كشف الحساب (Account Statement)',        icon: '🧾', desc: 'حركة الحساب: عمولات + مدفوعات + خصومات', importance: 'recommended' },
-    { kind: 'trendyol_ads',       label: 'تقرير إعلانات المنتج',                   icon: '📣', desc: 'أداء الحملات الإعلانية على تراندايول', importance: 'optional' },
-    { kind: 'trendyol_deals',     label: 'عروض Super/Mega Deal',                  icon: '🎯', desc: 'فرص الأسعار التنافسية المقترحة من تراندايول', importance: 'optional' },
+    { kind: 'trendyol_sales',     label: 'مبيعات حسب المنتج (Sales by Product)', desc: 'لقطة دورية للمنتجات + أسباب الإلغاءات والمرتجعات', importance: 'critical' },
+    { kind: 'trendyol_products',  label: 'الكاتالوج (Products)',                  desc: 'تفاصيل المنتجات + الصور + الأوصاف + المخزون', importance: 'critical' },
+    { kind: 'trendyol_statement', label: 'كشف الحساب (Account Statement)',        desc: 'حركة الحساب: عمولات + مدفوعات + خصومات', importance: 'recommended' },
+    { kind: 'trendyol_ads',       label: 'تقرير إعلانات المنتج',                   desc: 'أداء الحملات الإعلانية على تراندايول', importance: 'optional' },
+    { kind: 'trendyol_deals',     label: 'عروض Super/Mega Deal',                  desc: 'فرص الأسعار التنافسية المقترحة من تراندايول', importance: 'optional' },
   ],
   amazon: [
-    { kind: 'amazon_transactions', label: 'تقرير المعاملات',          icon: '💰', desc: 'الطلبات والرسوم وصافي المبالغ', importance: 'critical' },
-    { kind: 'amazon_inventory',    label: 'مخزون FBA',                icon: '📦', desc: 'المخزون المتاح في مستودعات أمازون لكل ASIN', importance: 'critical' },
-    { kind: 'amazon_business_report', label: 'تقرير الأعمال (المبيعات والزيارات)', icon: '📊', desc: 'أداء كل ASIN: الجلسات، المشاهدات، Buy Box، التحويل، الوحدات والمبيعات', importance: 'critical' },
-    { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', icon: '🧾', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
-    { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', icon: '📣', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
-    { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', icon: '📈', desc: 'السلسلة اليومية للمبيعات والوحدات؛ تُربط بتقرير الأعمال لتوزيع الإجمالي زمنياً دون تكراره', importance: 'critical' },
+    { kind: 'amazon_transactions', label: 'تقرير المعاملات',          desc: 'الطلبات والرسوم وصافي المبالغ', importance: 'critical' },
+    { kind: 'amazon_inventory',    label: 'مخزون FBA',                desc: 'المخزون المتاح في مستودعات أمازون لكل ASIN', importance: 'critical' },
+    { kind: 'amazon_business_report', label: 'تقرير الأعمال (المبيعات والزيارات)', desc: 'أداء كل ASIN: الجلسات، المشاهدات، Buy Box، التحويل، الوحدات والمبيعات', importance: 'critical' },
+    { kind: 'amazon_settlement',   label: 'تقرير التسوية (Settlement)', desc: 'تسويات الدفعات الدورية وتفصيل الرسوم', importance: 'recommended' },
+    { kind: 'amazon_ads',          label: 'إعلانات Sponsored Products', desc: 'أداء حملات Sponsored Products على مستوى الـ Ad Group', importance: 'optional' },
+    { kind: 'amazon_sales_dashboard', label: 'لوحة المبيعات (ملخّص يومي)', desc: 'السلسلة اليومية للمبيعات والوحدات؛ تُربط بتقرير الأعمال لتوزيع الإجمالي زمنياً دون تكراره', importance: 'critical' },
   ],
 }
 
@@ -185,22 +184,22 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 </head>
 <body>
   <div class="print-bar">
-    <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+    <button onclick="window.print()">طباعة / حفظ PDF</button>
     <button class="alt" onclick="window.close()">إغلاق</button>
   </div>
   <div class="page">
   <div class="header">
-    <h1>📊 تقرير ${merchantName}</h1>
+    <h1>تقرير ${merchantName}</h1>
     <div class="sub">ملخص أداء ${monthName} — مُعدّ بواسطة فريق Sellpert</div>
     <div class="meta">
-      <div>📅 تاريخ التقرير: <b>${today}</b></div>
-      <div>🏪 رمز التاجر: <b>${merchantCode}</b></div>
-      <div>📁 الملفات المُعالجة: <b>${savedFiles.length}</b></div>
+      <div>تاريخ التقرير: <b>${today}</b></div>
+      <div>رمز التاجر: <b>${merchantCode}</b></div>
+      <div>الملفات المُعالجة: <b>${savedFiles.length}</b></div>
     </div>
   </div>
 
   <div class="section">
-    <h2>💰 الملخص المالي للشهر</h2>
+    <h2>الملخص المالي للشهر</h2>
     <div class="kpis">
       <div class="kpi"><div class="label">إجمالي المبيعات</div><div class="value">${Math.round(monthTotals.sales).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.orders} طلب</div></div>
       <div class="kpi orange"><div class="label">الإنفاق الإعلاني</div><div class="value">${Math.round(monthTotals.adSpend).toLocaleString('ar-SA')} ر.س</div><div class="sub">ROAS ${roas}${roas !== '—' ? 'x' : ''}</div></div>
@@ -211,7 +210,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 
   ${platformRows ? `
   <div class="section">
-    <h2>🏪 الأداء حسب المنصة</h2>
+    <h2>الأداء حسب المنصة</h2>
     <table>
       <thead><tr><th>المنصة</th><th>المبيعات</th><th>الطلبات</th><th>الإنفاق الإعلاني</th><th>ROAS</th></tr></thead>
       <tbody>${platformRows}</tbody>
@@ -219,7 +218,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   </div>` : ''}
 
   <div class="section">
-    <h2>📦 المخزون والطلبات الحالية</h2>
+    <h2>المخزون والطلبات الحالية</h2>
     <div class="kpis">
       <div class="kpi"><div class="label">إجمالي الطلبات</div><div class="value">${totalOrders.toLocaleString('ar-SA')}</div><div class="sub">${cancelled} ملغي</div></div>
       <div class="kpi"><div class="label">المخزون</div><div class="value">${totalInventory.toLocaleString('ar-SA')}</div><div class="sub">قطعة عبر كل المنصات</div></div>
@@ -230,7 +229,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 
   ${filesRows ? `
   <div class="section">
-    <h2>📁 الملفات المُعالجة في هذه الدفعة</h2>
+    <h2>الملفات المُعالجة في هذه الدفعة</h2>
     <table>
       <thead><tr><th>التقرير</th><th>المنصة</th><th>الصفوف المُعالجة</th></tr></thead>
       <tbody>${filesRows}</tbody>
@@ -859,8 +858,8 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     setBusy(false)
     const skippedNote = skipped > 0 ? ` · تُخطّي ${skipped} ملف مكرر` : ''
     setGlobalMsg(allErrors.length === 0
-      ? { type: 'ok',  text: `✅ تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}${skippedNote}` }
-      : { type: 'err', text: `⚠️ تم حفظ ${totalInserted.toLocaleString()} صف · ${allErrors.length} أخطاء${skippedNote} — راجع الملفات أدناه` })
+      ? { type: 'ok',  text: `تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}${skippedNote}` }
+      : { type: 'err', text: `تم حفظ ${totalInserted.toLocaleString()} صف مع ${allErrors.length} أخطاء${skippedNote} — راجع الملفات أدناه` })
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -905,7 +904,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
 
         {!merchantCode
           ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', fontSize: 12 }}>
-              ⚠️ اختر التاجر أولاً قبل رفع الملفات
+              اختر التاجر أولاً قبل رفع الملفات
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               {merchantMode
@@ -1040,9 +1039,9 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
                         data: { files: files.filter(f => f.stage === 'saved').length, rows: files.reduce((a, f) => a + (f.result?.inserted || 0), 0) }
                       })
                     })
-                    setGlobalMsg({ type: 'ok', text: '📲 تم إرسال إشعار واتساب للتاجر' })
+                    setGlobalMsg({ type: 'ok', text: 'تم إرسال إشعار واتساب للتاجر' })
                   }} style={{ ...S.btn, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    📲 إرسال على واتساب
+                    إرسال على واتساب
                   </button>}
                 </>
               )}
@@ -1050,7 +1049,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           </div>
           {!allValid && files.length > 0 && !anyParsing && !allDone && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--danger-text)' }}>
-              ⚠️ بعض الملفات بها أخطاء — لا يمكن الحفظ حتى تُحلّ أو تُحذف
+              بعض الملفات بها أخطاء — لا يمكن الحفظ حتى تُحلّ أو تُحذف
             </div>
           )}
         </div>
@@ -1137,7 +1136,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged, 
       const { error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: uploadId })
       if (error) throw error
       const { toastOk } = await import('../../components/Toast')
-      toastOk('✓ تم الحذف وإعادة بناء الأداء')
+      toastOk('تم الحذف وإعادة بناء الأداء')
       onChanged?.()
     } catch (e: any) {
       alert('فشل: ' + e.message)
@@ -1185,19 +1184,19 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged, 
                 border: `1px solid ${last ? 'var(--success-bg)' : 'var(--border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
               }}>
-                {last ? <CheckCircle2 size={14} color="var(--success-text)" /> : g.icon}
+                 {last ? <CheckCircle2 size={14} color="var(--success-text)" /> : <FileSpreadsheet size={14} color="var(--text3)" />}
               </div>
 
               {/* Info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{g.icon} {g.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{g.label}</span>
                   <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20,
                     background: importance.color + '15', color: importance.color, border: `1px solid ${importance.color}30`,
                   }}>{importance.label}</span>
                   {isPending && (
                     <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: color + '20', color: color }}>
-                      ⏳ في القائمة
+                      في قائمة الرفع
                     </span>
                   )}
                 </div>
@@ -1208,7 +1207,7 @@ function FileChecklist({ platform, color, lastUploads, pendingKinds, onChanged, 
                   <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: dependsMissing ? 'var(--warning-text)' : 'var(--text3)' }}>
                     <Link2 size={11} />
                     <span>{g.dependsNote}</span>
-                    {dependsMissing && <span style={{ color: 'var(--warning-text)', fontWeight: 700 }}>⚠ غير مرفوع بعد</span>}
+                    {dependsMissing && <span style={{ color: 'var(--warning-text)', fontWeight: 700 }}>غير مرفوع بعد</span>}
                   </div>
                 )}
               </div>
@@ -1331,7 +1330,7 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
       )}
       {v && v.warnings.length > 0 && (
         <div style={{ marginTop: 6, fontSize: 11, color: 'var(--warning-text)' }}>
-          {v.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+          {v.warnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}
 
@@ -1397,7 +1396,7 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
         <div style={{ marginTop: 8, fontSize: 11, color: entry.result.errors.length ? 'var(--danger-text)' : 'var(--success-text)', fontWeight: 600 }}>
           {entry.result.errors.length === 0
             ? <><CheckCircle2 size={11} style={{ verticalAlign: 'middle' }} /> حُفظ {entry.result.inserted.toLocaleString()} صف</>
-            : <>⚠ حُفظ {entry.result.inserted.toLocaleString()} · أخطاء: {entry.result.errors.slice(0, 2).join(' | ')}</>
+            : <>حُفظ {entry.result.inserted.toLocaleString()} · أخطاء: {entry.result.errors.slice(0, 2).join(' | ')}</>
           }
         </div>
       )}
@@ -1468,7 +1467,7 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
       // Toast
       try {
         const { toastOk } = await import('../../components/Toast')
-        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}`)
+        toastOk(`حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}`)
       } catch { /* */ }
       load()
     } catch (e: any) {
@@ -1523,14 +1522,14 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
         {uploads.map(u => {
           const displayStatus = uploadDisplayStatus(u.status, u.uploaded_at)
           const statusMeta = displayStatus === 'success'
-            ? { label: '✓ ناجح', color: 'var(--success-text)', bg: 'var(--success-bg)', border: 'var(--green)' }
+            ? { label: 'ناجح', color: 'var(--success-text)', bg: 'var(--success-bg)', border: 'var(--green)' }
             : displayStatus === 'partial'
-              ? { label: '⚠ جزئي', color: 'var(--warning-text)', bg: 'var(--warning-bg)', border: 'var(--gold)' }
+              ? { label: 'جزئي', color: 'var(--warning-text)', bg: 'var(--warning-bg)', border: 'var(--gold)' }
               : displayStatus === 'processing'
                 ? { label: 'قيد المعالجة', color: 'var(--warning-text)', bg: 'var(--warning-bg)', border: 'var(--gold)' }
                 : displayStatus === 'stalled'
                   ? { label: 'متعطل (أكثر من 30 دقيقة)', color: 'var(--danger-text)', bg: 'var(--danger-bg)', border: 'var(--red)' }
-                  : { label: displayStatus === 'failed' ? '✗ فشل' : 'غير معروف', color: 'var(--danger-text)', bg: 'var(--danger-bg)', border: 'var(--red)' }
+                  : { label: displayStatus === 'failed' ? 'فشل' : 'غير معروف', color: 'var(--danger-text)', bg: 'var(--danger-bg)', border: 'var(--red)' }
           return (
           <div key={u.id} style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',

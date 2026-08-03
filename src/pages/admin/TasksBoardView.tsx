@@ -25,18 +25,18 @@ const PRIORITIES: any = {
 }
 
 const CATEGORIES: any = {
-  ad_budget_increase: '⬆️ رفع ميزانية إعلانات',
-  ad_budget_decrease: '⬇️ خفض ميزانية إعلانات',
-  price_change:       '💲 تغيير سعر منتج',
-  shipping_change:    '🚚 تغيير شركة شحن',
-  inventory_update:   '📦 تحديث مخزون',
-  add_product:        '➕ إضافة منتج',
-  remove_product:     '🗑 حذف منتج',
-  update_info:        '✏️ تعديل بيانات',
-  inquiry:            '💬 استفسار',
-  complaint:          '⚠️ شكوى',
-  task:               '📋 مهمة عامة',
-  other:              '🔹 أخرى',
+  ad_budget_increase: 'رفع ميزانية إعلانات',
+  ad_budget_decrease: 'خفض ميزانية إعلانات',
+  price_change:       'تغيير سعر منتج',
+  shipping_change:    'تغيير شركة شحن',
+  inventory_update:   'تحديث مخزون',
+  add_product:        'إضافة منتج',
+  remove_product:     'حذف منتج',
+  update_info:        'تعديل بيانات',
+  inquiry:            'استفسار',
+  complaint:          'شكوى',
+  task:               'مهمة عامة',
+  other:              'أخرى',
 }
 
 interface Task {
@@ -176,7 +176,7 @@ export default function TasksBoardView({ merchants, currentUserCode, currentUser
 
       {/* Body */}
       {loading ? null : tasks.length === 0 ? (
-        <EmptyState icon="📭" title="لا توجد مهام" description={isEmployee ? 'لا توجد مهام مُسنَدة لك حالياً' : 'لم تُنشأ مهام أو تذاكر بعد'} />
+        <EmptyState icon={<AlertTriangle size={28} />} title="لا توجد مهام" description={isEmployee ? 'لا توجد مهام مُسنَدة لك حالياً' : 'لم تُنشأ مهام أو تذاكر بعد'} />
       ) : view === 'kanban' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
           {STATUSES.filter(s => !['rejected'].includes(s.key) || grouped[s.key].length > 0).map(s => (
@@ -292,7 +292,7 @@ function KanbanColumn({ status, tasks, merchants, staff, onUpdateStatus, onAssig
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: PRIORITIES[t.priority]?.color }}>{PRIORITIES[t.priority]?.label}</span>
-                {isOverdue && <span style={{ fontSize: 9, color: 'var(--danger-text)', fontWeight: 700 }}>⚠ متأخرة</span>}
+                {isOverdue && <span style={{ fontSize: 9, color: 'var(--danger-text)', fontWeight: 700 }}>متأخرة</span>}
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{t.title || t.note?.slice(0, 60) || '—'}</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>{CATEGORIES[t.category || t.type] || t.type}</div>
@@ -347,7 +347,7 @@ function CreateTaskModal({ merchants, staff, currentUserCode, currentUserRole, o
     const { error } = await supabase.from('merchant_requests').insert(payload)
     setSaving(false)
     if (error) toastErr(error.message)
-    else { toastOk('✓ أُنشئت المهمة'); onSaved() }
+    else { toastOk('أُنشئت المهمة'); onSaved() }
   }
   return (
     <Modal title="إنشاء مهمة جديدة" onClose={onClose}>
@@ -397,7 +397,7 @@ function CreateTaskModal({ merchants, staff, currentUserCode, currentUserRole, o
       </Field>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
         <button onClick={onClose} style={{ ...S.miniBtn, padding: '8px 16px' }}>إلغاء</button>
-        <button onClick={save} disabled={saving} style={{ ...S.addBtn }}>{saving ? '...' : '✓ إنشاء'}</button>
+        <button onClick={save} disabled={saving} style={{ ...S.addBtn }}>{saving ? '...' : 'إنشاء'}</button>
       </div>
     </Modal>
   )
@@ -490,7 +490,7 @@ function EditTaskModal({ task, staff, canEdit, onClose, onSaved, onDelete }: any
 
       {/* Comments */}
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>💬 التعليقات ({comments.length})</div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التعليقات ({comments.length})</div>
         <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
           {comments.map(c => (
             <div key={c.id} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
@@ -510,11 +510,11 @@ function EditTaskModal({ task, staff, canEdit, onClose, onSaved, onDelete }: any
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 14 }}>
         {canEdit ? (
-          <button onClick={onDelete} style={{ ...S.miniBtn, padding: '8px 16px', color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }}>🗑 حذف</button>
+          <button onClick={onDelete} style={{ ...S.miniBtn, padding: '8px 16px', color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }}>حذف</button>
         ) : <span />}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ ...S.miniBtn, padding: '8px 16px' }}>إغلاق</button>
-          <button onClick={save} disabled={saving} style={{ ...S.addBtn }}>{saving ? '...' : '💾 حفظ'}</button>
+          <button onClick={save} disabled={saving} style={{ ...S.addBtn }}>{saving ? '...' : 'حفظ'}</button>
         </div>
       </div>
     </Modal>

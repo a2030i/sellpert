@@ -4,10 +4,10 @@ import { userErrorMessage } from '../lib/userError'
 
 type Platform = 'trendyol' | 'noon' | 'amazon'
 
-const PLT_META: Record<Platform, { label: string; color: string; flag: string }> = {
-  trendyol: { label: 'تراندايول',  color: '#f27a1a', flag: '🇹🇷' },
-  noon:     { label: 'نون',         color: '#f5c518', flag: '🟡' },
-  amazon:   { label: 'أمازون',     color: '#ff9900', flag: '📦' },
+const PLT_META: Record<Platform, { label: string; color: string }> = {
+  trendyol: { label: 'تراندايول',  color: '#f27a1a' },
+  noon:     { label: 'نون',         color: '#f5c518' },
+  amazon:   { label: 'أمازون',     color: '#ff9900' },
 }
 
 const VAT = 15 // Saudi VAT %
@@ -62,7 +62,7 @@ export default function FeesView() {
       .update({ commission_rate: editCat.commission_rate, commission_fbn_fba: editCat.commission_fbn_fba, min_fee_sar: editCat.min_fee_sar, notes: editCat.notes, updated_at: new Date().toISOString() })
       .eq('id', editCat.id)
     if (error) { console.error('load fee references', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر تحميل مرجع الرسوم.') }) }
-    else { setMsg({ type: 'ok', text: '✅ تم تحديث نسبة العمولة' }); setEditCat(null); load() }
+    else { setMsg({ type: 'ok', text: 'تم تحديث نسبة العمولة' }); setEditCat(null); load() }
     setSaving(false)
   }
 
@@ -158,7 +158,7 @@ export default function FeesView() {
       {msg && (
         <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
-          <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
+          <button aria-label="إغلاق الرسالة" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>إغلاق</button>
         </div>
       )}
 
@@ -172,7 +172,7 @@ export default function FeesView() {
             color: activePlt === p ? PLT_META[p].color : 'var(--text2)',
             fontWeight: 700, fontSize: 14,
           }}>
-            <div style={{ fontSize: 20, marginBottom: 4 }}>{PLT_META[p].flag}</div>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: PLT_META[p].color, margin: '0 auto 8px' }} />
             {PLT_META[p].label}
           </button>
         ))}
@@ -193,7 +193,7 @@ export default function FeesView() {
                 </div>
               </div>
               <span style={{ fontSize: 11, background: meta.color + '20', color: meta.color, padding: '4px 12px', borderRadius: 20, fontWeight: 700 }}>
-                {meta.flag} {meta.label}
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, display: 'inline-block', marginLeft: 6 }} />{meta.label}
               </span>
             </div>
             <div style={{ overflowX: 'auto' }}>
@@ -293,7 +293,7 @@ export default function FeesView() {
                 <div key={fee.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>{fee.fee_label_ar}</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: fee.amount === 0 ? 'var(--accent2)' : 'var(--warning-text)' }}>
-                    {fee.amount === 0 ? '✓ مجاني' : fee.amount}
+                    {fee.amount === 0 ? 'مجاني' : fee.amount}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{fee.unit}</div>
                   {fee.notes && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6, lineHeight: 1.4 }}>{fee.notes}</div>}
@@ -379,7 +379,7 @@ export default function FeesView() {
             <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
 
             {/* Reverse calculator */}
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: 'var(--text2)' }}>↩ حساب سعر البيع من الصافي</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: 'var(--text2)' }}>حساب سعر البيع من الصافي</div>
             <div style={S.calcField}>
               <label style={S.calcLabel}>الصافي المستهدف (ر.س)</label>
               <input type="number" style={S.calcInput} value={targetNet} onChange={e => setTargetNet(e.target.value)} placeholder="مثال: 200" />
@@ -402,7 +402,7 @@ export default function FeesView() {
           {/* Source note */}
           <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
             <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.6 }}>
-              📌 البيانات مصدرها المنصات الرسمية (Seller Central / Noon Partners) — محدّثة حتى 2025-2026. قد تتغير النسب، يُنصح بمراجعتها دورياً.
+              البيانات مصدرها المنصات الرسمية (Seller Central / Noon Partners) — محدّثة حتى 2025-2026. قد تتغير النسب، يُنصح بمراجعتها دورياً.
             </div>
           </div>
         </div>
@@ -447,7 +447,7 @@ export default function FeesView() {
             )}
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={{ background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={saveCat} disabled={saving}>{saving ? '⟳' : '✓ حفظ'}</button>
+              <button style={{ background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={saveCat} disabled={saving}>{saving ? 'جاري الحفظ' : 'حفظ'}</button>
               <button style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', padding: '10px 18px', borderRadius: 10, fontSize: 13, cursor: 'pointer' }} onClick={() => setEditCat(null)}>إلغاء</button>
             </div>
           </div>

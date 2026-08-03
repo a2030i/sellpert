@@ -1,5 +1,5 @@
 import { useState, type ReactNode, type CSSProperties } from 'react'
-import { Inbox, Info, type LucideIcon } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Info, type LucideIcon } from 'lucide-react'
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 export function Skeleton({ width = '100%', height = 16, radius = 6, style }: { width?: number | string; height?: number | string; radius?: number; style?: CSSProperties }) {
@@ -182,10 +182,11 @@ const pgBtn: CSSProperties = {
 
 // ─── Sortable header ─────────────────────────────────────────────────────────
 export function Sortable({ label, dir, onClick }: { label: string; dir: 'asc' | 'desc' | null; onClick: () => void }) {
+  const DirectionIcon = dir === 'asc' ? ArrowUp : dir === 'desc' ? ArrowDown : ArrowUpDown
   return (
     <button onClick={onClick} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
       {label}
-      <span style={{ fontSize: 9, opacity: dir ? 1 : 0.35 }}>{dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : '↕'}</span>
+      <DirectionIcon size={13} strokeWidth={2} style={{ opacity: dir ? 1 : 0.45 }} aria-hidden="true" />
     </button>
   )
 }

@@ -56,7 +56,7 @@ export default function PermissionsEditor({ employee, canPromoteToManager = fals
       .eq('id', employee.id)
     setSaving(false)
     if (error) { console.error('save employee permissions', error); toastErr(userErrorMessage(error, 'تعذّر حفظ الصلاحيات.')) }
-    else { toastOk(`✓ تم حفظ ${arr.length} صلاحية لـ ${employee.name}`); onSaved(); onClose() }
+    else { toastOk(`تم حفظ ${arr.length} صلاحية لـ ${employee.name}`); onSaved(); onClose() }
   }
 
   const visiblePerms = search.trim()

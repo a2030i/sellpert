@@ -74,7 +74,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
       setWaConn(inserted)
     }
     setWaEditKey(false)
-    setMsg({ type: 'ok', text: '✓ تم حفظ إعدادات Respondly' })
+    setMsg({ type: 'ok', text: 'تم حفظ إعدادات Respondly' })
     await loadData()
     loadWaInfo()
   }
@@ -102,7 +102,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
     const extra = { ...(waConn.extra || {}), channel_id: channelId }
     const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
     if (error) { setMsg({ type: 'err', text: error.message }); return }
-    setMsg({ type: 'ok', text: '✓ تم تحديد القناة الافتراضية' })
+    setMsg({ type: 'ok', text: 'تم تحديد القناة الافتراضية' })
     loadData()
   }
 
@@ -111,7 +111,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
     const extra = { ...(waConn.extra || {}), events: waEvents }
     const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
     if (error) { setMsg({ type: 'err', text: error.message }); return }
-    setMsg({ type: 'ok', text: '✓ تم حفظ إعدادات الأحداث' })
+    setMsg({ type: 'ok', text: 'تم حفظ إعدادات الأحداث' })
     loadData()
   }
 
@@ -132,7 +132,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
     if (data.error) {
       setWaQr(null)
       const isPermission = data.error.includes('صلاحية') || data.error.includes('403')
-      setMsg({ type: 'err', text: isPermission ? '⛔ الـ API Token لا يملك صلاحية whatsapp — تأكد من تفعيل صلاحية "whatsapp" في لوحة Respondly' : `خطأ: ${data.error}` })
+      setMsg({ type: 'err', text: isPermission ? 'رمز API لا يملك صلاحية WhatsApp — تأكد من تفعيل الصلاحية في لوحة Respondly' : `خطأ: ${data.error}` })
       return
     }
     const instName = data.instance_name
@@ -154,7 +154,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
         clearInterval(waQrPollRef.current!)
         waQrPollRef.current = null
         setWaQr(null)
-        setMsg({ type: 'ok', text: '✅ تم ربط الرقم بنجاح!' })
+        setMsg({ type: 'ok', text: 'تم ربط الرقم بنجاح' })
         loadWaInfo()
         return
       }
@@ -166,7 +166,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
   async function deleteChannel(instName: string) {
     const data = await waCall('delete_instance', { instance_name: instName })
     if (data.error) { setMsg({ type: 'err', text: data.error }); return }
-    setMsg({ type: 'ok', text: '✓ تم حذف الرقم' })
+    setMsg({ type: 'ok', text: 'تم حذف الرقم' })
     loadWaInfo()
   }
 
@@ -179,7 +179,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
       {msg && (
         <div style={{ ...S.msgBox, ...(msg.type === 'err' ? S.msgErr : S.msgOk), marginBottom: 16 }}>
           {msg.text}
-          <button style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setMsg(null)}>✕</button>
+          <button aria-label="إغلاق الرسالة" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginRight: 10 }} onClick={() => setMsg(null)}>إغلاق</button>
         </div>
       )}
 
@@ -190,7 +190,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
         <div>
           {(!waConn || waEditKey) ? (
             <div style={{ ...S.formCard, borderColor: '#25D366' }}>
-              <div style={{ ...S.formTitle, color: '#25D366' }}>📱 ربط Respondly واتساب</div>
+              <div style={{ ...S.formTitle, color: '#25D366' }}>ربط Respondly واتساب</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={S.label}>اسم مرجعي</label>
@@ -202,19 +202,19 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button style={S.saveBtn} onClick={saveWaConnection} disabled={waSaving}>{waSaving ? '⟳ جاري الحفظ...' : '✓ حفظ وربط'}</button>
+                <button style={S.saveBtn} onClick={saveWaConnection} disabled={waSaving}>{waSaving ? 'جاري الحفظ...' : 'حفظ وربط'}</button>
                 {waEditKey && <button style={S.miniBtn} onClick={() => setWaEditKey(false)}>إلغاء</button>}
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 12, background: 'var(--surface2)', border: '1.5px solid #25D36633', marginBottom: 20 }}>
-              <span style={{ fontSize: 20 }}>🟢</span>
+              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: '#25D366', display: 'inline-block' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>Respondly مربوط</div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'monospace' }}>{waConn.api_key?.slice(0, 12)}••••••••</div>
               </div>
-              <button style={S.miniBtn} onClick={() => { setWaForm({ label: waConn.label, api_key: '', base_url: waConn.extra?.base_url || '' }); setWaEditKey(true) }}>✏️ تعديل</button>
-              <button style={{ ...S.miniBtn, color: '#25D366', borderColor: '#25D366' }} onClick={loadWaInfo} disabled={waLoading}>{waLoading ? '⟳' : '🔄 تحديث'}</button>
+              <button style={S.miniBtn} onClick={() => { setWaForm({ label: waConn.label, api_key: '', base_url: waConn.extra?.base_url || '' }); setWaEditKey(true) }}>تعديل</button>
+              <button style={{ ...S.miniBtn, color: '#25D366', borderColor: '#25D366' }} onClick={loadWaInfo} disabled={waLoading}>{waLoading ? 'جاري التحديث' : 'تحديث'}</button>
             </div>
           )}
 
@@ -225,8 +225,8 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
                   <div style={S.tableCard}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>📱 القنوات</span>
-                      <button style={{ ...S.miniBtn, background: '#25D366', color: '#fff', borderColor: '#25D366', fontSize: 12 }} onClick={startQrConnect} disabled={!!waQr}>{waQr ? '⟳ جاري...' : '➕ ربط رقم جديد'}</button>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>القنوات</span>
+                      <button style={{ ...S.miniBtn, background: '#25D366', color: '#fff', borderColor: '#25D366', fontSize: 12 }} onClick={startQrConnect} disabled={!!waQr}>{waQr ? 'جاري الربط...' : 'ربط رقم جديد'}</button>
                     </div>
                     {waQr && (
                       <div style={{ padding: 20, borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
@@ -256,14 +256,14 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{ch.display_phone || ch.business_name || ch.evolution_instance_name || ch.id}</div>
                             <div style={{ fontSize: 11, color: 'var(--text3)' }}>{isConnected ? 'متصل' : 'غير متصل'}</div>
                           </div>
-                          <button style={{ ...S.miniBtn, ...(isDefault ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}), fontSize: 11 }} onClick={() => saveWaDefaultChannel(ch.id)}>{isDefault ? '✓ افتراضي' : 'اختر'}</button>
-                          {ch.evolution_instance_name && <button style={{ ...S.miniBtn, color: 'var(--red)', fontSize: 11 }} onClick={() => deleteChannel(ch.evolution_instance_name)}>🗑</button>}
+                          <button style={{ ...S.miniBtn, ...(isDefault ? { background: '#25D366', color: '#fff', borderColor: '#25D366' } : {}), fontSize: 11 }} onClick={() => saveWaDefaultChannel(ch.id)}>{isDefault ? 'افتراضي' : 'اختر'}</button>
+                          {ch.evolution_instance_name && <button style={{ ...S.miniBtn, color: 'var(--red)', fontSize: 11 }} onClick={() => deleteChannel(ch.evolution_instance_name)}>حذف</button>}
                         </div>
                       )
                     })}
                   </div>
                   <div style={S.tableCard}>
-                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>📋 القوالب</div>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>القوالب</div>
                     {waTemplates.length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>لا توجد قوالب — الإرسال كرسائل نصية</div> : (
                       <div style={{ maxHeight: 280, overflowY: 'auto' as const }}>
                         {waTemplates.map((t: any, i: number) => (
@@ -279,7 +279,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
               )}
 
               <div style={S.tableCard}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>⚡ الأحداث والإشعارات</div>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>الأحداث والإشعارات</div>
                 <table style={S.table}>
                   <thead><tr>{['الحدث', 'التوضيح', 'مفعّل', 'القالب'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                   <tbody>
@@ -310,7 +310,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
                   </tbody>
                 </table>
                 <div style={{ padding: '12px 16px' }}>
-                  <button style={S.saveBtn} onClick={saveWaEvents}>✓ حفظ إعدادات الأحداث</button>
+                  <button style={S.saveBtn} onClick={saveWaEvents}>حفظ إعدادات الأحداث</button>
                 </div>
               </div>
             </>

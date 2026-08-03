@@ -683,7 +683,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
               padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
               background: activePlatform === p ? (PLATFORM_COLORS[p] || 'var(--accent)') : 'var(--surface2)',
               color: activePlatform === p ? '#fff' : 'var(--text2)',
-            }}>{PLATFORM_MAP[p] || p} {has && '✓'}</button>
+            }}>{PLATFORM_MAP[p] || p} {has && '— مفعّل'}</button>
           )
         })}
       </div>

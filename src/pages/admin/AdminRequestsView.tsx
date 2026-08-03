@@ -41,7 +41,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
       resolved_at: new Date().toISOString(),
     }).eq('id', editReq.id)
     if (error) setMsg({ type: 'err', text: error.message })
-    else { setMsg({ type: 'ok', text: '✅ تم تحديث الطلب' }); setEditReq(null); load() }
+    else { setMsg({ type: 'ok', text: 'تم تحديث الطلب' }); setEditReq(null); load() }
     setSaving(false)
   }
 
@@ -62,7 +62,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
       {msg && (
         <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
-          <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
+          <button aria-label="إغلاق الرسالة" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>إغلاق</button>
         </div>
       )}
 
@@ -144,7 +144,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
                 value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="تفاصيل الرد أو سبب الرفض..." />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={{ background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={resolve} disabled={saving}>{saving ? '⟳' : '✓ حفظ'}</button>
+              <button style={{ background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={resolve} disabled={saving}>{saving ? 'جاري الحفظ' : 'حفظ'}</button>
               <button style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', padding: '10px 18px', borderRadius: 10, fontSize: 13, cursor: 'pointer' }} onClick={() => setEditReq(null)}>إلغاء</button>
             </div>
           </div>

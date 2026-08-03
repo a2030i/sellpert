@@ -101,7 +101,7 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
                     return (
                       <td key={i} style={{ padding: '12px 14px', fontSize: 13, fontWeight: isBest || isWorst ? 800 : 600, color: isBest ? '#00b894' : isWorst ? '#e84040' : 'var(--text)', background: bg }}>
                         {m.format(v)}
-                        {isBest && products.length > 1 && <span style={{ fontSize: 9, marginRight: 6, color: '#00b894' }}> ★</span>}
+                        {isBest && products.length > 1 && <span style={{ fontSize: 9, marginRight: 6, color: '#00b894' }}>الأفضل</span>}
                       </td>
                     )
                   })}

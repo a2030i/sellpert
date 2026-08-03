@@ -195,7 +195,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
       {loading ? (
         <div style={{ ...S.tableCard, padding: 18 }}>{Array.from({ length: 7 }).map((_, index) => <Skeleton key={index} height={42} style={{ marginBottom: 7 }} />)}</div>
       ) : records.length === 0 ? (
-        <EmptyState icon="📭" title="لا توجد عمليات مطابقة" description="غيّر الفلاتر أو ارفع أول ملف لتظهر تفاصيله هنا" />
+        <EmptyState icon={<FileText size={28} />} title="لا توجد عمليات مطابقة" description="غيّر الفلاتر أو ارفع أول ملف لتظهر تفاصيله هنا" />
       ) : (
         <div style={S.tableCard}>
           <div style={{ overflowX: 'auto' }}>
@@ -231,7 +231,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
           <div onClick={event => event.stopPropagation()} style={{ width: 'min(680px,100%)', maxHeight: '88vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: '0 22px 60px rgba(0,0,0,.35)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
               <div><div style={{ fontSize: 16, fontWeight: 800 }}>تفاصيل عملية الرفع</div><div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{selected.id}</div></div>
-              <button aria-label="إغلاق التفاصيل" onClick={() => setSelected(null)} style={S.miniBtn}>✕</button>
+              <button aria-label="إغلاق التفاصيل" onClick={() => setSelected(null)} style={S.miniBtn}>إغلاق</button>
             </div>
             <Detail label="اسم الملف" value={selected.file_name || '—'} wide />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 9 }}>

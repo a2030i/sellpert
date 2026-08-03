@@ -35,7 +35,7 @@ function PayoutEditor({ merchants }: { merchants: any[] }) {
     })
     setSaving(false)
     if (error) { toastErr(error.message); return }
-    toastOk('✅ أُضيف موعد التحويل — سيظهر للتاجر فوراً')
+    toastOk('أُضيف موعد التحويل وسيظهر للتاجر فورًا')
     setAmount(''); setNote('')
     supabase.from('merchant_payout_schedule').select('*').eq('merchant_code', mc).order('payout_date', { ascending: false }).limit(20)
       .then(({ data }) => setList(data || []))
@@ -52,7 +52,7 @@ function PayoutEditor({ merchants }: { merchants: any[] }) {
 
   return (
     <div style={{ ...S.chartCard, marginBottom: 20, padding: 20, borderRight: '4px solid var(--accent)' }}>
-      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>💰 مواعيد التحويل للتاجر</div>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>مواعيد التحويل للتاجر</div>
       <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>أدخل متى وكم يصل التاجر مستحقاته — يظهر له فوراً في «القادم لحسابك»</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
         <select aria-label="التاجر لموعد التحويل" value={mc} onChange={e => setMc(e.target.value)} style={S.input as any}>
@@ -130,7 +130,7 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
       })
       const data = await res.json()
       if (data.error) { setMsg({ type: 'err', text: data.error }); return }
-      setMsg({ type: 'ok', text: `✅ تم حفظ ${data.inserted} سجل بنجاح` })
+      setMsg({ type: 'ok', text: `تم حفظ ${data.inserted} سجل بنجاح` })
       setLog(p => [...toSave.map(r => ({
         date: r.data_date,
         merchant: merchants.find(m => m.merchant_code === r.merchant_code)?.name || r.merchant_code,
@@ -198,7 +198,7 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
         <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
           <button style={{ ...S.btn, background: 'var(--accent)', color: '#fff', flex: 1 }} onClick={addRow}>+ إضافة للقائمة</button>
           <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', flex: 1 }} onClick={submit} disabled={saving}>
-            {saving ? '⟳ جاري الحفظ...' : `💾 حفظ${rows.length > 0 ? ` (${rows.length} سجل)` : ' مباشرة'}`}
+            {saving ? 'جاري الحفظ...' : `حفظ${rows.length > 0 ? ` (${rows.length} سجل)` : ' مباشرة'}`}
           </button>
         </div>
       </div>
@@ -207,7 +207,7 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
         <div style={{ ...S.chartCard, marginBottom: 20 }}>
           <div style={{ padding: '14px 16px', fontWeight: 700, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>سجلات في الانتظار ({rows.length})</span>
-            <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', fontSize: 12 }} onClick={submit} disabled={saving}>{saving ? '⟳' : '💾 حفظ الكل'}</button>
+            <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', fontSize: 12 }} onClick={submit} disabled={saving}>{saving ? 'جاري الحفظ' : 'حفظ الكل'}</button>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={S.table}>

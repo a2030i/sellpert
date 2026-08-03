@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   AlertTriangle, CheckCircle2, CircleX, Clock3, Database, FileCheck2,
-  Gauge, HardDrive, Link2Off, RefreshCw, ServerCog, ShoppingBag,
+  ExternalLink, Gauge, HardDrive, Link2Off, RefreshCw, ServerCog, ShoppingBag,
   Store, Webhook, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -205,7 +205,7 @@ export default function DBHealthView() {
           {dbAlert !== 'ok' && plan === 'free' && (
             <a href="https://supabase.com/pricing" target="_blank" rel="noopener noreferrer"
               style={{ marginRight: 'auto', background: 'var(--accent-strong)', color: '#fff', padding: '8px 18px', borderRadius: 10, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
-              ترقية الآن ↗
+              ترقية الآن <ExternalLink size={13} aria-hidden="true" />
             </a>
           )}
         </div>
