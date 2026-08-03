@@ -101,6 +101,17 @@ AS $function$
   )
 $function$;
 
+CREATE OR REPLACE FUNCTION security.has_any_platform_permission(p_permissions text[])
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT COALESCE(bool_or(security.has_platform_permission(permission)), false)
+  FROM unnest(p_permissions) permission
+$$;
+
 CREATE OR REPLACE FUNCTION security.current_has_merchant_permission(p_permission text)
  RETURNS boolean
  LANGUAGE sql
