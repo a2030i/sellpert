@@ -482,8 +482,8 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={S.logoIcon}>S</div>
                 <div>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: '#f5fafc', lineHeight: 1.25, fontFamily: 'var(--font-heading)' }}>Sellpert</div>
-                  <div style={{ fontSize: 11, color: '#9fb5c2', fontWeight: 500, marginTop: 2 }}>لوحة التاجر</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#f5fafc', lineHeight: 1.3, fontFamily: 'var(--font-heading)' }}>Sellpert</div>
+                  <div style={{ fontSize: 12, color: '#9fb5c2', fontWeight: 400, marginTop: 3 }}>لوحة التاجر</div>
                 </div>
               </div>
               {activeMerchant?.role !== 'employee' && <AccountSwitcher currentCode={activeMerchant?.merchant_code} onSwitch={async (code) => {
@@ -515,7 +515,7 @@ export default function App() {
                 paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
                 borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
               }}>
-                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-heading)', cursor: 'pointer', textAlign: 'right' }}>
+                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.45, cursor: 'pointer', textAlign: 'right' }}>
                   <span style={{ flex: 1 }}>{group.label}</span>
                   <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                 </button>
@@ -552,8 +552,8 @@ export default function App() {
                   : <div style={S.merchantAvatar}>{activeMerchant.name?.[0] || 'T'}</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f7fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
-                  <div style={{ fontSize: 11, color: '#9db1bd', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f7fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
+                  <div style={{ fontSize: 12, color: '#9db1bd', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
                 </div>
               </div>
             )}
@@ -696,7 +696,7 @@ const S: Record<string, React.CSSProperties> = {
   navItem: {
     display: 'flex', alignItems: 'center', gap: 11,
     padding: '10px 12px', cursor: 'pointer',
-    fontSize: 14, fontWeight: 500,
+    fontSize: 13, fontWeight: 500, lineHeight: 1.45,
     color: '#b8c9d2', width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'inherit', textAlign: 'right',
   },

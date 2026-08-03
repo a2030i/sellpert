@@ -52,9 +52,9 @@
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
   --font-body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'Alexandria', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
   --t-micro:11px; --t-cap:12px; --t-label:13px; --t-sm:14px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
-  --w-regular:500; --w-medium:600; --w-bold:700; --w-heavy:800;
+  --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
   --lh-base:1.7; --lh-tight:1.25;
 
@@ -117,6 +117,9 @@ body {
   line-height: var(--lh-base);
   direction: rtl;
   transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body.ltr {
@@ -124,34 +127,40 @@ body.ltr {
   font-family: var(--font-body);
 }
 
-/* نظام الخطوط المؤسسي: كوفي واضح للعناوين، ونسخ عربي مريح للمحتوى الطويل. */
-:where(h1, h2, h3, h4, h5, h6) {
+/* نظام الخطوط المؤسسي: Alexandria للعناوين البارزة، وIBM Plex Arabic للمحتوى والعمل اليومي. */
+:where(h1, h2) {
   font-family: var(--font-heading) !important;
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.4;
   letter-spacing: 0;
   text-wrap: balance;
+}
+
+:where(h3, h4, h5, h6) {
+  font-family: var(--font-body) !important;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
 }
 
 :where(button, input, select, textarea, table) {
   font-family: var(--font-body) !important;
 }
 
-:where(p, li, td, th, label, input, select, textarea, button) {
-  line-height: 1.65;
+:where(p, li, label, input, select, textarea, button) {
+  line-height: 1.6;
 }
 
-main h1 { font-size: 26px !important; }
-main h2 { font-size: 20px !important; }
-main h3 { font-size: 16px !important; }
-main h4 { font-size: 14px !important; }
-body p { font-size: var(--t-sm) !important; }
-body small { font-size: var(--t-cap) !important; line-height: 1.55; }
-body label { font-size: var(--t-label) !important; }
-body table { font-size: var(--t-label) !important; }
-body table :where(th, td) { font-size: inherit !important; }
-table th { font-weight: 600; }
-input, select, textarea { font-size: var(--t-sm); }
+main h1 { font-size: 26px; }
+main h2 { font-size: 21px; }
+main h3 { font-size: 16px; }
+main h4 { font-size: 14px; }
+body small { line-height: 1.5; }
+body table { font-size: var(--t-label); line-height: 1.5; }
+table th { font-size: 12px; font-weight: 600; line-height: 1.45; }
+table td { font-size: 13px; line-height: 1.55; }
+input, select, textarea { font-size: var(--t-sm); font-weight: 400; }
+button { font-size: 13px; font-weight: 500; }
 
 main :where(
   [class*="-label"], [class*="__label"],
@@ -172,7 +181,7 @@ main :where(
 }
 
 /* أسماء الأصناف التي تمثل عناوين بصرية حتى إن لم تستخدم عنصر heading. */
-:where([class*="-title"], [class*="__title"], [class*="-heading"], [class*="__heading"]) {
+:where(.page-title, .db-header h1, .actions-header h1) {
   font-family: var(--font-heading) !important;
   letter-spacing: 0 !important;
 }
@@ -203,7 +212,7 @@ body :where(
     -webkit-overflow-scrolling: touch;
   }
   /* Default table cells smaller on mobile */
-  table { font-size: 11px; }
+  table { font-size: 12px; }
   table th, table td { padding: 6px 8px; }
 
   /* Modals full-screen on mobile */
@@ -238,9 +247,9 @@ body :where(
   input, select, textarea {
     font-size: 16px !important; /* prevents iOS zoom on focus */
   }
-  main h1 { font-size: 23px !important; }
-  main h2 { font-size: 18px !important; }
-  main h3 { font-size: 15px !important; }
+  main h1 { font-size: 23px; }
+  main h2 { font-size: 19px; }
+  main h3 { font-size: 15px; }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────── */
@@ -373,11 +382,13 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   --text: #f5fafc;
   --text2: #a9bdc9;
   --text3: #7893a3;
+  font-family: var(--font-body);
 }
 
 .sidebar-dark .nav-item {
   border-radius: 7px;
   margin-inline: 10px;
+  line-height: 1.45;
 }
 
 .sidebar-dark .nav-item.active {
