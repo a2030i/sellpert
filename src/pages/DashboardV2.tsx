@@ -14,6 +14,7 @@ type RangeKey = '30' | '90' | '180'
 type InventoryHealthRow = {
   sku: string | null; product_name: string | null; quantity: number; cost_price: number
   stock_value_cost: number; daily_velocity: number; sold_30d: number; days_of_stock: number | null; health_status: string
+  data_as_of: string | null; data_age_days: number | null
 }
 type ProfitabilityRow = {
   product_id: string; sku: string | null; product_name: string | null; cost_price: number
@@ -81,7 +82,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         .select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,discount_amount,currency,customer_city,order_date,created_at')
         .eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(from, to), 'طلبات مركز القرارات'),
       fetchAll<InventoryHealthRow>((from, to) => supabase.from('inventory_health')
-        .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status')
+        .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status,data_as_of,data_age_days')
         .eq('merchant_code', merchantCode).range(from, to), 'صحة المخزون'),
       supabase.from('platform_file_uploads').select('created_at').eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('platform_credentials').select('last_sync_at').eq('merchant_code', merchantCode).order('last_sync_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
@@ -138,6 +139,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     const returnLeakage = profitability.reduce((sum, row) => sum + Number(row.returns_amount || 0), 0)
     const velocityCovered = inventory.filter(row => Number(row.daily_velocity || 0) > 0 || Number(row.sold_30d || 0) > 0).length
     const outOfStock = inventory.filter(row => row.health_status === 'out_of_stock').length
+    const inventoryDataAgeDays = inventory.reduce((oldest, row) => row.data_age_days == null ? oldest : Math.max(oldest, Number(row.data_age_days)), 0)
 
     const adSpend = ads.reduce((sum, row) => sum + Number(row.total_spend || 0), 0)
     const adNet = ads.reduce((sum, row) => sum + Number(row.total_net || 0), 0)
@@ -168,7 +170,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       costedProducts, costCoverage: profitability.length ? costedProducts / profitability.length * 100 : 0,
       totalProducts: profitability.length, soldProducts: soldProducts.length, confirmedLosses,
       returnLeakage, velocityCoverage: inventory.length ? velocityCovered / inventory.length * 100 : 0,
-      inventoryItems: inventory.length, outOfStock, adSpend, adNet, adRoas, bestChannel,
+      inventoryItems: inventory.length, outOfStock, inventoryDataAgeDays, adSpend, adNet, adRoas, bestChannel,
       cashChart, latestCash, classAProducts: classA.length, concentration,
     }
   }, [orders, inventory, profitability, cashflow, ads, abc, range])
@@ -178,13 +180,18 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       Icon: Database, tone: 'red', priority: 'أولوية قصوى',
       title: `أدخل تكلفة الشراء لـ ${(model.totalProducts - model.costedProducts).toLocaleString('ar-SA-u-nu-latn')} منتج`,
       detail: 'بدون التكلفة لا يمكن اعتماد صافي الربح أو هامش المنتج أو قرار زيادة الإعلان.',
-      impact: 'يفتح الربحية الحقيقية', cta: 'استكمال التكاليف', path: '/products',
+      impact: 'يفتح الربحية الحقيقية', cta: 'استكمال التكاليف', path: '/products?costs=import',
     } : null,
     model.velocityCoverage === 0 && model.inventoryItems > 0 ? {
       Icon: Boxes, tone: 'amber', priority: 'جودة بيانات',
       title: 'اربط حركة البيع بالمخزون قبل قرارات إعادة الطلب',
       detail: `${model.outOfStock.toLocaleString('ar-SA-u-nu-latn')} صنفًا يظهر نافدًا، لكن سرعة البيع غير محسوبة؛ إعادة الشراء الآن قد تكون قرارًا مضللًا.`,
       impact: 'يمنع شراء مخزون راكد', cta: 'مراجعة المخزون', path: '/inventory',
+    } : model.inventoryDataAgeDays > 2 ? {
+      Icon: RefreshCw, tone: 'amber', priority: 'تحديث مطلوب',
+      title: `بيانات حركة المخزون متأخرة ${model.inventoryDataAgeDays.toLocaleString('ar-SA-u-nu-latn')} يومًا`,
+      detail: 'تم احتساب السرعة من آخر نافذة مبيعات متاحة، لكن قرارات إعادة الطلب تحتاج مزامنة حديثة.',
+      impact: 'قرارات شراء أحدث', cta: 'تحديث البيانات', path: '/integrations',
     } : null,
     model.confirmedLosses.length > 0 ? {
       Icon: AlertTriangle, tone: 'red', priority: 'خسارة مؤكدة',
@@ -222,7 +229,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         <div className="db-trust-copy"><span className="db-eyebrow"><ShieldCheck size={14} /> موثوقية القرار</span><h2 id="trust-title">لا تعتمد صافي الربح حتى تكتمل تكاليف المنتجات</h2><p>المبيعات والرسوم والتدفقات النقدية متاحة، لكن تكلفة الشراء مكتملة في {percent(model.costCoverage)} فقط من المنتجات.</p></div>
         <div className="db-coverage-grid">
           <Coverage label="تكلفة المنتجات" value={model.costCoverage} detail={`${model.costedProducts} من ${model.totalProducts}`} tone={model.costCoverage === 100 ? 'good' : 'critical'} />
-          <Coverage label="ربط حركة المخزون" value={model.velocityCoverage} detail={`${model.inventoryItems} صنفًا`} tone={model.velocityCoverage > 70 ? 'good' : 'warning'} />
+          <Coverage label="ربط حركة المخزون" value={model.velocityCoverage} detail={`${model.inventoryItems} صنفًا${model.inventoryDataAgeDays ? ` · متأخرة ${model.inventoryDataAgeDays} يومًا` : ''}`} tone={model.velocityCoverage > 70 && model.inventoryDataAgeDays <= 2 ? 'good' : 'warning'} />
         </div>
       </section>
 

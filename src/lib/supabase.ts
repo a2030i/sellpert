@@ -216,6 +216,12 @@ export interface Product {
   name: string
   sku?: string
   barcode?: string
+  external_id?: string
+  model_code?: string
+  supplier_sku?: string
+  psku_code?: string
+  noon_sku_child?: string
+  asin?: string
   category?: string
   description?: string
   image_url?: string

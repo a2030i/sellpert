@@ -114,7 +114,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     if (error) {
       setMsg({ type:'err', text: error.message.includes('unique') ? 'هذا المنتج موجود مسبقاً على هذه المنصة' : error.message })
     } else {
-      setMsg({ type:'ok', text:'✓ تمت إضافة المنتج' })
+      setMsg({ type:'ok', text:'تمت إضافة المنتج' })
       setAddForm({ sku:'', product_name:'', platform:'warehouse', quantity:0, low_stock_threshold:10, cost_price:0 })
       setShowAdd(false)
       loadInventory()
@@ -183,11 +183,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
               style={{ ...S.addBtn, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', boxShadow: 'none' }}
               onClick={sendLowStockAlert} disabled={alertSending}
             >
-              {alertSending ? '⟳ جاري...' : `📲 تنبيه واتساب (${stats.low + stats.out})`}
+              {alertSending ? 'جارٍ الإرسال...' : `إرسال تنبيه واتساب (${stats.low + stats.out})`}
             </button>
           )}
           <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
-            {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
+            {showAdd ? 'إلغاء' : 'إضافة منتج'}
           </button>
         </div>
       </div>
@@ -216,7 +216,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       {msg && (
         <div style={{ ...S.msgBox, ...(msg.type==='err' ? S.msgErr : S.msgOk), marginBottom:16 }}>
           {msg.text}
-          <button style={{ background:'transparent', border:'none', color:'inherit', cursor:'pointer', marginRight:10 }} onClick={() => setMsg(null)}>✕</button>
+          <button style={{ background:'transparent', border:'none', color:'inherit', cursor:'pointer', marginRight:10 }} onClick={() => setMsg(null)} aria-label="إغلاق">×</button>
         </div>
       )}
 
@@ -251,7 +251,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
             </div>
           </div>
           <button style={S.saveBtn} onClick={addItem} disabled={saving}>
-            {saving ? '⟳ جاري...' : '✓ إضافة'}
+            {saving ? 'جارٍ الحفظ...' : 'إضافة'}
           </button>
         </div>
       )}
@@ -314,7 +314,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                     </div>
                     {(isLow || isOut) && (
                       <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20, background:isOut?'var(--danger-bg)':'var(--warning-bg)', color:isOut?'var(--danger-text)':'var(--warning-text)' }}>
-                        {isOut ? '🚨 نفذ المخزون' : '⚠️ مخزون منخفض'}
+                        {isOut ? 'نفد المخزون' : 'مخزون منخفض'}
                       </span>
                     )}
                   </div>
@@ -344,9 +344,9 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                               min={0}
                             />
                             <button style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }} onClick={() => updateQty(item.id)} disabled={saving}>
-                              {saving ? '...' : '✓'}
+                              {saving ? '...' : 'حفظ'}
                             </button>
-                            <button style={S.miniBtn} onClick={() => setEditId(null)}>✕</button>
+                            <button style={S.miniBtn} onClick={() => setEditId(null)}>إلغاء</button>
                           </>
                         ) : (
                           <>
@@ -356,7 +356,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                             <button
                               style={S.miniBtn}
                               onClick={() => { setEditId(item.id); setEditQty(item.quantity) }}
-                            >✏️ تعديل</button>
+                            >تعديل</button>
                           </>
                         )}
                       </div>
@@ -419,10 +419,13 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
     const reorder   = data.filter(r => r.health_status === 'reorder_soon').length
     const slow      = data.filter(r => r.health_status === 'slow_mover').length
     const out       = data.filter(r => r.health_status === 'out_of_stock').length
+    const velocityRows = data.filter(r => Number(r.sold_30d) > 0).length
+    const velocityCoverage = data.length ? velocityRows / data.length * 100 : 0
+    const dataAgeDays = data.reduce((oldest, row) => row.data_age_days == null ? oldest : Math.max(oldest, Number(row.data_age_days)), 0)
     const stockoutCost = data
       .filter(r => r.health_status === 'out_of_stock' && Number(r.daily_velocity) > 0)
       .reduce((a, r) => a + (Number(r.daily_velocity) * Number(r.selling_price || 0) * 30), 0)
-    return { sumCost, sumRetail, reorder, slow, out, stockoutCost }
+    return { sumCost, sumRetail, reorder, slow, out, stockoutCost, velocityRows, velocityCoverage, dataAgeDays }
   }, [data])
 
   const reorderList = useMemo(() => data.filter(r => r.health_status === 'reorder_soon')
@@ -435,21 +438,23 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>صحة المخزون</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}><div><div style={{ fontSize: 14, fontWeight: 800 }}>صحة المخزون</div><div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>سرعة البيع محسوبة من آخر نافذة طلبات متاحة لكل منصة.</div></div><div style={{ fontSize: 11, fontWeight: 700, color: stats.dataAgeDays > 2 ? 'var(--warning-text)' : 'var(--accent)', background: stats.dataAgeDays > 2 ? 'var(--warning-bg)' : 'var(--success-bg)', padding: '5px 10px', borderRadius: 7 }}>{stats.dataAgeDays > 2 ? `البيانات متأخرة ${stats.dataAgeDays} يومًا` : 'البيانات حديثة'}</div></div>
+
+      {stats.dataAgeDays > 2 ? <div style={{ padding: '10px 12px', marginBottom: 14, borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: 11, lineHeight: 1.8 }}>مؤشرات السرعة وإعادة الطلب تاريخية حتى تتم مزامنة الطلبات والمخزون من صفحة الربط ورفع الملفات. لا تعتمد أمر شراء جديد قبل التحديث.</div> : null}
 
       {/* Value KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
         <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#0f958c" />
         <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="var(--green)" />
-        <HKpi label="هامش متوقّع" value={fmt(stats.sumRetail - stats.sumCost)} sub={stats.sumCost > 0 ? (((stats.sumRetail - stats.sumCost)/stats.sumCost)*100).toFixed(0)+'%' : '—'} color="var(--info-text)" />
-        <HKpi label="خسائر النفاد المتوقّعة" value={fmt(stats.stockoutCost)} sub="30 يوم" color="var(--red)" />
+        <HKpi label="تغطية حركة البيع" value={stats.velocityCoverage.toFixed(0) + '%'} sub={`${stats.velocityRows} من ${data.length} صنف`} color="var(--info-text)" />
+        <HKpi label="مبيعات معرضة بسبب النفاد" value={fmt(stats.stockoutCost)} sub={stats.dataAgeDays > 2 ? 'تقدير تاريخي · حدّث البيانات' : 'تقدير 30 يومًا'} color="var(--red)" />
       </div>
 
       {/* Status counts */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, fontSize: 12 }}>
-        <span style={pill('#e84040')}>🚨 نفد: <b>{stats.out}</b></span>
+        <span style={pill('#e84040')}>نفد: <b>{stats.out}</b></span>
         <span style={pill('#ff9900')}>⏳ إعادة طلب قريبة: <b>{stats.reorder}</b></span>
-        <span style={pill('#a598ff')}>🐌 بطيء الحركة (30+ يوم): <b>{stats.slow}</b></span>
+        <span style={pill('#a598ff')}>بطيء الحركة (30+ يوم): <b>{stats.slow}</b></span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -473,7 +478,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
         {/* Slow movers */}
         {slowList.length > 0 && (
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#a598ff', marginBottom: 8 }}>🐌 منتجات بطيئة الحركة (رأس مال مجمّد)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#a598ff', marginBottom: 8 }}>منتجات بطيئة الحركة (رأس مال مجمّد)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {slowList.map((r, i) => (
                 <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -538,7 +543,7 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>⏰ تقادم المخزون</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>تقادم المخزون</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>عمر كل منتج منذ آخر بيعة — لكشف رأس المال المجمّد</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
         {Object.keys(labels).map(cls => (
@@ -551,7 +556,7 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
       </div>
       {dead.length > 0 && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>🚨 أكبر رأس مال مجمّد</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>أكبر رأس مال مجمّد</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {dead.map((d, i) => (
               <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>

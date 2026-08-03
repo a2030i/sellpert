@@ -7,6 +7,7 @@ import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantRequest } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
 import { Pagination } from '../components/UI'
+import ProductCostImport from '../components/ProductCostImport'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
@@ -25,6 +26,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
   const [showAdd, setShowAdd]           = useState(false)
+  const [showCostImport, setShowCostImport] = useState(() => new URLSearchParams(window.location.search).get('costs') === 'import')
   // ?tab=analytics يفتح تبويب التحليلات مباشرة (روابط «منتج يبيع بخسارة» من اللوحة)
   const [tab, setTab]                   = useState<'catalog' | 'analytics'>(() =>
     new URLSearchParams(window.location.search).get('tab') === 'analytics' ? 'analytics' : 'catalog')
@@ -173,6 +175,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     products.filter(p => !deferredSearch || p.name.toLowerCase().includes(deferredSearch.toLowerCase()) || p.sku?.toLowerCase().includes(deferredSearch.toLowerCase()))
   , [products, deferredSearch])
   const pageProducts = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
+  const costedProducts = useMemo(() => products.filter(product => Number(product.cost_price || 0) > 0).length, [products])
+  const missingCosts = products.length - costedProducts
 
   useEffect(() => { setPage(1) }, [deferredSearch])
   useEffect(() => {
@@ -211,26 +215,33 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           </button>
         ))}
         <button onClick={goInventory} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 18px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-          🗃️ المخزون
+          المخزون
         </button>
       </div>
 
       {/* Header */}
-      <div style={S.topbar}>
+      <div style={{ ...S.topbar, gap: 14, flexWrap: 'wrap' }}>
         <div>
           <h2 style={S.title}>المنتجات</h2>
           <p style={S.sub}>{products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة</p>
         </div>
-        <button style={S.addBtn} onClick={() => { setTab('catalog'); setShowAdd(v => !v) }}>
-          {showAdd ? '✕ إلغاء' : '+ إضافة منتج'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }} onClick={() => setShowCostImport(true)}>استيراد التكاليف</button>
+          <button style={S.addBtn} onClick={() => { setTab('catalog'); setShowAdd(v => !v) }}>{showAdd ? 'إلغاء' : 'إضافة منتج'}</button>
+        </div>
       </div>
+
+      {missingCosts > 0 ? <section style={{ background: 'var(--warning-bg)', border: '1px solid color-mix(in srgb,var(--warning-text) 22%,transparent)', borderRadius: 13, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+        <div><strong style={{ display: 'block', fontSize: 13, color: 'var(--text)' }}>الربحية غير مكتملة لـ {missingCosts.toLocaleString('ar-SA-u-nu-latn')} منتج</strong><span style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.7 }}>أدخل تكلفة الشراء جماعيًا لاحتساب تكلفة البضاعة وصافي الربح والمخزون بالقيمة.</span></div>
+        <div style={{ minWidth: 190, flex: '0 1 240px' }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text3)', marginBottom: 5 }}><span>اكتمال التكاليف</span><strong>{products.length ? Math.round(costedProducts / products.length * 100) : 0}%</strong></div><div style={{ height: 6, borderRadius: 6, background: 'var(--border)', overflow: 'hidden' }}><i style={{ display: 'block', width: `${products.length ? costedProducts / products.length * 100 : 0}%`, height: '100%', background: 'var(--accent)' }} /></div></div>
+        <button style={{ ...S.addBtn, padding: '8px 15px' }} onClick={() => setShowCostImport(true)}>استكمال التكاليف</button>
+      </section> : null}
 
       {/* Notification */}
       {msg && (
         <div style={{ ...S.alert, background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
-          <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)}>✕</button>
+          <button style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMsg(null)} aria-label="إغلاق">×</button>
         </div>
       )}
 
@@ -278,7 +289,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           {/* Guide: fill category first */}
           {form.target_net_price && !form.category.trim() && (
             <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', borderRadius: 10, fontSize: 12, color: 'var(--warning-text)', fontWeight: 600 }}>
-              ⚠️ اختر تصنيف المنتج لمعاينة الأسعار — نسبة العمولة تختلف حسب القسم
+              اختر تصنيف المنتج لمعاينة الأسعار — نسبة العمولة تختلف حسب القسم.
             </div>
           )}
 
@@ -303,14 +314,14 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
           )}
 
           <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
-            <button style={S.saveBtn} onClick={addProduct} disabled={saving}>{saving ? '⟳ جاري الحفظ...' : '✓ حفظ المنتج'}</button>
+            <button style={S.saveBtn} onClick={addProduct} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ المنتج'}</button>
             <button style={S.cancelBtn} onClick={() => setShowAdd(false)}>إلغاء</button>
           </div>
         </div>
       )}
 
       {/* Search */}
-      <input style={S.search} value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 ابحث باسم المنتج أو SKU..." />
+      <input style={S.search} value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث باسم المنتج أو SKU..." />
 
       {/* Products table */}
       {filtered.length === 0 ? (
@@ -457,7 +468,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       {editProduct && (
         <div style={S.overlay} onClick={() => setEditProduct(null)}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={S.modalTitle}>✏️ تعديل أسعار — {editProduct.name}</div>
+            <div style={S.modalTitle}>تعديل أسعار — {editProduct.name}</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: -8 }}>
               {editProduct.category && <span>القسم: {editProduct.category} · </span>}
               SKU: {editProduct.sku || '—'}
@@ -489,7 +500,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               </div>
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button style={S.saveBtn} onClick={saveEditProduct} disabled={editSaving}>{editSaving ? '⟳ جاري الحفظ...' : '✓ حفظ وإعادة الحساب'}</button>
+              <button style={S.saveBtn} onClick={saveEditProduct} disabled={editSaving}>{editSaving ? 'جارٍ الحفظ...' : 'حفظ وإعادة الحساب'}</button>
               <button style={S.cancelBtn} onClick={() => setEditProduct(null)}>إلغاء</button>
             </div>
           </div>
@@ -521,13 +532,14 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               <textarea style={{ ...S.input, height: 80, resize: 'vertical' }} value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="اكتب تفاصيل طلبك هنا..." />
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-              <button style={S.saveBtn} onClick={sendRequest} disabled={reqSending}>{reqSending ? '⟳ جاري الإرسال...' : '✓ إرسال للفريق'}</button>
+              <button style={S.saveBtn} onClick={sendRequest} disabled={reqSending}>{reqSending ? 'جارٍ الإرسال...' : 'إرسال للفريق'}</button>
               <button style={S.cancelBtn} onClick={() => setShowRequest(null)}>إلغاء</button>
             </div>
           </div>
         </div>
       )}
       </>)}
+      {showCostImport ? <ProductCostImport products={products} onClose={() => setShowCostImport(false)} onComplete={loadData} /> : null}
     </div>
   )
 }
@@ -754,7 +766,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       {costMissing && (
         <div style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
-          ⚠ الأرقام أدناه قبل خصم تكلفة البضاعة — أدخل تكلفة الشراء لمنتجاتك (زر التعديل في الكتالوج) ليظهر الصافي الحقيقي
+          الأرقام أدناه قبل خصم تكلفة البضاعة — أدخل تكلفة الشراء لمنتجاتك ليظهر الصافي الحقيقي.
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -769,7 +781,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
         <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#0f958c" />
         <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="var(--green)" />
         <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
-        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? '⚠ يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
+        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? 'يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
       </div>
 
       {show && (
@@ -877,7 +889,7 @@ function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🏷️ أداء الماركات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>أداء الماركات</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>أداء كل ماركة عبر المنصات</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -1018,7 +1030,7 @@ function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: c }}>+{Number(p.overprice_pct).toFixed(1)}%</td>
                   <td style={{ padding: '8px 12px' }}>
                     <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: c + '20', color: c }}>
-                      {p.buybox_status === 'losing' ? '✗ خاسر' : '⚠ خطر'}
+                      {p.buybox_status === 'losing' ? 'خاسر' : 'معرض للخطر'}
                     </span>
                   </td>
                 </tr>
@@ -1062,7 +1074,7 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
               </div>
               {conflict && (
                 <div style={{ fontSize: 11, color: 'var(--warning-text)', background: 'var(--warning-bg)', borderRadius: 7, padding: '5px 9px', marginBottom: 8 }}>
-                  ⚠ تبيع أكثر على {PLATFORM_NAMES[bestRev.platform] || bestRev.platform} لكن ربحك أعلى على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
+                  تبيع أكثر على {PLATFORM_NAMES[bestRev.platform] || bestRev.platform} لكن ربحك أعلى على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
