@@ -35,8 +35,8 @@ jobs:
           supabase db dump --local --data-only --schema public --use-copy -f recovery-artifacts/data.sql
           test -s recovery-artifacts/schema.sql
           test -s recovery-artifacts/data.sql
-          grep -q "CREATE TABLE public.merchants" recovery-artifacts/schema.sql
-          grep -q "CREATE TABLE public.orders" recovery-artifacts/schema.sql
+          grep -Eq 'CREATE TABLE.*"?public"?\."?merchants"?' recovery-artifacts/schema.sql
+          grep -Eq 'CREATE TABLE.*"?public"?\."?orders"?' recovery-artifacts/schema.sql
           sha256sum recovery-artifacts/schema.sql recovery-artifacts/data.sql > recovery-artifacts/SHA256SUMS
       - name: Destroy and reconstruct the isolated database again
         run: |
