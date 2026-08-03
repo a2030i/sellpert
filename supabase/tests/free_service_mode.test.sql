@@ -33,14 +33,23 @@ begin
 end
 $$;
 
+insert into auth.users (
+  id, aud, role, email, encrypted_password, raw_app_meta_data,
+  raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-4000-8000-000000009961',
+  'authenticated', 'authenticated', 'free-plan@test.invalid', '',
+  '{"provider":"email","providers":["email"]}',
+  '{"signup_source":"self_service","name":"Free Plan Test"}',
+  now(), now(), false, false
+);
+
 do $$
 begin
   begin
     update public.merchants
     set subscription_plan = 'pro'
-    where merchant_code = (
-      select merchant_code from public.merchants where role = 'merchant' limit 1
-    );
+    where id = '00000000-0000-4000-8000-000000009961';
     raise exception 'paid plan constraint did not reject the update';
   exception
     when check_violation then null;
