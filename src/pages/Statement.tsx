@@ -13,6 +13,39 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
   trendyol: { label: 'Trendyol', color: '#f27a1a' },
 }
 
+const RETURN_STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
+  pending:  { label: 'بانتظار القرار', bg: 'var(--warning-bg)', color: 'var(--warning-text)' },
+  approved: { label: 'تمت الموافقة', bg: 'var(--success-bg)', color: 'var(--success-text)' },
+  refunded: { label: 'تم رد المبلغ', bg: 'var(--success-bg)', color: 'var(--success-text)' },
+  rejected: { label: 'تم الرفض', bg: 'var(--danger-bg)', color: 'var(--danger-text)' },
+}
+
+const RETURN_REASON_AR: Record<string, string> = {
+  'Undelivered shipment': 'تعذر تسليم الشحنة',
+  'Delayed Deliveries': 'تأخر تسليم الشحنة',
+  'I believe this item is not original': 'العميل يعتقد أن المنتج غير أصلي',
+}
+
+type ReturnReasonOption = { id: string; label: string }
+
+function returnReasonLabel(value: unknown) {
+  const reason = String(value || '').trim()
+  return RETURN_REASON_AR[reason] || reason || 'لم يحدد العميل سببًا'
+}
+
+function parseReturnReasonOptions(payload: any): ReturnReasonOption[] {
+  const candidates = Array.isArray(payload) ? payload
+    : Array.isArray(payload?.data) ? payload.data
+    : Array.isArray(payload?.content) ? payload.content
+    : Array.isArray(payload?.claimIssueReasons) ? payload.claimIssueReasons
+    : []
+  return candidates.flatMap((item: any) => {
+    const id = item?.id ?? item?.claimIssueReasonId ?? item?.externalReasonId
+    if (id === undefined || id === null) return []
+    return [{ id: String(id), label: returnReasonLabel(item?.name || item?.description || item?.code || id) }]
+  })
+}
+
 function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
@@ -747,7 +780,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="var(--warning-text)" />
-          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? '⚠ مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? 'var(--danger-text)' : stats.rateOfOrders > 5 ? 'var(--warning-text)' : 'var(--success-text)'} />
+          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? 'مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? 'var(--danger-text)' : stats.rateOfOrders > 5 ? 'var(--warning-text)' : 'var(--success-text)'} />
           <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="var(--danger-text)" />
           <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="var(--danger-text)" />
           <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#0f958c" />
@@ -755,7 +788,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
 
         {/* صدق: المرتجعات تعتمد على التقارير المرفوعة — صفر لا يعني «لا مرتجعات» بل قد يعني «لم يُرفع الملف» */}
         <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 13 }}>ℹ️</span>
+          <span style={{ fontSize: 12, fontWeight: 800 }}>ملاحظة</span>
           تعكس هذه الأرقام تقارير المرتجعات المرفوعة فقط — إن كانت منصة بلا مرتجعات فقد يكون تقريرها لم يُرفع بعد.
         </div>
 
@@ -803,7 +836,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
 
           {topReasons.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>🔍 أكثر الأسباب</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أكثر الأسباب</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {topReasons.map((r, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12 }}>
@@ -837,6 +870,12 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ platform: 'amazon', order_id: '', product_name: '', quantity: '1', return_amount: '', reason: '', return_date: new Date().toISOString().split('T')[0], status: 'pending' })
   const [saving, setSaving] = useState(false)
+  const [returnActionId, setReturnActionId] = useState<string | null>(null)
+  const [returnActionMessage, setReturnActionMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [rejectingReturn, setRejectingReturn] = useState<any | null>(null)
+  const [rejectReasons, setRejectReasons] = useState<ReturnReasonOption[]>([])
+  const [rejectReasonId, setRejectReasonId] = useState('')
+  const [rejectDescription, setRejectDescription] = useState('')
 
   // The returns query is intentionally keyed by the selected period.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -873,6 +912,81 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     onUpdate()
   }
 
+  async function loadRejectReasons(row: any) {
+    setRejectingReturn(row)
+    setReturnActionMessage(null)
+    if (rejectReasons.length) return
+    setReturnActionId(String(row.id))
+    const { data, error } = await supabase.functions.invoke('trendyol-actions', {
+      body: { merchant_code: merchant!.merchant_code, action: 'claims.issue_reasons', storefront: 'SA' },
+    })
+    setReturnActionId(null)
+    if (error || data?.error) {
+      setRejectingReturn(null)
+      setReturnActionMessage({ type: 'err', text: data?.error || error?.message || 'تعذر تحميل أسباب رفض المرتجع من Trendyol.' })
+      return
+    }
+    const options = parseReturnReasonOptions(data?.data)
+    if (!options.length) {
+      setRejectingReturn(null)
+      setReturnActionMessage({ type: 'err', text: 'لم يرسل Trendyol قائمة أسباب متاحة للرفض في الوقت الحالي.' })
+      return
+    }
+    setRejectReasons(options)
+    setRejectReasonId(options[0].id)
+  }
+
+  async function runReturnDecision(row: any, decision: 'approve' | 'reject') {
+    if (!row.claim_id || !row.provider_claim_item_id) {
+      setReturnActionMessage({ type: 'err', text: 'بيانات المرتجع غير مكتملة. حدّث بيانات Trendyol ثم حاول مرة أخرى.' })
+      return
+    }
+    if (decision === 'reject' && !rejectReasonId) {
+      setReturnActionMessage({ type: 'err', text: 'اختر سبب رفض المرتجع.' })
+      return
+    }
+    const label = decision === 'approve' ? 'الموافقة على المرتجع' : 'رفض المرتجع'
+    if (!window.confirm(`تأكيد ${label} وإرساله مباشرة إلى Trendyol؟`)) return
+    setReturnActionId(String(row.id)); setReturnActionMessage(null)
+    const body = decision === 'approve'
+      ? {
+          merchant_code: merchant!.merchant_code,
+          action: 'claims.approve',
+          path: { claimId: row.claim_id },
+          payload: { claimLineItemIdList: [row.provider_claim_item_id] },
+          confirm: true,
+          idempotency_key: crypto.randomUUID(),
+        }
+      : {
+          merchant_code: merchant!.merchant_code,
+          action: 'claims.reject',
+          path: { claimId: row.claim_id },
+          query: {
+            claimIssueReasonId: rejectReasonId,
+            claimItemIdList: row.provider_claim_item_id,
+            description: rejectDescription.trim() || 'تمت المراجعة من التاجر عبر Sellpert',
+          },
+          confirm: true,
+          idempotency_key: crypto.randomUUID(),
+        }
+    const { data, error } = await supabase.functions.invoke('trendyol-actions', { body })
+    if (error || data?.error) {
+      setReturnActionMessage({ type: 'err', text: data?.error || error?.message || `تعذر ${label}.` })
+      setReturnActionId(null)
+      return
+    }
+    const syncResult = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant!.merchant_code } })
+    await loadReturns()
+    onUpdate()
+    setRejectingReturn(null); setRejectDescription(''); setReturnActionId(null)
+    setReturnActionMessage({
+      type: 'ok',
+      text: syncResult.error || syncResult.data?.error
+        ? `تم ${label} في Trendyol. ستتحدث الحالة تلقائيًا مع المزامنة التالية.`
+        : `تم ${label} في Trendyol وتحديث حالة المرتجع.`,
+    })
+  }
+
   const totalReturns = returns.reduce((s, r) => s + r.return_amount, 0)
 
   return (
@@ -882,7 +996,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
           <span style={{ fontWeight: 700, fontSize: 14 }}>المرتجعات</span>
           {returns.length > 0 && <span style={{ fontSize: 12, color: 'var(--warning-text)', marginRight: 10 }}>إجمالي: {fmt(totalReturns)}</span>}
         </div>
-        <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? '✕ إلغاء' : '+ إضافة مرتجع'}</button>
+        <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? 'إلغاء' : 'إضافة مرتجع يدويًا'}</button>
       </div>
 
       {showForm && (
@@ -911,32 +1025,69 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
             ))}
           </div>
           <button style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }} onClick={addReturn} disabled={saving}>
-            {saving ? '...' : '✓ حفظ المرتجع'}
+            {saving ? 'جارٍ الحفظ...' : 'حفظ المرتجع'}
           </button>
         </div>
       )}
+
+      {returnActionMessage ? (
+        <div style={{ margin: '14px 20px 0', padding: '10px 12px', borderRadius: 8, fontSize: 12, background: returnActionMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: returnActionMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>
+          {returnActionMessage.text}
+        </div>
+      ) : null}
+
+      {rejectingReturn ? (
+        <div style={{ margin: '14px 20px 0', padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface2)' }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>رفض مرتجع {rejectingReturn.product_name || `الطلب ${rejectingReturn.order_id || ''}`}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>اختر السبب الذي سيُرسل إلى Trendyol. لن يتم تنفيذ القرار قبل التأكيد النهائي.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(260px, 2fr)', gap: 10 }}>
+            <select style={S.input} value={rejectReasonId} onChange={event => setRejectReasonId(event.target.value)}>
+              {rejectReasons.map(reason => <option key={reason.id} value={reason.id}>{reason.label}</option>)}
+            </select>
+            <input style={S.input} value={rejectDescription} onChange={event => setRejectDescription(event.target.value)} placeholder="ملاحظة توضح سبب الرفض (اختيارية)" />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button style={{ ...S.addBtn, background: 'var(--danger-bg)', color: 'var(--danger-text)' }} disabled={returnActionId === String(rejectingReturn.id)} onClick={() => void runReturnDecision(rejectingReturn, 'reject')}>
+              {returnActionId === String(rejectingReturn.id) ? 'جارٍ الإرسال...' : 'تأكيد رفض المرتجع'}
+            </button>
+            <button style={S.addBtn} onClick={() => setRejectingReturn(null)}>إلغاء</button>
+          </div>
+        </div>
+      ) : null}
 
       {returns.length === 0 ? (
         <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>لا توجد مرتجعات هذا الشهر</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>{['التاريخ','المنصة','المنتج','الكمية','المبلغ','الحالة'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['التاريخ','المنصة','المصدر','المنتج','السبب','الكمية','المبلغ','الحالة','الإجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
-              {returns.map(r => (
-                <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+              {returns.map(r => {
+                const statusMeta = RETURN_STATUS_META[String(r.status || '').toLowerCase()] || RETURN_STATUS_META.pending
+                const isPendingTrendyol = r.platform === 'trendyol' && r.status === 'pending' && r.claim_id && r.provider_claim_item_id
+                return <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ ...S.td, fontSize: 11 }}>{r.return_date}</td>
                   <td style={{ ...S.td, color: PLATFORM_META[r.platform]?.color, fontWeight: 700 }}>{PLATFORM_META[r.platform]?.label || r.platform}</td>
+                  <td style={S.td}>{r.platform === 'trendyol' && r.claim_id ? 'ربط Trendyol' : r.upload_id ? 'ملف مرفوع' : 'إدخال يدوي'}</td>
                   <td style={{ ...S.td, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.product_name || '—'}</td>
+                  <td style={{ ...S.td, maxWidth: 180 }}>{returnReasonLabel(r.reason)}</td>
                   <td style={S.td}>{r.quantity}</td>
                   <td style={{ ...S.td, color: 'var(--warning-text)', fontWeight: 700 }}>{fmt(r.return_amount)}</td>
                   <td style={S.td}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.status === 'refunded' ? 'var(--success-bg)' : r.status === 'approved' ? 'rgba(15,149,140,0.12)' : 'var(--warning-bg)', color: r.status === 'refunded' ? 'var(--accent2)' : r.status === 'approved' ? 'var(--accent)' : 'var(--warning-text)' }}>
-                      {r.status === 'refunded' ? 'مسترد' : r.status === 'approved' ? 'موافق' : 'قيد المراجعة'}
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 7, background: statusMeta.bg, color: statusMeta.color, whiteSpace: 'nowrap' }}>
+                      {statusMeta.label}
                     </span>
                   </td>
+                  <td style={S.td}>
+                    {isPendingTrendyol ? <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
+                      <button style={{ ...S.addBtn, color: 'var(--success-text)' }} disabled={returnActionId === String(r.id)} onClick={() => void runReturnDecision(r, 'approve')}>
+                        {returnActionId === String(r.id) ? 'جارٍ الإرسال...' : 'موافقة'}
+                      </button>
+                      <button style={{ ...S.addBtn, color: 'var(--danger-text)' }} disabled={returnActionId === String(r.id)} onClick={() => void loadRejectReasons(r)}>رفض</button>
+                    </div> : <span style={{ fontSize: 11, color: 'var(--text3)' }}>لا يوجد إجراء مطلوب</span>}
+                  </td>
                 </tr>
-              ))}
+              })}
             </tbody>
           </table>
         </div>
@@ -968,7 +1119,7 @@ function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: 
   return (
     <div style={{ ...S.card, padding: 0, marginBottom: 20, overflow: 'hidden' }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-        💼 قائمة الأرباح والخسائر (P&L)
+        قائمة الأرباح والخسائر (P&L)
       </div>
       <div style={{ padding: 20 }}>
         {lines.map((row, i) => row === null ? (
@@ -1044,7 +1195,7 @@ function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
   }
   return (
     <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>🔬 تحليل أسباب المرتجعات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>تحليل أسباب المرتجعات</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {data.slice(0, 10).map((r, i) => {
           const pct = Number(r.percentage)

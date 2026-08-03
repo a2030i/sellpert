@@ -9,6 +9,7 @@ import {
   splitRange,
 } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
+import { normalizeTrendyolClaimStatus } from '../_shared/trendyolClaims.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -452,6 +453,8 @@ async function syncReturns(admin: any, merchantCode: string, sellerId: string, f
     for (let index = 0; index < items.length; index++) {
       const item = items[index]
       const line = item.orderLine || item.line || item
+      const nestedClaimItems = Array.isArray(item.claimItems) ? item.claimItems : []
+      const providerClaimItem = nestedClaimItems[nestedClaimItems.length - 1] || item
       const lineId = String(item.id || item.claimItemId || line.id || index)
       if (!claimId) continue
       rows.push({
@@ -461,10 +464,11 @@ async function syncReturns(admin: any, merchantCode: string, sellerId: string, f
         sku: line.merchantSku || line.stockCode || line.barcode || null,
         quantity: Math.max(1, numberValue(item.quantity || line.quantity || 1)),
         return_amount: numberValue(item.amount || line.price || claim.totalPrice),
-        reason: item.customerClaimItemReason?.name || item.reason?.name || item.reason || claim.reason || null,
+        provider_claim_item_id: providerClaimItem.id ? String(providerClaimItem.id) : null,
+        reason: providerClaimItem.customerClaimItemReason?.name || providerClaimItem.trendyolClaimItemReason?.name || item.customerClaimItemReason?.name || item.reason?.name || item.reason || claim.reason || null,
         return_date: new Date(claim.claimDate || claim.createdDate || claim.lastModifiedDate || Date.now()).toISOString().slice(0, 10),
-        status: String(item.claimItemStatus?.name || item.status || claim.status || 'pending'),
-        raw: { claim, item }, last_synced_at: new Date().toISOString(),
+        status: normalizeTrendyolClaimStatus(providerClaimItem.claimItemStatus?.name || providerClaimItem.status || item.claimItemStatus?.name || item.status || claim.status),
+        raw: { claim, item, providerClaimItem }, last_synced_at: new Date().toISOString(),
       })
     }
   }

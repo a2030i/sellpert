@@ -2519,13 +2519,18 @@ export type Database = {
       }
       returns: {
         Row: {
+          claim_id: string | null
+          claim_line_id: string | null
           created_at: string | null
           id: string
+          last_synced_at: string | null
           merchant_code: string
           order_id: string | null
           platform: string
           product_name: string | null
+          provider_claim_item_id: string | null
           quantity: number | null
+          raw: Json | null
           reason: string | null
           return_amount: number | null
           return_date: string | null
@@ -2534,13 +2539,18 @@ export type Database = {
           upload_id: string | null
         }
         Insert: {
+          claim_id?: string | null
+          claim_line_id?: string | null
           created_at?: string | null
           id?: string
+          last_synced_at?: string | null
           merchant_code: string
           order_id?: string | null
           platform: string
           product_name?: string | null
+          provider_claim_item_id?: string | null
           quantity?: number | null
+          raw?: Json | null
           reason?: string | null
           return_amount?: number | null
           return_date?: string | null
@@ -2549,13 +2559,18 @@ export type Database = {
           upload_id?: string | null
         }
         Update: {
+          claim_id?: string | null
+          claim_line_id?: string | null
           created_at?: string | null
           id?: string
+          last_synced_at?: string | null
           merchant_code?: string
           order_id?: string | null
           platform?: string
           product_name?: string | null
+          provider_claim_item_id?: string | null
           quantity?: number | null
+          raw?: Json | null
           reason?: string | null
           return_amount?: number | null
           return_date?: string | null

@@ -231,6 +231,18 @@ function validateActionInput(action:string,input:any) {
   if (action === 'packages.tracking') {
     if (!clean(input?.payload?.cargoSenderNumber) || !clean(input?.payload?.providerCode)) throw new HttpError(400, 'رقم التتبع وشركة الشحن مطلوبان')
   }
+  if (action === 'claims.approve') {
+    const claimItems = input?.payload?.claimLineItemIdList
+    if (!clean(input?.path?.claimId) || !Array.isArray(claimItems) || !claimItems.length || claimItems.length > 100 || claimItems.some((id:any) => !clean(id))) {
+      throw new HttpError(400, 'بيانات عناصر المرتجع غير مكتملة')
+    }
+  }
+  if (action === 'claims.reject') {
+    const reasonId = Number(input?.query?.claimIssueReasonId)
+    if (!clean(input?.path?.claimId) || !Number.isInteger(reasonId) || reasonId < 1 || !clean(input?.query?.claimItemIdList)) {
+      throw new HttpError(400, 'اختر سبب الرفض وتأكد من بيانات المرتجع')
+    }
+  }
 }
 function sanitize(value:any):any {
   if (value === null || value === undefined) return value
