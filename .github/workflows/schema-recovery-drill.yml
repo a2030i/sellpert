@@ -1,6 +1,13 @@
 name: Schema recovery drill
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'scripts/run-database-tests.sh'
+      - '.github/workflows/schema-recovery-drill.yml'
   schedule:
     - cron: '20 2 * * 1'
   workflow_dispatch:
