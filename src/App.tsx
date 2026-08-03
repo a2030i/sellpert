@@ -457,8 +457,8 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={S.logoIcon}>S</div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#e2e6f4', lineHeight: 1.1 }}>Sellpert</div>
-                  <div style={{ fontSize: 10, color: '#a598ff', fontWeight: 600 }}>لوحة التاجر</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: '#f5fafc', lineHeight: 1.25, fontFamily: 'var(--font-heading)' }}>Sellpert</div>
+                  <div style={{ fontSize: 11, color: '#9fb5c2', fontWeight: 500, marginTop: 2 }}>لوحة التاجر</div>
                 </div>
               </div>
               {activeMerchant?.role !== 'employee' && <AccountSwitcher currentCode={activeMerchant?.merchant_code} onSwitch={async (code) => {
@@ -474,10 +474,10 @@ export default function App() {
           <div style={{ padding: '4px 14px 8px' }}>
             <button
               onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#a3abcc', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#b4c5cf', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
               <Search size={15} />
               <span style={{ flex: 1 }}>ابحث عن صفحة أو منتج…</span>
-              <span style={{ fontSize: 10, opacity: 0.7 }}>Ctrl K</span>
+              <span style={{ fontSize: 11, opacity: 0.75, direction: 'ltr' }}>Ctrl K</span>
             </button>
           </div>
 
@@ -490,7 +490,7 @@ export default function App() {
                 paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
                 borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
               }}>
-                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '8px 12px 5px', display: 'flex', alignItems: 'center', gap: 8, color: '#7d86ac', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
+                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-heading)', cursor: 'pointer', textAlign: 'right' }}>
                   <span style={{ flex: 1 }}>{group.label}</span>
                   <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                 </button>
@@ -506,10 +506,10 @@ export default function App() {
                     >
                       <Icon size={16} style={{ flexShrink: 0 }} />
                       <span style={{ flex: 1 }}>{item.label}</span>
-                      {numericBadge > 0 ? <span style={{ minWidth: 22, height: 19, padding: '0 6px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.11)', color: '#d7dcf2', fontSize: 9, fontWeight: 800 }}>
+                      {numericBadge > 0 ? <span style={{ minWidth: 24, height: 20, padding: '0 6px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.11)', color: '#e2edf2', fontSize: 11, fontWeight: 700 }}>
                         {numericBadge > 999 ? '999+' : numericBadge.toLocaleString('ar-SA')}
                       </span> : null}
-                      {statusBadge ? <span style={{ padding: '3px 7px', borderRadius: 9, background: 'rgba(242,122,26,.18)', color: '#ffb36f', fontSize: 8, fontWeight: 800, whiteSpace: 'nowrap' }}>{statusBadge}</span> : null}
+                      {statusBadge ? <span style={{ padding: '3px 7px', borderRadius: 9, background: 'rgba(242,122,26,.18)', color: '#ffc188', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>{statusBadge}</span> : null}
                       {isActiveNav(item.key) && <div className="nav-dot" />}
                     </button>
                   )
@@ -527,8 +527,8 @@ export default function App() {
                   : <div style={S.merchantAvatar}>{activeMerchant.name?.[0] || 'T'}</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
-                  <div style={{ fontSize: 10, color: '#aab2c8', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f7fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
+                  <div style={{ fontSize: 11, color: '#9db1bd', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
                 </div>
               </div>
             )}
@@ -601,13 +601,13 @@ export default function App() {
             return (
               <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text3)' }}>
                 <Icon size={20} />
-                <span style={{ fontSize: 9, marginTop: 1 }}>{item.label}</span>
+                <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>{item.label}</span>
               </button>
             )
           })}
           <button aria-expanded={mobileMore} aria-controls="mobile-more-sheet" style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text3)' }} onClick={() => setMobileMore(true)}>
             <MoreHorizontal size={20} />
-            <span style={{ fontSize: 9, marginTop: 1 }}>المزيد</span>
+            <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>المزيد</span>
           </button>
         </nav>
       )}
@@ -671,8 +671,8 @@ const S: Record<string, React.CSSProperties> = {
   navItem: {
     display: 'flex', alignItems: 'center', gap: 11,
     padding: '10px 12px', cursor: 'pointer',
-    fontSize: 13, fontWeight: 500,
-    color: '#a9bdc9', width: '100%', border: 'none', background: 'transparent',
+    fontSize: 14, fontWeight: 500,
+    color: '#b8c9d2', width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'inherit', textAlign: 'right',
   },
   navIcon:      { fontSize: 16, flexShrink: 0, width: 20, textAlign: 'center' as const },
@@ -686,7 +686,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   logoutBtn: {
     width: '100%', background: 'rgba(255,255,255,0.035)', border: '1px solid #1d3b4d',
-    color: '#a9bdc9', padding: '8px', borderRadius: 7, fontSize: 12, cursor: 'pointer',
+    color: '#b8c9d2', padding: '9px', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer',
     fontFamily: 'inherit',
   },
   mobileHeader: {

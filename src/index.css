@@ -51,7 +51,9 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --t-micro:10px; --t-cap:11px; --t-label:12px; --t-sm:13px; --t-base:14px; --t-title:20px; --t-h2:24px; --t-hero:32px;
+  --font-body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --t-micro:11px; --t-cap:12px; --t-label:13px; --t-sm:14px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:500; --w-medium:600; --w-bold:700; --w-heavy:800;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
   --lh-base:1.7; --lh-tight:1.25;
@@ -107,7 +109,7 @@
 
 /* ── Base ─────────────────────────────────────────────────────────── */
 body {
-  font-family: 'Cairo', 'Segoe UI', 'Tahoma', system-ui, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -119,7 +121,75 @@ body {
 
 body.ltr {
   direction: ltr;
-  font-family: 'Tajawal', 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-body);
+}
+
+/* نظام الخطوط المؤسسي: كوفي واضح للعناوين، ونسخ عربي مريح للمحتوى الطويل. */
+:where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-heading) !important;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+:where(button, input, select, textarea, table) {
+  font-family: var(--font-body) !important;
+}
+
+:where(p, li, td, th, label, input, select, textarea, button) {
+  line-height: 1.65;
+}
+
+main h1 { font-size: 26px !important; }
+main h2 { font-size: 20px !important; }
+main h3 { font-size: 16px !important; }
+main h4 { font-size: 14px !important; }
+body p { font-size: var(--t-sm) !important; }
+body small { font-size: var(--t-cap) !important; line-height: 1.55; }
+body label { font-size: var(--t-label) !important; }
+body table { font-size: var(--t-label) !important; }
+body table :where(th, td) { font-size: inherit !important; }
+table th { font-weight: 600; }
+input, select, textarea { font-size: var(--t-sm); }
+
+main :where(
+  [class*="-label"], [class*="__label"],
+  [class*="-meta"], [class*="__meta"],
+  [class*="-caption"], [class*="__caption"],
+  [class*="-eyebrow"], [class*="__eyebrow"]
+) {
+  font-size: var(--t-cap) !important;
+  line-height: 1.55;
+}
+
+main :where(
+  [class*="-badge"], [class*="__badge"],
+  [class*="-status"], [class*="__status"]
+) {
+  font-size: var(--t-micro) !important;
+  line-height: 1.45;
+}
+
+/* أسماء الأصناف التي تمثل عناوين بصرية حتى إن لم تستخدم عنصر heading. */
+:where([class*="-title"], [class*="__title"], [class*="-heading"], [class*="__heading"]) {
+  font-family: var(--font-heading) !important;
+  letter-spacing: 0 !important;
+}
+
+strong, b, .tabular-nums, table {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'kern' 1;
+}
+
+/* حماية النصوص القديمة ذات المقاسات المضمّنة من النزول تحت حد القراءة. */
+body :where(
+  [style*="font-size: 7px"],
+  [style*="font-size: 8px"],
+  [style*="font-size: 9px"],
+  [style*="font-size: 10px"]
+) {
+  font-size: var(--t-micro) !important;
 }
 
 /* أرقام العملة تصطفّ عمودياً في الجداول */
@@ -168,6 +238,9 @@ body.ltr {
   input, select, textarea {
     font-size: 16px !important; /* prevents iOS zoom on focus */
   }
+  main h1 { font-size: 23px !important; }
+  main h2 { font-size: 18px !important; }
+  main h3 { font-size: 15px !important; }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────── */
@@ -223,8 +296,8 @@ body.ltr {
 }
 
 /* ── Form elements ───────────────────────────────────────────────── */
-button         { cursor: pointer; font-family: inherit; }
-input, select, textarea { font-family: inherit; }
+button         { cursor: pointer; font-family: var(--font-body); }
+input, select, textarea { font-family: var(--font-body); }
 
 input:focus, select:focus, textarea:focus {
   outline: none;

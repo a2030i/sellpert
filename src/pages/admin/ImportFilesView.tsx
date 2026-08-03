@@ -122,7 +122,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: #1d1f2c; line-height: 1.55; font-size: 12px;
     background: #fff;
   }
