@@ -18,7 +18,6 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   const [name, setName] = useState(merchant?.name || '')
   const [phone, setPhone] = useState(merchant?.whatsapp_phone || '')
   const [saving, setSaving] = useState(false)
-  const [resetting, setResetting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [closureLoading, setClosureLoading] = useState(false)
   const [closureRequest, setClosureRequest] = useState<ClosureRequest | null>(null)
@@ -86,19 +85,6 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       setMsg({ type: 'ok', text: 'تم حفظ بيانات المتجر بنجاح' })
     } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
     setSaving(false)
-  }
-
-  async function sendPasswordReset() {
-    const accountEmail = merchant?.account_email || merchant?.email
-    if (!accountEmail) return
-    setResetting(true); setMsg(null)
-    const { error } = await supabase.auth.resetPasswordForEmail(accountEmail, {
-      redirectTo: `${window.location.origin}/auth/recovery`,
-    })
-    setMsg(error
-      ? { type: 'err', text: 'تعذر إرسال رابط تغيير كلمة المرور: ' + error.message }
-      : { type: 'ok', text: 'تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني.' })
-    setResetting(false)
   }
 
   async function copyMerchantCode() {
@@ -230,11 +216,11 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         <div style={S.cardTitle}>أمان الحساب</div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
           <div>
-            <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>كلمة المرور</div>
-            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6 }}>سنرسل رابطًا آمنًا إلى {merchant?.account_email || merchant?.email} لتعيين كلمة مرور جديدة.</div>
+            <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>الجلسات وكلمة المرور</div>
+            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6 }}>راجع آخر دخول، أنهِ الجلسات الأخرى، أو أرسل رابطًا آمنًا لتغيير كلمة المرور.</div>
           </div>
-          <button type="button" style={S.secondaryBtn} onClick={sendPasswordReset} disabled={resetting}>
-            {resetting ? 'جاري الإرسال...' : 'إرسال رابط تغيير كلمة المرور'}
+          <button type="button" style={S.secondaryBtn} onClick={() => { window.location.href = '/security' }}>
+            فتح الأمان والجلسات
           </button>
         </div>
       </div>
