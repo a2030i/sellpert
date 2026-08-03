@@ -738,9 +738,16 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
       const filePlatform = entry.parsed!.platform
       // عند اختيار «استبدال»: احذف الرفعة السابقة المطابقة وبياناتها أولاً
       if (entry.dup && entry.dupAction === 'replace') {
+        if (entry.dup.storagePath) {
+          const { error: archiveDeleteError } = await supabase.storage.from('merchant-imports').remove([entry.dup.storagePath])
+          if (archiveDeleteError) {
+            allErrors.push(`${entry.file.name}: تعذّر حذف نسخة المصدر السابقة — لم يبدأ الاستبدال`)
+            continue
+          }
+        }
         const { error: delErr } = await supabase.rpc('delete_upload_with_data', { p_upload_id: entry.dup.uploadId })
         if (delErr) allErrors.push(`${entry.file.name}: تعذّر حذف الرفعة السابقة — ${delErr.message}`)
-        else if (entry.dup.storagePath) await supabase.storage.from('merchant-imports').remove([entry.dup.storagePath])
+        if (delErr) continue
       }
       // Insert audit row — فشله يوقف هذا الملف: المتابعة بـ uploadId فارغ
       // تُفشل كل الإدراجات الموسومة لاحقاً بخطأ uuid غامض
@@ -1449,20 +1456,19 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
     if (!confirm(`حذف هذا الملف وكل البيانات المرتبطة به؟\n\n${u.file_name}\n${u.rows_inserted || 0} صف`)) return
     setDeletingId(u.id)
     try {
-      const { data, error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: u.id })
-      if (error) throw error
-      let archiveWarning = false
       if (u.storage_path) {
         const { error: archiveError } = await supabase.storage.from('merchant-imports').remove([u.storage_path])
-        archiveWarning = Boolean(archiveError)
+        if (archiveError) throw new Error('تعذر حذف نسخة المصدر الخاصة؛ لم تُحذف البيانات')
       }
+      const { data, error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: u.id })
+      if (error) throw error
       const counts: any = data?.deleted || {}
       const total = Object.values(counts).reduce((a: any, b: any) => Number(a) + Number(b), 0)
       const summary = Object.entries(counts).filter(([_, v]: any) => v > 0).map(([k, v]: any) => `${arabicTable(k)}: ${v}`).join(' · ')
       // Toast
       try {
         const { toastOk } = await import('../../components/Toast')
-        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}${archiveWarning ? ' · تعذر حذف نسخة المصدر وستُنظف آليًا' : ''}`)
+        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}`)
       } catch { /* */ }
       load()
     } catch (e: any) {
