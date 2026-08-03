@@ -19,10 +19,12 @@ begin
     'case when v_available_weight >= 60'
   );
 
-  if v_definition is null or v_corrected = v_definition then
+  if v_definition is null then
+    raise exception 'merchant_health_score coverage threshold patch did not match';
+  elsif v_corrected <> v_definition then
+    execute v_corrected;
+  elsif position('case when v_available_weight >= 60' in v_definition) = 0 then
     raise exception 'merchant_health_score coverage threshold patch did not match';
   end if;
-
-  execute v_corrected;
 end
 $migration$;

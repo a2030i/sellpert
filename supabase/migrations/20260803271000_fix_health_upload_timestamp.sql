@@ -19,10 +19,12 @@ begin
     'max(uploaded_at) from public.platform_file_uploads'
   );
 
-  if v_definition is null or v_corrected = v_definition then
+  if v_definition is null then
+    raise exception 'merchant_health_score upload timestamp patch did not match';
+  elsif v_corrected <> v_definition then
+    execute v_corrected;
+  elsif position('max(uploaded_at) from public.platform_file_uploads' in v_definition) = 0 then
     raise exception 'merchant_health_score upload timestamp patch did not match';
   end if;
-
-  execute v_corrected;
 end
 $migration$;
