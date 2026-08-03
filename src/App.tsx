@@ -12,6 +12,7 @@ import AccountSwitcher from './components/AccountSwitcher'
 import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
+import AccountAccessState from './components/AccountAccessState'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
@@ -221,6 +222,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
 export default function App() {
   const [session, setSession]               = useState<Session | null>(null)
   const [merchant, setMerchant]             = useState<Merchant | null>(null)
+  const [merchantLoadError, setMerchantLoadError] = useState('')
   const [loading, setLoading]               = useState(true)
   const [view, setView]                     = useState<View>(readView)
   const [mobileMore, setMobileMore]         = useState(false)
@@ -345,13 +347,17 @@ export default function App() {
   }
 
   async function fetchMerchant(userId: string) {
+    setMerchantLoadError('')
     const { data: identity, error } = await supabase
       .from('merchants')
       .select('*')
       .eq('id', userId)
       .maybeSingle()
 
-    if (error) toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
+    if (error) {
+      setMerchantLoadError('تعذر الوصول إلى سجل مساحة العمل. تحقق من الاتصال ثم أعد المحاولة.')
+      toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
+    }
 
     let resolved = identity as Merchant | null
     if (identity?.role === 'employee' && identity.owner_merchant_code) {
@@ -361,20 +367,27 @@ export default function App() {
         .eq('merchant_code', identity.owner_merchant_code)
         .maybeSingle()
 
-      if (ownerError) toastErr('تعذر تحميل المتجر المرتبط بالموظف: ' + ownerError.message)
+      if (ownerError) {
+        setMerchantLoadError('تعذر الوصول إلى المتجر المرتبط بهذا الحساب.')
+        toastErr('تعذر تحميل المتجر المرتبط بالموظف: ' + ownerError.message)
+      }
       if (owner) {
         resolved = {
           ...owner,
           role: identity.role,
           owner_merchant_code: identity.owner_merchant_code,
           permissions: identity.permissions,
-          is_active: identity.is_active,
+          is_active: identity.is_active !== false && owner.is_active !== false,
           job_title: identity.job_title,
           department: identity.department,
           auth_user_id: identity.id,
           account_email: identity.email,
         } as Merchant
       }
+    }
+
+    if (!resolved && !error) {
+      setMerchantLoadError('لم يتم العثور على مساحة عمل مرتبطة بهذا الحساب.')
     }
 
     setMerchant(resolved)
@@ -418,6 +431,18 @@ export default function App() {
 
   if (!session) return <Login />
   if (showPasswordRecovery) return <PasswordRecovery onComplete={() => setShowPasswordRecovery(false)} />
+  if (!merchant) return (
+    <AccountAccessState
+      state="missing"
+      email={session.user.email}
+      detail={merchantLoadError}
+      onRetry={() => { setLoading(true); fetchMerchant(session.user.id) }}
+      onSignOut={signOut}
+    />
+  )
+  if (merchant.is_active === false) return (
+    <AccountAccessState state="suspended" email={session.user.email} onSignOut={signOut} />
+  )
   // Platform administrators use the administration console. Merchant
   // employees stay inside their owner's store with tenant permissions.
   if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating)

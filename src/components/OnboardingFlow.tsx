@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, CheckCircle2, Plug, ShieldCheck, Store, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
+import { toastErr } from './Toast'
 
 interface Props {
   merchant: Merchant
@@ -43,9 +44,14 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
 
   async function finish(destination?: '/integrations') {
     setSaving(true)
-    await supabase.from('merchants')
+    const { error } = await supabase.from('merchants')
       .update({ onboarding_done: true })
       .eq('merchant_code', merchant.merchant_code)
+    if (error) {
+      toastErr('تعذر حفظ اكتمال التهيئة. أعد المحاولة.')
+      setSaving(false)
+      return
+    }
     onComplete()
     if (destination) {
       window.history.pushState(null, '', destination)
