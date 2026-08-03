@@ -64,6 +64,33 @@ async function mockAuthenticatedMerchant(page: Page) {
 
   await page.route('**/functions/v1/**', async route => {
     const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/account-lifecycle')) {
+      const body = route.request().postDataJSON() as { action?: string; resource?: string }
+      if (body.action === 'status') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ request: null }) })
+        return
+      }
+      if (body.action === 'export-manifest') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            schema_version: '2.0', generated_at: '2026-08-03T20:00:00.000Z', merchant,
+            resources: [{ key: 'orders', label: 'الطلبات' }, { key: 'products', label: 'المنتجات' }],
+            excludes: ['مفاتيح API', 'أسرار API'],
+          }),
+        })
+        return
+      }
+      if (body.action === 'export-page') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ resource: body.resource, label: body.resource, rows: [{ id: `${body.resource}-1`, merchant_code: merchant.merchant_code }], next_cursor: null, done: true }),
+        })
+        return
+      }
+    }
     if (url.pathname.endsWith('/platform-credentials')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ credentials: [] }) })
       return
@@ -114,4 +141,18 @@ test('registered merchant reaches complete Trendyol actions without technical JS
 
   await expect(page.getByText(/JSON/)).toHaveCount(0)
   expect(runtimeErrors).toEqual([])
+})
+
+test('store owner downloads a complete paged data archive without integration secrets', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'إعدادات المتجر' })).toBeVisible()
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'تنزيل البيانات' }).click()
+  const download = await downloadPromise
+
+  expect(download.suggestedFilename()).toMatch(/^sellpert-M-E2E-001-\d{4}-\d{2}-\d{2}\.zip$/)
+  await expect(page.getByText(/تم تنزيل نسخة كاملة: 2 قسمًا و2 سجلًا/)).toBeVisible()
+  await expect(page.getByText(/مفاتيح الربط أو الأسرار/)).toBeVisible()
 })

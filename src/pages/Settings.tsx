@@ -13,6 +13,22 @@ type ClosureRequest = {
   scheduled_for: string
 }
 
+type ExportManifest = {
+  schema_version: string
+  generated_at: string
+  merchant: Record<string, unknown>
+  resources: Array<{ key: string; label: string }>
+  excludes: string[]
+}
+
+type ExportPage = {
+  resource: string
+  label: string
+  rows: Array<Record<string, unknown>>
+  next_cursor: string | null
+  done: boolean
+}
+
 export default function Settings({ merchant, onUpdate }: { merchant: Merchant | null; onUpdate: (m: Merchant) => void }) {
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -20,6 +36,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   const [phone, setPhone] = useState(merchant?.whatsapp_phone || '')
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState('')
   const [closureLoading, setClosureLoading] = useState(false)
   const [closureRequest, setClosureRequest] = useState<ClosureRequest | null>(null)
   const [showClosure, setShowClosure] = useState(false)
@@ -101,20 +118,62 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   async function exportStoreData() {
     setExporting(true); setMsg(null)
     try {
-      const { data, error } = await supabase.functions.invoke('account-lifecycle', { body: { action: 'export' } })
-      if (error) throw error
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
+      setExportProgress('جاري إعداد قائمة البيانات…')
+      const { data: manifestData, error: manifestError } = await supabase.functions.invoke('account-lifecycle', {
+        body: { action: 'export-manifest' },
+      })
+      if (manifestError) throw manifestError
+      const manifest = manifestData as ExportManifest
+      if (!Array.isArray(manifest?.resources) || !manifest.resources.length) throw new Error('قائمة التصدير غير متاحة')
+
+      const { default: JSZip } = await import('jszip')
+      const zip = new JSZip()
+      const counts: Record<string, number> = {}
+      let totalRows = 0
+
+      for (let index = 0; index < manifest.resources.length; index += 1) {
+        const resource = manifest.resources[index]
+        setExportProgress(`تجهيز ${resource.label} · ${index + 1} من ${manifest.resources.length}`)
+        const rows: Array<Record<string, unknown>> = []
+        let cursor: string | null = null
+        do {
+          const { data: pageData, error: pageError } = await supabase.functions.invoke('account-lifecycle', {
+            body: { action: 'export-page', resource: resource.key, cursor, limit: 1000 },
+          })
+          if (pageError) throw pageError
+          const page = pageData as ExportPage
+          if (!page || page.resource !== resource.key || !Array.isArray(page.rows)) throw new Error(`استجابة غير صالحة لقسم ${resource.label}`)
+          rows.push(...page.rows)
+          if (page.next_cursor && page.next_cursor === cursor) throw new Error(`تعذر إكمال قسم ${resource.label}`)
+          cursor = page.next_cursor
+        } while (cursor)
+        counts[resource.key] = rows.length
+        totalRows += rows.length
+        zip.file(`data/${resource.key}.json`, JSON.stringify(rows, null, 2))
+      }
+
+      zip.file('manifest.json', JSON.stringify({ ...manifest, completed_at: new Date().toISOString(), counts, total_rows: totalRows }, null, 2))
+      zip.file('README.txt', [
+        'Sellpert merchant data export',
+        `Store: ${merchant?.name || merchant?.merchant_code}`,
+        `Generated: ${manifest.generated_at}`,
+        `Resources: ${manifest.resources.length}`,
+        `Rows: ${totalRows}`,
+        `Excluded security material: ${manifest.excludes.join('، ')}`,
+      ].join('\n'))
+      setExportProgress('جاري ضغط الملف…')
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `sellpert-${merchant?.merchant_code}-${new Date().toISOString().slice(0, 10)}.json`
+      link.download = `sellpert-${merchant?.merchant_code}-${new Date().toISOString().slice(0, 10)}.zip`
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
-      setMsg({ type: 'ok', text: 'تم تجهيز نسخة بيانات المتجر وتنزيلها إلى جهازك.' })
+      setMsg({ type: 'ok', text: `تم تنزيل نسخة كاملة: ${manifest.resources.length} قسمًا و${totalRows.toLocaleString('ar-SA')} سجلًا، دون أسرار الربط.` })
     } catch (e: any) {
       console.error('export store data', e)
-      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر تجهيز نسخة البيانات. حاول مرة أخرى.') })
+      setMsg({ type: 'err', text: userErrorMessage(e, 'لم يكتمل التصدير ولم يُنزّل ملف جزئي. حاول مرة أخرى.') })
     }
-    setExporting(false)
+    setExportProgress(''); setExporting(false)
   }
 
   async function requestClosure() {
@@ -240,7 +299,8 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
             <span style={S.actionIcon}><Download size={19} /></span>
             <div>
               <div style={S.actionTitle}>تنزيل نسخة من بيانات المتجر</div>
-              <div style={S.actionSub}>ملف منظم يشمل المنتجات والطلبات والمخزون والتقارير ونتائج الاستيراد، دون مفاتيح الربط أو الأسرار.</div>
+              <div style={S.actionSub}>ملف ZIP منظم يشمل جميع سجلات المتجر التشغيلية والمالية والتحليلية، دون كلمات المرور أو مفاتيح الربط والأسرار.</div>
+              {exporting && exportProgress && <div role="status" aria-live="polite" style={{ ...S.actionSub, color: 'var(--accent)', marginTop: 5 }}>{exportProgress}</div>}
             </div>
           </div>
           {isOwner

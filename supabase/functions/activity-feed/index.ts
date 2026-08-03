@@ -9,7 +9,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ALLOWED_TABLES = new Set([
   'merchants', 'platform_credentials', 'platform_connections',
   'merchant_account_links', 'platform_file_uploads', 'merchant_requests',
-  'payment_requests', 'account_closure_requests',
+  'payment_requests', 'account_closure_requests', 'merchant_data_export',
   'auth_security',
 ])
 const IGNORED_FIELDS = new Set([
@@ -46,7 +46,7 @@ Deno.serve(async req => {
     const from = (page - 1) * limit
     const action = clean(body?.action).toLowerCase()
     const table = clean(body?.table)
-    if (action && !['insert', 'update', 'delete', 'account_closure_requested', 'account_closure_cancelled', 'account_closure_completed', 'mfa_enabled', 'mfa_disabled', 'mfa_recovery_codes_regenerated', 'mfa_recovered'].includes(action)) throw new HttpError(400, 'مرشح الإجراء غير صالح.')
+    if (action && !['insert', 'update', 'delete', 'account_closure_requested', 'account_closure_cancelled', 'account_closure_completed', 'account_data_export_started', 'mfa_enabled', 'mfa_disabled', 'mfa_recovery_codes_regenerated', 'mfa_recovered'].includes(action)) throw new HttpError(400, 'مرشح الإجراء غير صالح.')
     if (table && !ALLOWED_TABLES.has(table)) throw new HttpError(400, 'مرشح نوع النشاط غير صالح.')
 
     let query = admin.from('audit_log')

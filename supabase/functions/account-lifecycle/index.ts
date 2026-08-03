@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { ACCOUNT_EXPORT_RESOURCES, findAccountExportResource, parseExportPageSize, redactExportSecrets } from '../_shared/accountExport.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,15 +8,6 @@ const corsHeaders = {
 }
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const EXPORT_TABLES = [
-  'products', 'product_platform_listings', 'product_platform_prices', 'inventory',
-  'orders', 'order_items', 'order_packages', 'returns',
-  'account_transactions', 'invoices', 'merchant_payout_schedule',
-  'performance_data', 'ad_metrics', 'amazon_daily_sales', 'sales_targets', 'budget_alerts',
-  'platform_file_uploads', 'sync_logs', 'marketplace_action_logs',
-  'merchant_requests', 'notifications', 'merchant_weekly_briefs',
-] as const
-
 class HttpError extends Error { constructor(public status: number, message: string) { super(message) } }
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), {
   status,
@@ -43,7 +35,9 @@ Deno.serve(async req => {
     if (action === 'status') return json({ request: await currentRequest(admin, merchant.merchant_code) })
     if (action === 'request-closure') return json(await requestClosure(admin, merchant, user.id, body?.reason))
     if (action === 'cancel-closure') return json(await cancelClosure(admin, merchant, user.id))
-    if (action === 'export') return exportData(admin, merchant)
+    if (action === 'export-manifest') return exportManifest(admin, merchant, user.id)
+    if (action === 'export-page') return exportPage(admin, merchant, body)
+    if (action === 'export') throw new HttpError(409, 'حدّث الصفحة لاستخدام التصدير الكامل الجديد.')
     throw new HttpError(400, 'الإجراء المطلوب غير معروف.')
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500
@@ -106,34 +100,50 @@ async function cancelClosure(admin: any, merchant: any, userId: string) {
   return { ok: true, request: data }
 }
 
-async function exportData(admin: any, merchant: any) {
-  const data: Record<string, unknown[]> = {}
-  const counts: Record<string, number> = {}
-  const truncated: string[] = []
-  for (const table of EXPORT_TABLES) {
-    const rows: unknown[] = []
-    const pageSize = 1000
-    const maxRows = 50000
-    for (let from = 0; from < maxRows; from += pageSize) {
-      const { data: page, error } = await admin.from(table).select('*')
-        .eq('merchant_code', merchant.merchant_code).range(from, from + pageSize - 1)
-      if (error) throw new HttpError(500, `تعذر تجهيز بيانات ${table}.`)
-      rows.push(...(page || []))
-      if (!page || page.length < pageSize) break
-      if (rows.length >= maxRows) truncated.push(table)
-    }
-    data[table] = rows
-    counts[table] = rows.length
-  }
+async function exportManifest(admin: any, merchant: any, userId: string) {
   const generatedAt = new Date().toISOString()
+  const { error } = await admin.from('audit_log').insert({
+    merchant_code: merchant.merchant_code,
+    action: 'account_data_export_started',
+    table_name: 'merchant_data_export',
+    record_id: `${merchant.merchant_code}:${generatedAt}`,
+    new_values: { schema_version: '2.0', resource_count: ACCOUNT_EXPORT_RESOURCES.length },
+    performed_by: userId,
+  })
+  if (error) throw new HttpError(500, 'تعذر تسجيل عملية التصدير بأمان.')
   return json({
-    schema_version: '1.0', generated_at: generatedAt,
+    schema_version: '2.0', generated_at: generatedAt,
     merchant: {
       merchant_code: merchant.merchant_code, name: merchant.name, email: merchant.email,
       currency: merchant.currency, whatsapp_phone: merchant.whatsapp_phone,
       logo_url: merchant.logo_url, sector: merchant.sector, sub_sector: merchant.sub_sector,
       created_at: merchant.created_at,
     },
-    counts, truncated, data,
-  }, 200, { 'Content-Disposition': `attachment; filename="sellpert-export-${merchant.merchant_code}-${generatedAt.slice(0, 10)}.json"` })
+    resources: ACCOUNT_EXPORT_RESOURCES.map(({ key, label }) => ({ key, label })),
+    excludes: ['كلمات المرور', 'مفاتيح API', 'أسرار API', 'رموز OAuth'],
+  })
+}
+
+async function exportPage(admin: any, merchant: any, body: any) {
+  const resource = findAccountExportResource(body?.resource)
+  if (!resource) throw new HttpError(400, 'قسم التصدير المطلوب غير صالح.')
+  const limit = parseExportPageSize(body?.limit)
+  const cursor = typeof body?.cursor === 'string' && body.cursor.length <= 100 ? body.cursor : null
+  const filterColumn = resource.filterColumn || 'merchant_code'
+  let query = admin.from(resource.table).select(resource.columns || '*')
+    .eq(filterColumn, merchant.merchant_code)
+    .order('id', { ascending: true })
+    .limit(limit)
+  if (cursor) query = query.gt('id', cursor)
+  const { data, error } = await query
+  if (error) throw new HttpError(500, `تعذر تجهيز قسم «${resource.label}».`)
+  const rows = (data || []) as Array<Record<string, unknown>>
+  const nextCursor = rows.length === limit ? String(rows[rows.length - 1]?.id || '') : null
+  return json({
+    resource: resource.key,
+    label: resource.label,
+    rows: redactExportSecrets(rows),
+    next_cursor: nextCursor,
+    done: nextCursor === null,
+  })
 }
