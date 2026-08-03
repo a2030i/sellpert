@@ -40,10 +40,10 @@ export function SectionTitle({ title, subtitle, info, action }: { title: string;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: subtitle ? 14 : 10 }}>
       <div>
-        <div style={{ fontSize: 14, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>
+        <div className="app-section-title" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {title}{info && <InfoIcon text={info} />}
         </div>
-        {subtitle && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{subtitle}</div>}
+        {subtitle && <div className="app-section-subtitle" style={{ color: 'var(--text3)', marginTop: 3 }}>{subtitle}</div>}
       </div>
       {action}
     </div>
