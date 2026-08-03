@@ -339,10 +339,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
                 return (
-                  <div key={prod.id} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => {
+                  <div key={prod.id} role="link" tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => {
                     window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
                     window.dispatchEvent(new PopStateEvent('popstate'))
-                  }}>
+                  }} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); window.history.pushState(null, '', `/product-detail?id=${prod.id}`); window.dispatchEvent(new PopStateEvent('popstate')) } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{prod.name}</div>
@@ -388,10 +388,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
                     return (
-                      <tr key={prod.id} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => {
+                      <tr key={prod.id} tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => {
                         window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
                         window.dispatchEvent(new PopStateEvent('popstate'))
-                      }}>
+                      }} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); window.history.pushState(null, '', `/product-detail?id=${prod.id}`); window.dispatchEvent(new PopStateEvent('popstate')) } }}>
                         <td style={S.td}>
                           <div style={{ fontWeight: 600 }}>{prod.name}</div>
                           {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}

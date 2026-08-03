@@ -14,22 +14,26 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
   const [profitability, setProfitability] = useState<any>(null)
   const [inventory, setInventory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const merchantCode = merchant?.merchant_code
 
   useEffect(() => {
-    if (!productId || !merchant) return
+    if (!productId || !merchantCode) return
+    setLoading(true)
+    setLoadError('')
     Promise.all([
-      supabase.from('products').select('*').eq('id', productId).maybeSingle(),
-      supabase.from('product_profitability').select('*').eq('product_id', productId).maybeSingle(),
+      supabase.from('products').select('*').eq('merchant_code', merchantCode).eq('id', productId).maybeSingle(),
+      supabase.from('product_profitability').select('*').eq('merchant_code', merchantCode).eq('product_id', productId).maybeSingle(),
     ]).then(async ([p, prof]) => {
       const prod = p.data
       setProduct(prod)
       setProfitability(prof.data)
       if (prod) {
         const [ord, ret, ads, inv] = await Promise.all([
-          supabase.from('orders').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('order_date', { ascending: false }).limit(50),
-          supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('return_date', { ascending: false }).limit(20),
-          supabase.from('ad_metrics').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
-          supabase.from('inventory').select('*').eq('merchant_code', merchant.merchant_code).eq('sku', prod.sku),
+          supabase.from('orders').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('order_date', { ascending: false }).limit(50),
+          supabase.from('returns').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('return_date', { ascending: false }).limit(20),
+          supabase.from('ad_metrics').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
+          supabase.from('inventory').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku),
         ])
         setOrders(ord.data || [])
         setReturns(ret.data || [])
@@ -37,8 +41,11 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         setInventory(inv.data || [])
       }
       setLoading(false)
+    }).catch(error => {
+      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل تفاصيل المنتج.')
+      setLoading(false)
     })
-  }, [productId, merchant])
+  }, [productId, merchantCode])
 
   const adTotals = useMemo(() => ({
     spend:   adMetrics.reduce((a, r) => a + Number(r.spend), 0),
@@ -53,6 +60,14 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
   }
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" /></div>
+
+  if (loadError) return (
+    <div style={{ padding:60, textAlign:'center', maxWidth:560, margin:'0 auto' }}>
+      <h2 style={{ fontSize:18, marginBottom:8 }}>تعذر تحميل تفاصيل المنتج</h2>
+      <p style={{ color:'var(--text2)', fontSize:13, lineHeight:1.8, marginBottom:18 }}>{loadError}</p>
+      <button onClick={() => window.location.reload()} style={btnPrimary}>إعادة المحاولة</button>
+    </div>
+  )
 
   if (!product) return (
     <div style={{ padding: 60, textAlign: 'center' }}>

@@ -6,6 +6,7 @@ import { PageTabs } from '../components/UI'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -41,15 +42,6 @@ function trendyolCommission(order: Order) {
   return Number(order.total_amount || 0) * Number(order.commission_rate) / 100 * 1.15
 }
 
-function financialMismatch(order: Order) {
-  const total = Number(order.total_amount || 0)
-  const fees = Number(order.platform_fee || 0)
-  const expectedLineTotal = Number(order.unit_price || 0) * Number(order.quantity || 1)
-  if (fees > total && total > 0) return 'رسوم المنصة أعلى من إجمالي الطلب في الملف المصدر.'
-  if (total > 0 && expectedLineTotal > 0 && Math.abs(expectedLineTotal - total) > Math.max(1, total * .05)) return 'سعر الوحدة والكمية لا يطابقان إجمالي الطلب في الملف المصدر.'
-  return null
-}
-
 function orderSource(o: Order) {
   if (o.upload_id) return { label: 'ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
   if (o.platform === 'trendyol') return { label: 'API Trendyol', exportLabel: 'API Trendyol', title: 'تم سحب الطلب مباشرة من ربط Trendyol', bg: 'var(--success-bg)', color: 'var(--success-text)' }
@@ -60,6 +52,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [loadVersion, setLoadVersion] = useState(0)
   // Filter persistence — حفظ الفلاتر في localStorage
   const FK = 'sellpert-orders-filters:v2'
   const saved = (() => { try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
@@ -79,27 +73,36 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [packageForm, setPackageForm] = useState({ invoiceNumber:'', trackingNumber:'', providerCode:'STARLINKS' })
   const isMobile = useMobile()
+  const merchantCode = merchant?.merchant_code
 
   useEffect(() => {
     localStorage.setItem(FK, JSON.stringify({ platform, status, search, preset, tab }))
   }, [platform, status, search, preset, tab])
 
   useEffect(() => {
-    if (!merchant) return
+    if (!merchantCode) return
+    setLoading(true)
+    setLoadError('')
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchant.merchant_code).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
-          .eq('merchant_code', merchant.merchant_code).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
+          .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
     ]).then(([o, t]) => {
       setOrders(o)
       setTrendyolSnaps(t)
+      const orderRef = new URLSearchParams(window.location.search).get('order')
+      const linkedOrder = orderRef ? o.find(order => order.id === orderRef || order.order_id === orderRef) : null
+      if (linkedOrder) void openOrder(linkedOrder)
+      setLoading(false)
+    }).catch(error => {
+      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل الطلبات الآن.')
       setLoading(false)
     })
-  }, [merchant])
+  }, [merchantCode, loadVersion])
 
   const filtered = useMemo(() => {
     let d = orders
@@ -121,7 +124,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     else if (preset === 'thisMonth') {
       const s = new Date(); s.setDate(1); s.setHours(0,0,0,0)
       d = d.filter(o => new Date(o.order_date) >= s)
-    }
+    } else if (preset === 'needsAction') d = d.filter(orderNeedsAction)
+    else if (preset === 'financialReview') d = d.filter(o => Boolean(orderFinancialIssue(o)))
     return d
   }, [orders, platform, status, search, preset])
 
@@ -136,6 +140,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const deliveredCount = filtered.filter(o => o.status === 'delivered').length
   const cancelRate    = totalOrders > 0 ? (filtered.filter(o => o.status === 'cancelled').length / totalOrders) * 100 : 0
   const aov           = totalOrders > 0 ? totalRevenue / totalOrders : 0
+  const needsActionCount = orders.filter(orderNeedsAction).length
+  const financialReviewCount = orders.filter(o => Boolean(orderFinancialIssue(o))).length
 
   // Chart: orders per day
   const dailyData = useMemo(() => {
@@ -214,7 +220,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   async function openOrder(order: Order) {
     setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
-      supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('id', order.id).maybeSingle(),
+      supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
       order.platform === 'trendyol'
         ? supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', 'trendyol').eq('order_id', order.order_id).order('modified_at', { ascending:false })
@@ -232,6 +238,20 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setActivePackageId(initialPackageId)
     setSelectedActions((actions.data || []).filter(log => String(log.request?.path?.packageId || '') === initialPackageId && packageIds.has(initialPackageId)).slice(0,8))
     setDetailLoading(false)
+  }
+
+  function openOrderFromList(order: Order) {
+    const url = new URL(window.location.href)
+    url.searchParams.set('order', order.order_id)
+    window.history.pushState(null, '', url.pathname + url.search)
+    void openOrder(order)
+  }
+
+  function closeOrder() {
+    setSelectedOrder(null)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('order')
+    window.history.replaceState(null, '', url.pathname + url.search)
   }
 
   async function selectOrderPackage(packageId: string) {
@@ -304,6 +324,17 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
+  if (loadError) return (
+    <div style={S.wrap}>
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
+      <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
+        <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذر تحميل الطلبات</h2>
+        <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
+        <button onClick={() => setLoadVersion(value => value + 1)} style={S.exportBtn}>إعادة المحاولة</button>
+      </div>
+    </div>
+  )
+
   // التبويبات قبل الحالة الفارغة: تاجر تراندايول-فقط (بياناته لقطات لا طلبات) كان يفقد
   // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
   if (orders.length === 0 && trendyolSnaps.length === 0) return (
@@ -340,7 +371,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {[
             { k:'today', l:'اليوم' }, { k:'last7', l:'7 أيام' },
-            { k:'last30', l:'30 يوم' }, { k:'thisMonth', l:'هذا الشهر' }, { k:'all', l:'الكل' },
+            { k:'last30', l:'30 يوم' }, { k:'thisMonth', l:'هذا الشهر' },
+            { k:'needsAction', l:`تحتاج إجراء (${needsActionCount.toLocaleString('ar-SA')})` },
+            { k:'financialReview', l:`مراجعة مالية (${financialReviewCount.toLocaleString('ar-SA')})` },
+            { k:'all', l:'الكل' },
           ].map(p => (
             <button key={p.k} style={{ ...S.pill, ...(preset===p.k ? S.pillActive : {}) }} onClick={() => setPreset(p.k)}>{p.l}</button>
           ))}
@@ -423,7 +457,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ) : pageRows.map(o => (
                   <tr key={o.id} style={S.tr}>
                     <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>
-                      <button onClick={() => void openOrder(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
+                      <button onClick={() => openOrderFromList(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
                         {o.order_id}
                       </button>
                     </td>
@@ -574,14 +608,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       )}
 
       {selectedOrder && (
-        <div style={S.modalBackdrop} onClick={() => setSelectedOrder(null)}>
+        <div style={S.modalBackdrop} onClick={closeOrder}>
           <div role="dialog" aria-modal="true" aria-label={`تفاصيل الطلب ${selectedOrder.order_id}`} style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <div>
                 <div style={{ fontSize:12, color:'var(--text3)', marginBottom:4 }}>تفاصيل الطلب</div>
                 <div style={{ fontSize:18, fontWeight:800, fontFamily:'monospace' }}>{selectedOrder.order_id}</div>
               </div>
-              <button onClick={() => setSelectedOrder(null)} style={S.closeBtn} aria-label="إغلاق">×</button>
+              <button onClick={closeOrder} style={S.closeBtn} aria-label="إغلاق">×</button>
             </div>
 
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
@@ -590,9 +624,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               {selectedOrder.platform === 'trendyol' ? <button onClick={() => void refreshSelectedOrder()} disabled={orderActionLoading} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:orderActionLoading ? .6 : 1 }}>{orderActionLoading ? 'جارٍ التحديث...' : 'تحديث من Trendyol'}</button> : null}
             </div>
             {orderActionMessage ? <div style={{ marginBottom:14, padding:'9px 11px', borderRadius:8, fontSize:11, background:orderActionMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:orderActionMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{orderActionMessage.text}</div> : null}
-            {financialMismatch(selectedOrder) ? <div style={{ marginBottom:14, padding:'10px 12px', borderRadius:8, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
+            {orderFinancialIssue(selectedOrder) ? <div style={{ marginBottom:14, padding:'10px 12px', borderRadius:8, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
               <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
-              <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{financialMismatch(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
+              <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{orderFinancialIssue(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
             </div> : null}
             {selectedOrder.platform === 'trendyol' && selectedPackages.length ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
@@ -690,7 +724,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <div style={S.productImage}>{item.image_url ? <img src={item.image_url} alt={item.product_name || 'المنتج'} style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : <span style={{fontSize:11,color:'var(--text3)'}}>لا توجد صورة</span>}</div>
                   <div style={{ flex:1, minWidth:0 }}><div style={{ fontWeight:800, fontSize:13 }}>{item.product_name_ar || item.product_name || '—'}</div>{item.product_name_ar && item.product_name_ar !== item.product_name ? <div dir="ltr" style={{ fontSize:10, color:'var(--text3)', marginTop:3, textAlign:'right' }}>{item.product_name}</div> : null}<div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>الباركود: {item.barcode || '—'} · SKU: {item.sku || '—'}</div><div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>الكمية {item.quantity} · سعر الوحدة {fmt(Number(item.unit_price || 0))} · الخصم {fmt(Number(item.discount_amount || 0))} · العمولة {item.commission_rate || 0}% · الضريبة {item.vat_rate || 0}%</div></div>
                 </div>)}
-              </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة بعد مطابقة الباركود مع كتالوج المنصة.</div>}
+              </div> : <div style={S.modalNote}>تفاصيل المنتج الحالية: {selectedOrder.product_name || '—'} — ستظهر الصورة عند توفرها في بيانات {PLATFORM_MAP[selectedOrder.platform] || 'المنصة'} أو بعد مطابقة المنتج مع الكتالوج.</div>}
             </>}
           </div>
         </div>
