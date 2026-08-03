@@ -482,7 +482,7 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={S.logoIcon}>S</div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#f5fafc', lineHeight: 1.3, fontFamily: 'var(--font-heading)' }}>Sellpert</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#f5fafc', lineHeight: 1.3, fontFamily: 'var(--font-body)' }}>Sellpert</div>
                   <div style={{ fontSize: 12, color: '#9fb5c2', fontWeight: 400, marginTop: 3 }}>لوحة التاجر</div>
                 </div>
               </div>
@@ -515,7 +515,7 @@ export default function App() {
                 paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
                 borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
               }}>
-                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.45, cursor: 'pointer', textAlign: 'right' }}>
+                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.6, cursor: 'pointer', textAlign: 'right' }}>
                   <span style={{ flex: 1 }}>{group.label}</span>
                   <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                 </button>

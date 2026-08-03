@@ -71,11 +71,11 @@ export default function Login() {
   }
 
   return (
-    <div style={styles.wrap} dir="rtl">
+    <div className="auth-page" style={styles.wrap} dir="rtl">
       <div style={styles.grid} />
       <div style={styles.glow} />
 
-      <div style={styles.card}>
+      <div className="auth-card" style={styles.card}>
         <div style={styles.logo}>
           <div style={styles.logoIcon}>S</div>
           <h1 style={styles.logoText}>Sellpert</h1>
@@ -208,12 +208,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
   },
-  logoSub: { fontSize: 12, color: 'var(--text3)', marginTop: 4 },
+  logoSub: { fontSize: 13, color: 'var(--text3)', marginTop: 4 },
   tabs: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 4, background: 'var(--bg2)', borderRadius: 11, marginBottom: 22 },
-  tab: { border: 0, borderRadius: 8, padding: '9px 8px', background: 'transparent', color: 'var(--text3)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+  tab: { border: 0, borderRadius: 8, padding: '9px 8px', background: 'transparent', color: 'var(--text3)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   tabActive: { background: 'var(--surface)', color: 'var(--accent)', boxShadow: 'var(--shadow)' },
   field: { marginBottom: 16, position: 'relative' },
-  label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 },
+  label: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 },
   input: {
     width: '100%', padding: '12px 14px',
     background: 'var(--bg2)', border: '1px solid var(--border)',
@@ -221,9 +221,9 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'border-color 0.2s',
   },
   passwordToggle: { position: 'absolute', left: 10, bottom: 9, width: 32, height: 32, border: 0, background: 'transparent', color: 'var(--text3)', display: 'grid', placeItems: 'center', cursor: 'pointer' },
-  securityNote: { display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 9, background: 'rgba(15,149,140,.07)', color: 'var(--text2)', fontSize: 11, lineHeight: 1.7, marginBottom: 10 },
-  passwordRules: { display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 10, marginBottom: 14 },
-  forgot: { display: 'block', margin: '-6px 0 14px auto', padding: 0, border: 0, background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
+  securityNote: { display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 9, background: 'rgba(15,149,140,.07)', color: 'var(--text2)', fontSize: 12, lineHeight: 1.7, marginBottom: 10 },
+  passwordRules: { display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, marginBottom: 14 },
+  forgot: { display: 'block', margin: '-6px 0 14px auto', padding: 0, border: 0, background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' },
   error: {
     background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)',
     color: 'var(--red)', borderRadius: 8, padding: '10px 14px',
@@ -238,5 +238,5 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 8px 24px rgba(15,149,140,0.35)',
     marginTop: 4,
   },
-  footer: { fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 20 },
+  footer: { fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginTop: 20 },
 }

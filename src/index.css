@@ -51,8 +51,8 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --font-body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Alexandria', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'Tajawal', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
   --t-micro:11px; --t-cap:12px; --t-label:13px; --t-sm:14px; --t-base:15px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
@@ -127,7 +127,12 @@ body.ltr {
   font-family: var(--font-body);
 }
 
-/* نظام الخطوط المؤسسي: Alexandria للعناوين البارزة، وIBM Plex Arabic للمحتوى والعمل اليومي. */
+/*
+ * النظام الطباعي المؤسسي:
+ * Tajawal للعناوين القصيرة والواضحة، وNoto Sans Arabic للمحتوى والجداول
+ * وعناصر التحكم. هذا الفصل يحافظ على شخصية العنوان من دون إضعاف القراءة
+ * داخل الواجهات التشغيلية الكثيفة.
+ */
 :where(h1, h2) {
   font-family: var(--font-heading) !important;
   font-weight: 700;
@@ -151,14 +156,16 @@ body.ltr {
   line-height: 1.6;
 }
 
-main h1 { font-size: 26px; }
-main h2 { font-size: 21px; }
+main h1 { font-size: 26px; font-weight: 700; }
+main h2 { font-size: 21px; font-weight: 700; }
 main h3 { font-size: 16px; }
 main h4 { font-size: 14px; }
-body small { line-height: 1.5; }
-body table { font-size: var(--t-label); line-height: 1.5; }
-table th { font-size: 12px; font-weight: 600; line-height: 1.45; }
-table td { font-size: 13px; line-height: 1.55; }
+body p { font-size: var(--t-sm); }
+body small { font-size: var(--t-cap); line-height: 1.55; }
+body label { font-size: var(--t-label); font-weight: 500; }
+body table { font-size: var(--t-label); line-height: 1.55; }
+table th { font-size: 12px; font-weight: 600; line-height: 1.55; }
+table td { font-size: 13px; line-height: 1.6; }
 input, select, textarea { font-size: var(--t-sm); font-weight: 400; }
 button { font-size: 13px; font-weight: 500; }
 
@@ -250,6 +257,21 @@ body :where(
   main h1 { font-size: 23px; }
   main h2 { font-size: 19px; }
   main h3 { font-size: 15px; }
+
+  .auth-page {
+    align-items: flex-start !important;
+    min-height: 100svh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 20px 14px !important;
+  }
+
+  .auth-card {
+    max-width: 420px !important;
+    padding: 28px 24px !important;
+    border-radius: 18px !important;
+    margin: auto !important;
+  }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────── */
@@ -385,15 +407,41 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   font-family: var(--font-body);
 }
 
+.sidebar-dark :where(button, input) {
+  font-family: var(--font-body) !important;
+}
+
+.sidebar-dark nav > div > button {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
+}
+
 .sidebar-dark .nav-item {
   border-radius: 7px;
   margin-inline: 10px;
-  line-height: 1.45;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
 }
 
 .sidebar-dark .nav-item.active {
   background: rgba(15,149,140,0.20);
   color: #d9fffb;
+  font-weight: 600 !important;
+}
+
+/* وضوح متسق للنصوص التشغيلية الصغيرة عبر جميع الصفحات. */
+main :where(button, input, select, textarea) {
+  font-family: var(--font-body) !important;
+}
+
+main :where(.page-title, [class*="-header"] h1, [class*="-header"] h2) {
+  font-family: var(--font-heading) !important;
+}
+
+@media (min-width: 769px) {
+  main :where(button, input, select, textarea) { font-size: 13px; }
 }
 
 table { font-variant-numeric: tabular-nums; }
