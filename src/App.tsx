@@ -20,7 +20,7 @@ import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck,
+  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck, Eye,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -501,7 +501,7 @@ export default function App() {
       {impersonating && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: BANNER_H, zIndex: 10000, background: 'linear-gradient(90deg,#d97706,#b45309)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 14 }}>👁</span>
+            <Eye size={16} color="#fff" aria-hidden="true" />
             <span style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>
               تعرض حساب: <strong>{impersonating.name}</strong>
               <span style={{ opacity: 0.75, fontWeight: 400, marginRight: 6 }}>({impersonating.merchant_code})</span>

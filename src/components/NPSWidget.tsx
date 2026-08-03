@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { X, Star } from 'lucide-react'
+import { CheckCircle2, X, Star } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 import { useMobile } from '../lib/hooks'
 import { userErrorMessage } from '../lib/userError'
@@ -65,7 +65,7 @@ export default function NPSWidget({ merchantCode }: Props) {
     } else {
       setSubmitted(true)
       localStorage.setItem(SHOWN_KEY, String(Date.now()))
-      toastOk('شكراً لتقييمك! 🙏')
+      toastOk('شكرًا لتقييمك.')
       setTimeout(() => setShow(false), 2500)
     }
   }
@@ -87,7 +87,7 @@ export default function NPSWidget({ merchantCode }: Props) {
 
       {submitted ? (
         <div style={{ textAlign: 'center', padding: '20px 8px' }}>
-          <div style={{ fontSize: 38, marginBottom: 6 }}>🎉</div>
+          <CheckCircle2 size={34} color="var(--success-text)" style={{ marginBottom:6 }} aria-hidden="true" />
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>شكراً لتقييمك!</div>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>ملاحظاتك تساعدنا نتطور</div>
         </div>

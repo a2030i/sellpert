@@ -102,14 +102,14 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <MessageSquare size={36} color="var(--text3)" style={{ marginBottom: 10 }} />
-                <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 14 }}>مرحباً 👋 — اختر سؤال جاهز أو اكتب سؤالك</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 14 }}>اختر سؤالًا جاهزًا أو اكتب سؤالك</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {SUGGESTIONS.map((s, i) => (
                     <button key={i} onClick={() => send(s)} style={{
                       background: 'var(--surface2)', border: '1px solid var(--border)',
                       padding: '9px 12px', borderRadius: 9, fontSize: 12, color: 'var(--text2)',
-                      cursor: 'pointer', textAlign: 'right', fontFamily: 'inherit',
-                    }}>💬 {s}</button>
+                      cursor: 'pointer', textAlign: 'right', fontFamily: 'inherit', display:'flex', alignItems:'center', gap:7,
+                    }}><MessageSquare size={13} aria-hidden="true" /> {s}</button>
                   ))}
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Landmark } from 'lucide-react'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -601,8 +602,8 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
   const totalOut = byMonth.reduce((a, m) => a + m.cash_out, 0)
   return (
     <div style={{ ...S.card, marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-        🏦 التدفق النقدي الفعلي — آخر 6 أشهر
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+        <Landmark size={16} aria-hidden="true" /> التدفق النقدي الفعلي — آخر 6 أشهر
         <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text3)', marginRight: 8 }}>(من كشوف حسابات المنصات)</span>
       </div>
       <div style={{ padding: 20 }}>
