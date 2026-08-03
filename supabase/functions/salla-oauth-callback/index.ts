@@ -195,12 +195,13 @@ Deno.serve(async (req) => {
       })
 
       // Welcome notification
-      await admin.from('notifications').insert({
+      const { error: welcomeError } = await admin.from('notifications').insert({
         merchant_code: merchantCode,
         title:         'مرحباً بك في Sellpert',
         body:          `تم ربط متجر "${storeName}" بنجاح. يمكنك الآن مزامنة طلباتك ومنتجاتك تلقائياً.`,
         type:          'welcome',
-      }).catch(() => {}) // non-critical
+      })
+      if (welcomeError) console.warn('Unable to create Salla welcome notification:', welcomeError.message)
     }
 
     // ── Step 4: Create magic link / sign-in token for auto-login ─────────────
@@ -214,7 +215,7 @@ Deno.serve(async (req) => {
       : `${APP_URL}?new=${isNew ? '1' : '0'}&store=${sallaStoreId}`
 
     // Log the install event
-    await admin.from('webhook_events').insert({
+    const { error: installLogError } = await admin.from('webhook_events').insert({
       source:       'salla',
       event_type:   'app.installed',
       store_id:     sallaStoreId,
@@ -222,7 +223,8 @@ Deno.serve(async (req) => {
       payload:      { store_name: storeName, is_new: isNew },
       status:       'processed',
       processed_at: new Date().toISOString(),
-    }).catch(() => {})
+    })
+    if (installLogError) console.warn('Unable to record Salla install event:', installLogError.message)
 
     return redirect(redirectUrl)
 

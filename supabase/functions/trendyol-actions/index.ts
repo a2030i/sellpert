@@ -116,7 +116,7 @@ Deno.serve(async req => {
       const { data: previous } = await admin.from('marketplace_action_logs')
         .select('status,response,error_message,external_batch_id').eq('merchant_code', merchantCode)
         .eq('platform','trendyol').eq('action',action).eq('idempotency_key',idempotencyKey).maybeSingle()
-      if (['success','accepted','processing','partial'].includes(previous?.status)) {
+      if (previous && ['success','accepted','processing','partial'].includes(previous.status)) {
         return json({ ok:true, replayed:true, status:previous.status, data:previous.response, batchRequestId:previous.external_batch_id }, 200, cors)
       }
       if (previous?.status === 'running') throw new HttpError(409, 'العملية نفسها قيد التنفيذ')

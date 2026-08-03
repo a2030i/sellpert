@@ -18,7 +18,8 @@ async function encryptionKey() {
     throw new Error('PLATFORM_CREDENTIALS_ENCRYPTION_KEY must be base64')
   }
   if (bytes.length !== 32) throw new Error('PLATFORM_CREDENTIALS_ENCRYPTION_KEY must contain exactly 32 bytes')
-  return crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+  const keyBytes = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 }
 
 export async function encryptCredentialPayload(value: Record<string, unknown>) {
