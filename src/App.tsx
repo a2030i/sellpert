@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase'
 import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
 import Login from './pages/Login'
+import PasswordRecovery from './pages/PasswordRecovery'
 import { ToastContainer, toastErr } from './components/Toast'
 import OnboardingFlow from './components/OnboardingFlow'
 import AIChat from './components/AIChat'
@@ -222,6 +223,7 @@ export default function App() {
   const [view, setView]                     = useState<View>(readView)
   const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showPasswordRecovery, setShowPasswordRecovery] = useState(() => window.location.pathname === '/auth/recovery')
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_GROUPS))
   const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, support: 0, integrationNeedsUpdate: false })
@@ -253,6 +255,7 @@ export default function App() {
       window.history.replaceState(null, '', '/')
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ data, error }) => {
         if (!error && data.session) {
+          if (type === 'recovery') setShowPasswordRecovery(true)
           setSession(data.session)
           fetchMerchant(data.session.user.id)
         } else {
@@ -268,6 +271,7 @@ export default function App() {
       else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setShowPasswordRecovery(true)
       // Ignore transient events that aren't actual login/logout
       if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
         if (session) setSession(session)
@@ -411,6 +415,7 @@ export default function App() {
   )
 
   if (!session) return <Login />
+  if (showPasswordRecovery) return <PasswordRecovery onComplete={() => setShowPasswordRecovery(false)} />
   // Platform administrators use the administration console. Merchant
   // employees stay inside their owner's store with tenant permissions.
   if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating)

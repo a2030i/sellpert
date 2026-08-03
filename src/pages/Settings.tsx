@@ -67,7 +67,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
     if (!accountEmail) return
     setResetting(true); setMsg(null)
     const { error } = await supabase.auth.resetPasswordForEmail(accountEmail, {
-      redirectTo: `${window.location.origin}/settings`,
+      redirectTo: `${window.location.origin}/auth/recovery`,
     })
     setMsg(error
       ? { type: 'err', text: 'تعذر إرسال رابط تغيير كلمة المرور: ' + error.message }

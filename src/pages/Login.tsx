@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { isStrongPassword, passwordChecks } from '../lib/passwordPolicy'
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -24,8 +25,8 @@ export default function Login() {
 
   async function handleRegister() {
     const normalizedEmail = email.trim().toLowerCase()
-    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || password.length < 8) {
-      setError('أدخل اسم المتجر وبريدًا صحيحًا وكلمة مرور من 8 أحرف على الأقل')
+    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || !isStrongPassword(password)) {
+      setError('أدخل اسم المتجر وبريدًا صحيحًا وكلمة مرور تحقق متطلبات الأمان')
       return
     }
     if (password !== confirmPassword) {
@@ -61,7 +62,7 @@ export default function Login() {
     setError('')
     setSuccess('')
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: window.location.origin,
+      redirectTo: `${window.location.origin}/auth/recovery`,
     })
     if (resetError) setError('تعذر إرسال رابط الاستعادة الآن. حاول مرة أخرى لاحقًا.')
     else setSuccess('إذا كان البريد مسجلًا فسيصلك رابط آمن لتعيين كلمة مرور جديدة.')
@@ -140,7 +141,7 @@ export default function Login() {
             <span>حساب مستقل ومجاني. تُعزل طلباتك ومنتجاتك وملفاتك عن جميع المتاجر الأخرى.</span>
           </div>
           <div style={styles.passwordRules}>
-            <span style={{ color: password.length >= 8 ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> 8 أحرف على الأقل</span>
+            {passwordChecks(password).map(check => <span key={check.key} style={{ color: check.passed ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> {check.label}</span>)}
             <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
           </div>
         </>}
