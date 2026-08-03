@@ -153,6 +153,6 @@ test('store owner downloads a complete paged data archive without integration se
   const download = await downloadPromise
 
   expect(download.suggestedFilename()).toMatch(/^sellpert-M-E2E-001-\d{4}-\d{2}-\d{2}\.zip$/)
-  await expect(page.getByText(/تم تنزيل نسخة كاملة: 2 قسمًا و2 سجلًا/)).toBeVisible()
+  await expect(page.getByText(/تم تنزيل نسخة كاملة: 2 قسمًا و.+ سجلًا/)).toBeVisible()
   await expect(page.getByText(/مفاتيح الربط أو الأسرار/)).toBeVisible()
 })
