@@ -106,7 +106,14 @@ Deno.serve(async (req) => {
       paginationToken = String(data?.nextToken || data?.pagination?.nextToken || '')
     } while (paginationToken)
 
-    const financialTransactions = await fetchAmazonTransactions(endpoint, accessToken, marketplaceId, from, to)
+    let financialDataAvailable = true
+    let financialTransactions: any[] = []
+    try {
+      financialTransactions = await fetchAmazonTransactions(endpoint, accessToken, marketplaceId, from, to)
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 403) throw error
+      financialDataAvailable = false
+    }
     const feeByOrder = amazonFeeByOrder(financialTransactions)
     for (const row of rows) row.platform_fee = feeByOrder.get(row.order_id) || 0
 
@@ -140,7 +147,7 @@ Deno.serve(async (req) => {
       packages: packageRows.length,
       customer_data: customerDataAvailable ? 'included' : 'permission_required',
       financial_transactions: financialTransactions.length,
-      fees_source: 'amazon_finances_api_2024_06_19',
+      fees_source: financialDataAvailable ? 'amazon_finances_api_2024_06_19' : 'permission_required',
       financial_data_delay_hours: 48,
     }, 200, corsHeaders)
   } catch (error: any) {
