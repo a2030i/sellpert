@@ -78,6 +78,28 @@ export function mapAmazonOrderItems(order: any, merchantCode: string, syncedAt =
   })
 }
 
+export function enrichAmazonOrderItems(items: any[], catalogItems: any[]) {
+  const catalogue = new Map(catalogItems.map(item => [String(item?.asin || ''), item]))
+  for (const row of items) {
+    const item = catalogue.get(String(row.content_id || ''))
+    if (!item) continue
+    const marketplaceImages = Array.isArray(item.images) ? item.images.flatMap((entry: any) => entry?.images || []) : []
+    const mainImage = marketplaceImages.find((image: any) => image?.variant === 'MAIN') || marketplaceImages[0]
+    const summary = Array.isArray(item.summaries) ? item.summaries[0] : null
+    const identifiers = Array.isArray(item.identifiers)
+      ? item.identifiers.flatMap((entry: any) => entry?.identifiers || [])
+      : []
+    const barcode = identifiers.find((identifier: any) => /^(EAN|UPC|GTIN)$/i.test(String(identifier?.identifierType)))
+
+    row.product_name = row.product_name || summary?.itemName || null
+    row.barcode = row.barcode || barcode?.identifier || null
+    row.image_url = mainImage?.link || null
+    row.images = marketplaceImages
+    row.catalog_raw = item
+  }
+  return items
+}
+
 export function mapAmazonPackages(order: any, merchantCode: string, syncedAt = new Date().toISOString()) {
   const orderId = String(order?.orderId || order?.amazonOrderId || '')
   if (!orderId) return []

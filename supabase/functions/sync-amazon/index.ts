@@ -12,6 +12,7 @@ import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import {
   amazonRequestHeaders,
   amazonFeeByOrder,
+  enrichAmazonOrderItems,
   mapAmazonFinancialTransaction,
   mapAmazonOrder,
   mapAmazonOrderItems,
@@ -106,6 +107,23 @@ Deno.serve(async (req) => {
       paginationToken = String(data?.nextToken || data?.pagination?.nextToken || '')
     } while (paginationToken)
 
+    let catalogDataAvailable = true
+    let catalogItems: any[] = []
+    try {
+      catalogItems = await fetchAmazonCatalogItems(
+        endpoint,
+        accessToken,
+        marketplaceId,
+        [...new Set(itemRows.map(item => String(item.content_id || '')).filter(Boolean))],
+      )
+      enrichAmazonOrderItems(itemRows, catalogItems)
+    } catch (error) {
+      // Catalogue access uses the Product Listing role. Product enrichment is
+      // useful, but it must never block the core orders synchronization.
+      console.warn('[amazon:catalog]', error instanceof Error ? error.message : error)
+      catalogDataAvailable = false
+    }
+
     let financialDataAvailable = true
     let financialTransactions: any[] = []
     try {
@@ -144,6 +162,8 @@ Deno.serve(async (req) => {
       records_synced: daily.size,
       orders: rows.length,
       order_items: itemRows.length,
+      catalog_items: catalogItems.length,
+      catalog_data: catalogDataAvailable ? 'included' : 'permission_required',
       packages: packageRows.length,
       customer_data: customerDataAvailable ? 'included' : 'permission_required',
       financial_transactions: financialTransactions.length,
@@ -281,6 +301,33 @@ async function fetchAmazonTransactions(endpoint: string, accessToken: string, ma
     } while (nextToken)
   }
   return transactions
+}
+
+async function fetchAmazonCatalogItems(
+  endpoint: string,
+  accessToken: string,
+  marketplaceId: string,
+  asins: string[],
+) {
+  const items: any[] = []
+  for (let index = 0; index < asins.length; index += 20) {
+    const identifiers = asins.slice(index, index + 20)
+    const query = new URLSearchParams({
+      identifiers: identifiers.join(','),
+      identifiersType: 'ASIN',
+      marketplaceIds: marketplaceId,
+      includedData: 'images,summaries,identifiers,productTypes,classifications',
+    })
+    const data = await fetchJsonWithRetry(
+      `${endpoint}/catalog/2022-04-01/items?${query}`,
+      { headers: amazonRequestHeaders(accessToken) },
+      'Amazon Catalog Items API',
+    )
+    items.push(...(data?.items || data?.payload?.items || []))
+    // The default usage plan permits two requests per second.
+    if (index + 20 < asins.length) await new Promise(resolve => setTimeout(resolve, 550))
+  }
+  return items
 }
 
 function buildDaily(rows: any[]) {

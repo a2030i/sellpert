@@ -2,6 +2,7 @@ import { assertEquals } from 'jsr:@std/assert'
 import {
   amazonFeeByOrder,
   amazonRequestHeaders,
+  enrichAmazonOrderItems,
   mapAmazonFinancialTransaction,
   mapAmazonOrder,
   mapAmazonOrderItems,
@@ -41,6 +42,25 @@ Deno.test('maps Amazon items and packages for order details', () => {
   assertEquals(pkg.shipment_package_id, 'PKG-1')
   assertEquals(pkg.quantity, 2)
   assertEquals(pkg.status, 'shipped')
+})
+
+Deno.test('enriches Amazon order items with official catalogue images and identifiers', () => {
+  const items = mapAmazonOrderItems(sample, 'MERCHANT-1')
+  enrichAmazonOrderItems(items, [{
+    asin: 'B012345678',
+    summaries: [{ marketplaceId: 'A17E79C6D8DWNP', itemName: 'Catalog product' }],
+    images: [{ marketplaceId: 'A17E79C6D8DWNP', images: [
+      { variant: 'PT01', link: 'https://example.test/alternate.jpg' },
+      { variant: 'MAIN', link: 'https://example.test/main.jpg' },
+    ] }],
+    identifiers: [{ marketplaceId: 'A17E79C6D8DWNP', identifiers: [
+      { identifierType: 'EAN', identifier: '6280000000000' },
+    ] }],
+  }])
+  assertEquals(items[0].product_name, 'Product')
+  assertEquals(items[0].image_url, 'https://example.test/main.jpg')
+  assertEquals(items[0].barcode, '6280000000000')
+  assertEquals(items[0].images.length, 2)
 })
 
 Deno.test('adds every required Amazon request header', () => {
