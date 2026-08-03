@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, Play, Printer, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, PackageCheck, Play, Printer, RefreshCw, RotateCcw, Truck, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { userErrorMessage } from '../lib/userError'
 
@@ -122,7 +122,11 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
   const actions:[MerchantAction,string,string,any][]=[
     ['label','طباعة ملصق الشحن','أدخل رقم التتبع وحمّل الملصق الجاهز',Printer],
+    ['status','تحديث حالة التجهيز','حوّل الشحنة إلى قيد التجهيز أو تم إصدار الفاتورة',PackageCheck],
+    ['tracking','تحديث رقم التتبع','أرسل رقم التتبع الصحيح لحزمة الشحن',Truck],
+    ['carrier','تغيير شركة الشحن','حدّث شركة الشحن المسؤولة عن الحزمة',RefreshCw],
     ['stock','تحديث السعر والمخزون','حدّث سعر وكمية المنتج مباشرة',RefreshCw],
+    ['approve_return','قبول طلب مرتجع','وافق على عناصر المرتجع المحددة في Trendyol',RotateCcw],
   ]
   const set=(key:string,value:string)=>setForm(current=>({...current,[key]:value}))
   const input=(label:string,key:string,placeholder:string,type='text')=><label style={F.field}><span>{label}</span><input style={M.input} type={type} value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={placeholder}/></label>
@@ -174,7 +178,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
        action==='carrier'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رمز شركة الشحن','carrier','مثال: ARAMEX')}</>:
        action==='stock'?<>{input('باركود المنتج','barcode','Barcode')}{input('الكمية المتاحة','quantity','0','number')}{input('سعر البيع','salePrice','0.00','number')}{input('السعر قبل الخصم','listPrice','اختياري','number')}</>:
        <>{input('رقم مطالبة المرتجع','claimId','Claim ID')}{input('أرقام عناصر المرتجع','claimItems','افصل بينها بفاصلة')}</>}
-      {message?<div style={{...F.message,background:message.type==='ok'?'var(--success-bg)':'var(--danger-bg)',color:message.type==='ok'?'var(--success-text)':'var(--danger-text)'}}>{message.text}</div>:null}
+      {message?<div role="status" aria-live="polite" style={{...F.message,background:message.type==='ok'?'var(--success-bg)':'var(--danger-bg)',color:message.type==='ok'?'var(--success-text)':'var(--danger-text)',display:'flex',alignItems:'center',gap:7}}>{message.type==='ok'?<CheckCircle2 size={16}/>:<AlertTriangle size={16}/>} {message.text}</div>:null}
       <button style={{...M.run,width:'100%',gridColumn:'1/-1',opacity:busy?.6:1}} disabled={busy} onClick={run}>{busy?<Loader2 size={15} className="spin"/>:<Play size={15}/>} {busy?'جارٍ التنفيذ...':'تنفيذ الإجراء'}</button>
     </div>
   </div></div>

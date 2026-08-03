@@ -33,3 +33,15 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser journey checks
         run: npm run test:e2e
+
+  database-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+      - name: Start isolated Supabase stack and apply migrations
+        run: supabase start
+      - name: Run tenant isolation and authorization tests
+        run: bash scripts/run-database-tests.sh
