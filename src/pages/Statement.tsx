@@ -388,7 +388,11 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                         <tr key={p} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={S.td}>
                             <span style={{ color: meta?.color, fontWeight: 700 }}>{meta?.label || p}</span>
-                            {isMismatched && <span title="إنفاق إعلاني بدون مبيعات — قد ينقص تقرير" style={{ marginRight: 6, fontSize: 11, color: 'var(--warning-text)' }}>⚠</span>}
+                            {isMismatched && (
+                              <span title="إنفاق إعلاني بدون مبيعات — قد ينقص تقرير" style={{ marginRight: 8, fontSize: 10, color: 'var(--warning-text)', background: 'var(--warning-bg)', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap' }}>
+                                بيانات المبيعات ناقصة
+                              </span>
+                            )}
                           </td>
                           <td style={{ ...S.td, color: 'var(--accent)', fontWeight: 700 }}>{fmt(d.revenue)}</td>
                           <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.fees > 0 ? fmt(d.fees) : '—'}</td>

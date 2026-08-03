@@ -5,7 +5,12 @@ import { PLATFORM_MAP } from '../lib/constants'
 type Scheduled = { platform: string; payout_date: string; amount: number; status: string; note?: string }
 type Pending = { platform: string; sales: number; last_data_date: string }
 
-function fmtSAR(v: number) { return Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س' }
+function fmtSAR(v: number) {
+  return Number(v || 0).toLocaleString('ar-SA-u-nu-latn', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + ' ر.س'
+}
 function fmtDate(d: string) { return new Date(d).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long' }) }
 function relDays(d: string) {
   const days = Math.round((new Date(d + 'T00:00:00').getTime() - Date.now()) / 86400000)
@@ -29,7 +34,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
     supabase.rpc('merchant_payouts', { p_merchant_code: merchantCode }).then(({ data }) => {
       const d: any = data || {}
       setScheduled(d.scheduled || [])
-      setPending(d.pending_sales || [])
+      setPending((d.pending_sales || []).filter((item: Pending) => Number(item.sales) > 0))
       setLoaded(true)
     })
   }, [merchantCode])

@@ -78,12 +78,11 @@ Deno.serve(async (req) => {
     const rows = [...orders.values()]
     await upsertRows(admin, rows)
     const daily = buildDaily(rows)
-    await upsertPerformance(admin, merchantCode, daily)
 
     const details: Record<string, unknown> = {
       orders: rows.length,
       packages: await syncOrderPackages(admin, merchantCode, shipments),
-      performance_days: daily.size,
+      order_days: daily.size,
       order_transport: 'stream',
     }
     const warnings: string[] = []
@@ -97,6 +96,14 @@ Deno.serve(async (req) => {
       syncProducts(admin, merchantCode, credentials.sellerId, headers))
     details.products = typeof productResult === 'object' && productResult ? (productResult as any).products : productResult
     details.inventory = typeof productResult === 'object' && productResult ? (productResult as any).inventory : 0
+    // Settlement synchronization may refine order commissions. Rebuild the
+    // financial layer only after every order and finance write has finished,
+    // using the database's canonical source-precedence rules.
+    const { data: performanceRows, error: performanceError } = await admin.rpc('rebuild_performance_data', {
+      p_merchant_code: merchantCode,
+    })
+    if (performanceError) throw performanceError
+    details.performance_days = numberValue(performanceRows)
     details.warnings = warnings
 
     const now = new Date().toISOString()
@@ -602,29 +609,4 @@ function buildDaily(rows: any[]) {
     daily.set(date, value)
   }
   return daily
-}
-
-async function upsertPerformance(admin: any, merchantCode: string, daily: Map<string, any>) {
-  for (const [date, value] of daily) {
-    const row = {
-      merchant_code: merchantCode,
-      platform: 'trendyol',
-      data_date: date,
-      total_sales: value.sales,
-      order_count: value.orders,
-      platform_fees: 0,
-      margin: 0,
-      ad_spend: 0,
-    }
-    // performance_data uses a partial unique index for aggregate rows
-    // (product_name IS NULL), which PostgREST cannot infer from onConflict.
-    const { data: existing, error: lookupError } = await admin.from('performance_data')
-      .select('id').eq('merchant_code', merchantCode).eq('platform', 'trendyol')
-      .eq('data_date', date).is('product_name', null).maybeSingle()
-    if (lookupError) throw lookupError
-    const { error } = existing
-      ? await admin.from('performance_data').update(row).eq('id', existing.id)
-      : await admin.from('performance_data').insert(row)
-    if (error) throw error
-  }
 }

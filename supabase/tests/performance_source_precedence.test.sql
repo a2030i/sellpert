@@ -60,8 +60,14 @@ BEGIN
   IF (SELECT sum(order_count) FROM public.performance_data WHERE merchant_code=tenant_code AND platform='amazon') <> 1 THEN
     RAISE EXCEPTION 'Amazon order count was duplicated across sources';
   END IF;
+  IF (SELECT sum(platform_fees) FROM public.performance_data WHERE merchant_code=tenant_code AND platform='amazon') <> 15 THEN
+    RAISE EXCEPTION 'Amazon platform fees were not preserved from canonical orders';
+  END IF;
   IF (SELECT sum(total_sales) FROM public.performance_data WHERE merchant_code=tenant_code AND platform='trendyol') <> 50 THEN
     RAISE EXCEPTION 'Trendyol snapshot duplicated canonical orders';
+  END IF;
+  IF (SELECT sum(platform_fees) FROM public.performance_data WHERE merchant_code=tenant_code AND platform='trendyol') <> 5 THEN
+    RAISE EXCEPTION 'Trendyol platform fees were not preserved from canonical orders';
   END IF;
   IF (SELECT sum(ad_spend) FROM public.performance_data WHERE merchant_code=tenant_code AND platform='amazon') <> 10 THEN
     RAISE EXCEPTION 'Advertising spend was lost while rebuilding performance';
