@@ -57,6 +57,14 @@ BEGIN
     updated_definition := replace(function_definition, old_guard, new_guard);
     EXECUTE updated_definition;
   ELSIF position(
+    'security.rebuild_all_derived_data(p_merchant_code)'
+    in function_definition
+  ) > 0 THEN
+    -- The privileged implementation already lives in the private security
+    -- schema. The public function is an invoker-only API wrapper, so there is
+    -- no authorization guard to rewrite at this boundary.
+    NULL;
+  ELSIF position(
     'security.has_merchant_permission(p_merchant_code, ''integrations'')'
     in function_definition
   ) = 0 THEN
