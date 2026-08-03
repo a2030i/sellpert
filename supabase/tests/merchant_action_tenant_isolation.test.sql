@@ -19,6 +19,22 @@ insert into action_fixture
 select (public.create_my_action('test-source', 'Tenant action', 'operations', 'high', null, 'Safe isolation', '{}', current_date + 3)->>'id')::uuid;
 
 do $$
+begin
+  begin
+    insert into public.merchant_requests (
+      merchant_code, type, title, status, admin_note, resolved_by
+    ) values (
+      public.current_merchant_code(), 'task', 'Forged resolved request',
+      'pending', 'must be staff-only', 'forged-staff'
+    );
+    raise exception 'MERCHANT_FORGED_STAFF_FIELDS';
+  exception when insufficient_privilege then
+    null;
+  end;
+end
+$$;
+
+do $$
 declare
   first_id uuid := (select id from action_fixture);
   duplicate_id uuid;
