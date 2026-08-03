@@ -80,7 +80,6 @@ set local role authenticated;
 do $$
 declare
   health jsonb;
-  tenant_a text;
   target_id uuid;
 begin
   health := public.get_db_health();
@@ -91,10 +90,9 @@ begin
     raise exception 'health payload did not expose safe incident summaries';
   end if;
 
-  select merchant_code into tenant_a from public.merchants where id = '00000000-0000-4000-8000-000000009971';
   select (item ->> 'id')::uuid into target_id
   from jsonb_array_elements(health -> 'recent_client_incidents') item
-  where item ->> 'merchant_code' = tenant_a;
+  where item ->> 'page_path' = '/product-detail/:id';
 
   if not public.update_client_incident_status(target_id, 'resolved') then
     raise exception 'privileged incident resolution failed';
@@ -109,4 +107,3 @@ $$;
 
 reset role;
 rollback;
-
