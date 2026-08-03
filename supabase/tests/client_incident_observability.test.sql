@@ -91,7 +91,7 @@ begin
   end if;
 
   select (item ->> 'id')::uuid into target_id
-  from jsonb_array_elements(health -> 'recent_client_incidents') item
+  from jsonb_array_elements(health -> 'recent_client_incidents') as incidents(item)
   limit 1;
 
   if target_id is null then
