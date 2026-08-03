@@ -1,6 +1,11 @@
 name: Production smoke monitor
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/production-smoke.yml'
+      - 'scripts/test-production-smoke.ps1'
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
@@ -21,4 +26,3 @@ jobs:
       - name: Verify production availability and authorization boundaries
         shell: pwsh
         run: ./scripts/test-production-smoke.ps1
-

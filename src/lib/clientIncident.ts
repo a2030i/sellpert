@@ -84,6 +84,19 @@ export function installClientIncidentReporting(): void {
   if (globalListenersInstalled || typeof window === 'undefined') return
   globalListenersInstalled = true
 
+  window.addEventListener('sellpert:api-incident', event => {
+    const signal = (event as CustomEvent<{
+      category: 'network' | 'api'
+      severity: 'error'
+      component: 'api'
+      action: 'load' | 'save'
+      errorCode: 'network_failure' | 'api_failure'
+      httpStatus?: number
+    }>).detail
+    if (!signal) return
+    void reportClientIncident(signal)
+  })
+
   window.addEventListener('error', event => {
     if (!event.error) return
     void reportClientIncident({

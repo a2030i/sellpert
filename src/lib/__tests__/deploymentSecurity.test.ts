@@ -31,4 +31,10 @@ describe('deployment browser security', () => {
     expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
     expect(headers['Permissions-Policy']).toContain('camera=()')
   })
+
+  it('binds client incidents to the immutable deployment release', () => {
+    const viteConfig = readFileSync('vite.config.ts', 'utf8')
+    expect(viteConfig).toContain('VERCEL_GIT_COMMIT_SHA')
+    expect(viteConfig).toContain('VITE_APP_RELEASE')
+  })
 })

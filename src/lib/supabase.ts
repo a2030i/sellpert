@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createMonitoredFetch, dispatchApiIncident } from './apiMonitoring'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -38,6 +39,9 @@ function makeStorage(): Storage {
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: {
+    fetch: createMonitoredFetch(globalThis.fetch.bind(globalThis), dispatchApiIncident),
+  },
   auth: {
     persistSession: true,        // Keep the session in storage across reloads
     autoRefreshToken: true,      // Refresh JWT before it expires

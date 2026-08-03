@@ -69,7 +69,7 @@ Write-Host 'PASS production security headers'
 $authHealth = Invoke-WithRetry { Get-HttpStatus "$SupabaseUrl/auth/v1/health" }
 Assert-Status 'Supabase API gateway' $authHealth @(401)
 
-$protectedFunctions = @('queue-worker', 'salla-sync', 'impersonate-merchant')
+$protectedFunctions = @('queue-worker', 'salla-sync', 'impersonate-merchant', 'account-lifecycle', 'activity-feed')
 foreach ($functionName in $protectedFunctions) {
   $status = Invoke-WithRetry {
     Get-HttpStatus "$SupabaseUrl/functions/v1/$functionName" 'POST' '{}'
@@ -78,4 +78,3 @@ foreach ($functionName in $protectedFunctions) {
 }
 
 Write-Host 'Production smoke checks passed.'
-
