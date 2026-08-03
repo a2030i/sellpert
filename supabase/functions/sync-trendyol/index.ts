@@ -65,33 +65,13 @@ Deno.serve(async (req) => {
 
     const orders = new Map<string, any>()
     const shipments: any[] = []
-    // Trendyol accepts at most a two-week date interval. Slightly smaller
-    // windows avoid boundary/time-zone rejection.
+    // The Stream endpoint is Trendyol's supported transport for periodic
+    // synchronization. Each cursor remains bound to its original filters.
     for (const window of splitRange(from, to, 13)) {
-      let page = 0
-      while (true) {
-        const query = new URLSearchParams({
-          startDate: String(window.from.getTime()),
-          endDate: String(window.to.getTime()),
-          orderByField: 'PackageLastModifiedDate',
-          orderByDirection: 'ASC',
-          page: String(page),
-          size: '200',
-        })
-        const data = await fetchJsonWithRetry(
-          `${TRENDYOL_API}/${encodeURIComponent(credentials.sellerId)}/orders?${query}`,
-          { headers },
-          'Trendyol API',
-        )
-        const packages: any[] = data?.content || []
-        for (const shipment of packages) {
-          shipments.push(shipment)
-          mergeShipment(orders, shipment, merchantCode)
-        }
-
-        const totalPages = numberValue(data?.totalPages)
-        if (packages.length < 200 || (totalPages > 0 && page + 1 >= totalPages)) break
-        page++
+      const packages = await fetchShipmentStream(credentials.sellerId, window.from, window.to, headers)
+      for (const shipment of packages) {
+        shipments.push(shipment)
+        mergeShipment(orders, shipment, merchantCode)
       }
     }
 
@@ -100,7 +80,12 @@ Deno.serve(async (req) => {
     const daily = buildDaily(rows)
     await upsertPerformance(admin, merchantCode, daily)
 
-    const details: Record<string, unknown> = { orders: rows.length, performance_days: daily.size }
+    const details: Record<string, unknown> = {
+      orders: rows.length,
+      packages: await syncOrderPackages(admin, merchantCode, shipments),
+      performance_days: daily.size,
+      order_transport: 'stream',
+    }
     const warnings: string[] = []
     details.order_items = await optionalResource('order_items', warnings, () =>
       syncOrderItems(admin, merchantCode, credentials.sellerId, shipments, headers))
@@ -167,6 +152,92 @@ function assertCredentials(sellerId: unknown, apiKey: unknown, apiSecret: unknow
   if (!sellerId || !apiKey || !apiSecret) {
     throw new HttpError(400, 'بيانات Trendyol غير مكتملة (Seller ID / API Key / API Secret)')
   }
+}
+
+async function fetchShipmentStream(
+  sellerId: string,
+  from: Date,
+  to: Date,
+  headers: Record<string, string>,
+) {
+  const shipments: any[] = []
+  let nextCursor = ''
+  let requestCount = 0
+  while (true) {
+    const query = new URLSearchParams({
+      lastModifiedStartDate: String(from.getTime()),
+      lastModifiedEndDate: String(to.getTime()),
+      size: '200',
+    })
+    if (nextCursor) query.set('nextCursor', nextCursor)
+    const data = await fetchJsonWithRetry(
+      `${TRENDYOL_API}/${encodeURIComponent(sellerId)}/orders/stream?${query}`,
+      { headers },
+      'Trendyol Orders Stream API',
+    )
+    const content = Array.isArray(data?.content) ? data.content : []
+    shipments.push(...content)
+    requestCount++
+
+    if (!data?.hasMore) break
+    const cursor = String(data?.nextCursor || '')
+    if (!cursor || cursor === nextCursor) {
+      throw new HttpError(502, 'Trendyol Orders Stream returned an invalid cursor')
+    }
+    if (requestCount >= 200) {
+      throw new HttpError(502, 'Trendyol Orders Stream exceeded the safe cursor limit')
+    }
+    nextCursor = cursor
+    // Trendyol recommends at least five seconds between cursor requests.
+    await new Promise(resolve => setTimeout(resolve, 5_000))
+  }
+  return shipments
+}
+
+async function syncOrderPackages(admin: any, merchantCode: string, shipments: any[]) {
+  const now = new Date().toISOString()
+  const rows = shipments.flatMap((shipment:any) => {
+    const packageId = String(shipment.shipmentPackageId || shipment.id || '')
+    const orderId = String(shipment.orderNumber || '')
+    if (!packageId || !orderId) return []
+    const lines = Array.isArray(shipment.lines) ? shipment.lines : []
+    return [{
+      merchant_code: merchantCode,
+      platform: 'trendyol',
+      order_id: orderId,
+      shipment_package_id: packageId,
+      status: mapStatus(shipment.status || shipment.shipmentPackageStatus),
+      cargo_tracking_number: String(shipment.cargoTrackingNumber || shipment.trackingNumber || '') || null,
+      cargo_tracking_link: shipment.cargoTrackingLink || null,
+      cargo_sender_number: String(shipment.cargoSenderNumber || '') || null,
+      cargo_provider: shipment.cargoProviderName || null,
+      delivery_type: shipment.deliveryType || null,
+      delivery_address_type: shipment.deliveryAddressType || null,
+      invoice_number: String(shipment.invoiceNumber || '') || null,
+      invoice_status: shipment.invoiceStatus || null,
+      invoice_rejected_reasons: shipment.invoiceRejectedReasonKeys || null,
+      line_count: lines.length,
+      quantity: lines.reduce((sum:number, line:any) => sum + Math.max(1, Math.trunc(numberValue(line.quantity || 1))), 0),
+      total_amount: numberValue(shipment.packageTotalPrice || shipment.totalPrice || shipment.packageGrossAmount),
+      currency: shipment.currencyCode || 'SAR',
+      modified_at: safeIsoDate(shipment.lastModifiedDate || shipment.createdDate || shipment.orderDate),
+      last_synced_at: now,
+      raw: shipment,
+    }]
+  })
+  for (let index = 0; index < rows.length; index += 100) {
+    const { error } = await admin.from('order_packages').upsert(rows.slice(index, index + 100), {
+      onConflict: 'merchant_code,platform,shipment_package_id',
+    })
+    if (error) throw error
+  }
+  return rows.length
+}
+
+function safeIsoDate(value: unknown) {
+  const numeric = Number(value)
+  const date = Number.isFinite(numeric) && numeric > 0 ? new Date(numeric) : new Date(String(value || ''))
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
 function mergeShipment(target: Map<string, any>, shipment: any, merchantCode: string) {
@@ -273,6 +344,7 @@ async function syncOrderItems(admin: any, merchantCode: string, sellerId: string
       const commissionRate = numberValue(line.commission)
       rows.push({
         merchant_code:merchantCode, platform:'trendyol', order_id:orderId,
+        shipment_package_id:String(shipment.shipmentPackageId || shipment.id || '') || null,
         line_id:String(line.lineId || line.id || `${shipment.shipmentPackageId || shipment.id}-${index}`),
         content_id:String(line.contentId || line.productCode || '') || null,
         barcode:barcode || null, sku:String(line.merchantSku || line.stockCode || line.sku || '') || null,

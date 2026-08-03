@@ -32,6 +32,14 @@ BEGIN
   INSERT INTO public.orders (merchant_code, platform, order_id, total_amount)
   VALUES (tenant_a, 'trendyol', 'TENANT-A-ORDER', 10), (tenant_b, 'trendyol', 'TENANT-B-ORDER', 20);
 
+  -- One marketplace order may be split into multiple shipment packages. Keep
+  -- all packages while preserving the same tenant boundary as the parent order.
+  INSERT INTO public.order_packages (merchant_code, platform, order_id, shipment_package_id, status)
+  VALUES
+    (tenant_a, 'trendyol', 'TENANT-A-ORDER', 'TENANT-A-PACKAGE-1', 'Picking'),
+    (tenant_a, 'trendyol', 'TENANT-A-ORDER', 'TENANT-A-PACKAGE-2', 'Invoiced'),
+    (tenant_b, 'trendyol', 'TENANT-B-ORDER', 'TENANT-B-PACKAGE-1', 'Delivered');
+
   INSERT INTO public.platform_file_uploads (id, merchant_code, platform, file_name, file_type, status)
   VALUES
     ('00000000-0000-4000-a000-000000009911', tenant_a, 'amazon', 'tenant-a.xlsx', 'orders', 'completed'),
@@ -68,6 +76,9 @@ BEGIN
   END IF;
   IF (SELECT count(DISTINCT merchant_code) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'tenant owner can see another tenant';
+  END IF;
+  IF (SELECT count(*) FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') <> 2 THEN
+    RAISE EXCEPTION 'tenant owner package isolation or split-package preservation failed';
   END IF;
   IF (SELECT count(*) FROM public.products WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 1 THEN
     RAISE EXCEPTION 'tenant owner product isolation failed';
@@ -109,6 +120,9 @@ BEGIN
   END IF;
   IF (SELECT count(DISTINCT merchant_code) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'employee can see another tenant';
+  END IF;
+  IF (SELECT count(*) FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') <> 2 THEN
+    RAISE EXCEPTION 'employee package read permission or tenant isolation failed';
   END IF;
   IF (SELECT count(*) FROM public.products WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 0 THEN
     RAISE EXCEPTION 'employee bypassed a disabled products permission';
@@ -158,6 +172,9 @@ BEGIN
   END IF;
   IF (SELECT count(*) FROM public.orders WHERE order_id IN ('TENANT-A-ORDER','TENANT-B-ORDER')) <> 2 THEN
     RAISE EXCEPTION 'platform staff with view_merchants cannot read merchant orders';
+  END IF;
+  IF (SELECT count(*) FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') <> 3 THEN
+    RAISE EXCEPTION 'platform staff with view_merchants cannot read shipment packages';
   END IF;
   IF (SELECT count(*) FROM public.account_transactions) <> 0 THEN
     RAISE EXCEPTION 'platform staff bypassed view_finance permission';
