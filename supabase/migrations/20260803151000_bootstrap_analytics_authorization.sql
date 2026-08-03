@@ -50,3 +50,18 @@ begin
   return '{}'::jsonb;
 end;
 $$;
+
+create or replace function public.generate_proactive_alerts(p_merchant_code text)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is not null
+     and not security.can_access_merchant(p_merchant_code) then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  return 0;
+end;
+$$;

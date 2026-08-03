@@ -24,11 +24,14 @@ BEGIN
       AND p.proname = function_name
       AND pg_get_function_identity_arguments(p.oid) = 'p_merchant_code text';
 
-    updated_definition := replace(function_definition, old_guard, new_guard);
-    IF function_definition IS NULL OR updated_definition = function_definition THEN
+    IF function_definition IS NULL THEN
+      RAISE EXCEPTION 'expected authorization guard not found in %', function_name;
+    ELSIF position(old_guard in function_definition) > 0 THEN
+      updated_definition := replace(function_definition, old_guard, new_guard);
+      EXECUTE updated_definition;
+    ELSIF position(new_guard in function_definition) = 0 THEN
       RAISE EXCEPTION 'expected authorization guard not found in %', function_name;
     END IF;
-    EXECUTE updated_definition;
   END LOOP;
 END
 $$;
@@ -48,11 +51,14 @@ BEGIN
     AND p.proname = 'rebuild_all_derived_data'
     AND pg_get_function_identity_arguments(p.oid) = 'p_merchant_code text';
 
-  updated_definition := replace(function_definition, old_guard, new_guard);
-  IF function_definition IS NULL OR updated_definition = function_definition THEN
+  IF function_definition IS NULL THEN
+    RAISE EXCEPTION 'expected rebuild authorization guard not found';
+  ELSIF position(old_guard in function_definition) > 0 THEN
+    updated_definition := replace(function_definition, old_guard, new_guard);
+    EXECUTE updated_definition;
+  ELSIF position(new_guard in function_definition) = 0 THEN
     RAISE EXCEPTION 'expected rebuild authorization guard not found';
   END IF;
-  EXECUTE updated_definition;
 END
 $$;
 
