@@ -9,6 +9,7 @@ import { applyStoredTheme } from './components/ThemeToggle'
 import { applyStoredAccent } from './lib/theme'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import { installClientIncidentReporting } from './lib/clientIncident'
+import ConnectivityBanner from './components/ConnectivityBanner'
 
 applyStoredTheme()
 applyStoredAccent()
@@ -23,6 +24,7 @@ if ('serviceWorker' in navigator) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AppErrorBoundary>
+      <ConnectivityBanner />
       <App />
     </AppErrorBoundary>
   </React.StrictMode>

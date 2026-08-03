@@ -14,6 +14,7 @@ import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import AccountAccessState from './components/AccountAccessState'
+import PageErrorBoundary from './components/PageErrorBoundary'
 import MfaChallenge from './components/MfaChallenge'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
@@ -610,27 +611,29 @@ export default function App() {
 
       {/* ── Main Content ── */}
       <main style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
-        <Suspense fallback={<PageFallback />}>
-          {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
-          {view === 'actions'      && <Actions      merchant={activeMerchant} />}
-          {view === 'products'     && <Products     merchant={activeMerchant} />}
-          {view === 'orders'       && <Orders       merchant={activeMerchant} />}
-          {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
-          {view === 'requests'     && <Requests     merchant={activeMerchant} />}
-          {view === 'statement'    && <Statement    merchant={activeMerchant} />}
-          {view === 'integrations' && <Integrations merchant={activeMerchant} />}
-          {view === 'store-status' && <StoreStatus merchant={activeMerchant} />}
-          {view === 'activity' && <StoreActivity merchant={activeMerchant} />}
-          {view === 'security' && <AccountSecurity merchant={activeMerchant} />}
-          {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
-          {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
-          {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
-          {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
-          {view === 'help'            && <Help           merchant={activeMerchant} />}
-          {view === 'quick-inventory' && <QuickInventory  merchant={activeMerchant} />}
-          {view === 'team'            && <Team            merchant={activeMerchant} />}
-          {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
-        </Suspense>
+        <PageErrorBoundary resetKey={view} onGoHome={() => goTo('dashboard')}>
+          <Suspense fallback={<PageFallback />}>
+            {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
+            {view === 'actions'      && <Actions      merchant={activeMerchant} />}
+            {view === 'products'     && <Products     merchant={activeMerchant} />}
+            {view === 'orders'       && <Orders       merchant={activeMerchant} />}
+            {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
+            {view === 'requests'     && <Requests     merchant={activeMerchant} />}
+            {view === 'statement'    && <Statement    merchant={activeMerchant} />}
+            {view === 'integrations' && <Integrations merchant={activeMerchant} />}
+            {view === 'store-status' && <StoreStatus merchant={activeMerchant} />}
+            {view === 'activity' && <StoreActivity merchant={activeMerchant} />}
+            {view === 'security' && <AccountSecurity merchant={activeMerchant} />}
+            {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
+            {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
+            {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
+            {view === 'product-compare' && <ProductCompare merchant={activeMerchant} />}
+            {view === 'help'            && <Help           merchant={activeMerchant} />}
+            {view === 'quick-inventory' && <QuickInventory  merchant={activeMerchant} />}
+            {view === 'team'            && <Team            merchant={activeMerchant} />}
+            {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
+          </Suspense>
+        </PageErrorBoundary>
       </main>
       <ToastContainer />
       <PWAInstallPrompt />
