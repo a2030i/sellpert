@@ -10,6 +10,11 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const APP_URL = Deno.env.get('APP_URL') || 'https://sellpert.vercel.app'
 const CALLBACK_URL = `${SUPABASE_URL}/functions/v1/marketplace-oauth`
+class HttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message)
+  }
+}
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -21,14 +26,14 @@ Deno.serve(async req => {
     return respond({ error: 'Method not allowed' }, 405)
   } catch (error: any) {
     if (req.method === 'GET') return redirectResult('error', error.message || 'oauth_failed')
-    return respond({ error: error.message || 'تعذر بدء التفويض' }, 400)
+    return respond({ error: error.message || 'تعذر بدء التفويض' }, error instanceof HttpError ? error.status : 400)
   }
 })
 
 async function startAuthorization(req: Request, admin: any) {
   const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
   const { data: { user }, error } = await admin.auth.getUser(token)
-  if (error || !user?.email) throw new Error('يرجى تسجيل الدخول من جديد')
+  if (error || !user?.email) throw new HttpError(401, 'يرجى تسجيل الدخول من جديد')
 
   const body = await req.json()
   const platform = String(body?.platform || '')
@@ -37,12 +42,14 @@ async function startAuthorization(req: Request, admin: any) {
 
   const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
     .eq('id', user.id).maybeSingle()
-  if (!caller || caller.is_active === false) throw new Error('غير مصرح')
+  if (!caller || caller.is_active === false) throw new HttpError(403, 'غير مصرح')
   const isAdmin = ['admin', 'super_admin'].includes(caller.role)
   const effectiveCode = caller.role === 'employee' ? caller.owner_merchant_code : caller.merchant_code
   const employeeAllowed = caller.role !== 'employee' || permissionEnabled(caller.permissions, 'integrations')
   const merchantCode = isAdmin ? requestedCode : effectiveCode
-  if (!employeeAllowed || !merchantCode || (!isAdmin && requestedCode !== merchantCode)) throw new Error('غير مصرح لهذا المتجر')
+  if (!employeeAllowed || !merchantCode || (!isAdmin && requestedCode !== merchantCode)) {
+    throw new HttpError(403, 'غير مصرح لهذا المتجر')
+  }
 
   const state = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '')
   const { error: stateError } = await admin.from('marketplace_oauth_states').insert({

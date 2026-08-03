@@ -21,5 +21,6 @@ describe('public Edge endpoint security boundaries', () => {
     expect(consumeAt).toBeGreaterThan(-1)
     expect(exchangeAt).toBeGreaterThan(consumeAt)
     expect(handler).toContain(".gt('expires_at', new Date().toISOString())")
+    expect(handler).toContain("throw new HttpError(401, 'يرجى تسجيل الدخول من جديد')")
   })
 })
