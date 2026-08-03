@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { isStrongPassword, passwordChecks } from '../lib/passwordPolicy'
+import { registrationErrorMessage } from '../lib/authErrors'
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -47,7 +48,7 @@ export default function Login() {
         },
       },
     })
-    if (signUpError) setError(/already|registered/i.test(signUpError.message) ? 'هذا البريد مسجل مسبقًا' : 'تعذر إنشاء الحساب الآن. حاول مرة أخرى بعد قليل.')
+    if (signUpError) setError(registrationErrorMessage(signUpError))
     else if (!data.session) setSuccess('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')
     setLoading(false)
   }
