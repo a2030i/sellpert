@@ -32,6 +32,21 @@ BEGIN
   INSERT INTO public.orders (merchant_code, platform, order_id, total_amount)
   VALUES (tenant_a, 'trendyol', 'TENANT-A-ORDER', 10), (tenant_b, 'trendyol', 'TENANT-B-ORDER', 20);
 
+  INSERT INTO public.platform_file_uploads (id, merchant_code, platform, file_name, file_type, status)
+  VALUES
+    ('00000000-0000-4000-a000-000000009911', tenant_a, 'amazon', 'tenant-a.xlsx', 'orders', 'completed'),
+    ('00000000-0000-4000-a000-000000009912', tenant_b, 'amazon', 'tenant-b.xlsx', 'orders', 'completed');
+
+  INSERT INTO public.products (merchant_code, name, sku, platform_source)
+  VALUES
+    (tenant_a, 'Tenant A Product', 'TENANT-A-SKU', 'trendyol'),
+    (tenant_b, 'Tenant B Product', 'TENANT-B-SKU', 'trendyol');
+
+  INSERT INTO public.inventory (merchant_code, sku, product_name, platform, quantity)
+  VALUES
+    (tenant_a, 'TENANT-A-SKU', 'Tenant A Product', 'trendyol', 5),
+    (tenant_b, 'TENANT-B-SKU', 'Tenant B Product', 'trendyol', 7);
+
   INSERT INTO public.account_transactions (merchant_code, platform)
   VALUES (tenant_a, 'trendyol');
 
@@ -53,6 +68,15 @@ BEGIN
   END IF;
   IF (SELECT count(DISTINCT merchant_code) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'tenant owner can see another tenant';
+  END IF;
+  IF (SELECT count(*) FROM public.products WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 1 THEN
+    RAISE EXCEPTION 'tenant owner product isolation failed';
+  END IF;
+  IF (SELECT count(*) FROM public.inventory WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 1 THEN
+    RAISE EXCEPTION 'tenant owner inventory isolation failed';
+  END IF;
+  IF (SELECT count(*) FROM public.platform_file_uploads WHERE file_name IN ('tenant-a.xlsx','tenant-b.xlsx')) <> 1 THEN
+    RAISE EXCEPTION 'tenant owner upload isolation failed';
   END IF;
 
   BEGIN
@@ -85,6 +109,15 @@ BEGIN
   END IF;
   IF (SELECT count(DISTINCT merchant_code) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'employee can see another tenant';
+  END IF;
+  IF (SELECT count(*) FROM public.products WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 0 THEN
+    RAISE EXCEPTION 'employee bypassed a disabled products permission';
+  END IF;
+  IF (SELECT count(*) FROM public.inventory WHERE sku IN ('TENANT-A-SKU','TENANT-B-SKU')) <> 0 THEN
+    RAISE EXCEPTION 'employee bypassed a disabled inventory permission';
+  END IF;
+  IF (SELECT count(*) FROM public.platform_file_uploads WHERE file_name IN ('tenant-a.xlsx','tenant-b.xlsx')) <> 0 THEN
+    RAISE EXCEPTION 'employee bypassed a disabled integrations permission';
   END IF;
   IF (SELECT count(*) FROM public.account_transactions) <> 0 THEN
     RAISE EXCEPTION 'employee bypassed a disabled finance permission';

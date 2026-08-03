@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ArrowLeft, CheckCircle2, Plug, ShieldCheck, Store, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 
@@ -7,162 +8,141 @@ interface Props {
   onComplete: () => void
 }
 
-function getSteps(signupSource: string) {
-  const isSalla = signupSource === 'salla_app'
-  return [
-    {
-      icon: '🏪',
-      title: isSalla ? 'متجرك جاهز!' : 'مرحباً بك في Sellpert!',
-      desc: isSalla
-        ? 'تم ربط متجر سلة بنجاح. Sellpert سيزامن طلباتك ومنتجاتك تلقائياً.'
-        : 'أهلاً — منصتك الموحدة لإدارة مبيعاتك على تراندايول ونون وأمازون من مكان واحد.',
-    },
-    {
-      icon: '📊',
-      title: 'لوحة التحكم',
-      desc: 'تابع مبيعاتك اليومية، الطلبات، وأداء متجرك من مكان واحد.',
-    },
-    {
-      icon: isSalla ? '📦' : '🔗',
-      title: isSalla ? 'الطلبات والمخزون' : 'ارفع تقارير منصاتك',
-      desc: isSalla
-        ? 'كل طلبات سلة تظهر هنا تلقائياً. يمكنك تتبع الحالة وإدارة المخزون.'
-        : 'من صفحة "المنصات" ارفع تقارير تراندايول أو نون أو أمازون وستظهر بياناتك فوراً في لوحة التحكم.',
-    },
-    {
-      icon: '✓',
-      title: 'أنت جاهز للبدء',
-      desc: 'اربط منصاتك أو ارفع ملفات التقارير، ثم تابع الطلبات والمنتجات والمخزون من مكان واحد.',
-    },
-  ]
-}
+const STEPS = [
+  {
+    Icon: Store,
+    title: 'مرحبًا بك في Sellpert',
+    description: 'تم إنشاء مساحة عمل مستقلة لمتجرك. من هنا تدير الطلبات والمنتجات والمخزون ونتائج القنوات من مكان واحد.',
+    note: 'يمكنك البدء فورًا من دون الرجوع إلى إدارة المنصة.',
+  },
+  {
+    Icon: ShieldCheck,
+    title: 'بيانات متجرك معزولة',
+    description: 'الطلبات والمنتجات والملفات وبيانات الربط الخاصة بك لا تظهر لأي متجر آخر. ينطبق العزل نفسه على الموظفين الذين تضيفهم.',
+    note: 'كل موظف يرى فقط الأقسام التي تمنحه صلاحيتها.',
+  },
+  {
+    Icon: Plug,
+    title: 'اربط قناة البيع أو ارفع ملفًا',
+    description: 'اربط ترنديول للمزامنة المباشرة، أو ارفع ملفات Amazon وNoon وسلة وزد. سيحدد النظام نوع التقرير ويعرض نتيجة الاستيراد بوضوح.',
+    note: 'لا حاجة لنسخ أكواد تقنية أو إرسال الملفات إلى الإدارة.',
+  },
+  {
+    Icon: Users,
+    title: 'مساحة العمل جاهزة',
+    description: 'ابدأ بربط منصتك وإحضار بياناتك، ثم أضف أعضاء الفريق وحدد صلاحية الطلبات أو المنتجات أو المخزون أو التقارير لكل موظف.',
+    note: 'يمكنك تعديل الصلاحيات أو إيقاف وصول أي موظف لاحقًا.',
+  },
+]
 
 export default function OnboardingFlow({ merchant, onComplete }: Props) {
-  const STEPS = getSteps(merchant.signup_source || '')
-  const [step, setStep]     = useState(0)
-  const [closing, setClosing] = useState(false)
+  const [step, setStep] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const current = STEPS[step]
+  const isLast = step === STEPS.length - 1
 
-  async function finish() {
-    setClosing(true)
-    supabase.from('merchants')
+  async function finish(destination?: '/integrations') {
+    setSaving(true)
+    await supabase.from('merchants')
       .update({ onboarding_done: true })
       .eq('merchant_code', merchant.merchant_code)
-      .then(() => { onComplete() }, () => { onComplete() })
+    onComplete()
+    if (destination) {
+      window.history.pushState(null, '', destination)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }
   }
 
-  const current = STEPS[step]
-  const isLast  = step === STEPS.length - 1
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 10000,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20,
-      opacity: closing ? 0 : 1,
-      transition: 'opacity 0.3s',
-    }}>
-      <div style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 20,
-        padding: '40px 32px',
-        maxWidth: 460,
-        width: '100%',
-        textAlign: 'center',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
-        position: 'relative',
-      }}>
-        {/* Progress dots */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 28 }}>
-          {STEPS.map((_, i) => (
-            <div key={i} style={{
-              width: i === step ? 20 : 6,
-              height: 6,
-              borderRadius: 3,
-              background: i <= step ? 'var(--accent)' : 'var(--surface2)',
-              transition: 'all 0.3s',
-            }} />
+    <div style={styles.backdrop} role="presentation">
+      <section style={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="onboarding-title" dir="rtl">
+        <header style={styles.header}>
+          <div>
+            <div style={styles.brand}>Sellpert</div>
+            <div style={styles.storeName}>{merchant.name}</div>
+          </div>
+          <span style={styles.stepCounter}>الخطوة {(step + 1).toLocaleString('ar-SA')} من {STEPS.length.toLocaleString('ar-SA')}</span>
+        </header>
+
+        <div style={styles.progress} aria-label={`الخطوة ${step + 1} من ${STEPS.length}`}>
+          {STEPS.map((item, index) => (
+            <div key={item.title} style={{ ...styles.progressSegment, background: index <= step ? 'var(--accent)' : 'var(--border)' }} />
           ))}
         </div>
 
-        {/* Icon */}
-        <div style={{
-          width: 80, height: 80, borderRadius: 20,
-          background: 'linear-gradient(135deg, rgba(15,149,140,0.2), rgba(0,229,176,0.1))',
-          border: '1px solid rgba(15,149,140,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 40, margin: '0 auto 20px',
-        }}>
-          {current.icon}
+        <div style={styles.content}>
+          <div style={styles.iconBox} aria-hidden="true"><current.Icon size={30} strokeWidth={1.8} /></div>
+          <h2 id="onboarding-title" style={styles.title}>{current.title}</h2>
+          <p style={styles.description}>{current.description}</p>
+          <div style={styles.note}><CheckCircle2 size={18} aria-hidden="true" /><span>{current.note}</span></div>
         </div>
 
-        {/* Content */}
-        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12, color: 'var(--text)' }}>
-          {current.title}
-        </h2>
-        <p style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 32 }}>
-          {current.desc}
-        </p>
-
-        {/* Store name badge */}
-        {step === 0 && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'var(--success-bg)', border: '1px solid rgba(0,229,176,0.25)',
-            color: 'var(--accent2)', padding: '8px 16px', borderRadius: 30,
-            fontSize: 13, fontWeight: 700, marginBottom: 24,
-          }}>
-            <span>🏪</span>
-            {merchant.name}
-            <span style={{ fontSize: 11, opacity: 0.8, fontFamily: 'monospace' }}>
-              {merchant.merchant_code}
-            </span>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+        <footer style={styles.actions}>
           {isLast ? (
-            <button
-              onClick={finish}
-              style={{
-                width: '100%', background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
-                border: 'none', color: '#fff', padding: '12px', borderRadius: 12,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(15,149,140,0.4)',
-              }}
-            >
-              ابدأ استخدام Sellpert
-            </button>
+            <>
+              <button type="button" style={styles.primaryButton} disabled={saving} onClick={() => finish('/integrations')}>
+                {saving ? 'جاري تجهيز المساحة...' : 'الذهاب إلى الربط ورفع الملفات'}
+                {!saving && <ArrowLeft size={17} aria-hidden="true" />}
+              </button>
+              <button type="button" style={styles.secondaryButton} disabled={saving} onClick={() => finish()}>الانتقال إلى نظرة عامة</button>
+            </>
           ) : (
-            <button
-              onClick={() => setStep(s => s + 1)}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
-                border: 'none', color: '#fff',
-                padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(15,149,140,0.35)',
-              }}
-            >
-              التالي →
-            </button>
+            <>
+              <button type="button" style={styles.primaryButton} onClick={() => setStep(value => value + 1)}>
+                متابعة <ArrowLeft size={17} aria-hidden="true" />
+              </button>
+              {step > 0 && <button type="button" style={styles.secondaryButton} onClick={() => setStep(value => value - 1)}>رجوع</button>}
+            </>
           )}
-        </div>
-
-        {/* Skip */}
-        <button
-          onClick={finish}
-          style={{
-            marginTop: 16, background: 'transparent', border: 'none',
-            color: 'var(--text3)', fontSize: 12, cursor: 'pointer',
-          }}
-        >
-          تخطي الجولة
-        </button>
-      </div>
+        </footer>
+      </section>
     </div>
   )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed', inset: 0, zIndex: 10000, padding: 20,
+    background: 'rgba(15, 23, 42, 0.66)', backdropFilter: 'blur(4px)',
+    display: 'grid', placeItems: 'center',
+  },
+  dialog: {
+    width: '100%', maxWidth: 560, overflow: 'hidden',
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+    boxShadow: '0 28px 70px rgba(15, 23, 42, 0.28)',
+  },
+  header: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16,
+    padding: '22px 26px 18px', borderBottom: '1px solid var(--border)',
+  },
+  brand: { color: 'var(--accent)', fontSize: 14, fontWeight: 800, letterSpacing: '.2px' },
+  storeName: { color: 'var(--text)', fontSize: 13, fontWeight: 700, marginTop: 3 },
+  stepCounter: { color: 'var(--text3)', fontSize: 11, whiteSpace: 'nowrap' },
+  progress: { display: 'grid', gridTemplateColumns: `repeat(${STEPS.length}, 1fr)`, gap: 4, padding: '0 26px', transform: 'translateY(-2px)' },
+  progressSegment: { height: 3, borderRadius: 3, transition: 'background .2s ease' },
+  content: { padding: '34px 34px 30px' },
+  iconBox: {
+    width: 58, height: 58, display: 'grid', placeItems: 'center',
+    borderRadius: 12, color: 'var(--accent)', background: 'var(--accent-glow)', border: '1px solid rgba(15,149,140,.2)',
+  },
+  title: { margin: '22px 0 10px', color: 'var(--text)', fontSize: 23, lineHeight: 1.35, fontWeight: 800 },
+  description: { margin: 0, color: 'var(--text2)', fontSize: 14, lineHeight: 1.9 },
+  note: {
+    display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 22, padding: '13px 14px',
+    borderRight: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)',
+    fontSize: 12, lineHeight: 1.7,
+  },
+  actions: {
+    display: 'flex', gap: 10, flexWrap: 'wrap', padding: '18px 26px 24px',
+    borderTop: '1px solid var(--border)', background: 'var(--bg2)',
+  },
+  primaryButton: {
+    minHeight: 42, padding: '0 18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    border: '1px solid var(--accent)', borderRadius: 9, background: 'var(--accent)', color: '#fff',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+  },
+  secondaryButton: {
+    minHeight: 42, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 9,
+    background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  },
 }
