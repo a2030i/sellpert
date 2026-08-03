@@ -108,17 +108,17 @@ export function mergeTrendyolShipment(
   if (!externalId) return
 
   const lines = Array.isArray(shipment?.lines) ? shipment.lines : []
-  const financials = lines.map(trendyolLineFinancials)
-  const quantity = financials.reduce((sum, line) => sum + line.quantity, 0) || 1
-  const calculatedNet = financials.reduce((sum, line) => sum + line.lineTotal, 0)
-  const calculatedGross = financials.reduce((sum, line) => sum + line.grossTotal, 0)
-  const calculatedDiscount = financials.reduce((sum, line) => sum + line.discountTotal, 0)
+  const financials: TrendyolLineFinancials[] = lines.map((line: any) => trendyolLineFinancials(line))
+  const quantity = financials.reduce((sum: number, line: TrendyolLineFinancials) => sum + line.quantity, 0) || 1
+  const calculatedNet = financials.reduce((sum: number, line: TrendyolLineFinancials) => sum + line.lineTotal, 0)
+  const calculatedGross = financials.reduce((sum: number, line: TrendyolLineFinancials) => sum + line.grossTotal, 0)
+  const calculatedDiscount = financials.reduce((sum: number, line: TrendyolLineFinancials) => sum + line.discountTotal, 0)
   const packageNet = Math.max(0, firstNumber(shipment?.packageTotalPrice, shipment?.totalPrice) ?? calculatedNet)
   const packageGross = Math.max(0, firstNumber(shipment?.packageGrossAmount) ?? calculatedGross)
   const packageDiscount = Math.max(0, firstNumber(shipment?.packageTotalDiscount, shipment?.totalDiscount, shipment?.discount) ?? calculatedDiscount)
-  const packageCommission = financials.reduce((sum, line) => sum + line.commissionAmount, 0)
-  const packageCommissionRate = financials.reduce((rate, line) => Math.max(rate, line.commissionRate), 0)
-  const packageVatRate = financials.reduce((rate, line) => Math.max(rate, line.vatRate), 0)
+  const packageCommission = financials.reduce((sum: number, line: TrendyolLineFinancials) => sum + line.commissionAmount, 0)
+  const packageCommissionRate = financials.reduce((rate: number, line: TrendyolLineFinancials) => Math.max(rate, line.commissionRate), 0)
+  const packageVatRate = financials.reduce((rate: number, line: TrendyolLineFinancials) => Math.max(rate, line.vatRate), 0)
   const packageId = trendyolPackageId(shipment)
   const incomingStatus = mapTrendyolOrderStatus(shipment?.shipmentPackageStatus || shipment?.status)
   const existing = target.get(externalId)
