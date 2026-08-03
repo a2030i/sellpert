@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   Activity, AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
-  ClipboardPlus, Database, Megaphone, RefreshCw, Target, TrendingUp, WalletCards,
+  Check, ClipboardPlus, Database, Megaphone, RefreshCw, Target, TrendingUp, WalletCards,
 } from 'lucide-react'
 import { supabase, type Merchant, type Order, type PlatformCredential } from '../lib/supabase'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
@@ -10,6 +10,7 @@ import { fetchAll } from '../lib/db'
 import { PLATFORM_MAP } from '../lib/constants'
 import { useMobile } from '../lib/hooks'
 import { createMerchantAction, dueDateFromNow, type ActionPriority } from '../lib/merchantActions'
+import { workspaceReadiness, type WorkspaceReadiness } from '../lib/workspaceReadiness'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import './DashboardV2.css'
 
@@ -149,6 +150,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [monthlyGoal, setMonthlyGoal] = useState<MonthlyGoal | null>(null)
   const [weeklyHistory, setWeeklyHistory] = useState<WeeklyBriefRow[]>([])
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [sourceReady, setSourceReady] = useState(false)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
   const [tracking, setTracking] = useState<string | null>(null)
@@ -212,6 +214,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setExecutiveBrief(executiveResult?.data || null)
       setMonthlyGoal(goalResult?.data || null)
       setWeeklyHistory(historyResult?.data || [])
+      setSourceReady(Boolean(uploadResult?.data?.uploaded_at || (syncCredentials || []).some(item => item.is_active)))
       const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
@@ -317,6 +320,13 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     } : null,
   ].filter(Boolean) as { Icon: typeof AlertTriangle; tone: string; priority: string; title: string; detail: string; impact: string; cta: string; path: string; sourceKey: string; category: string; actionPriority: ActionPriority }[], [model])
 
+  const readiness = workspaceReadiness({
+    sourceReady,
+    orderCount: orders.length,
+    productCount: model.totalProducts,
+    costedProductCount: model.costedProducts,
+  })
+
   async function trackDecision(decision: typeof decisions[number]) {
     if (!merchant?.merchant_code) return
     setTracking(decision.sourceKey)
@@ -413,6 +423,8 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       </header>
 
       {partialData ? <div className="db-data-state db-data-state--partial"><AlertTriangle size={16} /><span>بعض المصادر لم تستجب. تظهر آخر بيانات متاحة، وقد تكون بعض المؤشرات ناقصة.</span></div> : null}
+
+      {!readiness.ready ? <WorkspaceReadinessPanel readiness={readiness} /> : null}
 
       <section className="db-intelligence-grid" aria-label="صحة المتجر والتوقع">
         <HealthPanel health={health} />
@@ -660,3 +672,27 @@ function Metric({ label, value, danger = false }: { label: string; value: string
 }
 
 function EmptyState({ text }: { text: string }) { return <div className="db-empty">{text}</div> }
+
+function WorkspaceReadinessPanel({ readiness }: { readiness: WorkspaceReadiness }) {
+  return <section className="db-readiness" aria-labelledby="workspace-readiness-title">
+    <header className="db-readiness-head">
+      <div>
+        <span className="db-eyebrow">بدء التشغيل</span>
+        <h2 id="workspace-readiness-title">جاهزية مساحة العمل</h2>
+        <p>هذه الخطوات مبنية على البيانات الموجودة فعليًا في حسابك، وليست قائمة إرشادية ثابتة.</p>
+      </div>
+      <div className="db-readiness-score">
+        <strong>{readiness.percentage.toLocaleString('ar-SA-u-nu-latn')}%</strong>
+        <span>{readiness.completed.toLocaleString('ar-SA-u-nu-latn')} من {readiness.total.toLocaleString('ar-SA-u-nu-latn')} مكتملة</span>
+      </div>
+    </header>
+    <div className="db-readiness-progress" aria-label={`اكتملت ${readiness.percentage}% من تهيئة مساحة العمل`}><i style={{ width: `${readiness.percentage}%` }} /></div>
+    <div className="db-readiness-steps">
+      {readiness.steps.map((step, index) => <article key={step.key} className={step.complete ? 'is-complete' : step.key === readiness.nextStep?.key ? 'is-current' : ''}>
+        <span className="db-readiness-step-number" aria-hidden="true">{step.complete ? <Check size={15} /> : (index + 1).toLocaleString('ar-SA-u-nu-latn')}</span>
+        <div><strong>{step.label}</strong><p>{step.detail}</p></div>
+        {!step.complete && step.key === readiness.nextStep?.key && step.path ? <button onClick={() => go(step.path!)}>{step.action}<ChevronLeft size={15} /></button> : null}
+      </article>)}
+    </div>
+  </section>
+}
