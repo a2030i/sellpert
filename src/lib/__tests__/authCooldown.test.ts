@@ -23,5 +23,13 @@ describe('authentication action cooldown', () => {
     startAuthCooldown(storage, 'recover', 5_000)
     expect(authCooldownRemaining(storage, 'recover', 5_000)).toBe(60)
     expect(authCooldownRemaining(storage, 'register', 5_000)).toBe(0)
+    expect(authCooldownRemaining(storage, 'resend', 5_000)).toBe(0)
+  })
+
+  it('rate limits verification email resends independently', () => {
+    const storage = memoryStorage()
+    startAuthCooldown(storage, 'resend', 20_000)
+    expect(authCooldownRemaining(storage, 'resend', 20_000)).toBe(60)
+    expect(authCooldownRemaining(storage, 'register', 20_000)).toBe(0)
   })
 })

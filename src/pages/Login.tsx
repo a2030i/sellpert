@@ -18,13 +18,17 @@ export default function Login() {
   const [success, setSuccess] = useState(() => new URLSearchParams(window.location.search).get('mfa') === 'recovered'
     ? 'تم استرداد الوصول وإيقاف التحقق بخطوتين. سجّل الدخول ثم فعّله من جديد واحفظ الرموز الجديدة.'
     : '')
+  const [verificationPending, setVerificationPending] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState('')
   const [registerCooldown, setRegisterCooldown] = useState(() => authCooldownRemaining(window.localStorage, 'register'))
   const [recoverCooldown, setRecoverCooldown] = useState(() => authCooldownRemaining(window.localStorage, 'recover'))
+  const [resendCooldown, setResendCooldown] = useState(() => authCooldownRemaining(window.localStorage, 'resend'))
 
   useEffect(() => {
     const refresh = () => {
       setRegisterCooldown(authCooldownRemaining(window.localStorage, 'register'))
       setRecoverCooldown(authCooldownRemaining(window.localStorage, 'recover'))
+      setResendCooldown(authCooldownRemaining(window.localStorage, 'resend'))
     }
     const timer = window.setInterval(refresh, 1_000)
     return () => window.clearInterval(timer)
@@ -63,6 +67,7 @@ export default function Login() {
       email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo: window.location.origin,
         data: {
           name: name.trim(),
           whatsapp_phone: phone.trim(),
@@ -71,7 +76,26 @@ export default function Login() {
       },
     })
     if (signUpError) setError(registrationErrorMessage(signUpError))
-    else if (!data.session) setSuccess('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')
+    else if (!data.session) {
+      setVerificationPending(true)
+      setVerificationEmail(normalizedEmail)
+      setSuccess('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')
+    }
+    setLoading(false)
+  }
+
+  async function handleResendVerification() {
+    const normalizedEmail = verificationEmail || email.trim().toLowerCase()
+    const remaining = authCooldownRemaining(window.localStorage, 'resend')
+    if (remaining > 0) { setResendCooldown(remaining); return }
+    startAuthCooldown(window.localStorage, 'resend')
+    setResendCooldown(60); setLoading(true); setError('')
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup', email: normalizedEmail,
+      options: { emailRedirectTo: window.location.origin },
+    })
+    if (resendError) setError(registrationErrorMessage(resendError))
+    else setSuccess('أُرسلت رسالة تحقق جديدة. افحص صندوق الوارد والبريد غير المرغوب.')
     setLoading(false)
   }
 
@@ -113,8 +137,8 @@ export default function Login() {
         </div>
 
         <div style={styles.tabs}>
-          <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }} style={{ ...styles.tab, ...(mode === 'login' ? styles.tabActive : {}) }}>تسجيل الدخول</button>
-          <button type="button" onClick={() => { setMode('register'); setError(''); setSuccess('') }} style={{ ...styles.tab, ...(mode === 'register' ? styles.tabActive : {}) }}>إنشاء متجر</button>
+          <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess(''); setVerificationPending(false) }} style={{ ...styles.tab, ...(mode === 'login' ? styles.tabActive : {}) }}>تسجيل الدخول</button>
+          <button type="button" onClick={() => { setMode('register'); setError(''); setSuccess(''); setVerificationPending(false) }} style={{ ...styles.tab, ...(mode === 'register' ? styles.tabActive : {}) }}>إنشاء متجر</button>
         </div>
 
         {mode === 'register' && <>
@@ -194,6 +218,9 @@ export default function Login() {
 
         {error && <div style={styles.error}>{error}</div>}
         {success && <div style={styles.success}>{success}</div>}
+        {mode === 'register' && verificationPending ? <button type="button" onClick={handleResendVerification} disabled={loading || resendCooldown > 0} style={{ ...styles.forgot, width:'100%', textAlign:'center', opacity: resendCooldown > 0 ? .55 : 1 }}>
+          {resendCooldown > 0 ? `يمكن إعادة إرسال التحقق بعد ${resendCooldown} ث` : 'لم تصل الرسالة؟ إعادة إرسال التحقق'}
+        </button> : null}
 
         <button
           style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}

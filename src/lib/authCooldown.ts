@@ -4,7 +4,7 @@ export type CooldownStorage = Pick<Storage, 'getItem' | 'setItem'>
 
 export function authCooldownRemaining(
   storage: CooldownStorage,
-  action: 'register' | 'recover',
+  action: 'register' | 'recover' | 'resend',
   now = Date.now(),
   durationMs = DEFAULT_COOLDOWN_MS,
 ) {
@@ -19,7 +19,7 @@ export function authCooldownRemaining(
 
 export function startAuthCooldown(
   storage: CooldownStorage,
-  action: 'register' | 'recover',
+  action: 'register' | 'recover' | 'resend',
   now = Date.now(),
 ) {
   try {
