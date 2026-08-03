@@ -51,9 +51,9 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --font-body: 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Alexandria', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-data: 'IBM Plex Sans', 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Noto Sans Arabic Variable', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'Alexandria Variable', 'Noto Sans Arabic Variable', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-data: 'IBM Plex Sans Variable', 'Noto Sans Arabic Variable', 'Segoe UI', system-ui, sans-serif;
   --t-micro:12px; --t-cap:13px; --t-label:14px; --t-sm:15px; --t-base:16px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;

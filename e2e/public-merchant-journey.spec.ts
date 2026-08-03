@@ -10,13 +10,22 @@ function collectRuntimeFailures(page: Page) {
 }
 
 async function expectHealthyViewport(page: Page) {
+  await page.evaluate(() => document.fonts.ready)
   const layout = await page.evaluate(() => ({
     bodyWidth: document.body.scrollWidth,
     viewportWidth: document.documentElement.clientWidth,
     bodyFont: getComputedStyle(document.body).fontFamily,
+    fontFaces: Array.from(document.fonts).map(face => ({ family: face.family, status: face.status })),
+    externalFontRequests: performance.getEntriesByType('resource')
+      .map(entry => entry.name)
+      .filter(url => /fonts\.(googleapis|gstatic)\.com/.test(url)),
   }))
   expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth + 1)
-  expect(layout.bodyFont).toContain('Noto Sans Arabic')
+  expect(layout.bodyFont).toContain('Noto Sans Arabic Variable')
+  expect(layout.fontFaces.some(face => face.family.includes('Noto Sans Arabic Variable') && face.status === 'loaded')).toBe(true)
+  expect(layout.fontFaces.some(face => face.family.includes('Alexandria Variable'))).toBe(true)
+  expect(layout.fontFaces.some(face => face.family.includes('IBM Plex Sans Variable'))).toBe(true)
+  expect(layout.externalFontRequests).toEqual([])
 }
 
 test('merchant can understand and navigate the complete public entry journey', async ({ page }) => {
