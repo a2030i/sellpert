@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
-import { trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
+import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -56,7 +56,10 @@ const ACTIONS: Record<string, Definition> = {
   'packages.alternative':     { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/alternative-delivery', risk:'write' },
   'packages.cargo_provider':  { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/cargo-providers', risk:'write' },
   'packages.box_info':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/box-info', risk:'write' },
-  'packages.common_label':    { method:'GET', path:'/integration/sellers/{sellerId}/common-label/query', risk:'read', binary:true, storefront:true },
+  'packages.common_label_create': { method:'POST', path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'write', storefront:true },
+  'packages.common_label_get':    { method:'GET',  path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'read', binary:true, storefront:true },
+  // Compatibility alias for callers created before the explicit create/get flow.
+  'packages.common_label':        { method:'GET',  path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'read', binary:true, storefront:true },
   'seller.addresses':         { method:'GET', path:'/integration/sellers/{sellerId}/addresses', risk:'read' },
 
   // Webhooks
@@ -213,7 +216,23 @@ function buildPath(template:string, values:Record<string,unknown>) {
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
 async function validatePackageContext(admin:any,merchantCode:string,action:string,input:any) {
-  if (!action.startsWith('packages.') || action === 'packages.common_label') return
+  if (!action.startsWith('packages.')) return
+  if (['packages.common_label','packages.common_label_create','packages.common_label_get'].includes(action)) {
+    const trackingNumber = clean(String(input?.path?.cargoTrackingNumber || ''))
+    if (!/^[a-zA-Z0-9_-]{3,80}$/.test(trackingNumber)) throw new HttpError(400, 'رقم تتبع الشحنة غير صالح')
+    const { data: labelPackage, error: labelError } = await admin.from('order_packages')
+      .select('provider_status,status,raw').eq('merchant_code',merchantCode).eq('platform','trendyol')
+      .eq('cargo_tracking_number',trackingNumber).limit(1).maybeSingle()
+    if (labelError) throw labelError
+    if (!labelPackage) throw new HttpError(404, 'رقم التتبع غير موجود ضمن شحنات هذا المتجر')
+    if (action === 'packages.common_label_create') {
+      const state = trendyolPackageProviderStatus(labelPackage).toLowerCase().replace(/[^a-z]/g,'')
+      if (!['picking','processing','invoiced'].includes(state)) {
+        throw new HttpError(409, 'ابدأ تجهيز الشحنة قبل طلب ملصق الشحن')
+      }
+    }
+    return
+  }
   const packageId = clean(String(input?.path?.packageId || ''))
   if (!/^\d+$/.test(packageId)) throw new HttpError(400, 'رقم شحنة Trendyol غير صالح')
 
@@ -271,6 +290,16 @@ function validateActionInput(action:string,input:any) {
   }
   if (action === 'packages.tracking') {
     if (!clean(input?.payload?.cargoSenderNumber) || !clean(input?.payload?.providerCode)) throw new HttpError(400, 'رقم التتبع وشركة الشحن مطلوبان')
+  }
+  if (action === 'packages.common_label_create') {
+    const format = clean(input?.payload?.format).toUpperCase()
+    const boxQuantity = Number(input?.payload?.boxQuantity ?? 1)
+    const volumetricHeight = input?.payload?.volumetricHeight
+    if (format !== 'ZPL') throw new HttpError(400, 'صيغة ملصق Trendyol المدعومة هي ZPL')
+    if (!Number.isInteger(boxQuantity) || boxQuantity < 1 || boxQuantity > 100) throw new HttpError(400, 'عدد الطرود يجب أن يكون بين 1 و100')
+    if (volumetricHeight !== undefined && (!Number.isFinite(Number(volumetricHeight)) || Number(volumetricHeight) <= 0)) {
+      throw new HttpError(400, 'الوزن الحجمي غير صالح')
+    }
   }
   if (action === 'claims.approve') {
     const claimItems = input?.payload?.claimLineItemIdList

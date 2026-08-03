@@ -43,7 +43,7 @@ const CAPABILITIES: Capability[] = [
   { action:'packages.alternative',label:'تسليم بديل',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{}' },
   { action:'packages.cargo_provider',label:'تغيير شركة الشحن',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"cargoProviderCode":"..."}' },
   { action:'packages.box_info',label:'عدد الصناديق والوزن الحجمي',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"boxQuantity":1,"deci":1}' },
-  { action:'packages.common_label',label:'تحميل ملصق الشحن',group:'الطلبات والشحن',risk:'read',queryHint:'{"id":""}' },
+  { action:'packages.common_label_get',label:'تحميل ملصق الشحن',group:'الطلبات والشحن',risk:'read',pathHint:'{"cargoTrackingNumber":""}' },
   { action:'seller.addresses',label:'عناوين الشحن والإرجاع',group:'الطلبات والشحن',risk:'read' },
   { action:'webhooks.list',label:'قائمة Webhooks',group:'Webhooks',risk:'read' },
   { action:'webhooks.create',label:'إنشاء Webhook',group:'Webhooks',risk:'write',payloadHint:'{"url":"https://...","subscribedStatuses":[...]}' },
@@ -83,7 +83,7 @@ function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:s
     setBusy(true); setError(''); setResult(null)
     try {
       const parsedPath=JSON.parse(path||'{}'), parsedQuery=JSON.parse(query||'{}'), parsedPayload=JSON.parse(payload||'{}')
-      if(selected==='packages.common_label'&&!String(parsedQuery.id||'').trim()) throw new Error('أدخل رقم تتبع الشحنة الحقيقي في خانة id قبل التنفيذ')
+      if(selected==='packages.common_label_get'&&!String(parsedPath.cargoTrackingNumber||'').trim()) throw new Error('أدخل رقم تتبع الشحنة الحقيقي قبل التنفيذ')
       const { data:{ session } }=await supabase.auth.getSession()
       const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`,{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session?.access_token || ''}`},
@@ -137,7 +137,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
       let request:any={merchant_code:merchantCode,confirm:true,storefront:'SA',idempotency_key:crypto.randomUUID()}
       if(action==='label') {
         if(!form.tracking?.trim()) throw new Error('أدخل رقم تتبع الشحنة')
-        request={...request,action:'packages.common_label',query:{id:form.tracking.trim()}}
+        request={...request,action:'packages.common_label_get',path:{cargoTrackingNumber:form.tracking.trim()}}
       } else if(action==='status') {
         if(!form.packageId?.trim()) throw new Error('أدخل رقم حزمة الشحنة')
         request={...request,action:'packages.status',path:{packageId:form.packageId.trim()},payload:{status:form.status||'Picking'}}

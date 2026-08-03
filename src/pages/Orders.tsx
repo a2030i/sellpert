@@ -332,6 +332,51 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     } finally { setOrderActionLoading(false) }
   }
 
+  async function runPackageLabelAction(action:'packages.common_label_create'|'packages.common_label_get') {
+    if (!merchant || !activePackage) return
+    const trackingNumber = String(activePackage.cargo_tracking_number || '').trim()
+    if (!trackingNumber) {
+      setOrderActionMessage({ type:'err', text:'رقم التتبع غير متوفر لهذه الشحنة. سجّل بيانات الشحن أولًا.' })
+      return
+    }
+    const creating = action === 'packages.common_label_create'
+    if (creating && !window.confirm('تأكيد طلب إنشاء ملصق شحن من Trendyol؟')) return
+    setOrderActionLoading(true); setOrderActionMessage(null)
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST', headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({
+          merchant_code:merchant.merchant_code, action, confirm:true, storefront:'SA',
+          path:{ cargoTrackingNumber:trackingNumber },
+          payload:creating ? { format:'ZPL', boxQuantity:1 } : undefined,
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol عملية الملصق')
+      if (creating) {
+        setOrderActionMessage({ type:'ok', text:'تم طلب إنشاء الملصق. انتظر قليلًا ثم اضغط «تنزيل الملصق».' })
+      } else {
+        const base64 = result?.data?.data_base64
+        const labels = Array.isArray(result?.data?.data) ? result.data.data.map((item:any) => item?.label).filter(Boolean) : []
+        const inlineLabel = result?.data?.label || labels.join('\n')
+        if (!base64 && !inlineLabel) throw new Error('لم يصبح الملصق جاهزًا بعد. حاول التنزيل بعد قليل.')
+        const blob = base64
+          ? new Blob([Uint8Array.from(atob(base64), char => char.charCodeAt(0))], { type:result.data.content_type || 'application/octet-stream' })
+          : new Blob([inlineLabel], { type:'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a'); anchor.href = url; anchor.download = `trendyol-label-${trackingNumber}.zpl`; anchor.click()
+        URL.revokeObjectURL(url)
+        setOrderActionMessage({ type:'ok', text:'تم تنزيل ملصق الشحن.' })
+      }
+      setSelectedActions(current => [{ id:crypto.randomUUID(), action, status:'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
+    } catch (error:any) {
+      console.error('Trendyol shipping label', error)
+      setOrderActionMessage({ type:'err', text:userErrorMessage(error, 'تعذّر تجهيز ملصق الشحن.') })
+    } finally { setOrderActionLoading(false) }
+  }
+
   const activePackage = selectedPackages.find(item => String(item.shipment_package_id) === activePackageId) || null
   const activePackageItems = selectedItems.filter(item => !item.shipment_package_id || String(item.shipment_package_id) === activePackageId)
   const packageWorkflow = trendyolPackageWorkflow(activePackage, selectedOrder?.status)
@@ -682,10 +727,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 <select disabled={!packageWorkflow.canUpdateTracking} value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
                 <button disabled={orderActionLoading || !packageWorkflow.canUpdateTracking || !packageForm.trackingNumber.trim()} onClick={() => void runPackageAction('packages.tracking', { cargoSenderNumber:packageForm.trackingNumber.trim(), providerCode:packageForm.providerCode }, 'تسجيل بيانات الشحن')} style={{...S.actionBtn,opacity:packageWorkflow.canUpdateTracking ? 1 : .5}}>حفظ الشحن</button>
               </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 }}>
+                <button disabled={orderActionLoading || !activePackage?.cargo_tracking_number || (!packageWorkflow.canInvoice && String(packageWorkflow.providerStatus).toLowerCase() !== 'invoiced')} onClick={() => void runPackageLabelAction('packages.common_label_create')} style={S.actionBtn}>طلب ملصق الشحن</button>
+                <button disabled={orderActionLoading || !activePackage?.cargo_tracking_number} onClick={() => void runPackageLabelAction('packages.common_label_get')} style={S.actionBtn}>تنزيل الملصق</button>
+              </div>
               {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>
                 <div style={{ display:'grid', gap:5 }}>{selectedActions.map(log => <div key={log.id} style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10 }}>
-                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
+                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق', 'packages.common_label_create':'طلب الملصق', 'packages.common_label_get':'تنزيل الملصق' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
                   <span style={{ color:['success','accepted'].includes(log.status) ? 'var(--success-text)' : ['failed','partial'].includes(log.status) ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight:700 }}>{log.status === 'success' ? 'تم' : log.status === 'accepted' ? 'تم الإرسال' : log.status === 'failed' ? 'فشل' : log.status === 'partial' ? 'جزئي' : 'قيد التنفيذ'}</span>
                 </div>)}</div>
               </div> : null}
