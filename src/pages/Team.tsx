@@ -8,6 +8,7 @@ import {
 import { toastOk, toastErr } from '../components/Toast'
 import { fmtRelative } from '../lib/formatters'
 import { DEFAULT_MERCHANT_PERMISSIONS, MERCHANT_PERMISSION_ITEMS } from '../lib/merchantPermissions'
+import { isStrongPassword } from '../lib/passwordPolicy'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -71,7 +72,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
       toastErr('الاسم والبريد وكلمة المرور مطلوبة'); return
     }
-    if (form.password.length < 8) { toastErr('كلمة المرور يجب 8 أحرف على الأقل'); return }
+    if (!isStrongPassword(form.password)) { toastErr('كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم'); return }
     setBusy(true)
     const data = await callFn({
       name: form.name, email: form.email, password: form.password,
@@ -132,7 +133,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function resetPassword() {
-    if (!resetPwdFor || newPwd.length < 8) { toastErr('كلمة المرور يجب 8 أحرف'); return }
+    if (!resetPwdFor || !isStrongPassword(newPwd)) { toastErr('كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم'); return }
     setBusy(true)
     const data = await callFn({ action: 'reset_password', employee_code: resetPwdFor, new_password: newPwd })
     setBusy(false)
@@ -175,7 +176,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
             <Field label="البريد الإلكتروني" Icon={Mail}>
               <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="employee@example.com" />
             </Field>
-            <Field label="كلمة المرور (8+)" Icon={Key}>
+            <Field label="كلمة المرور (10+، حرف ورقم)" Icon={Key}>
               <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} placeholder="********" />
             </Field>
             <Field label="المسمى الوظيفي" Icon={Briefcase}>
@@ -304,7 +305,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
             <h3 style={{ ...cardTitleStyle, marginTop: 0 }}>
               <Key size={14} /> تغيير كلمة المرور
             </h3>
-            <Field label="كلمة المرور الجديدة (8+)" Icon={Key}>
+            <Field label="كلمة المرور الجديدة (10+، حرف ورقم)" Icon={Key}>
               <input type="password" value={newPwd} onChange={ev => setNewPwd(ev.target.value)} style={inputStyle} autoFocus />
             </Field>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>

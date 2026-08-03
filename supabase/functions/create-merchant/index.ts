@@ -1,5 +1,12 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+import {
+  generateAccountCode,
+  isStrongAccountPassword,
+  normalizeEmail,
+  normalizeName,
+} from '../_shared/accountSecurity.ts'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -15,8 +22,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
-
     // Verify caller identity using service role + explicit token
     const adminClient = createClient(supabaseUrl, serviceKey)
     const { data: { user: caller }, error: authErr } = await adminClient.auth.getUser(callerToken)
@@ -24,7 +29,8 @@ Deno.serve(async (req) => {
 
     // Check caller is admin/super_admin
     const { data: callerMerchant } = await adminClient
-      .from('merchants').select('role,permissions').eq('email', caller.email!).maybeSingle()
+      .from('merchants').select('role,permissions,is_active').eq('id', caller.id).maybeSingle()
+    if (!callerMerchant?.is_active) return json({ error: 'Forbidden: inactive account' }, 403)
     const callerIsManager = !!callerMerchant && ['admin', 'super_admin'].includes(callerMerchant.role)
     const callerCanCreateStaff = callerMerchant?.role === 'staff'
       && Array.isArray(callerMerchant.permissions)
@@ -34,7 +40,9 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const { name, email, password, currency = 'SAR', role = 'merchant', whatsapp_phone } = body
+    const { password, currency = 'SAR', role = 'merchant', whatsapp_phone } = body
+    const name = normalizeName(body.name)
+    const email = normalizeEmail(body.email)
 
     // الدور من جسم الطلب يجب أن يكون ضمن قائمة مسموحة — منع حقن super_admin
     const ALLOWED_ROLES = ['merchant', 'admin', 'staff']
@@ -45,17 +53,20 @@ Deno.serve(async (req) => {
       return json({ error: 'Forbidden: staff accounts cannot create managers or merchants' }, 403)
     }
 
-    if (!name?.trim() || !email?.trim() || !password?.trim()) {
-      return json({ error: 'name, email, password مطلوبة' }, 400)
+    if (!name || !email) {
+      return json({ error: 'الاسم أو البريد الإلكتروني غير صالح' }, 400)
     }
-    if (password.length < 8) {
-      return json({ error: 'الباسورد يجب أن يكون 8 أحرف على الأقل' }, 400)
+    if (!isStrongAccountPassword(password)) {
+      return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+    }
+    if (currency !== 'SAR') return json({ error: 'Invalid currency' }, 400)
+    if (whatsapp_phone != null && (typeof whatsapp_phone !== 'string' || whatsapp_phone.trim().length > 32)) {
+      return json({ error: 'رقم الجوال غير صالح' }, 400)
     }
 
-    // Create auth user (or reuse existing if email already registered)
-    let userId: string
+    // Never reuse an existing Auth identity or reset its password from this endpoint.
     const { data: authData, error: createErr } = await adminClient.auth.admin.createUser({
-      email: email.trim().toLowerCase(),
+      email,
       password,
       email_confirm: true,
     })
@@ -64,51 +75,39 @@ Deno.serve(async (req) => {
         createErr.message.includes('already registered') ||
         createErr.message.includes('already been registered') ||
         createErr.message.includes('User already registered')
-      if (!isAlreadyRegistered) return json({ error: createErr.message }, 400)
-
-      // Find existing auth user to reuse their ID
-      const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const existing = listData?.users?.find(
-        u => u.email?.toLowerCase() === email.trim().toLowerCase()
-      )
-      if (!existing) return json({ error: createErr.message }, 400)
-
-      // Check if a merchants record already exists (active merchant)
-      const { data: existingMerchant } = await adminClient
-        .from('merchants').select('id').eq('id', existing.id).maybeSingle()
-      if (existingMerchant) {
-        return json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً وله حساب نشط' }, 400)
-      }
-
-      // Auth user exists but no merchant record — safe to reuse
-      userId = existing.id
-      // Update password to the new one
-      await adminClient.auth.admin.updateUserById(userId, { password })
-    } else {
-      userId = authData.user!.id
+      return json({
+        error: isAlreadyRegistered
+          ? 'هذا البريد الإلكتروني مسجل مسبقاً. استخدم بريدًا آخر أو استعد الحساب الحالي.'
+          : createErr.message,
+      }, 400)
     }
+    const userId = authData.user!.id
 
-    // Generate merchant code
+    // 64 bits of entropy removes the 9,000-account ceiling and makes collisions negligible.
     const prefix = role === 'merchant' ? 'M' : role === 'staff' ? 'S' : 'A'
-    const code   = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`
-
-    // Insert merchants record
-    const merchantRow: Record<string, any> = {
-      id:                userId,
-      name:              name.trim(),
-      email:             email.trim().toLowerCase(),
-      currency,
-      role,
-      merchant_code:     code,
-      subscription_plan: 'free',
+    let code = ''
+    let dbErr: { code?: string; message: string } | null = null
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      code = generateAccountCode(prefix)
+      const merchantRow: Record<string, unknown> = {
+        id: userId,
+        name,
+        email,
+        currency,
+        role,
+        merchant_code: code,
+        subscription_plan: 'free',
+      }
+      if (whatsapp_phone?.trim()) merchantRow.whatsapp_phone = whatsapp_phone.trim()
+      const result = await adminClient.from('merchants').insert(merchantRow)
+      dbErr = result.error
+      if (!dbErr) break
+      const codeCollision = dbErr.code === '23505' && /merchant_code/i.test(dbErr.message)
+      if (!codeCollision) break
     }
-    if (whatsapp_phone?.trim()) merchantRow.whatsapp_phone = whatsapp_phone.trim()
-
-    const { error: dbErr } = await adminClient.from('merchants').insert(merchantRow)
 
     if (dbErr) {
-      // Only rollback if we created a new auth user (not reused)
-      if (authData?.user) await adminClient.auth.admin.deleteUser(userId)
+      await adminClient.auth.admin.deleteUser(userId)
       return json({ error: 'خطأ في قاعدة البيانات: ' + dbErr.message }, 500)
     }
 

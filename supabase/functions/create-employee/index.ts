@@ -1,4 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  generateAccountCode,
+  isStrongAccountPassword,
+  normalizeEmail,
+  normalizeMerchantPermissions,
+  normalizeName,
+} from '../_shared/accountSecurity.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +19,6 @@ const DEFAULT_PERMISSIONS = {
   inventory:  true,
   marketing:  false,
   statement:  false,
-  billing:    false,
   settings:   false,
   integrations: false,
 }
@@ -33,9 +39,10 @@ Deno.serve(async (req) => {
 
     // Caller must be a merchant (or admin acting on behalf — but we limit to merchant for self-service)
     const { data: callerMerchant } = await adminClient
-      .from('merchants').select('role,merchant_code,permissions')
-      .eq('email', caller.email!).maybeSingle()
+      .from('merchants').select('role,merchant_code,permissions,is_active')
+      .eq('id', caller.id).maybeSingle()
     if (!callerMerchant) return json({ error: 'Unauthorized' }, 401)
+    if (!callerMerchant.is_active) return json({ error: 'Forbidden: inactive account' }, 403)
 
     const body = await req.json()
     const action = body.action || 'create'
@@ -73,8 +80,8 @@ Deno.serve(async (req) => {
         if ((count || 0) <= 1) return json({ error: 'لا يمكن حذف آخر مدير' }, 403)
       }
 
-      await adminClient.auth.admin.deleteUser(auth_id).catch(() => {})
-      await adminClient.from('merchants').delete().eq('id', auth_id)
+      const { error: deleteError } = await adminClient.auth.admin.deleteUser(auth_id)
+      if (deleteError) return json({ error: 'تعذر حذف حساب الدخول. لم يتم حذف ملف الموظف.' }, 500)
       return json({ ok: true })
     }
 
@@ -82,7 +89,9 @@ Deno.serve(async (req) => {
     if (action === 'reset_password') {
       const { employee_code, new_password } = body
       if (!employee_code || !new_password) return json({ error: 'employee_code & new_password required' }, 400)
-      if (new_password.length < 8) return json({ error: 'كلمة المرور يجب 8 أحرف على الأقل' }, 400)
+      if (!isStrongAccountPassword(new_password)) {
+        return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+      }
 
       const { data: emp } = await adminClient.from('merchants')
         .select('id,owner_merchant_code,role').eq('merchant_code', employee_code).maybeSingle()
@@ -95,63 +104,76 @@ Deno.serve(async (req) => {
     }
 
     // ── CREATE EMPLOYEE (default action) ────────────────────────────────
+    if (callerMerchant.role !== 'merchant') {
+      return json({ error: 'Only merchant owners can add store employees' }, 403)
+    }
+
     const {
-      name, email, password,
+      password,
       job_title,
       whatsapp_phone,
       permissions = DEFAULT_PERMISSIONS,
     } = body
+    const name = normalizeName(body.name)
+    const email = normalizeEmail(body.email)
+    const safePermissions = normalizeMerchantPermissions(permissions, DEFAULT_PERMISSIONS)
 
-    if (!name?.trim() || !email?.trim() || !password?.trim()) {
-      return json({ error: 'name, email, password مطلوبة' }, 400)
+    if (!name || !email) {
+      return json({ error: 'الاسم أو البريد الإلكتروني غير صالح' }, 400)
     }
-    if (password.length < 8) return json({ error: 'الباسورد يجب 8 أحرف على الأقل' }, 400)
+    if (!isStrongAccountPassword(password)) {
+      return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+    }
+    if (!safePermissions) return json({ error: 'الصلاحيات المرسلة غير صالحة' }, 400)
+    if (job_title != null && (typeof job_title !== 'string' || job_title.trim().length > 100)) {
+      return json({ error: 'المسمى الوظيفي غير صالح' }, 400)
+    }
+    if (whatsapp_phone != null && (typeof whatsapp_phone !== 'string' || whatsapp_phone.trim().length > 32)) {
+      return json({ error: 'رقم الجوال غير صالح' }, 400)
+    }
 
-    // Create or reuse auth user
-    let userId: string
+    // An existing identity must be recovered by its owner, never claimed here.
     const { data: authData, error: createErr } = await adminClient.auth.admin.createUser({
-      email: email.trim().toLowerCase(),
+      email,
       password,
       email_confirm: true,
     })
 
     if (createErr) {
       const isAlreadyRegistered = /already registered|already been registered/i.test(createErr.message)
-      if (!isAlreadyRegistered) return json({ error: createErr.message }, 400)
-
-      const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const existing = listData?.users?.find(u => u.email?.toLowerCase() === email.trim().toLowerCase())
-      if (!existing) return json({ error: createErr.message }, 400)
-
-      const { data: existingMerchant } = await adminClient
-        .from('merchants').select('id').eq('id', existing.id).maybeSingle()
-      if (existingMerchant) return json({ error: 'هذا البريد مستخدم بحساب آخر' }, 400)
-
-      userId = existing.id
-      await adminClient.auth.admin.updateUserById(userId, { password })
-    } else {
-      userId = authData.user!.id
+      return json({
+        error: isAlreadyRegistered
+          ? 'هذا البريد مستخدم بحساب موجود. استخدم بريدًا مختلفًا أو اطلب من صاحبه استعادة الحساب.'
+          : createErr.message,
+      }, 400)
     }
+    const userId = authData.user!.id
 
-    const code = `E-${Math.floor(1000 + Math.random() * 9000)}`
-
-    const row: Record<string, any> = {
-      id:                 userId,
-      name:               name.trim(),
-      email:              email.trim().toLowerCase(),
-      role:               'employee',
-      merchant_code:      code,
-      currency:           'SAR',
-      owner_merchant_code: callerMerchant.merchant_code,
-      job_title:          job_title?.trim() || null,
-      whatsapp_phone:     whatsapp_phone?.trim() || null,
-      permissions:        { ...DEFAULT_PERMISSIONS, ...permissions },
-      is_active:          true,
+    let code = ''
+    let dbErr: { code?: string; message: string } | null = null
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      code = generateAccountCode('E')
+      const row: Record<string, unknown> = {
+        id: userId,
+        name,
+        email,
+        role: 'employee',
+        merchant_code: code,
+        currency: 'SAR',
+        owner_merchant_code: callerMerchant.merchant_code,
+        job_title: job_title?.trim() || null,
+        whatsapp_phone: whatsapp_phone?.trim() || null,
+        permissions: safePermissions,
+        is_active: true,
+      }
+      const result = await adminClient.from('merchants').insert(row)
+      dbErr = result.error
+      if (!dbErr) break
+      const codeCollision = dbErr.code === '23505' && /merchant_code/i.test(dbErr.message)
+      if (!codeCollision) break
     }
-
-    const { error: dbErr } = await adminClient.from('merchants').insert(row)
     if (dbErr) {
-      if (authData?.user) await adminClient.auth.admin.deleteUser(userId)
+      await adminClient.auth.admin.deleteUser(userId)
       return json({ error: 'خطأ في قاعدة البيانات: ' + dbErr.message }, 500)
     }
 

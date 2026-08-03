@@ -6,6 +6,7 @@ import { UserPlus, Trash2, Settings, Briefcase, Crown, Sparkles, Check } from 'l
 import { toastOk, toastErr } from '../../components/Toast'
 import PermissionsEditor from '../../components/PermissionsEditor'
 import { ALL_PERMISSIONS, PERM_CATEGORIES, DEPT_TEMPLATES, DEPT_LABELS, getPermissions, type Department, type PermKey } from '../../lib/permissions'
+import { isStrongPassword } from '../../lib/passwordPolicy'
 
 export default function EmployeesView({ merchants, currentUser, currentUserId, onRefresh }: { merchants: Merchant[]; currentUser?: Merchant | null; currentUserId?: string; onRefresh: () => void }) {
   const [showAdd, setShowAdd] = useState(false)
@@ -42,7 +43,7 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
 
   async function addStaff() {
     if (!addForm.name.trim() || !addForm.email.trim()) { toastErr('الاسم والبريد مطلوبان'); return }
-    if (addForm.password.length < 8) { toastErr('كلمة المرور 8 أحرف على الأقل'); return }
+    if (!isStrongPassword(addForm.password)) { toastErr('كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم'); return }
     setSaving(true)
     try {
       const role = addForm.department === 'manager' && canCreateManager ? 'admin' : 'staff'
@@ -141,7 +142,7 @@ export default function EmployeesView({ merchants, currentUser, currentUserId, o
             </div>
             <div>
               <label style={S.label}>كلمة المرور</label>
-              <input style={S.input} type="password" value={addForm.password} onChange={e => setAddForm({ ...addForm, password: e.target.value })} placeholder="8 أحرف على الأقل" />
+              <input style={S.input} type="password" value={addForm.password} onChange={e => setAddForm({ ...addForm, password: e.target.value })} placeholder="10 أحرف على الأقل، حرف ورقم" />
             </div>
             <div>
               <label style={S.label}>واتساب (اختياري)</label>

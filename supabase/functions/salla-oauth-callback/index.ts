@@ -16,6 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getSettings } from '../_shared/getSettings.ts'
+import { generateAccountCode, normalizeEmail } from '../_shared/accountSecurity.ts'
 
 const SALLA_TOKEN_URL = 'https://accounts.salla.sa/oauth2/token'
 const SALLA_STORE_API = 'https://api.salla.dev/admin/v2/store/info'
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     const storeDomain   = storeInfo.domain || ''
     const storeCurrency = storeInfo.currency?.currency_iso || 'SAR'
     const storeLogo     = storeInfo.logo?.url || ''
-    const merchantEmail = storeInfo.email || `${sallaStoreId}@salla.store`
+    const merchantEmail = normalizeEmail(storeInfo.email) || `${sallaStoreId}@salla.store`
 
     // ── Step 3: Find or create merchant ──────────────────────────────────────
     let merchantCode: string
@@ -120,19 +121,20 @@ Deno.serve(async (req) => {
       await admin.rpc('reactivate_merchant', { p_merchant_code: merchantCode })
 
     } else {
-      // New installation → create full account
-      isNew = true
-      tempPassword = generatePassword()
+      // Existing Sellpert identities are linked without changing credentials.
+      const { data: existingMerchant } = await admin
+        .from('merchants')
+        .select('id')
+        .eq('email', merchantEmail)
+        .maybeSingle()
 
-      // Check if auth user already exists with this email
-      const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 1000 })
-      const existingAuthUser = users?.find((u: any) => u.email === merchantEmail)
-
-      let authUserId: string
-      if (existingAuthUser) {
-        authUserId = existingAuthUser.id
-        await admin.auth.admin.updateUserById(authUserId, { password: tempPassword })
+      if (existingMerchant) {
+        // Store email alone is not proof that the OAuth browser owns an
+        // existing Sellpert account. Never issue a magic link for it.
+        return redirect(`${APP_URL}?error=account_exists`)
       } else {
+        isNew = true
+        tempPassword = generatePassword()
         const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
           email: merchantEmail,
           password: tempPassword,
@@ -140,44 +142,41 @@ Deno.serve(async (req) => {
         })
         if (createErr || !newUser.user) {
           console.error('Auth user create error:', createErr)
-          return redirect(`${APP_URL}?error=account_creation_failed`)
+          const reason = /already registered|already been registered/i.test(createErr?.message || '')
+            ? 'account_exists'
+            : 'account_creation_failed'
+          return redirect(`${APP_URL}?error=${reason}`)
         }
-        authUserId = newUser.user.id
-      }
 
-      // Generate unique merchant_code
-      merchantCode = await generateMerchantCode(admin, storeName)
-
-      // Check if merchant record already exists
-      const { data: existingMerchant } = await admin
-        .from('merchants')
-        .select('id')
-        .eq('email', merchantEmail)
-        .maybeSingle()
-
-      if (!existingMerchant) {
-        const { error: insertErr } = await admin.from('merchants').insert({
-          id:                   authUserId,
-          merchant_code:        merchantCode,
-          name:                 storeName,
-          email:                merchantEmail,
-          currency:             storeCurrency,
-          logo_url:             storeLogo,
-          role:                 'merchant',
-          subscription_plan:    'free',  // legacy column
-          subscription_status:  'active',
-          salla_store_id:       sallaStoreId,
-          signup_source:        'salla_app',
-          onboarding_done:      false,
-        })
+        let insertErr: { code?: string; message: string } | null = null
+        merchantCode = ''
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          merchantCode = generateAccountCode('M')
+          const result = await admin.from('merchants').insert({
+            id: newUser.user.id,
+            merchant_code: merchantCode,
+            name: String(storeName).trim().slice(0, 120) || 'متجر سلة',
+            email: merchantEmail,
+            currency: 'SAR',
+            logo_url: storeLogo,
+            role: 'merchant',
+            subscription_plan: 'free',
+            subscription_status: 'active',
+            salla_store_id: sallaStoreId,
+            signup_source: 'salla_app',
+            onboarding_done: false,
+            is_active: true,
+          })
+          insertErr = result.error
+          if (!insertErr) break
+          const codeCollision = insertErr.code === '23505' && /merchant_code/i.test(insertErr.message)
+          if (!codeCollision) break
+        }
         if (insertErr) {
+          await admin.auth.admin.deleteUser(newUser.user.id)
           console.error('Merchant insert error:', insertErr)
           return redirect(`${APP_URL}?error=merchant_creation_failed`)
         }
-      } else {
-        merchantCode = existingMerchant.id  // should not happen, but safe fallback
-        const { data: mc } = await admin.from('merchants').select('merchant_code').eq('email', merchantEmail).single()
-        merchantCode = mc?.merchant_code || merchantCode
       }
 
       // Create salla_connections record
@@ -195,24 +194,6 @@ Deno.serve(async (req) => {
         installed_at:     new Date().toISOString(),
         sync_status:      'idle',
       })
-
-      // Upsert subscription — handles case where merchant had manual subscription before
-      // CONFLICT on merchant_code (unique index) → update to salla billing
-      await admin.from('subscriptions').upsert({
-        merchant_code:          merchantCode,
-        plan:                   'salla',
-        status:                 'active',
-        billing_source:         'salla',
-        payment_method:         'salla',
-        salla_store_id:         sallaStoreId,
-        amount:                 99,
-        currency:               'SAR',
-        current_period_start:   new Date().toISOString(),
-        current_period_end:     new Date(Date.now() + 30 * 86400000).toISOString(),
-        grace_period_end:       null,
-        cancelled_at:           null,
-        updated_at:             new Date().toISOString(),
-      }, { onConflict: 'merchant_code' })
 
       // Welcome notification
       await admin.from('notifications').insert({
@@ -264,15 +245,4 @@ function generatePassword(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map(b => chars[b % chars.length])
     .join('')
-}
-
-async function generateMerchantCode(admin: any, storeName: string): Promise<string> {
-  const prefix = storeName.replace(/[^a-zA-Z0-9؀-ۿ]/g, '').slice(0, 4).toUpperCase() || 'SLA'
-  for (let i = 0; i < 10; i++) {
-    const rand = Math.floor(1000 + Math.random() * 9000)
-    const code = `${prefix}${rand}`
-    const { count } = await admin.from('merchants').select('id', { count: 'exact', head: true }).eq('merchant_code', code)
-    if (count === 0) return code
-  }
-  return `SLA${Date.now().toString().slice(-6)}`
 }
