@@ -34,7 +34,12 @@ describe('deployment browser security', () => {
 
   it('binds client incidents to the immutable deployment release', () => {
     const viteConfig = readFileSync('vite.config.ts', 'utf8')
+    const smokeScript = readFileSync('scripts/test-production-smoke.ps1', 'utf8')
+    const smokeWorkflow = readFileSync('.github/workflows/production-smoke.yml', 'utf8')
     expect(viteConfig).toContain('VERCEL_GIT_COMMIT_SHA')
     expect(viteConfig).toContain('VITE_APP_RELEASE')
+    expect(smokeScript).toContain('ExpectedRelease')
+    expect(smokeScript).toContain('production is not serving expected release')
+    expect(smokeWorkflow).toContain("-ExpectedRelease '${{ github.sha }}'")
   })
 })

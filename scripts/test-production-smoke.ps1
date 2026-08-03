@@ -1,6 +1,7 @@
 param(
   [string]$AppUrl = 'https://sellpert.vercel.app',
-  [string]$SupabaseUrl = 'https://urdyzbsukcuibadlaath.supabase.co'
+  [string]$SupabaseUrl = 'https://urdyzbsukcuibadlaath.supabase.co',
+  [string]$ExpectedRelease = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +64,41 @@ foreach ($header in $requiredHeaders) {
   if (-not $homeResponse.Headers[$header]) { throw "missing production security header: $header" }
 }
 Write-Host 'PASS production security headers'
+
+if ($ExpectedRelease) {
+  if ($ExpectedRelease -notmatch '^[0-9a-fA-F]{7,64}$') {
+    throw 'ExpectedRelease must be a Git commit SHA'
+  }
+
+  $scriptMatches = [regex]::Matches(
+    $homeResponse.Content,
+    '<script[^>]+src=["''](?<src>[^"'']+\.js(?:\?[^"'']*)?)["'']',
+    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+  )
+  $scriptSources = @($scriptMatches | ForEach-Object { $_.Groups['src'].Value } | Select-Object -Unique)
+  if ($scriptSources.Count -eq 0) {
+    throw 'application shell does not reference a JavaScript bundle'
+  }
+
+  $releaseFound = $false
+  foreach ($source in $scriptSources) {
+    $bundleUri = if ($source -match '^https?://') {
+      $source
+    } else {
+      "$($AppUrl.TrimEnd('/'))/$($source.TrimStart('/'))"
+    }
+    $bundle = Invoke-WithRetry { Invoke-WebRequest -Uri $bundleUri -TimeoutSec 30 -UseBasicParsing }
+    if ($bundle.Content.Contains($ExpectedRelease)) {
+      $releaseFound = $true
+      break
+    }
+  }
+
+  if (-not $releaseFound) {
+    throw "production is not serving expected release $ExpectedRelease"
+  }
+  Write-Host "PASS production release ($ExpectedRelease)"
+}
 
 # A 401 proves the external Supabase gateway is reachable without exposing a
 # project key. Sensitive functions must also reject anonymous callers.
