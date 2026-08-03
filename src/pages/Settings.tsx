@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { AlertTriangle, CalendarClock, Download, ShieldCheck, X } from 'lucide-react'
 import { userErrorMessage } from '../lib/userError'
+import { safeImportArchiveName } from '../lib/importArchive'
 
 type ClosureRequest = {
   id: string
@@ -130,6 +131,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       const zip = new JSZip()
       const counts: Record<string, number> = {}
       let totalRows = 0
+      let sourceFiles = 0
 
       for (let index = 0; index < manifest.resources.length; index += 1) {
         const resource = manifest.resources[index]
@@ -150,15 +152,27 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         counts[resource.key] = rows.length
         totalRows += rows.length
         zip.file(`data/${resource.key}.json`, JSON.stringify(rows, null, 2))
+        if (resource.key === 'uploads') {
+          const archived = rows.filter(row => typeof row.storage_path === 'string' && row.storage_path)
+          for (let fileIndex = 0; fileIndex < archived.length; fileIndex += 1) {
+            const row = archived[fileIndex]
+            setExportProgress(`إضافة ملفات المصدر · ${fileIndex + 1} من ${archived.length}`)
+            const { data: source, error: sourceError } = await supabase.storage.from('merchant-imports').download(String(row.storage_path))
+            if (sourceError || !source) throw sourceError || new Error('تعذر إضافة أحد ملفات المصدر')
+            zip.file(`source-files/${String(row.id || fileIndex)}/${safeImportArchiveName(String(row.file_name || 'source-file'))}`, source)
+            sourceFiles += 1
+          }
+        }
       }
 
-      zip.file('manifest.json', JSON.stringify({ ...manifest, completed_at: new Date().toISOString(), counts, total_rows: totalRows }, null, 2))
+      zip.file('manifest.json', JSON.stringify({ ...manifest, completed_at: new Date().toISOString(), counts, total_rows: totalRows, source_files: sourceFiles }, null, 2))
       zip.file('README.txt', [
         'Sellpert merchant data export',
         `Store: ${merchant?.name || merchant?.merchant_code}`,
         `Generated: ${manifest.generated_at}`,
         `Resources: ${manifest.resources.length}`,
         `Rows: ${totalRows}`,
+        `Private source files: ${sourceFiles}`,
         `Excluded security material: ${manifest.excludes.join('، ')}`,
       ].join('\n'))
       setExportProgress('جاري ضغط الملف…')

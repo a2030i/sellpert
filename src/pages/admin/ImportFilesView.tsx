@@ -6,7 +6,8 @@ import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
 import { reconcileAmazonReportTotals } from '../../lib/amazonReportReconciliation'
 import { uploadDisplayStatus } from '../../lib/uploadStatus'
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox } from 'lucide-react'
+import { Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox } from 'lucide-react'
+import { importArchiveContentType, importArchivePath, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_EXPANDED_BYTES, MAX_IMPORT_FILE_BYTES, validateImportFile } from '../../lib/importArchive'
 
 // ─── File guides per platform ────────────────────────────────────────────────
 type Importance = 'critical' | 'recommended' | 'optional'
@@ -266,6 +267,8 @@ function relativeTime(iso: string | null): string {
 
 // ─── Expand zip → file list — يتحقّق من الامتداد ومن الـ signature ──────────
 async function expandIfZip(file: File): Promise<File[]> {
+  const fileError = validateImportFile(file)
+  if (fileError) throw new Error(fileError)
   const looksLikeZipByName = /\.zip$/i.test(file.name)
   // Read first 4 bytes to detect PK signature (zip files start with 0x50 0x4B 0x03 0x04)
   let isZipByContent = false
@@ -286,10 +289,18 @@ async function expandIfZip(file: File): Promise<File[]> {
   try {
     const zip = await JSZip.loadAsync(buf || await file.arrayBuffer())
     const out: File[] = []
+    let expandedBytes = 0
     for (const entry of Object.values(zip.files)) {
       if (entry.dir) continue
       if (!/\.(csv|xlsx|xlsm|xls|txt|tsv)$/i.test(entry.name)) continue
+      if (out.length >= MAX_ARCHIVE_ENTRIES) throw new Error(`ملف ZIP يحتوي أكثر من ${MAX_ARCHIVE_ENTRIES} ملف صالح`)
+      const estimatedSize = Number((entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0)
+      if (estimatedSize > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
+      if (expandedBytes + estimatedSize > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
       const blob = await entry.async('blob')
+      if (blob.size > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
+      expandedBytes += blob.size
+      if (expandedBytes > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
       const cleanName = entry.name.split('/').pop() || entry.name
       out.push(new File([blob], cleanName, { type: blob.type }))
     }
@@ -314,7 +325,7 @@ interface FileEntry {
   startedAt?: number
   finishedAt?: number
   fingerprint?: string
-  dup?: { uploadId: string; uploadedAt: string; fileName: string; rows: number }  // رفعة سابقة مطابقة بالبصمة
+  dup?: { uploadId: string; uploadedAt: string; fileName: string; rows: number; storagePath?: string | null }  // رفعة سابقة مطابقة بالبصمة
   dupAction?: 'skip' | 'replace' | 'keep'  // قرار الموظف عند التكرار (افتراضي skip)
 }
 
@@ -627,19 +638,24 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
   async function onAddFiles(picked: FileList | null) {
     if (!picked || !merchantCode) return
     const expanded: File[] = []
+    const rejected: string[] = []
     for (const f of Array.from(picked)) {
-      const inner = await expandIfZip(f)
-      expanded.push(...inner)
+      try {
+        const inner = await expandIfZip(f)
+        expanded.push(...inner)
+      } catch (error) {
+        rejected.push(`${f.name}: ${error instanceof Error ? error.message : 'تعذر قراءة الملف'}`)
+      }
     }
     if (expanded.length === 0) {
-      setGlobalMsg({ type: 'err', text: 'لا توجد ملفات صالحة (CSV/Excel) داخل الـ ZIP' })
+      setGlobalMsg({ type: 'err', text: rejected.join(' · ') || 'لا توجد ملفات صالحة (CSV/Excel) داخل الـ ZIP' })
       return
     }
     const newEntries: FileEntry[] = expanded.map((file, i) => ({
       id: `${Date.now()}-${i}`, file, stage: 'parsing', progress: 0,
     }))
     setFiles(p => [...p, ...newEntries])
-    setGlobalMsg(null)
+    setGlobalMsg(rejected.length ? { type: 'err', text: `تم تجاهل ${rejected.length} ملف: ${rejected.join(' · ')}` } : null)
 
     for (const entry of newEntries) {
       try {
@@ -655,10 +671,10 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
         let dup: FileEntry['dup'] = undefined
         if (fingerprint && isOk) {
           const { data: prev } = await supabase.from('platform_file_uploads')
-            .select('id, uploaded_at, file_name, rows_inserted')
+            .select('id, uploaded_at, file_name, rows_inserted, storage_path')
             .eq('merchant_code', merchantCode).eq('fingerprint', fingerprint)
             .order('uploaded_at', { ascending: false }).limit(1).maybeSingle()
-          if (prev) dup = { uploadId: prev.id, uploadedAt: prev.uploaded_at, fileName: (prev as any).file_name || '', rows: prev.rows_inserted || 0 }
+          if (prev) dup = { uploadId: prev.id, uploadedAt: prev.uploaded_at, fileName: (prev as any).file_name || '', rows: prev.rows_inserted || 0, storagePath: (prev as any).storage_path }
         }
         setFiles(p => p.map(f => f.id === entry.id ? {
           ...f, parsed, validation, fingerprint, dup,
@@ -724,6 +740,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
       if (entry.dup && entry.dupAction === 'replace') {
         const { error: delErr } = await supabase.rpc('delete_upload_with_data', { p_upload_id: entry.dup.uploadId })
         if (delErr) allErrors.push(`${entry.file.name}: تعذّر حذف الرفعة السابقة — ${delErr.message}`)
+        else if (entry.dup.storagePath) await supabase.storage.from('merchant-imports').remove([entry.dup.storagePath])
       }
       // Insert audit row — فشله يوقف هذا الملف: المتابعة بـ uploadId فارغ
       // تُفشل كل الإدراجات الموسومة لاحقاً بخطأ uuid غامض
@@ -740,6 +757,33 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
         continue
       }
       const uploadId = audit.id
+
+      // Preserve the exact accepted source privately. Importing stops if the
+      // immutable source cannot be archived, so a successful audit row always
+      // has evidence that can be downloaded later by the same tenant only.
+      const storagePath = importArchivePath(merchantCode, uploadId, entry.file.name)
+      const { error: archiveError } = await supabase.storage.from('merchant-imports').upload(storagePath, entry.file, {
+        upsert: false,
+        contentType: importArchiveContentType(entry.file.name),
+      })
+      if (archiveError) {
+        await supabase.from('platform_file_uploads').update({
+          status: 'failed', error_message: 'تعذر حفظ نسخة المصدر الخاصة', finished_at: new Date().toISOString(),
+        }).eq('id', uploadId)
+        allErrors.push(`${entry.file.name}: تعذّر حفظ نسخة المصدر الخاصة — لم يتم استيراد البيانات`)
+        setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'failed', progress: 0, finishedAt: Date.now() } : f))
+        continue
+      }
+      const { error: pathError } = await supabase.from('platform_file_uploads').update({ storage_path: storagePath }).eq('id', uploadId)
+      if (pathError) {
+        await supabase.storage.from('merchant-imports').remove([storagePath])
+        await supabase.from('platform_file_uploads').update({
+          status: 'failed', error_message: 'تعذر ربط نسخة المصدر بسجل الرفع', finished_at: new Date().toISOString(),
+        }).eq('id', uploadId)
+        allErrors.push(`${entry.file.name}: تعذّر ربط نسخة المصدر بسجل الرفع — لم يتم استيراد البيانات`)
+        setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'failed', progress: 0, finishedAt: Date.now() } : f))
+        continue
+      }
 
       setFiles(p => p.map(f => f.id === entry.id ? { ...f, stage: 'saving', progress: 5, startedAt: Date.now() } : f))
 
@@ -1389,6 +1433,7 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
   const [uploads, setUploads] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -1406,13 +1451,18 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
     try {
       const { data, error } = await supabase.rpc('delete_upload_with_data', { p_upload_id: u.id })
       if (error) throw error
+      let archiveWarning = false
+      if (u.storage_path) {
+        const { error: archiveError } = await supabase.storage.from('merchant-imports').remove([u.storage_path])
+        archiveWarning = Boolean(archiveError)
+      }
       const counts: any = data?.deleted || {}
       const total = Object.values(counts).reduce((a: any, b: any) => Number(a) + Number(b), 0)
       const summary = Object.entries(counts).filter(([_, v]: any) => v > 0).map(([k, v]: any) => `${arabicTable(k)}: ${v}`).join(' · ')
       // Toast
       try {
         const { toastOk } = await import('../../components/Toast')
-        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}`)
+        toastOk(`✓ حُذفت ${total} صف من البيانات${summary ? ' (' + summary + ')' : ''}${archiveWarning ? ' · تعذر حذف نسخة المصدر وستُنظف آليًا' : ''}`)
       } catch { /* */ }
       load()
     } catch (e: any) {
@@ -1422,6 +1472,25 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
       } catch { alert('فشل الحذف: ' + e.message) }
     }
     setDeletingId(null)
+  }
+
+  async function downloadOriginal(u: any) {
+    if (!u.storage_path) return
+    setDownloadingId(u.id)
+    try {
+      const { data, error } = await supabase.storage.from('merchant-imports').download(u.storage_path)
+      if (error || !data) throw error || new Error('تعذر تنزيل الملف')
+      const url = URL.createObjectURL(data)
+      const link = document.createElement('a')
+      link.href = url; link.download = u.file_name || 'source-file'; document.body.appendChild(link); link.click(); link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      try {
+        const { toastErr } = await import('../../components/Toast')
+        toastErr('تعذر تنزيل نسخة المصدر: ' + (error?.message || 'خطأ غير معروف'))
+      } catch { /* noop */ }
+    }
+    setDownloadingId(null)
   }
 
   if (loading) return null
@@ -1475,6 +1544,13 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
             }}>
               {statusMeta.label}
             </span>
+            {u.storage_path && <button onClick={() => downloadOriginal(u)} disabled={downloadingId === u.id}
+              title="تنزيل نسخة المصدر الخاصة"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text2)',
+                padding: '6px 9px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Download size={12} /> {downloadingId === u.id ? 'تنزيل...' : 'المصدر'}
+            </button>}
             {!readOnly && <button onClick={() => deleteUpload(u)} disabled={deletingId === u.id}
               style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)',
                 padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
