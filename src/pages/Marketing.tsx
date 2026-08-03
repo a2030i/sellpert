@@ -333,7 +333,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>العائد بعد رسوم المنصة والمرتجعات</div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-            تقارير المنصات تعرض GMV الإجمالي. الـ ROAS الحقيقي يخصم عمولة المنصة + رسوم FBA + الضريبة المحجوزة + المرتجعات
+            تقارير المنصات تعرض إجمالي المبيعات. العائد المعدّل يخصم عمولة المنصة ورسوم التنفيذ والضريبة المحجوزة والمرتجعات، ولا يشمل تكلفة المنتج ما لم تكن مسجّلة.
           </div>
         </div>
         <button onClick={() => setShowDetails(s => !s)} style={{
@@ -350,7 +350,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
           <div style={{ fontWeight: 800, marginBottom: 4 }}>عائد تقرير المنصة أعلى من العائد بعد الرسوم بنسبة {inflationPct.toFixed(0)}%</div>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>
             تقرير المنصة يقول: <strong style={{ color: 'var(--success-text)' }}>{grossRoas.toFixed(2)}x ROAS</strong> ·
-            بعد خصم العمولة والرسوم والمرتجعات الفعلي: <strong style={{ color: netRoas >= 1 ? 'var(--success-text)' : 'var(--danger-text)' }}>{netRoas.toFixed(2)}x ROAS</strong>
+            العائد المعدّل بعد العمولة والرسوم والمرتجعات: <strong style={{ color: netRoas >= 1 ? 'var(--success-text)' : 'var(--danger-text)' }}>{netRoas.toFixed(2)}x ROAS</strong>
           </div>
         </div>
       )}
@@ -364,7 +364,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
         <MetricCard label="ضريبة محجوزة" value={Math.abs(Math.round(totalVat)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="مرتجعات" value={Math.abs(Math.round(totalReturns)).toLocaleString('en-US')} suffix="ر.س-" color="#f59e0b" />
         <MetricCard label="صافي الإيراد" value={Math.round(totalNet).toLocaleString('en-US')} suffix="ر.س" color={totalNet > 0 ? 'var(--success-text)' : 'var(--danger-text)'} bold />
-        <MetricCard label="العائد الحقيقي (بعد الرسوم)" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? 'var(--success-text)' : netRoas >= 1 ? '#f59e0b' : 'var(--danger-text)'} bold sub={`عائد تقارير المنصة: ${grossRoas.toFixed(2)}x`} />
+        <MetricCard label="العائد المعدّل بعد الرسوم" value={netRoas.toFixed(2) + 'x'} color={netRoas >= 2 ? 'var(--success-text)' : netRoas >= 1 ? '#f59e0b' : 'var(--danger-text)'} bold sub={`عائد تقارير المنصة: ${grossRoas.toFixed(2)}x`} />
       </div>
 
       {losses.length > 0 && (
@@ -381,8 +381,8 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead><tr>{(showDetails
-            ? ['SKU/حملة','إنفاق','إجمالي (متضخم)','رسوم منصة','مرتجعات','صافي','ROAS منصة','ROAS حقيقي']
-            : ['SKU/حملة','إنفاق','إجمالي','صافي','ROAS منصة','ROAS حقيقي']
+            ? ['SKU/حملة','إنفاق','إجمالي التقرير','رسوم منصة','مرتجعات','صافي معدّل','ROAS منصة','ROAS معدّل']
+            : ['SKU/حملة','إنفاق','إجمالي التقرير','صافي معدّل','ROAS منصة','ROAS معدّل']
           ).map(h => (
             <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, color: 'var(--text3)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
           ))}</tr></thead>
@@ -420,7 +420,7 @@ function TrueAdEffectivenessPanel({ merchantCode }: { merchantCode?: string }) {
       </div>
 
       <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text3)', lineHeight: 1.7, padding: 10, background: 'var(--surface2)', borderRadius: 8 }}>
-        <strong>منهجية الحساب:</strong> يحلل النظام كشف الحساب الفعلي ويستخرج نسبة الرسوم ونسبة المرتجعات، ثم يطبقهما على الإيراد المعلن من تقارير الحملات. تتحسن الدقة كلما توفرت بيانات مالية أحدث.
+        <strong>منهجية الحساب:</strong> يحلل النظام كشف الحساب المسجّل ويستخرج نسبة الرسوم ونسبة المرتجعات، ثم يطبقهما على الإيراد المعلن من تقارير الحملات. تتحسن الدقة كلما توفرت بيانات مالية وتكاليف منتجات أحدث.
       </div>
     </div>
   )
