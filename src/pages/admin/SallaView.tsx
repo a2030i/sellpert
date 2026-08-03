@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { S, fmt } from './adminShared'
+import { S } from './adminShared'
+import { Settings, KeyRound, Link2, RefreshCw, Copy, Eye, EyeOff, Pencil, X, Store, PauseCircle, ListTodo, CircleX } from 'lucide-react'
 
 const SALLA_SETTING_FIELDS = [
   { key: 'SALLA_CLIENT_ID',      label: 'Client ID',        isSecret: false, placeholder: 'أدخل Client ID من لوحة شركاء سلة',  note: 'عام — يظهر في رابط OAuth' },
@@ -10,14 +11,6 @@ const SALLA_SETTING_FIELDS = [
   { key: 'salla_app_store_url',  label: 'متجر تطبيقات سلة', isSecret: false, placeholder: 'https://salla.sa/apps/sellpert',        note: 'رابط التطبيق في متجر سلة' },
 ]
 
-const PLAN_DEFAULTS = [
-  { key: 'salla',      label: 'باقة سلة',       price: 99  },
-  { key: 'growth',     label: 'باقة النمو',      price: 299 },
-  { key: 'pro',        label: 'باقة المحترف',    price: 599 },
-  { key: 'enterprise', label: 'المؤسسات',        price: 999 },
-]
-
-const PLAN_COLORS: Record<string, string> = { salla: '#0f958c', growth: '#00e5b0', pro: '#ff9900', enterprise: '#f27a1a' }
 const STATUS_COLORS: Record<string, string> = { active: '#00e5b0', suspended: '#ff4d6d', cancelled: '#ffd166' }
 
 function SallaAppSettings() {
@@ -26,10 +19,6 @@ function SallaAppSettings() {
   type SettingEntry = { value: string; editing: boolean; draft: string; saving: boolean; revealed: boolean }
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({})
   const [loadingSettings, setLoadingSettings] = useState(true)
-  const [plans, setPlans]               = useState(PLAN_DEFAULTS)
-  const [editPlanKey, setEditPlanKey]   = useState<string | null>(null)
-  const [editPlanPrice, setEditPlanPrice] = useState('')
-  const [savingPlan, setSavingPlan]     = useState(false)
   const [copied, setCopied]             = useState<string | null>(null)
   const [msg, setMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -45,12 +34,7 @@ function SallaAppSettings() {
       const row = data?.find(r => r.key === f.key)
       map[f.key] = { value: row?.value || '', editing: false, draft: '', saving: false, revealed: false }
     })
-    const updatedPlans = PLAN_DEFAULTS.map(p => {
-      const row = data?.find(r => r.key === `plan_price_${p.key}`)
-      return row?.value ? { ...p, price: parseInt(row.value, 10) } : p
-    })
     setSettings(map)
-    setPlans(updatedPlans)
     setLoadingSettings(false)
   }
 
@@ -68,19 +52,8 @@ function SallaAppSettings() {
       updated_at: new Date().toISOString(),
     })
     if (error) showMsg('err', 'خطأ في الحفظ: ' + error.message)
-    else { patchSetting(key, { value: s.draft, editing: false, saving: false }); showMsg('ok', `✅ تم حفظ ${SALLA_SETTING_FIELDS.find(f => f.key === key)?.label}`) }
+    else { patchSetting(key, { value: s.draft, editing: false, saving: false }); showMsg('ok', `تم حفظ ${SALLA_SETTING_FIELDS.find(f => f.key === key)?.label}`) }
     patchSetting(key, { saving: false })
-  }
-
-  async function savePlanPrice(planKey: string) {
-    const price = parseInt(editPlanPrice, 10)
-    if (isNaN(price) || price < 1) { showMsg('err', 'يرجى إدخال سعر صحيح'); return }
-    setSavingPlan(true)
-    await supabase.from('app_settings').upsert({ key: `plan_price_${planKey}`, value: String(price), is_secret: false })
-    setPlans(prev => prev.map(p => p.key === planKey ? { ...p, price } : p))
-    setSavingPlan(false)
-    setEditPlanKey(null)
-    showMsg('ok', `✅ تم تحديث سعر ${PLAN_DEFAULTS.find(p => p.key === planKey)?.label}`)
   }
 
   function showMsg(type: 'ok' | 'err', text: string) {
@@ -105,17 +78,17 @@ function SallaAppSettings() {
   const copyBtnStyle: React.CSSProperties = { flexShrink: 0, padding: '6px 14px', borderRadius: 8, background: 'rgba(15,149,140,0.12)', border: '1px solid rgba(15,149,140,0.3)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
 
   const statusDot = (val: string) => val
-    ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--success-bg)', color: 'var(--accent2)', fontWeight: 700, marginRight: 6 }}>✓ محفوظ</span>
-    : <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700, marginRight: 6 }}>⚠ فارغ</span>
+    ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontWeight: 700, marginRight: 6 }}>محفوظ</span>
+    : <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700, marginRight: 6 }}>غير مكتمل</span>
 
   return (
     <div style={{ ...S.chartCard, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={S.chartTitle}>⚙️ إعدادات تطبيق سلة</div>
-          <div style={S.chartSub}>بيانات OAuth والـ Webhooks وأسعار الباقات</div>
+          <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Settings size={16} /> إعدادات تطبيق سلة</div>
+          <div style={S.chartSub}>بيانات OAuth وعناوين Webhooks اللازمة للتكامل.</div>
         </div>
-        <button style={S.refreshBtn} onClick={loadSettings} disabled={loadingSettings}>⟳ تحديث</button>
+        <button style={{ ...S.refreshBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={loadSettings} disabled={loadingSettings}><RefreshCw size={14} /> تحديث</button>
       </div>
 
       {msg && (
@@ -127,7 +100,7 @@ function SallaAppSettings() {
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)' }}>🔑 بيانات تطبيق سلة</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 7 }}><KeyRound size={15} /> بيانات تطبيق سلة</div>
           {loadingSettings ? (
             <div style={{ color: 'var(--text3)', fontSize: 13 }}>جارٍ التحميل...</div>
           ) : (
@@ -145,17 +118,17 @@ function SallaAppSettings() {
                       {!s.editing && (
                         <div style={{ display: 'flex', gap: 6 }}>
                           {s.value && !f.isSecret && (
-                            <button style={copyBtnStyle} onClick={() => copy(s.value, f.key)}>{copied === f.key ? '✓ تم' : '📋'}</button>
+                            <button style={copyBtnStyle} onClick={() => copy(s.value, f.key)}>{copied === f.key ? 'تم النسخ' : <Copy size={13} />}</button>
                           )}
                           {s.value && f.isSecret && (
                             <button style={{ ...copyBtnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)' }}
                               onClick={() => patchSetting(f.key, { revealed: !s.revealed })}>
-                              {s.revealed ? '🙈' : '👁'}
+                              {s.revealed ? <EyeOff size={14} /> : <Eye size={14} />}
                             </button>
                           )}
                           <button style={{ ...copyBtnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)' }}
                             onClick={() => patchSetting(f.key, { editing: true, draft: s.value })}>
-                            ✏️ {s.value ? 'تعديل' : 'إضافة'}
+                            <Pencil size={13} /> {s.value ? 'تعديل' : 'إضافة'}
                           </button>
                         </div>
                       )}
@@ -177,7 +150,7 @@ function SallaAppSettings() {
                           style={{ ...S.saveBtn, padding: '8px 16px', fontSize: 12, opacity: (!s.draft.trim() || s.saving) ? 0.6 : 1 }}>
                           {s.saving ? '...' : 'حفظ'}
                         </button>
-                        <button onClick={() => patchSetting(f.key, { editing: false })} style={{ ...S.miniBtn, padding: '8px 12px', fontSize: 12 }}>✕</button>
+                        <button onClick={() => patchSetting(f.key, { editing: false })} style={{ ...S.miniBtn, padding: '8px 12px', fontSize: 12 }} aria-label="إلغاء"><X size={14} /></button>
                       </div>
                     )}
                   </div>
@@ -188,7 +161,7 @@ function SallaAppSettings() {
         </div>
 
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)' }}>🔗 عناوين التكامل — أضفها في لوحة شركاء سلة</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 7 }}><Link2 size={15} /> عناوين التكامل — أضفها في لوحة شركاء سلة</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
               { id: 'callback', label: 'OAuth Callback URL', url: callbackUrl, note: 'Apps → إعدادات التطبيق → Redirect URI' },
@@ -198,40 +171,8 @@ function SallaAppSettings() {
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, fontWeight: 600 }}>{label} <span style={{ fontWeight: 400 }}>— {note}</span></div>
                 <div style={urlRowStyle}>
                   <code style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</code>
-                  <button style={copyBtnStyle} onClick={() => copy(url, id)}>{copied === id ? '✓ تم النسخ' : '📋 نسخ'}</button>
+                  <button style={{ ...copyBtnStyle, display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => copy(url, id)}>{copied === id ? 'تم النسخ' : <><Copy size={13} /> نسخ</>}</button>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)' }}>💳 أسعار الباقات (ر.س / شهر)</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
-            {plans.map(p => (
-              <div key={p.key} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700 }}>{p.label}</span>
-                  {editPlanKey !== p.key && (
-                    <button onClick={() => { setEditPlanKey(p.key); setEditPlanPrice(String(p.price)) }}
-                      style={{ ...S.miniBtn, fontSize: 11, padding: '3px 10px' }}>✏️</button>
-                  )}
-                </div>
-                {editPlanKey === p.key ? (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                    <input type="number" value={editPlanPrice} onChange={e => setEditPlanPrice(e.target.value)}
-                      style={{ width: 80, ...S.input, padding: '5px 8px', fontSize: 13 }} autoFocus />
-                    <button onClick={() => savePlanPrice(p.key)} disabled={savingPlan}
-                      style={{ ...S.saveBtn, padding: '5px 12px', fontSize: 12 }}>
-                      {savingPlan ? '...' : 'حفظ'}
-                    </button>
-                    <button onClick={() => setEditPlanKey(null)} style={{ ...S.miniBtn, padding: '5px 8px', fontSize: 12 }}>✕</button>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)' }}>
-                    {p.price} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text3)' }}>ر.س</span>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -244,7 +185,6 @@ function SallaAppSettings() {
 
 export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
   const [connections, setConnections] = useState<any[]>([])
-  const [subscriptions, setSubscriptions] = useState<any[]>([])
   const [queue, setQueue] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -253,13 +193,11 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
 
   async function load() {
     setLoading(true)
-    const [{ data: conns }, { data: subs }, { data: q }] = await Promise.all([
-      supabase.from('salla_connections').select('*, merchants(name,email,subscription_status,subscription_plan)').order('installed_at', { ascending: false }),
-      supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
+    const [{ data: conns }, { data: q }] = await Promise.all([
+      supabase.from('salla_connections').select('*, merchants(name,email,subscription_status)').order('installed_at', { ascending: false }),
       supabase.from('sync_queue').select('merchant_code,status').in('status', ['pending', 'running', 'failed']),
     ])
     setConnections(conns || [])
-    setSubscriptions(subs || [])
     setQueue(q || [])
     setLoading(false)
   }
@@ -287,18 +225,12 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
     setTimeout(() => setActionMsg(null), 3000)
   }
 
-  const subMap: Record<string, any> = {}
-  subscriptions.forEach(s => { subMap[s.merchant_code] = s })
-
   const queueMap: Record<string, number> = {}
   queue.forEach(q => { queueMap[q.merchant_code] = (queueMap[q.merchant_code] || 0) + 1 })
 
   const activeCount    = connections.filter(c => !c.uninstalled_at).length
   const suspendedCount = connections.filter(c => (c.merchants as any)?.subscription_status === 'suspended').length
-  const totalRevenue   = subscriptions.filter(s => s.status === 'active').reduce((sum: number, s: any) => {
-    const p = { salla: 99, growth: 299, pro: 599, enterprise: 999 } as Record<string, number>
-    return sum + (p[s.plan] || 99)
-  }, 0)
+  const failedCount = queue.filter(q => q.status === 'failed').length
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
@@ -314,18 +246,18 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
         <div style={{ ...S.msgBox, ...(actionMsg.type === 'ok' ? S.msgOk : S.msgErr) }}>{actionMsg.text}</div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
         {[
-          { label: 'متاجر سلة المثبّتة', value: activeCount,              color: '#0f958c', icon: '🟣' },
-          { label: 'متاجر معلّقة',        value: suspendedCount,           color: '#ff4d6d', icon: '🚫' },
-          { label: 'وظائف في الطابور',   value: queue.length,             color: '#ffd166', icon: '⏳' },
-          { label: 'إيراد شهري متكرر',   value: fmt(totalRevenue) + '/شهر', color: '#00e5b0', icon: '💰' },
+          { label: 'متاجر سلة المربوطة', value: activeCount,    color: '#0f958c', Icon: Store },
+          { label: 'وصول معلّق',         value: suspendedCount, color: '#ff4d6d', Icon: PauseCircle },
+          { label: 'وظائف قيد المعالجة', value: queue.length,   color: '#9c6700', Icon: ListTodo },
+          { label: 'وظائف فاشلة',        value: failedCount,    color: '#d12f3f', Icon: CircleX },
         ].map((k, i) => (
           <div key={i} style={{ ...S.kpiCard, padding: 18, position: 'relative', overflow: 'hidden' }}>
             <div style={{ ...S.kpiBar, background: k.color }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{k.label}</span>
-              <span style={{ width: 32, height: 32, borderRadius: 8, background: k.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{k.icon}</span>
+              <span style={{ width: 32, height: 32, borderRadius: 8, background: k.color + '22', color: k.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><k.Icon size={16} /></span>
             </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
           </div>
@@ -335,22 +267,20 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
       <div style={{ ...S.chartCard, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={S.chartTitle}>🟣 متاجر سلة المربوطة</div>
-            <div style={S.chartSub}>{connections.length} متجر — إدارة الاشتراكات والمزامنة</div>
+            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Store size={16} /> متاجر سلة المربوطة</div>
+            <div style={S.chartSub}>{connections.length} متجر — متابعة الاتصال والمزامنة.</div>
           </div>
-          <button style={S.refreshBtn} onClick={load}>⟳ تحديث</button>
+          <button style={{ ...S.refreshBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={load}><RefreshCw size={14} /> تحديث</button>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={S.table}>
             <thead>
-              <tr>{['المتجر', 'حالة الاشتراك', 'الباقة', 'آخر مزامنة', 'في الطابور', 'طلبات', 'تثبيت في', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>{['المتجر', 'حالة الوصول', 'آخر مزامنة', 'في الطابور', 'طلبات', 'تثبيت في', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {connections.map(c => {
                 const m = c.merchants as any
-                const sub = subMap[c.merchant_code]
                 const status = m?.subscription_status || 'active'
-                const plan   = sub?.plan || 'salla'
                 const qCount = queueMap[c.merchant_code] || 0
                 const isUninstalled = !!c.uninstalled_at
 
@@ -365,12 +295,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                     </td>
                     <td style={S.td}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: (STATUS_COLORS[status] || '#5a5a7a') + '22', color: STATUS_COLORS[status] || 'var(--text3)' }}>
-                        {isUninstalled ? '🗑 محذوف' : status === 'active' ? '✓ نشط' : status === 'suspended' ? '⛔ معلّق' : status}
-                      </span>
-                    </td>
-                    <td style={S.td}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: (PLAN_COLORS[plan] || '#5a5a7a') + '22', color: PLAN_COLORS[plan] || 'var(--text3)' }}>
-                        {({ salla: 'باقة سلة', growth: 'نمو', pro: 'محترف', enterprise: 'مؤسسات', free: 'مجاني' } as Record<string, string>)[plan] || plan}
+                        {isUninstalled ? 'تم إلغاء الربط' : status === 'active' ? 'نشط' : status === 'suspended' ? 'معلّق' : status}
                       </span>
                     </td>
                     <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>
@@ -387,7 +312,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                     </td>
                     <td style={S.td}>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ ...S.miniBtn, fontSize: 11 }} onClick={() => forceSync(c.merchant_code)} title="مزامنة فورية">⟳</button>
+                        <button style={{ ...S.miniBtn, fontSize: 11, display: 'inline-flex', alignItems: 'center' }} onClick={() => forceSync(c.merchant_code)} title="مزامنة فورية"><RefreshCw size={13} /></button>
                         {status === 'active' ? (
                           <button style={{ ...S.miniBtn, fontSize: 11, color: 'var(--danger-text)', borderColor: 'var(--danger-bg)' }} onClick={() => suspendMerchant(c.merchant_code)}>تعليق</button>
                         ) : (

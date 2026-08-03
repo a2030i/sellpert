@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const { data: merchant } = await admin.from('merchants')
       .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()
     if (!merchant) throw new HttpError(404, 'Merchant not found')
-    if (merchant.subscription_status !== 'active') throw new HttpError(402, 'SUBSCRIPTION_INACTIVE')
+    if (merchant.subscription_status !== 'active') throw new HttpError(403, 'ACCOUNT_SUSPENDED')
 
     const credentials = await resolveCredentials(admin, merchantCode, mappingId)
     const { from, to } = parseSyncRange(body, 90)

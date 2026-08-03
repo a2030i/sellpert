@@ -104,10 +104,10 @@ async function processJob(admin: any, job: any): Promise<{ success: boolean; err
 
     const data = await res.json().catch(() => ({}))
 
-    if (res.status === 402) {
-      // Subscription inactive — don't retry
+    if (res.status === 403 && data?.error === 'ACCOUNT_SUSPENDED') {
+      // Administratively suspended account — don't retry until reactivated.
       await admin.rpc('complete_queue_job', { job_id: id, success: true, err_msg: null })
-      console.log(`[queue-worker] Skipped ${merchant_code} — subscription inactive`)
+      console.log(`[queue-worker] Skipped ${merchant_code} — account access suspended`)
       return { success: true }
     }
 

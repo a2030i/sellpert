@@ -24,7 +24,6 @@ interface KPIs {
 interface TopMerchant {
   merchant_code: string
   name: string
-  subscription_plan: string | null
   health_score: number
   last_active_at: string | null
 }
@@ -53,7 +52,7 @@ export default function TeamDashboardView() {
     setLoading(true)
     const [kpiResp, merchantsResp, npsResp, tasksResp, activityResp] = await Promise.all([
       supabase.rpc('team_dashboard_kpis'),
-      supabase.from('merchants').select('merchant_code,name,subscription_plan').eq('role', 'merchant').limit(50),
+      supabase.from('merchants').select('merchant_code,name').eq('role', 'merchant').limit(50),
       supabase.from('nps_responses').select('*').order('responded_at', { ascending: false }).limit(8),
       supabase.from('merchant_requests').select('id,title,note,priority,due_date,status,merchant_code,assigned_to')
         .in('status', ['pending', 'in_progress', 'review', 'blocked']).order('created_at', { ascending: false }).limit(10),
@@ -174,7 +173,6 @@ export default function TeamDashboardView() {
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
                 <th style={th}>المتجر</th>
                 <th style={th}>الكود</th>
-                <th style={th}>الخطة</th>
                 <th style={th}>Health</th>
                 <th style={th}>آخر نشاط</th>
               </tr>
@@ -184,11 +182,6 @@ export default function TeamDashboardView() {
                 <tr key={m.merchant_code} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={td}>{m.name}</td>
                   <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{m.merchant_code}</td>
-                  <td style={td}>
-                    <span style={{ fontSize: 10, padding: '2px 7px', background: 'var(--surface2)', borderRadius: 4, fontWeight: 700 }}>
-                      {m.subscription_plan || 'free'}
-                    </span>
-                  </td>
                   <td style={td}>
                     <HealthBar score={m.health_score || 0} />
                   </td>

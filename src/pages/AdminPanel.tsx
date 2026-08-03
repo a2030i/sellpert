@@ -26,8 +26,6 @@ const AuditLogView        = lazy(() => import('./admin/AuditLogView'))
 const AdminProductsView   = lazy(() => import('./admin/AdminProductsView'))
 const SallaView           = lazy(() => import('./admin/SallaView'))
 const DBHealthView        = lazy(() => import('./admin/DBHealthView'))
-const RevenueView         = lazy(() => import('./admin/RevenueView'))
-const AdminBillingView    = lazy(() => import('./admin/AdminBillingView'))
 const TeamDashboardView   = lazy(() => import('./admin/TeamDashboardView'))
 const MerchantTimelineView = lazy(() => import('./admin/MerchantTimelineView'))
 const EmployeesView       = lazy(() => import('./admin/EmployeesView'))
@@ -36,20 +34,20 @@ import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../lib/supabase'
 import {
   LayoutDashboard, Users, Tag, PenLine, Upload, Truck, Megaphone, History,
-  TrendingUp, CreditCard, Percent, ShoppingBag,
+  Percent, ShoppingBag,
   BarChart2, Key, Sparkles, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
   ClipboardList, PackageCheck, MessageCircle, FileInput,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'fees' | 'revenue' | 'salla' | 'health' | 'billing'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'fees' | 'salla' | 'health'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'fees', 'revenue', 'salla', 'health', 'billing']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'fees', 'salla', 'health']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
-  // بادئة /admin إلزامية: مسارات التاجر (/products، /team، /billing...) كانت تتصادم مع مفاتيح
+  // بادئة /admin إلزامية حتى لا تتصادم مسارات التاجر مع مفاتيح الشاشات الإدارية.
   // الشاشات الإدارية فيتبدّل السياق صامتاً عند التحديث أثناء الانتحال
   if (parts[1] !== 'admin') return 'overview'
   if (parts[parts.length - 1] === 'requests') {
@@ -140,8 +138,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'finance', label: 'المالية', Icon: Wallet,
     items: [
-      { key: 'revenue', Icon: TrendingUp, label: 'إيرادات Sellpert', perm: 'view_revenue' },
-      { key: 'billing', Icon: CreditCard, label: 'طلبات الدفع',      perm: 'edit_billing' },
       { key: 'fees',    Icon: Percent,    label: 'الرسوم والعمولات', perm: 'view_finance' },
     ],
   },
@@ -528,10 +524,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'fees'        && <FeesView />}
-        {view === 'revenue'     && <RevenueView merchants={merchantOnly} perfData={perfData} />}
         {view === 'salla'       && <SallaView onRefresh={() => loadAll(true)} />}
         {view === 'health'      && <DBHealthView />}
-        {view === 'billing'     && <AdminBillingView />}
         </Suspense>
       </main>
 

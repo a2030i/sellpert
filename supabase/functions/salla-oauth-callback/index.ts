@@ -10,8 +10,7 @@
  *  3. Fetch store info from Salla API
  *  4. Find or create Sellpert merchant account
  *  5. Upsert salla_connections
- *  6. Create/renew subscriptions record
- *  7. Redirect merchant to dashboard with magic-link / temp token
+ *  6. Redirect merchant to dashboard with magic-link / temp token
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -198,7 +197,7 @@ Deno.serve(async (req) => {
       // Welcome notification
       await admin.from('notifications').insert({
         merchant_code: merchantCode,
-        title:         '🎉 مرحباً بك في Sellpert',
+        title:         'مرحباً بك في Sellpert',
         body:          `تم ربط متجر "${storeName}" بنجاح. يمكنك الآن مزامنة طلباتك ومنتجاتك تلقائياً.`,
         type:          'welcome',
       }).catch(() => {}) // non-critical

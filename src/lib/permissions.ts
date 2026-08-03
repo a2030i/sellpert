@@ -9,7 +9,7 @@ export type PermKey =
   // Files
   | 'view_files' | 'upload_files' | 'delete_files'
   // Finance
-  | 'view_finance' | 'edit_billing' | 'view_revenue' | 'manage_subscriptions'
+  | 'view_finance' | 'edit_billing'
   // Operations
   | 'tasks' | 'crm' | 'whatsapp_send' | 'whatsapp_bulk' | 'manage_inbound' | 'manage_ads'
   // System
@@ -32,9 +32,7 @@ export const ALL_PERMISSIONS: { key: PermKey; label: string; category: string }[
 
   // Finance
   { key: 'view_finance',       label: 'عرض البيانات المالية',       category: 'مالية' },
-  { key: 'edit_billing',       label: 'تعديل الفواتير والمدفوعات',   category: 'مالية' },
-  { key: 'view_revenue',       label: 'عرض إيرادات Sellpert',      category: 'مالية' },
-  { key: 'manage_subscriptions', label: 'إيقاف/تفعيل اشتراكات',     category: 'مالية' },
+  { key: 'edit_billing',       label: 'تعديل المراجع المالية',       category: 'مالية' },
 
   // Operations
   { key: 'tasks',              label: 'إدارة المهام والمتابعات',     category: 'تشغيلي' },
@@ -55,7 +53,7 @@ export const PERM_CATEGORIES = ['تجار', 'ملفات', 'مالية', 'تشغ�
 // Department starter templates — admin can customize after applying
 export const DEPT_TEMPLATES: Record<Department, PermKey[]> = {
   manager:    ALL_PERMISSIONS.map(p => p.key),  // all
-  finance:    ['view_merchants', 'impersonate', 'view_finance', 'edit_billing', 'view_revenue', 'manage_subscriptions', 'crm', 'whatsapp_send'],
+  finance:    ['view_merchants', 'impersonate', 'view_finance', 'edit_billing', 'crm', 'whatsapp_send'],
   data_entry: ['view_merchants', 'edit_merchants', 'create_merchants', 'impersonate', 'view_files', 'upload_files', 'delete_files', 'crm'],
   support:    ['view_merchants', 'impersonate', 'tasks', 'crm', 'whatsapp_send'],
   marketing:  ['view_merchants', 'impersonate', 'crm', 'whatsapp_send', 'whatsapp_bulk', 'manage_ads', 'view_files'],

@@ -22,7 +22,6 @@ const EVENT_LABELS: Record<string, string> = {
   shipment_loss: 'فقد إرسالية',
   task_assigned: 'تذكرة جديدة',
   task_resolved: 'حل تذكرة',
-  subscription_expiring: 'اقتراب انتهاء الاشتراك',
   custom: 'رسالة مخصّصة',
 }
 

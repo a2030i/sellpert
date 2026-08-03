@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Bell, Pause, Play, X, Send, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Bell, Pause, Play, X, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   onDone: () => void
 }
 
-type BulkAction = 'notify' | 'suspend' | 'unsuspend' | 'set_plan' | 'add_note'
+type BulkAction = 'notify' | 'suspend' | 'unsuspend' | 'add_note'
 
 export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
   const [showModal, setShowModal] = useState<BulkAction | null>(null)
@@ -18,7 +18,6 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
   // form fields
   const [notifyTitle, setNotifyTitle] = useState('')
   const [notifyBody, setNotifyBody] = useState('')
-  const [planTo, setPlanTo] = useState('basic')
   const [noteBody, setNoteBody] = useState('')
 
   if (selected.length === 0) return null
@@ -47,20 +46,6 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
     if (error) toastErr(error.message)
     else {
       toastOk(`تم ${suspended ? 'إيقاف' : 'تفعيل'} ${selected.length} تاجر`)
-      setShowModal(null)
-      onDone()
-    }
-  }
-
-  async function bulkSetPlan() {
-    setSubmitting(true)
-    const { error } = await supabase.from('merchants')
-      .update({ subscription_plan: planTo })
-      .in('merchant_code', selected)
-    setSubmitting(false)
-    if (error) toastErr(error.message)
-    else {
-      toastOk(`تم تحديث خطة ${selected.length} تاجر`)
       setShowModal(null)
       onDone()
     }
@@ -102,7 +87,6 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <BulkBtn Icon={Bell} label="إشعار" onClick={() => setShowModal('notify')} />
           <BulkBtn Icon={FileText} label="ملاحظة" onClick={() => setShowModal('add_note')} />
-          <BulkBtn Icon={Send} label="تغيير الخطة" onClick={() => setShowModal('set_plan')} />
           <BulkBtn Icon={Pause} label="إيقاف" onClick={() => setShowModal('suspend')} />
           <BulkBtn Icon={Play} label="تفعيل" onClick={() => setShowModal('unsuspend')} />
           <button onClick={onClear} style={{
@@ -141,19 +125,6 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
               </>
             )}
 
-            {showModal === 'set_plan' && (
-              <>
-                <label style={labelStyle}>الخطة الجديدة</label>
-                <select value={planTo} onChange={e => setPlanTo(e.target.value)} style={inputStyle}>
-                  <option value="free">مجاني</option>
-                  <option value="basic">أساسي</option>
-                  <option value="pro">برو</option>
-                  <option value="enterprise">Enterprise</option>
-                </select>
-                <ModalActions onCancel={() => setShowModal(null)} onConfirm={bulkSetPlan} submitting={submitting} confirmLabel="تحديث" />
-              </>
-            )}
-
             {showModal === 'suspend' && (
               <>
                 <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
@@ -181,7 +152,6 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
 function modalTitle(a: BulkAction) {
   return a === 'notify' ? 'إرسال إشعار جماعي'
     : a === 'add_note' ? 'إضافة ملاحظة جماعية'
-    : a === 'set_plan' ? 'تغيير الخطة'
     : a === 'suspend' ? 'إيقاف التجار'
     : a === 'unsuspend' ? 'تفعيل التجار'
     : ''

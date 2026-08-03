@@ -3560,7 +3560,6 @@ export type Database = {
       }
     }
     Functions: {
-      auto_suspend_expired_subscriptions: { Args: never; Returns: undefined }
       bulk_notify: {
         Args: {
           p_action_path?: string
@@ -3584,10 +3583,6 @@ export type Database = {
       complete_queue_job: {
         Args: { err_msg?: string; job_id: number; success: boolean }
         Returns: undefined
-      }
-      confirm_manual_payment: {
-        Args: { p_admin_code: string; p_note?: string; p_request_id: string }
-        Returns: Json
       }
       delete_employee: { Args: { p_employee_code: string }; Returns: Json }
       delete_upload_cascade: { Args: { p_upload_id: string }; Returns: Json }
@@ -3678,18 +3673,6 @@ export type Database = {
       rebuild_performance_data: {
         Args: { p_merchant_code: string }
         Returns: number
-      }
-      reject_payment_request: {
-        Args: { p_admin_code: string; p_reason?: string; p_request_id: string }
-        Returns: Json
-      }
-      request_plan_upgrade: {
-        Args: {
-          p_merchant_code: string
-          p_new_plan: string
-          p_period_months?: number
-        }
-        Returns: Json
       }
       restock_recommendations: {
         Args: { p_lead_time_days?: number; p_merchant_code: string }

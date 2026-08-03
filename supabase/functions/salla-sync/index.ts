@@ -6,7 +6,7 @@
  *   1. By the queue worker (job_type: sync_orders | sync_products | sync_analytics)
  *   2. Directly by admin for a full manual sync
  *
- * SECURITY: Checks subscription_status = 'active' before EVERY sync.
+ * SECURITY: Checks the administrative account access state before every sync.
  *           Suspended merchants → 402 immediately, no data fetched.
  *
  * Body: { merchant_code, job_type, payload? }
@@ -33,10 +33,10 @@ Deno.serve(async (req) => {
     const { merchant_code, job_type, payload: jobPayload } = await req.json()
     if (!merchant_code || !job_type) return json({ error: 'merchant_code and job_type required' }, 400)
 
-    // ── GUARD: Check subscription status ─────────────────────────────────────
+    // ── GUARD: Check administrative account access ──────────────────────────
     const { data: merchant } = await admin
       .from('merchants')
-      .select('subscription_status, subscription_plan, name')
+      .select('subscription_status, name')
       .eq('merchant_code', merchant_code)
       .maybeSingle()
 
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     if (merchant.subscription_status !== 'active') {
       console.warn(`[GUARD] Blocked sync for ${merchant_code} — status: ${merchant.subscription_status}`)
-      return json({ error: 'SUBSCRIPTION_INACTIVE', status: merchant.subscription_status }, 402)
+      return json({ error: 'ACCOUNT_SUSPENDED', status: merchant.subscription_status }, 403)
     }
 
     // ── Get Salla tokens ──────────────────────────────────────────────────────
