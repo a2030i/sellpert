@@ -2,7 +2,7 @@
 -- Raw messages, stack traces, URLs with query strings, and arbitrary metadata
 -- are intentionally not accepted by this boundary.
 
-create table security.client_incidents (
+create table if not exists security.client_incidents (
   id uuid primary key default gen_random_uuid(),
   merchant_code text not null,
   user_id uuid not null,
@@ -27,17 +27,17 @@ alter table security.client_incidents enable row level security;
 revoke all on table security.client_incidents from public, anon, authenticated;
 grant select, insert, update, delete on table security.client_incidents to service_role;
 
-create unique index client_incidents_open_fingerprint_idx
+create unique index if not exists client_incidents_open_fingerprint_idx
   on security.client_incidents (merchant_code, fingerprint)
   where status = 'open';
-create index client_incidents_status_seen_idx
+create index if not exists client_incidents_status_seen_idx
   on security.client_incidents (status, last_seen_at desc);
-create index client_incidents_merchant_seen_idx
+create index if not exists client_incidents_merchant_seen_idx
   on security.client_incidents (merchant_code, last_seen_at desc);
-create index client_incidents_user_rate_idx
+create index if not exists client_incidents_user_rate_idx
   on security.client_incidents (user_id, first_seen_at desc);
 
-create function security.report_client_incident(
+create or replace function security.report_client_incident(
   p_category text,
   p_severity text,
   p_page_path text,
@@ -161,7 +161,7 @@ begin
 end
 $$;
 
-create function public.report_client_incident(
+create or replace function public.report_client_incident(
   p_category text,
   p_severity text,
   p_page_path text,
@@ -183,7 +183,7 @@ as $$
   )
 $$;
 
-create function security.update_client_incident_status(
+create or replace function security.update_client_incident_status(
   p_incident_id uuid,
   p_status text
 )
@@ -213,7 +213,7 @@ begin
 end
 $$;
 
-create function public.update_client_incident_status(
+create or replace function public.update_client_incident_status(
   p_incident_id uuid,
   p_status text
 )
@@ -224,7 +224,7 @@ security invoker
 set search_path = ''
 as $$ select security.update_client_incident_status(p_incident_id, p_status) $$;
 
-create function security.prune_client_incidents()
+create or replace function security.prune_client_incidents()
 returns integer
 language plpgsql
 security definer

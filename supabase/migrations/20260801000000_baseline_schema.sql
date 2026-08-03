@@ -1393,7 +1393,55 @@ CREATE INDEX client_incidents_status_seen_idx ON security.client_incidents USING
 CREATE INDEX client_incidents_merchant_seen_idx ON security.client_incidents USING btree (merchant_code, last_seen_at DESC);
 CREATE INDEX client_incidents_user_rate_idx ON security.client_incidents USING btree (user_id, first_seen_at DESC);
 
+-- Legacy RPC signatures referenced by the earliest permission migration. Their
+-- hardened implementations are replaced by the later dated migrations.
+create or replace function public.ad_kpi_summary(
+  p_merchant_code text,
+  p_days integer default 30,
+  p_platform text default null
+)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'spend', coalesce(sum(spend), 0),
+    'revenue', coalesce(sum(revenue), 0),
+    'clicks', coalesce(sum(clicks), 0),
+    'impressions', coalesce(sum(impressions), 0),
+    'orders', coalesce(sum(orders), 0)
+  )
+  from public.ad_metrics
+  where merchant_code = p_merchant_code
+    and report_date > current_date - p_days
+    and (p_platform is null or platform = p_platform);
+$$;
+
+create or replace function public.data_freshness(p_merchant_code text)
+returns table(platform text, last_data_date date, age_days integer)
+language sql
+stable
+set search_path = public
+as $$
+  select platform,
+         max(data_date)::date,
+         (current_date - max(data_date)::date)::integer
+  from public.performance_data
+  where merchant_code = p_merchant_code
+  group by platform
+  order by platform;
+$$;
+
+create or replace function public.merchant_payouts(p_merchant_code text)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  select jsonb_build_object('scheduled', '[]'::jsonb, 'pending_sales', '[]'::jsonb);
+$$;
+
 grant all on all tables in schema public, security to postgres, service_role;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 grant usage, select on all sequences in schema public, security to anon, authenticated, service_role;
-
