@@ -29,6 +29,7 @@ type CredentialStatus = {
   records_synced: number | null
   configured: boolean
 }
+type OAuthAvailability = Record<'amazon' | 'noon', boolean>
 
 const EMPTY_FORM: FormState = {
   seller_id: '', api_key: '', api_secret: '', refresh_token: '',
@@ -54,6 +55,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
   const [rows, setRows] = useState<CredentialStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [oauthAvailability, setOauthAvailability] = useState<OAuthAvailability>({ amazon: false, noon: false })
 
   const loadCredentials = useCallback(async () => {
     setLoading(true)
@@ -61,6 +63,13 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
       const data = await callManager({ action: 'list', merchant_code: lockedMerchantCode })
       if (data.error) throw new Error(data.error)
       setRows(data.credentials || [])
+      if (lockedMerchantCode) {
+        const capabilities = await callOAuth({ action: 'capabilities', merchant_code: lockedMerchantCode })
+        setOauthAvailability({
+          amazon: capabilities?.providers?.amazon?.enabled === true,
+          noon: capabilities?.providers?.noon?.enabled === true,
+        })
+      }
     } catch (error: any) {
       setNotice({ type: 'err', text: error.message || 'تعذر تحميل روابط المنصات' })
     } finally {
@@ -73,6 +82,22 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
   }, [lockedMerchantCode])
 
   useEffect(() => { void loadCredentials() }, [loadCredentials])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const oauthResult = params.get('oauth')
+    if (!oauthResult) return
+    if (oauthResult === 'success') {
+      const platform = params.get('platform') === 'amazon' ? 'Amazon' : 'نون'
+      setNotice({ type: 'ok', text: `${platform}: اكتمل التفويض وأصبح الحساب جاهزًا للمزامنة.` })
+      void loadCredentials()
+    } else {
+      setNotice({ type: 'err', text: params.get('message') || 'تعذر إكمال تفويض المنصة.' })
+    }
+    params.delete('oauth'); params.delete('platform'); params.delete('message')
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }, [loadCredentials])
 
   useEffect(() => {
     if (!merchantCode) return
@@ -111,6 +136,14 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
     for (const row of rows) if (row.merchant_code === merchantCode) map.set(row.platform, row)
     return map
   }, [merchantCode, rows])
+  const visiblePlatforms = useMemo<Platform[]>(() => {
+    if (!lockedMerchantCode) return ['amazon', 'noon', 'trendyol']
+    return [
+      'trendyol',
+      ...(oauthAvailability.amazon ? ['amazon' as const] : []),
+      ...(oauthAvailability.noon ? ['noon' as const] : []),
+    ]
+  }, [lockedMerchantCode, oauthAvailability])
 
   return (
     <section style={{ marginBottom: 28 }}>
@@ -146,7 +179,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
         <div style={{ ...S.tableCard, padding: 30, textAlign: 'center', color: 'var(--text3)' }}>أضف تاجرًا أولًا لبدء الربط.</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-          {((lockedMerchantCode ? ['trendyol'] : ['amazon', 'noon', 'trendyol']) as Platform[]).map(platform => (
+          {visiblePlatforms.map(platform => (
             <PlatformCard
               key={`${merchantCode}-${platform}`}
               platform={platform}
@@ -191,7 +224,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
   }, [merchantCode, status])
 
   useEffect(() => {
-    if (platform !== 'trendyol' || !status?.is_active) { setSyncJob(null); return }
+    if (!status?.is_active) { setSyncJob(null); setSyncDetails(null); return }
     let cancelled = false
     let wasInProgress = false
     const poll = async () => {
@@ -325,10 +358,26 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
             {status ? (
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>حالة الربط</span><strong>{status.is_active ? 'متصل' : 'بانتظار التفويض'}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>حالة المزامنة</span><strong>{syncStatusLabel(syncJob?.status, meta.label)}</strong></div>
+                {syncInProgress ? <div style={{ marginTop: 10 }}>
+                  <div style={{ height: 7, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
+                    <div style={{ width: syncProcessing ? '42%' : '14%', height: '100%', borderRadius: 99, background: meta.color, transition: 'width .3s ease' }} />
+                  </div>
+                  <div style={{ marginTop: 7, color: 'var(--text3)', fontSize: 10 }}>لا تحتاج للضغط مرة أخرى؛ تتحدث الحالة تلقائيًا.</div>
+                </div> : null}
+                {['done','partial'].includes(syncJob?.status || '') && syncDetails ? <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6 }}>
+                  {oauthSyncMetrics(platform, syncDetails, status).map(([label, value]) => <div key={label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 8px', display:'flex', justifyContent:'space-between' }}>
+                    <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>
+                  </div>)}
+                </div> : null}
+                {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color:'var(--danger-text)', fontSize:10, marginTop:8 }}>{syncJob.error_message}</div> : null}
               </div>
             ) : null}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {status?.is_active ? <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color, opacity: syncInProgress ? 0.65 : 1 }} onClick={() => void requestSync()} disabled={!!busy || syncInProgress}>
+                {busy === 'sync' || syncInProgress ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {syncInProgress ? 'المزامنة تعمل...' : 'مزامنة الآن'}
+              </button> : null}
               <button style={{ ...S.saveBtn, flex: 1, justifyContent: 'center' }} onClick={() => void connectWithOAuth()} disabled={oauthBusy}>
                 {oauthBusy ? <Loader2 size={14} className="spin" /> : <ExternalLink size={14} />}
                 {status?.is_active ? 'إعادة تفويض الحساب' : `ربط حساب ${meta.label}`}
@@ -455,6 +504,36 @@ async function callManager(body: Record<string, unknown>) {
   const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
   if (!response.ok && !data.error) data.error = `HTTP ${response.status}`
   return data
+}
+
+async function callOAuth(body: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketplace-oauth`, {
+    method: 'POST', headers: functionHeaders(session?.access_token), body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
+  return data
+}
+
+function syncStatusLabel(status: string | undefined, platform: string) {
+  if (status === 'pending') return 'في الطابور'
+  if (status === 'processing' || status === 'running') return `جارٍ سحب بيانات ${platform}`
+  if (status === 'done') return 'اكتملت المزامنة'
+  if (status === 'partial') return 'اكتملت مع نواقص'
+  if (status === 'failed') return 'فشلت المزامنة'
+  return 'لم تبدأ بعد'
+}
+
+function oauthSyncMetrics(platform: Platform, details: any, status: CredentialStatus) {
+  if (platform === 'amazon') return [
+    ['الطلبات', details.orders ?? status.records_synced],
+    ['بنود الطلبات', details.order_items],
+    ['صور وكتالوج', details.catalog_items],
+    ['الشحنات', details.packages],
+    ['حركات مالية', details.financial_transactions],
+  ] as [string, unknown][]
+  return [['الطلبات', details.orders ?? status.records_synced]] as [string, unknown][]
 }
 
 function functionHeaders(token?: string) {

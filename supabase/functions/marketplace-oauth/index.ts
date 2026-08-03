@@ -38,7 +38,6 @@ async function startAuthorization(req: Request, admin: any) {
   const body = await req.json()
   const platform = String(body?.platform || '')
   const requestedCode = String(body?.merchant_code || '')
-  if (!['amazon', 'noon'].includes(platform)) throw new Error('المنصة غير مدعومة')
 
   const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
     .eq('id', user.id).maybeSingle()
@@ -50,6 +49,16 @@ async function startAuthorization(req: Request, admin: any) {
   if (!employeeAllowed || !merchantCode || (!isAdmin && requestedCode !== merchantCode)) {
     throw new HttpError(403, 'غير مصرح لهذا المتجر')
   }
+
+  if (body?.action === 'capabilities') {
+    return respond({
+      providers: {
+        amazon: { enabled: amazonOAuthConfigured() },
+        noon: { enabled: noonOAuthConfigured() },
+      },
+    })
+  }
+  if (!['amazon', 'noon'].includes(platform)) throw new Error('المنصة غير مدعومة')
 
   const state = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '')
   const { error: stateError } = await admin.from('marketplace_oauth_states').insert({
@@ -137,6 +146,14 @@ function amazonAuthorizationUrl(state: string) {
   return url.toString()
 }
 
+function amazonOAuthConfigured() {
+  return Boolean(
+    Deno.env.get('AMAZON_SPAPI_APPLICATION_ID') &&
+    Deno.env.get('AMAZON_LWA_CLIENT_ID') &&
+    Deno.env.get('AMAZON_LWA_CLIENT_SECRET')
+  )
+}
+
 function noonAuthorizationUrl(state: string) {
   const authorizationUrl = Deno.env.get('NOON_OAUTH_AUTHORIZATION_URL')
   const clientId = Deno.env.get('NOON_OAUTH_CLIENT_ID')
@@ -149,6 +166,15 @@ function noonAuthorizationUrl(state: string) {
   const scope = Deno.env.get('NOON_OAUTH_SCOPE')
   if (scope) url.searchParams.set('scope', scope)
   return url.toString()
+}
+
+function noonOAuthConfigured() {
+  return Boolean(
+    Deno.env.get('NOON_OAUTH_AUTHORIZATION_URL') &&
+    Deno.env.get('NOON_OAUTH_TOKEN_URL') &&
+    Deno.env.get('NOON_OAUTH_CLIENT_ID') &&
+    Deno.env.get('NOON_OAUTH_CLIENT_SECRET')
+  )
 }
 
 async function exchangeAmazonCode(code: string) {

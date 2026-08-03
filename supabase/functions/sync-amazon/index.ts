@@ -144,22 +144,13 @@ Deno.serve(async (req) => {
     await upsertPerformance(admin, merchantCode, daily)
 
     const now = new Date().toISOString()
-    await admin.from('sync_logs').update({
-      status: 'success', records_synced: rows.length, finished_at: now,
-    }).eq('id', logId)
-    await admin.from('platform_credentials').update({
-      last_sync_at: now, records_synced: rows.length,
-    }).eq('merchant_code', merchantCode).eq('platform', 'amazon')
-    if (mappingId) await admin.from('merchant_platform_mappings').update({
-      last_sync_at: now,
-      last_sync_status: 'success',
-      records_synced: rows.length,
-      last_sync_error: null,
-    }).eq('id', mappingId).eq('merchant_code', merchantCode)
-
-    return json({
-      ok: true,
-      records_synced: daily.size,
+    const warnings = [
+      ...(!customerDataAvailable ? ['بيانات العميل تحتاج صلاحية Restricted Data'] : []),
+      ...(!catalogDataAvailable ? ['صور وتفاصيل المنتجات تحتاج صلاحية Product Listing'] : []),
+      ...(!financialDataAvailable ? ['العمولات والتسويات تحتاج صلاحية Finances'] : []),
+    ]
+    const syncStatus = warnings.length ? 'partial' : 'success'
+    const details = {
       orders: rows.length,
       order_items: itemRows.length,
       catalog_items: catalogItems.length,
@@ -169,6 +160,31 @@ Deno.serve(async (req) => {
       financial_transactions: financialTransactions.length,
       fees_source: financialDataAvailable ? 'amazon_finances_api_2024_06_19' : 'permission_required',
       financial_data_delay_hours: 48,
+      warnings,
+    }
+    await admin.from('sync_logs').update({
+      status: syncStatus,
+      records_synced: rows.length,
+      error_message: warnings.length ? warnings.join(' | ') : null,
+      details,
+      finished_at: now,
+    }).eq('id', logId)
+    await admin.from('platform_credentials').update({
+      last_sync_at: now, records_synced: rows.length,
+    }).eq('merchant_code', merchantCode).eq('platform', 'amazon')
+    if (mappingId) await admin.from('merchant_platform_mappings').update({
+      last_sync_at: now,
+      last_sync_status: syncStatus,
+      records_synced: rows.length,
+      last_sync_error: warnings.length ? warnings.join(' | ') : null,
+    }).eq('id', mappingId).eq('merchant_code', merchantCode)
+
+    return json({
+      ok: true,
+      status: syncStatus,
+      partial: warnings.length > 0,
+      records_synced: daily.size,
+      ...details,
     }, 200, corsHeaders)
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
