@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
-  ClipboardPlus, Database, Megaphone, RefreshCw, ShieldCheck, Target, WalletCards,
+  Activity, AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
+  ClipboardPlus, Database, Megaphone, RefreshCw, Target, TrendingUp, WalletCards,
 } from 'lucide-react'
 import { supabase, type Merchant, type Order } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
@@ -29,6 +29,31 @@ type AdSummaryRow = {
   gross_roas: number | null; net_roas: number | null; fee_rate: number | null; return_rate: number | null
 }
 type AbcRow = { abc_class: string; product_id: string; revenue: number; net_profit: number }
+type HealthConfidence = 'low' | 'medium' | 'high'
+type HealthDimension = { available: boolean; score: number | null; weight: number; [key: string]: unknown }
+type MerchantHealth = {
+  score: number | null
+  rating: 'excellent' | 'good' | 'watch' | 'critical' | 'insufficient'
+  confidence: HealthConfidence
+  coverage_pct: number
+  data_as_of: string | null
+  data_age_days: number | null
+  breakdown: Record<'readiness' | 'profitability' | 'inventory' | 'demand' | 'marketing', HealthDimension>
+}
+type SalesForecast = {
+  last_30_sales: number
+  forecast_30: number
+  lower_30: number
+  upper_30: number
+  growth_rate_pct: number | null
+  confidence: HealthConfidence
+  is_actionable: boolean
+  observed_days: number
+  active_days: number
+  data_as_of: string | null
+  data_age_days: number | null
+  caveat: string
+}
 
 const RANGE_LABELS: Record<RangeKey, string> = { '30': '30 يومًا', '90': '90 يومًا', '180': '180 يومًا' }
 
@@ -70,6 +95,8 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [cashflow, setCashflow] = useState<CashflowRow[]>([])
   const [ads, setAds] = useState<AdSummaryRow[]>([])
   const [abc, setAbc] = useState<AbcRow[]>([])
+  const [health, setHealth] = useState<MerchantHealth | null>(null)
+  const [forecast, setForecast] = useState<SalesForecast | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -87,22 +114,26 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       fetchAll<InventoryHealthRow>((from, to) => supabase.from('inventory_health')
         .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status,data_as_of,data_age_days')
         .eq('merchant_code', merchantCode).range(from, to), 'صحة المخزون'),
-      supabase.from('platform_file_uploads').select('created_at').eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('platform_file_uploads').select('uploaded_at').eq('merchant_code', merchantCode).order('uploaded_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('platform_credentials').select('last_sync_at').eq('merchant_code', merchantCode).order('last_sync_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
       supabase.from('product_profitability').select('product_id,sku,product_name,cost_price,units_sold,revenue,platform_fees,ad_spend,returns_amount,net_profit,profit_margin_pct').eq('merchant_code', merchantCode),
       supabase.from('monthly_cashflow').select('platform,month,cash_in,cash_out,net,tx_count').eq('merchant_code', merchantCode).order('month', { ascending: false }).limit(36),
       supabase.from('ad_net_summary').select('platform,total_spend,total_gross,total_net,gross_roas,net_roas,fee_rate,return_rate').eq('merchant_code', merchantCode),
       supabase.from('product_abc_analysis').select('abc_class,product_id,revenue,net_profit').eq('merchant_code', merchantCode).order('rank').limit(250),
+      supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode }),
+      supabase.rpc('revenue_forecast', { p_merchant_code: merchantCode }),
     ]).then(results => {
       if (cancelled) return
       const orderRows = settledValue(results[0]) as Order[] | null
       const inventoryRows = settledValue(results[1]) as InventoryHealthRow[] | null
-      const uploadResult = settledValue(results[2]) as { data?: { created_at?: string }; error?: unknown } | null
+      const uploadResult = settledValue(results[2]) as { data?: { uploaded_at?: string }; error?: unknown } | null
       const syncResult = settledValue(results[3]) as { data?: { last_sync_at?: string }; error?: unknown } | null
       const profitResult = settledValue(results[4]) as { data?: ProfitabilityRow[]; error?: unknown } | null
       const cashResult = settledValue(results[5]) as { data?: CashflowRow[]; error?: unknown } | null
       const adResult = settledValue(results[6]) as { data?: AdSummaryRow[]; error?: unknown } | null
       const abcResult = settledValue(results[7]) as { data?: AbcRow[]; error?: unknown } | null
+      const healthResult = settledValue(results[8]) as { data?: MerchantHealth; error?: unknown } | null
+      const forecastResult = settledValue(results[9]) as { data?: SalesForecast; error?: unknown } | null
 
       setOrders(orderRows || [])
       setInventory(inventoryRows || [])
@@ -110,12 +141,14 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setCashflow(cashResult?.data || [])
       setAds(adResult?.data || [])
       setAbc(abcResult?.data || [])
-      const dates = [uploadResult?.data?.created_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
+      setHealth(healthResult?.data || null)
+      setForecast(forecastResult?.data || null)
+      const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
-      const criticalIndexes = [0, 1, 4, 5, 6, 7]
+      const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9]
       const criticalRequestFailed = criticalIndexes.some(index => results[index].status === 'rejected')
-      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult].some(result => Boolean(result?.error)))
+      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult].some(result => Boolean(result?.error)))
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -179,7 +212,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   }, [orders, inventory, profitability, cashflow, ads, abc, range])
 
   const decisions = useMemo(() => [
-    model.costCoverage < 100 ? {
+    model.totalProducts > 0 && model.costCoverage < 100 ? {
       Icon: Database, tone: 'red', priority: 'أولوية قصوى',
       title: `أدخل تكلفة الشراء لـ ${(model.totalProducts - model.costedProducts).toLocaleString('ar-SA-u-nu-latn')} منتج`,
       detail: 'بدون التكلفة لا يمكن اعتماد صافي الربح أو هامش المنتج أو قرار زيادة الإعلان.',
@@ -256,12 +289,9 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
 
       {partialData ? <div className="db-data-state db-data-state--partial"><AlertTriangle size={16} /><span>بعض المصادر لم تستجب. تظهر آخر بيانات متاحة، وقد تكون بعض المؤشرات ناقصة.</span></div> : null}
 
-      <section className="db-trust" aria-labelledby="trust-title">
-        <div className="db-trust-copy"><span className="db-eyebrow"><ShieldCheck size={14} /> موثوقية القرار</span><h2 id="trust-title">لا تعتمد صافي الربح حتى تكتمل تكاليف المنتجات</h2><p>المبيعات والرسوم والتدفقات النقدية متاحة، لكن تكلفة الشراء مكتملة في {percent(model.costCoverage)} فقط من المنتجات.</p></div>
-        <div className="db-coverage-grid">
-          <Coverage label="تكلفة المنتجات" value={model.costCoverage} detail={`${model.costedProducts} من ${model.totalProducts}`} tone={model.costCoverage === 100 ? 'good' : 'critical'} />
-          <Coverage label="ربط حركة المخزون" value={model.velocityCoverage} detail={`${model.inventoryItems} صنفًا${model.inventoryDataAgeDays ? ` · متأخرة ${model.inventoryDataAgeDays} يومًا` : ''}`} tone={model.velocityCoverage > 70 && model.inventoryDataAgeDays <= 2 ? 'good' : 'warning'} />
-        </div>
+      <section className="db-intelligence-grid" aria-label="صحة المتجر والتوقع">
+        <HealthPanel health={health} />
+        <ForecastPanel forecast={forecast} />
       </section>
 
       <section className="db-kpis" aria-label="ملخص القيمة التجارية">
@@ -273,7 +303,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
 
       <section className="db-attention" aria-labelledby="decisions-title">
         <div className="db-section-heading"><div><h2 id="decisions-title">قرارات مرتبة حسب الأثر</h2><p>كل بند يوضح لماذا يهم وما النتيجة المتوقعة من معالجته.</p></div><span className="db-count">{decisions.length}</span></div>
-        <div className="db-action-list">{decisions.map(decision => <div key={decision.sourceKey} className="db-action">
+        <div className="db-action-list">{decisions.length === 0 ? <div className="db-no-decisions"><strong>لا توجد قرارات عاجلة الآن</strong><span>سيضيف النظام البنود هنا عند ظهور نقص بيانات أو خطر تشغيلي أو فرصة قابلة للقياس.</span></div> : decisions.map(decision => <div key={decision.sourceKey} className="db-action">
           <span className={`db-action-icon db-action-icon--${decision.tone}`}><decision.Icon size={18} /></span>
           <span className="db-action-copy"><small className="db-priority">{decision.priority}</small><strong>{decision.title}</strong><span>{decision.detail}</span></span>
           <span className="db-impact"><small>الأثر</small><strong>{decision.impact}</strong></span>
@@ -331,8 +361,60 @@ function Kpi({ Icon, label, value, note, children }: { Icon: typeof Banknote; la
   return <article className="db-kpi"><div className="db-kpi-top"><span>{label}</span><Icon size={19} /></div><strong className="db-kpi-value">{value}</strong><span className="db-kpi-note">{note}</span><div className="db-kpi-foot">{children}</div></article>
 }
 
-function Coverage({ label, value, detail, tone }: { label: string; value: number; detail: string; tone: 'good' | 'warning' | 'critical' }) {
-  return <div className="db-coverage"><div><strong>{label}</strong><span>{detail}</span></div><b>{percent(value)}</b><div className="db-progress" aria-label={`${label}: ${percent(value)}`}><i className={`db-progress--${tone}`} style={{ width: `${Math.max(2, Math.min(100, value))}%` }} /></div></div>
+const HEALTH_LABELS: Record<keyof MerchantHealth['breakdown'], string> = {
+  readiness: 'جاهزية البيانات', profitability: 'الربحية', inventory: 'المخزون', demand: 'استمرارية الطلب', marketing: 'كفاءة الإعلان',
+}
+
+const CONFIDENCE_LABELS: Record<HealthConfidence, string> = { high: 'ثقة مرتفعة', medium: 'ثقة متوسطة', low: 'ثقة منخفضة' }
+const RATING_LABELS: Record<MerchantHealth['rating'], string> = {
+  excellent: 'ممتاز', good: 'جيد', watch: 'يحتاج متابعة', critical: 'يحتاج تدخل', insufficient: 'بيانات غير كافية',
+}
+
+function HealthPanel({ health }: { health: MerchantHealth | null }) {
+  const dimensions = health ? (Object.keys(HEALTH_LABELS) as (keyof MerchantHealth['breakdown'])[]) : []
+  const score = health?.score
+  return <article className="db-intelligence db-health" aria-labelledby="health-title">
+    <div className="db-intelligence-head">
+      <div><span className="db-eyebrow"><Activity size={14} /> صحة تشغيل المتجر</span><h2 id="health-title">{!health || score == null ? 'لا يمكن اعتماد التقييم بعد' : RATING_LABELS[health.rating]}</h2></div>
+      {health ? <span className={`db-confidence db-confidence--${health.confidence}`}>{CONFIDENCE_LABELS[health.confidence]}</span> : null}
+    </div>
+    {health ? <>
+      <div className="db-health-summary">
+        <div className={`db-health-score db-health-score--${health.rating}`}><strong>{score == null ? '—' : score.toLocaleString('ar-SA-u-nu-latn')}</strong><span>من 100</span></div>
+        <div><strong>تغطية الأدلة {percent(health.coverage_pct)}</strong><p>{score == null ? 'أكمل مصادر البيانات قبل مقارنة صحة المتجر أو اتخاذ قرار توسع.' : 'النتيجة تجمع الربحية والمخزون والطلب والإعلان، ولا تمنح نقاطًا للمصادر الناقصة.'}</p></div>
+      </div>
+      <div className="db-health-dimensions">{dimensions.map(key => {
+        const item = health.breakdown[key]
+        return <div className="db-health-dimension" key={key}>
+          <span><strong>{HEALTH_LABELS[key]}</strong><small>{item.available ? `وزن ${item.weight}%` : 'غير داخلة في التقييم'}</small></span>
+          <b>{item.available && item.score != null ? percent(item.score) : 'غير متاح'}</b>
+          <div className="db-health-bar" aria-label={`${HEALTH_LABELS[key]}: ${item.available && item.score != null ? percent(item.score) : 'غير متاح'}`}><i style={{ width: `${item.available && item.score != null ? Math.max(2, Math.min(100, item.score)) : 0}%` }} /></div>
+        </div>
+      })}</div>
+    </> : <EmptyState text="تعذر تحميل تقييم صحة المتجر من المصادر الحالية." />}
+  </article>
+}
+
+function ForecastPanel({ forecast }: { forecast: SalesForecast | null }) {
+  const hasForecast = Boolean(forecast && forecast.forecast_30 > 0)
+  return <article className="db-intelligence db-forecast" aria-labelledby="forecast-title">
+    <div className="db-intelligence-head">
+      <div><span className="db-eyebrow db-eyebrow--blue"><TrendingUp size={14} /> توقع المبيعات</span><h2 id="forecast-title">الـ 30 يومًا القادمة</h2></div>
+      {forecast ? <span className={`db-confidence db-confidence--${forecast.confidence}`}>{CONFIDENCE_LABELS[forecast.confidence]}</span> : null}
+    </div>
+    {forecast && hasForecast ? <>
+      <div className="db-forecast-value"><strong>{money(forecast.forecast_30, 2)}</strong><span>{forecast.is_actionable ? 'توقع قابل للاستخدام في التخطيط' : 'تقدير استرشادي — لا تعتمد عليه للشراء'}</span></div>
+      <div className="db-forecast-range" role="img" aria-label={`النطاق المتوقع من ${money(forecast.lower_30, 2)} إلى ${money(forecast.upper_30, 2)}`}>
+        <div><i /><b /></div><span>{money(forecast.lower_30)}</span><span>{money(forecast.upper_30)}</span>
+      </div>
+      <div className="db-forecast-evidence">
+        <span><small>آخر 30 يومًا</small><strong>{money(forecast.last_30_sales, 2)}</strong></span>
+        <span><small>أيام البيانات</small><strong>{forecast.observed_days.toLocaleString('ar-SA-u-nu-latn')}</strong></span>
+        <span><small>أيام بيع فعلية</small><strong>{forecast.active_days.toLocaleString('ar-SA-u-nu-latn')}</strong></span>
+      </div>
+      <p className="db-forecast-caveat">{forecast.caveat}</p>
+    </> : <div className="db-forecast-empty"><strong>لا توجد طلبات كافية لبناء توقع</strong><p>اربط قناة البيع أو ارفع ملف الطلبات، وسيظهر النطاق بعد تراكم سجل قابل للقياس.</p><button onClick={() => go('/integrations')}>إدارة مصادر البيانات <ChevronLeft size={15} /></button></div>}
+  </article>
 }
 
 function Metric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {

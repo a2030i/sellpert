@@ -1149,19 +1149,24 @@ function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
   }, [merchant])
   if (!data || !Number(data.avg_daily)) return null
   const growth = data.growth_rate_pct
+  const confidence = ({ high: 'مرتفعة', medium: 'متوسطة', low: 'منخفضة' } as Record<string, string>)[data.confidence] || 'منخفضة'
   return (
     <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>توقّع الإيرادات</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>توقّع المبيعات خلال 30 يومًا</div>
+        <span style={{ padding: '4px 7px', borderRadius: 5, fontSize: 9, fontWeight: 800, background: data.confidence === 'high' ? 'var(--success-bg)' : data.confidence === 'medium' ? 'var(--warning-bg)' : 'var(--danger-bg)', color: data.confidence === 'high' ? 'var(--success-text)' : data.confidence === 'medium' ? 'var(--warning-text)' : 'var(--danger-text)' }}>ثقة {confidence}</span>
+      </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
-        مبني على المتوسط اليومي للـ 30 يوم الماضية
+        مبني على معدل البيع الحديث مع ضبط اتجاه النمو وإظهار نطاق عدم اليقين
         {growth !== null && <> · النمو: <span style={{ color: growth >= 0 ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>{growth >= 0 ? '+' : ''}{growth}%</span></>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
         <ForecastBox label="آخر 30 يوم (فعلي)" value={fmt(Number(data.last_30_sales))} color="#0f958c" />
-        <ForecastBox label="الـ 30 يوم القادمة" value={fmt(Number(data.forecast_30))} color="var(--success-text)" />
-        <ForecastBox label="الـ 60 يوم القادمة" value={fmt(Number(data.forecast_60))} color="var(--info-text)" />
-        <ForecastBox label="الـ 90 يوم القادمة" value={fmt(Number(data.forecast_90))} color="#a598ff" />
+        <ForecastBox label="المتوقع" value={fmt(Number(data.forecast_30))} color="var(--success-text)" />
+        <ForecastBox label="الحد الأدنى المتوقع" value={fmt(Number(data.lower_30))} color="var(--warning-text)" />
+        <ForecastBox label="الحد الأعلى المتوقع" value={fmt(Number(data.upper_30))} color="var(--info-text)" />
       </div>
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', color: 'var(--text3)', fontSize: 10, lineHeight: 1.7 }}>{data.caveat}</div>
     </div>
   )
 }
