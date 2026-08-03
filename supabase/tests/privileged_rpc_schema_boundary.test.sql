@@ -6,18 +6,23 @@ begin;
 do $$
 declare
   public_definers integer;
+  public_definer_names text;
   public_wrappers integer;
   private_implementations integer;
   auth_wrappers integer;
   service_wrappers integer;
 begin
-  select count(*) into public_definers
+  select count(*), string_agg(
+      p.proname || '(' || pg_catalog.pg_get_function_identity_arguments(p.oid) || ')',
+      ', ' order by p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)
+    ) into public_definers, public_definer_names
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prosecdef;
 
   if public_definers <> 0 then
-    raise exception 'public schema still exposes % SECURITY DEFINER functions', public_definers;
+    raise exception 'public schema still exposes % SECURITY DEFINER functions: %',
+      public_definers, public_definer_names;
   end if;
 
   select count(*) into public_wrappers
