@@ -1395,6 +1395,22 @@ CREATE INDEX client_incidents_user_rate_idx ON security.client_incidents USING b
 
 -- Legacy RPC signatures referenced by the earliest permission migration. Their
 -- hardened implementations are replaced by the later dated migrations.
+create or replace function public.is_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.merchants
+    where id = (select auth.uid())
+      and role in ('staff', 'admin', 'super_admin')
+      and coalesce(is_active, true)
+  );
+$$;
+
 create or replace function public.ad_kpi_summary(
   p_merchant_code text,
   p_days integer default 30,
