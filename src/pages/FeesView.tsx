@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { userErrorMessage } from '../lib/userError'
 
 type Platform = 'trendyol' | 'noon' | 'amazon'
 
@@ -60,7 +61,7 @@ export default function FeesView() {
     const { error } = await supabase.from('platform_fee_categories')
       .update({ commission_rate: editCat.commission_rate, commission_fbn_fba: editCat.commission_fbn_fba, min_fee_sar: editCat.min_fee_sar, notes: editCat.notes, updated_at: new Date().toISOString() })
       .eq('id', editCat.id)
-    if (error) setMsg({ type: 'err', text: error.message })
+    if (error) { console.error('load fee references', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر تحميل مرجع الرسوم.') }) }
     else { setMsg({ type: 'ok', text: '✅ تم تحديث نسبة العمولة' }); setEditCat(null); load() }
     setSaving(false)
   }

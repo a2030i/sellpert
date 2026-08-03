@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { X, Star } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 import { useMobile } from '../lib/hooks'
+import { userErrorMessage } from '../lib/userError'
 
 const SHOWN_KEY = 'sellpert_nps_shown_at'
 const SHOW_AFTER_DAYS = 14
@@ -59,7 +60,8 @@ export default function NPSWidget({ merchantCode }: Props) {
     })
     setSubmitting(false)
     if (error) {
-      toastErr('تعذر الإرسال: ' + error.message)
+      console.error('submit feedback', error)
+      toastErr(userErrorMessage(error, 'تعذّر إرسال التقييم. حاول مرة أخرى.'))
     } else {
       setSubmitted(true)
       localStorage.setItem(SHOWN_KEY, String(Date.now()))

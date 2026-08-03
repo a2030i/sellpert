@@ -4,6 +4,7 @@ import { KeyRound, LifeBuoy, LockKeyhole, LogOut, ShieldCheck } from 'lucide-rea
 import { supabase } from '../lib/supabase'
 import { normalizeAuthenticatorCode, normalizeRecoveryCode } from '../lib/accountSecurity'
 import { callMfaRecovery } from '../lib/mfaRecovery'
+import { userErrorMessage } from '../lib/userError'
 import './MfaChallenge.css'
 
 export default function MfaChallenge({ onVerified, onSignOut }: { onVerified: (session: Session) => void; onSignOut: () => void }) {
@@ -44,7 +45,8 @@ export default function MfaChallenge({ onVerified, onSignOut }: { onVerified: (s
       await supabase.auth.signOut({ scope: 'local' })
       window.location.replace('/?mfa=recovered')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر استخدام رمز الاسترداد.')
+      console.error('use MFA recovery code', cause)
+      setError(userErrorMessage(cause, 'تعذّر استخدام رمز الاسترداد. تحقق من الرمز ثم حاول مرة أخرى.'))
       setSubmitting(false)
     }
   }

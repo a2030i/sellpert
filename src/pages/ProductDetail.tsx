@@ -12,6 +12,7 @@ import {
   productActionMatches,
   shortDeliveryReference,
 } from '../lib/productDelivery'
+import { userErrorMessage } from '../lib/userError'
 import { ChevronLeft } from 'lucide-react'
 
 export default function ProductDetail({ merchant }: { merchant: Merchant | null }) {
@@ -51,7 +52,8 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       }
       setLoading(false)
     }).catch(error => {
-      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل تفاصيل المنتج.')
+      console.error('load product details', error)
+      setLoadError(userErrorMessage(error, 'تعذّر تحميل تفاصيل المنتج.'))
       setLoading(false)
     })
   }, [productId, merchantCode])
@@ -513,7 +515,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       setListings(previous => ({ ...previous, trendyol: { ...previous.trendyol, delivery_status: result.status, delivery_error: result.error || null, last_verified_at: new Date().toISOString() } }))
       await loadActionHistory()
     } catch (error: any) {
-      if (!quiet) setSaveMessage({ type: 'err', text: error.message || 'تعذر تحديث حالة التعديل' })
+      if (!quiet) setSaveMessage({ type: 'err', text: userErrorMessage(error, 'تعذّر تحديث حالة التعديل.') })
     } finally {
       if (!quiet) setCheckingStatus(false)
     }
@@ -607,7 +609,10 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     }, { onConflict: 'product_id,platform' })
     contentSendLock.current = false
     setSaving(false)
-    if (error) setSaveMessage({ type: 'err', text: deliveryResult ? 'تم إرسال الطلب إلى Trendyol، لكن تعذر حفظ حالة المتابعة محليًا. حدّث الصفحة للتحقق من النتيجة.' : `تعذر حفظ التعديل: ${error.message}` })
+    if (error) {
+      console.error('save product edit', error)
+      setSaveMessage({ type: 'err', text: deliveryResult ? 'تم إرسال الطلب إلى Trendyol، لكن تعذر حفظ حالة المتابعة محليًا. حدّث الصفحة للتحقق من النتيجة.' : userErrorMessage(error, 'تعذّر حفظ تعديل المنتج.') })
+    }
     if (!error) {
       const { data } = await supabase.from('product_platform_listings').select('*').eq('merchant_code', merchantCode).eq('product_id', productId)
       const map: any = {}; for (const l of data || []) map[l.platform] = l

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Loader2, PackageCheck, Play, Printer, RefreshCw, Truck, X } from 'lucide-react'
+import { AlertTriangle, Loader2, Play, Printer, RefreshCw, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { userErrorMessage } from '../lib/userError'
 
 type Risk = 'read' | 'write' | 'destructive'
 type Capability = { action:string; label:string; group:string; risk:Risk; pathHint?:string; queryHint?:string; payloadHint?:string }
@@ -92,7 +93,7 @@ function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:s
       const data=await response.json().catch(()=>({}))
       if(!response.ok||data.error) throw new Error(data.error||`HTTP ${response.status}`)
       setResult(data)
-    } catch(e:any){setError(typeof e?.message==='string'?e.message:JSON.stringify(e?.message||e)||'تعذر تنفيذ العملية')} finally{setBusy(false)}
+    } catch(e:any){console.error('advanced Trendyol action',e);setError(userErrorMessage(e,'تعذّر تنفيذ العملية. راجع المدخلات وحاول مرة أخرى.'))} finally{setBusy(false)}
   }
   function download() {
     const file=result?.data?.data_base64; if(!file)return
@@ -160,7 +161,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
         else { const blob=new Blob([label],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`trendyol-label-${form.tracking}.zpl`; a.click(); URL.revokeObjectURL(url) }
       }
       setMessage({type:'ok',text:action==='label'?'تم تجهيز ملصق الشحن للتحميل.':'تم إرسال الإجراء إلى Trendyol بنجاح.'})
-    } catch(error:any) { setMessage({type:'err',text:error?.message||'تعذر تنفيذ الإجراء'}) } finally { setBusy(false) }
+    } catch(error:any) { console.error('merchant Trendyol action',error);setMessage({type:'err',text:userErrorMessage(error,'تعذّر تنفيذ الإجراء في Trendyol.')}) } finally { setBusy(false) }
   }
 
   return <div style={M.backdrop} onClick={onClose}><div style={{...M.modal,width:'min(760px,100%)'}} onClick={e=>e.stopPropagation()}>

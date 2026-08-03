@@ -7,6 +7,7 @@ import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
+import { userErrorMessage } from '../lib/userError'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -99,7 +100,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       if (linkedOrder) void openOrder(linkedOrder)
       setLoading(false)
     }).catch(error => {
-      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل الطلبات الآن.')
+      console.error('load orders', error)
+      setLoadError(userErrorMessage(error, 'تعذّر تحميل الطلبات الآن.'))
       setLoading(false)
     })
   }, [merchantCode, loadVersion])
@@ -309,7 +311,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       setSelectedActions(current => [{ id:crypto.randomUUID(), action, status:result.status || 'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
       setOrderActionMessage({ type:'ok', text:`تم ${label} في Trendyol بنجاح. استخدم «تحديث من Trendyol» لقراءة الحالة الجديدة.` })
     } catch (error:any) {
-      setOrderActionMessage({ type:'err', text:error.message || `تعذر ${label}.` })
+      console.error('order marketplace action', error)
+      setOrderActionMessage({ type:'err', text:userErrorMessage(error, `تعذّر ${label}.`) })
     } finally { setOrderActionLoading(false) }
   }
 

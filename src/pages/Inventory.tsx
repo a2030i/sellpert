@@ -7,6 +7,7 @@ import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { ClipboardPlus, ShieldAlert } from 'lucide-react'
 import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
+import { userErrorMessage } from '../lib/userError'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -115,7 +116,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     })
     setSaving(false)
     if (error) {
-      setMsg({ type:'err', text: error.message.includes('unique') ? 'هذا المنتج موجود مسبقاً على هذه المنصة' : error.message })
+      console.error('create inventory item', error)
+      setMsg({ type:'err', text: error.message.includes('unique') ? 'هذا المنتج موجود مسبقاً على هذه المنصة' : userErrorMessage(error, 'تعذّر إضافة المنتج إلى المخزون.') })
     } else {
       setMsg({ type:'ok', text:'تمت إضافة المنتج' })
       setAddForm({ sku:'', product_name:'', platform:'warehouse', quantity:0, low_stock_threshold:10, cost_price:0 })
@@ -138,7 +140,10 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         body: JSON.stringify({ merchant_code: merchant!.merchant_code, event: 'low_stock', data: { products: lowProducts } }),
       })
       setMsg({ type: 'ok', text: `تم إرسال تنبيه مخزون لـ ${lowProducts.length} منتج` })
-    } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
+    } catch (e: any) {
+      console.error('send inventory alert', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر إرسال تنبيه المخزون.') })
+    }
     setAlertSending(false)
   }
 

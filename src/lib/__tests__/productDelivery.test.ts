@@ -41,5 +41,7 @@ describe('product delivery lifecycle', () => {
   it('creates a short support reference and hides object-shaped errors', () => {
     expect(shortDeliveryReference('4f77b664-4f5a-43c6-9ca4-7710c1a2385e')).toBe('TY-C1A2385E')
     expect(friendlyDeliveryError('[object Object]')).not.toContain('Object')
+    expect(friendlyDeliveryError('HTTP 500 postgres function failed')).not.toContain('postgres')
+    expect(friendlyDeliveryError('Unauthorized 401')).toContain('بيانات الدخول')
   })
 })

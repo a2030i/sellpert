@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useEffect } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { AlertTriangle, CalendarClock, Download, ShieldCheck, X } from 'lucide-react'
+import { userErrorMessage } from '../lib/userError'
 
 type ClosureRequest = {
   id: string
@@ -66,7 +67,8 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       onUpdate({ ...merchant!, logo_url: publicUrl })
       setMsg({ type: 'ok', text: 'تم رفع شعار المتجر بنجاح' })
     } catch (e: any) {
-      setMsg({ type: 'err', text: e.message })
+      console.error('upload store logo', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر رفع شعار المتجر. حاول مرة أخرى.') })
     }
     setUploading(false)
   }
@@ -83,7 +85,10 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       if (error) throw error
       onUpdate({ ...merchant!, ...(updated as Partial<Merchant>) })
       setMsg({ type: 'ok', text: 'تم حفظ بيانات المتجر بنجاح' })
-    } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
+    } catch (e: any) {
+      console.error('save store profile', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر حفظ بيانات المتجر. حاول مرة أخرى.') })
+    }
     setSaving(false)
   }
 
@@ -106,7 +111,8 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
       setMsg({ type: 'ok', text: 'تم تجهيز نسخة بيانات المتجر وتنزيلها إلى جهازك.' })
     } catch (e: any) {
-      setMsg({ type: 'err', text: 'تعذر تجهيز نسخة البيانات: ' + (e?.message || 'حاول مرة أخرى.') })
+      console.error('export store data', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر تجهيز نسخة البيانات. حاول مرة أخرى.') })
     }
     setExporting(false)
   }
@@ -125,7 +131,8 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       setShowClosure(false); setClosureConfirmation(''); setClosureReason('')
       setMsg({ type: 'ok', text: 'تم تسجيل طلب الإغلاق. يمكنك إلغاء الطلب خلال 30 يومًا.' })
     } catch (e: any) {
-      setMsg({ type: 'err', text: 'تعذر تسجيل طلب الإغلاق: ' + (e?.message || 'حاول مرة أخرى.') })
+      console.error('request account closure', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر تسجيل طلب الإغلاق. حاول مرة أخرى.') })
     }
     setClosureLoading(false)
   }
@@ -138,7 +145,8 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       setClosureRequest(null)
       setMsg({ type: 'ok', text: 'تم إلغاء طلب الإغلاق وسيبقى المتجر نشطًا.' })
     } catch (e: any) {
-      setMsg({ type: 'err', text: 'تعذر إلغاء الطلب: ' + (e?.message || 'حاول مرة أخرى.') })
+      console.error('cancel account closure', e)
+      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر إلغاء طلب الإغلاق. حاول مرة أخرى.') })
     }
     setClosureLoading(false)
   }

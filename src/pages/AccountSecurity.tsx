@@ -4,6 +4,7 @@ import type { Merchant } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
 import { describeBrowser, normalizeAuthenticatorCode, summarizeCurrentSession, type CurrentSessionSummary } from '../lib/accountSecurity'
 import { callMfaRecovery } from '../lib/mfaRecovery'
+import { userErrorMessage } from '../lib/userError'
 import './AccountSecurity.css'
 
 type TotpFactor = { id: string; friendly_name?: string; status: string; created_at: string }
@@ -106,7 +107,8 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
       setNotice({ kind: 'success', text: 'تم تفعيل التحقق بخطوتين. احفظ رموز الاسترداد قبل المتابعة.' })
       await refreshMfa()
     } catch (cause) {
-      setNotice({ kind: 'error', text: `تم تفعيل تطبيق المصادقة، لكن تعذر إنشاء رموز الاسترداد: ${cause instanceof Error ? cause.message : 'حاول إنشاءها الآن.'}` })
+      console.error('create initial MFA recovery codes', cause)
+      setNotice({ kind: 'error', text: `تم تفعيل تطبيق المصادقة، لكن ${userErrorMessage(cause, 'تعذّر إنشاء رموز الاسترداد. حاول إنشاءها الآن.')}` })
       setEnrollment(null)
       await refreshMfa()
     }
@@ -120,7 +122,8 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
       setRecoveryCodes(result.codes)
       setNotice({ kind: 'success', text: 'تم إنشاء رموز جديدة وإلغاء الرموز السابقة.' })
     } catch (cause) {
-      setNotice({ kind: 'error', text: cause instanceof Error ? cause.message : 'تعذر إنشاء رموز الاسترداد.' })
+      console.error('regenerate MFA recovery codes', cause)
+      setNotice({ kind: 'error', text: userErrorMessage(cause, 'تعذّر إنشاء رموز الاسترداد.') })
     }
     setMfaBusy(false)
   }

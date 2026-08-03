@@ -9,6 +9,7 @@ import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constant
 import { Pagination } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
 import { ArrowRightLeft, Award } from 'lucide-react'
+import { userErrorMessage } from '../lib/userError'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
@@ -99,7 +100,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       cost_price: parseFloat(form.cost_price) || 0,
       target_net_price: parseFloat(form.target_net_price),
     }).select().maybeSingle()
-    if (error) { setMsg({ type: 'err', text: error.message }); setSaving(false); return }
+    if (error) { console.error('create product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر إضافة المنتج.') }); setSaving(false); return }
 
     // Auto-calculate and insert prices for each platform
     const priceInserts = PLATFORMS.map(p => {
@@ -134,7 +135,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const netPrice = parseFloat(editForm.target_net_price)
     const costPrice = parseFloat(editForm.cost_price) || 0
     const { error } = await supabase.from('products').update({ cost_price: costPrice, target_net_price: netPrice }).eq('id', editProduct.id)
-    if (error) { setMsg({ type: 'err', text: error.message }); setEditSaving(false); return }
+    if (error) { console.error('update product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر حفظ تعديلات المنتج.') }); setEditSaving(false); return }
 
     // Recalculate platform prices
     const priceUpserts = PLATFORMS.map(p => {

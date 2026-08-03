@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Bell, BellOff, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 import { PLATFORM_MAP } from '../lib/constants'
+import { userErrorMessage } from '../lib/userError'
 
 interface Alert {
   id: string
@@ -64,7 +65,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
       alert_at_pct: form.alert_at_pct,
       is_active: true,
     })
-    if (error) toastErr(error.message)
+    if (error) { console.error('save budget alert', error); toastErr(userErrorMessage(error, 'تعذّر حفظ تنبيه الميزانية.')) }
     else {
       toastOk('تم إنشاء تنبيه الميزانية')
       setShowAdd(false)

@@ -210,6 +210,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
       {SHOW_MANAGED_MARKETPLACES && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>منصات مُدارة</div>
+        <SallaCard merchant={merchant} />
         <ManagedPlatformCard merchant={merchant} platform="noon"     lastUpload={uploads.noon}     fresh={fresh.noon} />
         <ManagedPlatformCard merchant={merchant} platform="trendyol" lastUpload={uploads.trendyol} fresh={fresh.trendyol} />
         <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />

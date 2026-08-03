@@ -9,6 +9,7 @@ import { toastOk, toastErr } from '../components/Toast'
 import { fmtRelative } from '../lib/formatters'
 import { DEFAULT_MERCHANT_PERMISSIONS, MERCHANT_PERMISSION_ITEMS } from '../lib/merchantPermissions'
 import { isStrongPassword } from '../lib/passwordPolicy'
+import { userErrorMessage } from '../lib/userError'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -49,7 +50,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   async function load() {
     setLoading(true)
     const { data, error } = await supabase.rpc('my_employees')
-    if (error) toastErr(error.message)
+    if (error) { console.error('load employees', error); toastErr(userErrorMessage(error, 'تعذّر تحميل أعضاء الفريق.')) }
     setEmployees((data as Employee[]) || [])
     setLoading(false)
   }
@@ -81,7 +82,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
       permissions: form.permissions,
     })
     setBusy(false)
-    if (data.error) { toastErr(data.error); return }
+    if (data.error) { console.error('add employee', data.error); toastErr(userErrorMessage(data.error, 'تعذّر إضافة الموظف.')) ; return }
     toastOk(`تم إضافة ${form.name} — الكود: ${data.merchant_code}`)
     setForm({ name: '', email: '', password: '', whatsapp_phone: '', job_title: '', permissions: { ...DEFAULT_PERMISSIONS } })
     setShowAdd(false)
@@ -103,7 +104,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
       p_job_title: editJobTitle || null,
     })
     setBusy(false)
-    if (error) { toastErr(error.message); return }
+    if (error) { console.error('update employee', error); toastErr(userErrorMessage(error, 'تعذّر حفظ صلاحيات الموظف.')); return }
     toastOk('تم حفظ الصلاحيات')
     setEditId(null)
     load()
@@ -116,7 +117,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
       p_is_active: !e.is_active,
     })
     setBusy(false)
-    if (error) toastErr(error.message)
+    if (error) { console.error('toggle employee', error); toastErr(userErrorMessage(error, 'تعذّر تحديث حالة الموظف.')) }
     else { toastOk(e.is_active ? 'تم إيقاف الموظف' : 'تم تفعيل الموظف'); load() }
   }
 
@@ -127,7 +128,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     // يجب ألا يُحذف الصف قبله وإلا تعذّر التحقق من الملكية
     const data = await callFn({ action: 'delete_auth', auth_id: e.id })
     setBusy(false)
-    if (data.error) { toastErr(data.error); return }
+    if (data.error) { console.error('remove employee', data.error); toastErr(userErrorMessage(data.error, 'تعذّر حذف الموظف.')); return }
     toastOk('تم حذف الموظف')
     load()
   }
@@ -137,7 +138,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     setBusy(true)
     const data = await callFn({ action: 'reset_password', employee_code: resetPwdFor, new_password: newPwd })
     setBusy(false)
-    if (data.error) toastErr(data.error)
+    if (data.error) { console.error('reset employee password', data.error); toastErr(userErrorMessage(data.error, 'تعذّر تغيير كلمة المرور.')) }
     else {
       toastOk('تم تغيير كلمة المرور')
       setResetPwdFor(null); setNewPwd('')

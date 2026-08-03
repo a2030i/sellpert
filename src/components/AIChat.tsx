@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Sparkles, Send, X, MessageSquare } from 'lucide-react'
 import { useMobile } from '../lib/hooks'
+import { userErrorMessage } from '../lib/userError'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 
@@ -44,12 +45,14 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
       })
       const data = await res.json()
       if (data.error) {
-        setMessages([...newMessages, { role: 'assistant', content: 'تعذر إكمال الطلب: ' + data.error }])
+        console.error('ai assistant response', data.error)
+        setMessages([...newMessages, { role: 'assistant', content: userErrorMessage(data.error, 'تعذّر إكمال الطلب الآن. حاول مرة أخرى.') }])
       } else {
         setMessages([...newMessages, { role: 'assistant', content: data.answer || 'لا إجابة' }])
       }
     } catch (e: any) {
-      setMessages([...newMessages, { role: 'assistant', content: 'تعذر الاتصال بالمساعد: ' + e.message }])
+      console.error('ai assistant request', e)
+      setMessages([...newMessages, { role: 'assistant', content: userErrorMessage(e, 'تعذّر الاتصال بالمساعد الآن.') }])
     }
     setLoading(false)
   }

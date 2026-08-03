@@ -27,6 +27,7 @@ import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
 import { requiresMfaChallenge } from './lib/accountSecurity'
+import { userErrorMessage } from './lib/userError'
 
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
@@ -105,9 +106,6 @@ type SidebarBadges = {
   support: number
   integrationNeedsUpdate: boolean
 }
-
-const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
-const NAV_ITEMS = NAV_FLAT  // alias للحفاظ على التوافق
 
 const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
   dashboard: 'dashboard', actions: 'dashboard', notifications: 'dashboard',
@@ -249,6 +247,8 @@ export default function App() {
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
   const activeMerchant                      = impersonating || merchant
+  const activeMerchantCode                  = activeMerchant?.merchant_code
+  const continueSessionRef                  = useRef<(nextSession: Session, skipMfa?: boolean) => Promise<void>>(async () => undefined)
   const merchantNavGroups                   = visibleMerchantNav(activeMerchant)
   const visibleNavItems                     = merchantNavGroups.flatMap(group => group.items)
   const visibleMobilePrimary                = MOBILE_PRIMARY.filter(key => visibleNavItems.some(item => item.key === key))
@@ -275,7 +275,7 @@ export default function App() {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ data, error }) => {
         if (!error && data.session) {
           if (type === 'recovery') setShowPasswordRecovery(true)
-          continueAuthenticatedSession(data.session, type === 'recovery')
+          continueSessionRef.current(data.session, type === 'recovery')
         } else {
           setLoading(false)
         }
@@ -284,7 +284,7 @@ export default function App() {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) continueAuthenticatedSession(session)
+      if (session) continueSessionRef.current(session)
       else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -312,7 +312,7 @@ export default function App() {
       }
       // SIGNED_IN, PASSWORD_RECOVERY and MFA_CHALLENGE_VERIFIED
       explicitSignOut.current = false
-      if (session) continueAuthenticatedSession(session, event === 'PASSWORD_RECOVERY')
+      if (session) continueSessionRef.current(session, event === 'PASSWORD_RECOVERY')
       else { setMerchant(null); setLoading(false) }
     })
     const onPopState = () => setView(readView())
@@ -321,7 +321,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const code = (impersonating || merchant)?.merchant_code
+    const code = activeMerchantCode
     if (!code) return
     let cancelled = false
     Promise.all([
@@ -339,14 +339,14 @@ export default function App() {
       })
     })
     return () => { cancelled = true }
-  }, [merchant?.merchant_code, impersonating?.merchant_code])
+  }, [activeMerchantCode])
 
   useEffect(() => {
     if (!activeMerchant || canAccessMerchantView(activeMerchant, view)) return
     const fallback = visibleMerchantNav(activeMerchant).flatMap(group => group.items)[0]?.key || 'requests'
     setView(fallback)
     window.history.replaceState(null, '', '/' + (fallback === 'dashboard' ? '' : fallback))
-  }, [activeMerchant?.id, activeMerchant?.role, activeMerchant?.permissions, view])
+  }, [activeMerchant, view])
 
   function toggleNavGroup(key: string) {
     setCollapsedGroups(current => {
@@ -368,7 +368,8 @@ export default function App() {
 
     if (error) {
       setMerchantLoadError('تعذر الوصول إلى سجل مساحة العمل. تحقق من الاتصال ثم أعد المحاولة.')
-      toastErr('تعذر تحميل بيانات الحساب: ' + error.message)
+      console.error('load account', error)
+      toastErr(userErrorMessage(error, 'تعذّر تحميل بيانات الحساب. أعد المحاولة.'))
     }
 
     let resolved = identity as Merchant | null
@@ -381,7 +382,8 @@ export default function App() {
 
       if (ownerError) {
         setMerchantLoadError('تعذر الوصول إلى المتجر المرتبط بهذا الحساب.')
-        toastErr('تعذر تحميل المتجر المرتبط بالموظف: ' + ownerError.message)
+        console.error('load employee owner store', ownerError)
+        toastErr(userErrorMessage(ownerError, 'تعذّر تحميل المتجر المرتبط بالحساب.'))
       }
       if (owner) {
         resolved = {
@@ -421,6 +423,7 @@ export default function App() {
     setMfaRequired(false)
     await fetchMerchant(nextSession.user.id)
   }
+  continueSessionRef.current = continueAuthenticatedSession
 
   function goTo(v: View) {
     if (!canAccessMerchantView(activeMerchant, v)) {
@@ -442,7 +445,7 @@ export default function App() {
     setView('dashboard')
     window.history.replaceState(null, '', '/')
     const { error } = await supabase.auth.signOut({ scope: 'local' })
-    if (error) toastErr('تعذر إنهاء الجلسة بالكامل: ' + error.message)
+    if (error) { console.error('sign out', error); toastErr(userErrorMessage(error, 'تعذّر إنهاء الجلسة بالكامل. أغلق الصفحة إذا استمرت المشكلة.')) }
   }
 
   // خريطة ابن→أب: تمييز «أين أنا» في القائمة يبقى مضاءً على المسارات الثانوية (كشف/مساعدة/مخزون...)

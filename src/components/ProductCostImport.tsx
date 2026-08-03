@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload, X } from 'lucide-react'
 import { supabase, type Product } from '../lib/supabase'
+import { userErrorMessage } from '../lib/userError'
 import './ProductCostImport.css'
 
 type CostRow = { identifier: string; cost_price: string; row: number }
@@ -74,7 +75,8 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
       setRows(parsed)
     } catch (error) {
       setRows([])
-      setParseError(error instanceof Error ? error.message : 'تعذر قراءة الملف.')
+      console.error('parse product cost file', error)
+      setParseError(userErrorMessage(error, 'تعذّر قراءة الملف. تأكد من أنه ملف Excel أو CSV صالح.'))
     }
   }
 

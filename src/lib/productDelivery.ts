@@ -98,7 +98,13 @@ export function friendlyDeliveryError(value: unknown) {
   const message = cleanText(value)
   if (!message) return ''
   if (/\[object Object\]|^\{|^\[/.test(message)) return 'رفض Trendyol التعديل دون إرجاع سبب واضح. أعد المحاولة، وإذا تكرر الرفض راجع بيانات المنتج.'
-  return message.length > 320 ? `${message.slice(0, 317)}…` : message
+  if (/401|authentication|unauthorized/i.test(message)) return 'رفض Trendyol بيانات الدخول. حدّث مفاتيح الربط ثم اختبر الاتصال.'
+  if (/supplier.*not found|supplier id/i.test(message)) return 'لم يتعرّف Trendyol على معرّف البائع. تحقق من المعرّف وبيئة الحساب.'
+  if (/barcode.*(invalid|required|missing)|invalid.*barcode/i.test(message)) return 'رفض Trendyol باركود المنتج. تحقق من الباركود ثم أعد الإرسال.'
+  if (/timeout|timed out|504/i.test(message)) return 'تأخر رد Trendyol. لم نكرر التعديل تلقائيًا لتجنب الازدواج؛ تحقق من حالة الطلب ثم أعد المحاولة.'
+  if (/row-level security|postgres|postgrest|sqlstate|function\s|table\s|http\s*\d/i.test(message)) return 'تعذّر تسجيل طلب التعديل بأمان. أعد تحميل الصفحة ثم حاول مرة أخرى.'
+  if (/[\u0600-\u06ff]/.test(message)) return message.length > 320 ? `${message.slice(0, 317)}…` : message
+  return 'رفض Trendyol التعديل. راجع بيانات المنتج ثم أعد المحاولة.'
 }
 
 export function productActionMatches(action: MarketplaceProductAction, product: { external_id?: unknown; barcode?: unknown; raw?: Record<string, unknown> | null }) {

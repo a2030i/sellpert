@@ -4,6 +4,7 @@ import { ALL_PERMISSIONS, PERM_CATEGORIES, DEPT_TEMPLATES, DEPT_LABELS, getPermi
 import type { Merchant } from '../lib/supabase'
 import { X, Save, Sparkles, Check } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
+import { userErrorMessage } from '../lib/userError'
 
 interface Props {
   employee: Merchant
@@ -54,7 +55,7 @@ export default function PermissionsEditor({ employee, canPromoteToManager = fals
       .update({ permissions: arr, department, role })
       .eq('id', employee.id)
     setSaving(false)
-    if (error) toastErr(error.message)
+    if (error) { console.error('save employee permissions', error); toastErr(userErrorMessage(error, 'تعذّر حفظ الصلاحيات.')) }
     else { toastOk(`✓ تم حفظ ${arr.length} صلاحية لـ ${employee.name}`); onSaved(); onClose() }
   }
 

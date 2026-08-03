@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
@@ -67,14 +67,15 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [loading, setLoading]       = useState(true)
   const [periodReady, setPeriodReady] = useState(false)
   const isMobile = useMobile()
+  const merchantCode = merchant?.merchant_code
 
   // Open on the latest month that actually contains financial data. A new
   // calendar month should not make the first merchant view look empty.
   useEffect(() => {
-    if (!merchant) return
+    if (!merchantCode) return
     setPeriodReady(false); setLoading(true)
     supabase.from('performance_data').select('data_date')
-      .eq('merchant_code', merchant.merchant_code)
+      .eq('merchant_code', merchantCode)
       .order('data_date', { ascending:false }).limit(1).maybeSingle()
       .then(({ data }) => {
         if (data?.data_date) {
@@ -83,13 +84,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         }
         setPeriodReady(true)
       })
-  }, [merchant?.merchant_code])
+  }, [merchantCode])
 
-  // Reload only for the selected merchant and accounting period.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (merchant && periodReady) load() }, [merchant, year, month, periodReady])
-
-  async function load() {
+  const load = useCallback(async (code: string) => {
     setLoading(true)
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const endDate = new Date(year, month, 0)
@@ -98,26 +95,26 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const [perf, rets, { data: tgts }, monthOrders, productCosts, monthTransactions, monthAds] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
-        .eq('merchant_code', merchant!.merchant_code)
+        .eq('merchant_code', code)
         .gte('data_date', start).lte('data_date', end)
         .order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
       fetchAll<any>((f, t) => supabase.from('returns').select('*')
-        .eq('merchant_code', merchant!.merchant_code)
+        .eq('merchant_code', code)
         .gte('return_date', start).lte('return_date', end)
         .order('id').range(f, t), 'المرتجعات'),
       supabase.from('sales_targets').select('*')
-        .eq('merchant_code', merchant!.merchant_code)
+        .eq('merchant_code', code)
         .eq('year', year).eq('month', month),
       fetchAll<any>((f, t) => supabase.from('orders').select('sku,quantity,status,platform,platform_fee,upload_id,last_synced_at')
-        .eq('merchant_code', merchant!.merchant_code).gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
+        .eq('merchant_code', code).gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
         .order('id').range(f, t), 'تكلفة الطلبات'),
       fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
-        .eq('merchant_code', merchant!.merchant_code).order('id').range(f, t), 'تكلفة المنتجات'),
+        .eq('merchant_code', code).order('id').range(f, t), 'تكلفة المنتجات'),
       fetchAll<any>((f, t) => supabase.from('account_transactions').select('id,platform,settlement_id,transaction_date,upload_id')
-        .eq('merchant_code', merchant!.merchant_code).gte('transaction_date', `${start}T00:00:00`).lte('transaction_date', `${end}T23:59:59`)
+        .eq('merchant_code', code).gte('transaction_date', `${start}T00:00:00`).lte('transaction_date', `${end}T23:59:59`)
         .order('id').range(f, t), 'معاملات الشهر'),
       fetchAll<any>((f, t) => supabase.from('ad_metrics').select('id,platform,report_date,upload_id')
-        .eq('merchant_code', merchant!.merchant_code).gte('report_date', start).lte('report_date', end)
+        .eq('merchant_code', code).gte('report_date', start).lte('report_date', end)
         .order('id').range(f, t), 'بيانات إعلانات الشهر'),
     ])
     setPerfData(perf)
@@ -148,7 +145,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       latestAdReport: monthAds.map((row: any) => row.report_date).filter(Boolean).sort().slice(-1)[0] || '',
     })
     setLoading(false)
-  }
+  }, [month, year])
+
+  // Reload only for the selected merchant and accounting period.
+  useEffect(() => { if (merchantCode && periodReady) load(merchantCode) }, [load, merchantCode, periodReady])
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const summary = useMemo(() => {
@@ -478,7 +478,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {stab === 'returns' && (<>
             <ReturnsAnalytics merchant={merchant} grossRevenue={summary.grossRevenue} />
             <ReturnReasonsBreakdown merchant={merchant} />
-            <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={load} />
+            <ReturnsSection merchant={merchant} month={month} year={year} onUpdate={() => { if (merchantCode) void load(merchantCode) }} />
           </>)}
         </>
       )}

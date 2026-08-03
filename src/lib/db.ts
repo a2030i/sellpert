@@ -1,4 +1,5 @@
 import { toastErr } from '../components/Toast'
+import { userErrorMessage } from './userError'
 
 const PAGE = 1000
 
@@ -17,7 +18,7 @@ export async function fetchAll<T>(
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build(from, from + PAGE - 1)
     if (error) {
-      if (ctx) toastErr(`${ctx}: ${error.message}`)
+      if (ctx) toastErr(userErrorMessage(error, `${ctx}. حاول مرة أخرى.`))
       break
     }
     if (!data || data.length === 0) break
