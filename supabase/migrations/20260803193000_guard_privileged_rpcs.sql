@@ -103,4 +103,10 @@ $$;
 
 -- Trigger functions are invoked by their trigger and never directly by a
 -- browser client.
-REVOKE EXECUTE ON FUNCTION public.notify_order_whatsapp() FROM PUBLIC, anon, authenticated;
+DO $$
+BEGIN
+  IF to_regprocedure('public.notify_order_whatsapp()') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.notify_order_whatsapp() FROM PUBLIC, anon, authenticated;
+  END IF;
+END
+$$;
