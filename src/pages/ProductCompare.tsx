@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useMemo } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { fmtCurrency, fmtNumber, fmtPercent } from '../lib/formatters'
-import { ChevronLeft, X } from 'lucide-react'
+import { ChevronLeft, X, Scale } from 'lucide-react'
+import { PageHeader } from '../components/UI'
 
 export default function ProductCompare({ merchant }: { merchant: Merchant | null }) {
   const params = new URLSearchParams(window.location.search)
@@ -56,7 +57,7 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
         <ChevronLeft size={16} /> العودة للمنتجات
       </button>
 
-      <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 18 }}>⚖️ مقارنة المنتجات ({products.length})</h2>
+      <PageHeader title="مقارنة المنتجات" description={`مقارنة ${products.length} من المنتجات حسب مؤشرات الربحية والأداء.`} icon={Scale} />
 
       <div style={{ overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>

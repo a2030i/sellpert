@@ -1,9 +1,10 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
-import { FileSpreadsheet, Upload, X } from 'lucide-react'
+import { FileSpreadsheet, Upload, X, Store, RefreshCw, ExternalLink, Plug } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import MarketplaceConnections from './admin/MarketplaceConnections'
+import { PageHeader } from '../components/UI'
 
 const SHOW_MANAGED_MARKETPLACES = false
 const MERCHANT_FILE_IMPORT_ENABLED = true
@@ -44,12 +45,12 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
       <div style={{ position: 'absolute', top: 0, right: 0, left: 0, height: 3, background: isConnected ? 'linear-gradient(90deg,#5ecc8a,var(--green))' : 'var(--border2)', borderRadius: '16px 16px 0 0' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--success-bg)', border: '1px solid var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>🟢</div>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Store size={23} strokeWidth={1.8} /></div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>سلة</span>
               <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: isConnected ? 'var(--success-bg)' : 'var(--danger-bg)', color: isConnected ? 'var(--success-text)' : 'var(--danger-text)', border: `1px solid ${isConnected ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
-                {isConnected ? '✓ متصل' : 'غير مربوط'}
+                {isConnected ? 'متصل' : 'غير مربوط'}
               </span>
             </div>
             {isConnected && conn
@@ -62,13 +63,13 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
           ? <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {msg && <span style={{ fontSize: 12, color: 'var(--success-text)', fontWeight: 600 }}>{msg}</span>}
               <button onClick={requestSync} disabled={syncing} style={{ background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)', padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', animation: syncing ? 'spin 0.9s linear infinite' : 'none' }}>⟳</span>
+                <RefreshCw size={14} style={{ animation: syncing ? 'spin 0.9s linear infinite' : 'none' }} />
                 {syncing ? 'جارٍ المزامنة...' : 'مزامنة الآن'}
                 <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
               </button>
             </div>
           : <a href="https://salla.sa/apps" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg,var(--green),#00d4a8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              🟢 تثبيت التطبيق في سلة
+              <ExternalLink size={15} /> تثبيت التطبيق في سلة
             </a>
         }
       </div>
@@ -91,7 +92,6 @@ function fmtDataDate(d: string) {
 function ManagedPlatformCard({ platform, lastUpload, fresh }: { merchant?: Merchant | null; platform: string; lastUpload?: { uploaded_at: string; detected_report: string } | null; fresh?: { last_data_date: string; age_days: number } | null }) {
   const color = PLATFORM_COLORS[platform] || '#0f958c'
   const label = PLATFORM_MAP[platform] || platform
-  const emoji = ({ noon: '🟡', trendyol: '🟠', amazon: '📦' } as Record<string, string>)[platform] || '🛒'
   const isLinked = !!lastUpload
   const tone = fresh ? freshTone(fresh.age_days) : null
 
@@ -100,7 +100,7 @@ function ManagedPlatformCard({ platform, lastUpload, fresh }: { merchant?: Merch
       <div style={{ position: 'absolute', top: 0, right: 0, left: 0, height: 3, background: color, borderRadius: '16px 16px 0 0', opacity: 0.7 }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: color + '15', border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{emoji}</div>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: color + '15', border: `1px solid ${color}30`, color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Store size={21} strokeWidth={1.8} /></div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{label}</span>
@@ -169,10 +169,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
   return (
     <div style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>ربط المنصات</h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>أدِر اتصالات منصات البيع وتابع حالة المزامنة من مكان واحد.</p>
-      </div>
+      <PageHeader title="الربط ورفع الملفات" description="اربط منصات البيع، ارفع الملفات المدعومة، وتابع حالة تحديث بيانات متجرك." icon={Plug} />
 
       {merchant ? (
         <MarketplaceConnections

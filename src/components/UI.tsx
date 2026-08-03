@@ -1,4 +1,5 @@
 import { useState, type ReactNode, type CSSProperties } from 'react'
+import { Inbox, Info, type LucideIcon } from 'lucide-react'
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 export function Skeleton({ width = '100%', height = 16, radius = 6, style }: { width?: number | string; height?: number | string; radius?: number; style?: CSSProperties }) {
@@ -46,6 +47,21 @@ export function SectionTitle({ title, subtitle, info, action }: { title: string;
       </div>
       {action}
     </div>
+  )
+}
+
+export function PageHeader({ title, description, icon: Icon, action }: { title: string; description?: string; icon?: LucideIcon; action?: ReactNode }) {
+  return (
+    <header className="app-page-header">
+      <div className="app-page-header__identity">
+        {Icon && <span className="app-page-header__icon" aria-hidden="true"><Icon size={20} strokeWidth={1.8} /></span>}
+        <div>
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </div>
+      </div>
+      {action && <div className="app-page-header__actions">{action}</div>}
+    </header>
   )
 }
 
@@ -121,16 +137,16 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
 export function InfoIcon({ text }: { text: string }) {
   return (
     <Tooltip text={text}>
-      <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--text3)', color: 'var(--surface)', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginInlineEnd: 4, flexShrink: 0 }}>ⓘ</span>
+      <span style={{ width: 16, height: 16, borderRadius: '50%', color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginInlineEnd: 4, flexShrink: 0 }}><Info size={15} strokeWidth={2} /></span>
     </Tooltip>
   )
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
-export function EmptyState({ icon = '📭', title, description, action }: { icon?: string; title: string; description?: string; action?: ReactNode }) {
+export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: string; action?: ReactNode }) {
   return (
     <div style={{ textAlign: 'center', padding: '56px 24px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-      <div style={{ fontSize: 48, marginBottom: 14, filter: 'grayscale(0.3)' }}>{icon}</div>
+      <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 14, background: 'var(--surface2)', color: 'var(--text3)', display: 'grid', placeItems: 'center' }}>{icon || <Inbox size={24} strokeWidth={1.7} />}</div>
       <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>{title}</div>
       {description && <div style={{ fontSize: 13, color: 'var(--text3)', maxWidth: 400, margin: '0 auto', lineHeight: 1.7 }}>{description}</div>}
       {action && <div style={{ marginTop: 18 }}>{action}</div>}

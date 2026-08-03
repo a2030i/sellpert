@@ -125,6 +125,62 @@ body {
   font-optical-sizing: auto;
 }
 
+.app-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.app-page-header__identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-page-header__icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  color: var(--accent);
+}
+
+.app-page-header h1 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-family: var(--font-heading);
+  font-size: clamp(1.25rem, 1.1rem + .45vw, 1.55rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -.015em;
+}
+
+.app-page-header p {
+  margin: 0;
+  color: var(--text3);
+  font-size: .8125rem;
+  line-height: 1.7;
+}
+
+.app-page-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 680px) {
+  .app-page-header { flex-direction: column; }
+  .app-page-header__actions { width: 100%; }
+}
+
 body.ltr {
   direction: ltr;
   font-family: var(--font-body);
@@ -298,6 +354,7 @@ body :where(
   to   { opacity: 1; transform: none; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .9s linear infinite; }
 
 /* احترام تفضيل تقليل الحركة (وصول + إحساس أهدأ لمنتج مالي يومي) */
 @media (prefers-reduced-motion: reduce) {

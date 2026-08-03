@@ -3,29 +3,29 @@ import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { fmtRelative } from '../lib/formatters'
 import { toastOk, toastErr } from '../components/Toast'
-import { EmptyState, PageTabs } from '../components/UI'
-import { Plus, MessageCircle, Send, X } from 'lucide-react'
+import { EmptyState, PageHeader, PageTabs } from '../components/UI'
+import { Plus, MessageCircle, Send, X, TrendingUp, TrendingDown, BadgeDollarSign, Truck, Boxes, PackagePlus, PackageX, MessageSquare, AlertTriangle, Ellipsis, ClipboardList, Inbox, type LucideIcon } from 'lucide-react'
 
-const CATEGORIES: { key: string; label: string; icon: string; needsPlatform?: boolean; needsAmount?: boolean }[] = [
-  { key: 'ad_budget_increase', label: 'رفع ميزانية إعلانات',  icon: '⬆️', needsPlatform: true, needsAmount: true },
-  { key: 'ad_budget_decrease', label: 'خفض ميزانية إعلانات',  icon: '⬇️', needsPlatform: true, needsAmount: true },
-  { key: 'price_change',       label: 'تغيير سعر منتج',        icon: '💲' },
-  { key: 'shipping_change',    label: 'تغيير شركة الشحن',      icon: '🚚' },
-  { key: 'inventory_update',   label: 'تحديث المخزون',         icon: 'INV' },
-  { key: 'add_product',        label: 'إضافة منتج جديد',       icon: '➕' },
-  { key: 'remove_product',     label: 'إيقاف منتج',            icon: '🗑' },
-  { key: 'inquiry',            label: 'استفسار عام',           icon: '💬' },
-  { key: 'complaint',          label: 'شكوى',                  icon: '⚠️' },
-  { key: 'other',              label: 'أخرى',                  icon: '🔹' },
+const CATEGORIES: { key: string; label: string; Icon: LucideIcon; needsPlatform?: boolean; needsAmount?: boolean }[] = [
+  { key: 'ad_budget_increase', label: 'رفع ميزانية إعلانات',  Icon: TrendingUp, needsPlatform: true, needsAmount: true },
+  { key: 'ad_budget_decrease', label: 'خفض ميزانية إعلانات',  Icon: TrendingDown, needsPlatform: true, needsAmount: true },
+  { key: 'price_change',       label: 'تغيير سعر منتج',        Icon: BadgeDollarSign },
+  { key: 'shipping_change',    label: 'تغيير شركة الشحن',      Icon: Truck },
+  { key: 'inventory_update',   label: 'تحديث المخزون',         Icon: Boxes },
+  { key: 'add_product',        label: 'إضافة منتج جديد',       Icon: PackagePlus },
+  { key: 'remove_product',     label: 'إيقاف منتج',            Icon: PackageX },
+  { key: 'inquiry',            label: 'استفسار عام',           Icon: MessageSquare },
+  { key: 'complaint',          label: 'شكوى',                  Icon: AlertTriangle },
+  { key: 'other',              label: 'أخرى',                  Icon: Ellipsis },
 ]
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  pending:     { label: '⏳ قيد المراجعة',   color: '#ffd166' },
-  in_progress: { label: '⚙ قيد التنفيذ',     color: '#0f958c' },
-  review:      { label: '👀 ينتظر التأكيد',  color: '#4cc9f0' },
-  blocked:     { label: '⛔ متوقّف',         color: '#e84040' },
-  done:        { label: '✓ مكتمل',           color: '#00b894' },
-  rejected:    { label: '✗ مرفوض',          color: '#888' },
+  pending:     { label: 'قيد المراجعة',  color: '#9c6700' },
+  in_progress: { label: 'قيد التنفيذ',    color: '#0f958c' },
+  review:      { label: 'ينتظر التأكيد',  color: '#2563eb' },
+  blocked:     { label: 'متوقّف',         color: '#d12f3f' },
+  done:        { label: 'مكتمل',          color: '#0b7f62' },
+  rejected:    { label: 'مرفوض',          color: '#6b7694' },
 }
 
 const PRIORITIES: any = {
@@ -57,15 +57,9 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
       <PageTabs tabs={[{ label: 'تذاكر الدعم', path: '/requests' }, { label: 'الأسئلة الشائعة', path: '/help' }]} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 22 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>تذاكر الدعم</h2>
-          <p style={{ fontSize: 13, color: 'var(--text3)' }}>اكتب طلبك أو استفسارك وفريق Sellpert يتابعه ويرد عليك</p>
-        </div>
-        <button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
+      <PageHeader title="تذاكر الدعم" description="أنشئ طلبًا وتابع حالته وردود فريق الدعم من حسابك." icon={MessageCircle} action={<button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
           <Plus size={14} /> إنشاء تذكرة جديدة
-        </button>
-      </div>
+        </button>} />
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
         {[
@@ -84,8 +78,8 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {loading ? null : filtered.length === 0 ? (
-        <EmptyState icon="📭" title="لا توجد تذاكر" description="أنشئ تذكرة جديدة لأي طلب أو استفسار وفريقنا يتولّاه فوراً"
-          action={<button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ إنشاء تذكرة</button>}
+        <EmptyState icon={<Inbox size={24} />} title="لا توجد تذاكر" description="أنشئ تذكرة جديدة لأي طلب أو استفسار وفريقنا يتولّاه فوراً"
+          action={<button onClick={() => setShowNew(true)} style={{ background: 'var(--accent-strong)', border: 'none', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}><Plus size={14} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} />إنشاء تذكرة</button>}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -101,7 +95,7 @@ export default function Requests({ merchant }: { merchant: Merchant | null }) {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <span style={{ fontSize: 18 }}>{cat?.icon || '📋'}</span>
+                    {cat ? <cat.Icon size={18} color="var(--accent)" /> : <ClipboardList size={18} color="var(--accent)" />}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{t.title || cat?.label || t.type}</div>
                       <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{cat?.label || t.type} · {fmtRelative(t.created_at)}</div>
@@ -158,7 +152,7 @@ function NewTicketModal({ merchant, onClose, onCreated }: { merchant: Merchant |
     })
     setSaving(false)
     if (error) { console.error('create request:', error); toastErr('تعذّر إرسال التذكرة — تأكد من اتصالك وحاول مرة أخرى') }
-    else { toastOk('✓ أُرسلت التذكرة'); onCreated() }
+    else { toastOk('أُرسلت التذكرة بنجاح'); onCreated() }
   }
 
   return (
@@ -178,7 +172,7 @@ function NewTicketModal({ merchant, onClose, onCreated }: { merchant: Merchant |
                 color: 'var(--text)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                 transition: 'all 0.15s',
               }}>
-                <span style={{ fontSize: 24 }}>{c.icon}</span>
+                <c.Icon size={23} strokeWidth={1.8} color="var(--accent)" />
                 <span>{c.label}</span>
               </button>
             ))}
@@ -259,7 +253,7 @@ function TicketDetailModal({ ticket, merchant, onClose }: { ticket: any; merchan
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: '100%', maxWidth: 600, marginTop: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{cat?.icon} {ticket.title || cat?.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>{cat ? <cat.Icon size={18} color="var(--accent)" /> : <ClipboardList size={18} color="var(--accent)" />} {ticket.title || cat?.label}</div>
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtRelative(ticket.created_at)}</div>
           </div>
           <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 12px', borderRadius: 14, background: sm?.color + '20', color: sm?.color }}>{sm?.label}</span>

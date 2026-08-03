@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { Search, ChevronDown, MessageCircle, BookOpen } from 'lucide-react'
-import { PageTabs } from '../components/UI'
+import { PageHeader, PageTabs } from '../components/UI'
 
 const FAQ = [
   {
     cat: 'البداية',
     items: [
-      { q: 'كيف أبدأ مع Sellpert؟', a: 'افتح "لوحة التحكم" → ستجد قائمة "ابدأ مع Sellpert" تحوي 7 خطوات: إضافة المنتجات، تحديد التكاليف، تسجيل المخزون، استقبال الطلبات، تتبّع الإعلانات، ربط سلة، تشغيل تحليل AI.' },
-      { q: 'كيف يتم تحديث بياناتي؟', a: 'تُحدَّث بيانات Trendyol تلقائيًا عبر الربط المباشر. ويمكنك تشغيل المزامنة يدويًا من صفحة مصادر البيانات والمنصات ومتابعة نتيجتها.' },
-      { q: 'هل أحتاج رفع تقارير بنفسي؟', a: 'لا. الرفع من جهة فريق Sellpert. أنت ترسل تقاريرك (واتساب/إيميل) ويتم استيرادها ومعالجتها.' },
+      { q: 'كيف أبدأ مع Sellpert؟', a: 'ابدأ من صفحة "الربط ورفع الملفات": اربط Trendyol مباشرة، أو ارفع ملف المنصة المدعوم، ثم راجع الطلبات والمنتجات والمخزون بعد اكتمال المعالجة.' },
+      { q: 'كيف يتم تحديث بياناتي؟', a: 'تُحدَّث بيانات Trendyol عبر الربط المباشر، ويمكنك تشغيل المزامنة ومتابعة حالتها من صفحة "الربط ورفع الملفات".' },
+      { q: 'هل أستطيع رفع التقارير بنفسي؟', a: 'نعم. اختر المنصة من صفحة "الربط ورفع الملفات" وارفع الملف. يتحقق النظام من نوعه ويعزله داخل مساحة متجرك قبل المعالجة.' },
     ],
   },
   {
@@ -33,7 +33,7 @@ const FAQ = [
     cat: 'الدعم',
     items: [
       { q: 'كيف أرفع تذكرة دعم؟', a: 'افتح صفحة "الدعم" → "إنشاء تذكرة جديدة" → اختر فئة الطلب (إعلانات/أسعار/شحن/استفسار...) → املأ النموذج. فريقنا يتابع ويرد عليك.' },
-      { q: 'كيف أتواصل مع فريق Sellpert؟', a: 'عبر تذاكر الدعم في الصفحة. للأمور العاجلة: استخدم أيقونة الـ AI (✨) في الزاوية للأسئلة السريعة عن بياناتك.' },
+      { q: 'كيف أتواصل مع فريق Sellpert؟', a: 'استخدم تذاكر الدعم لإنشاء طلب ومتابعة حالته والردود عليه من داخل حسابك.' },
     ],
   },
 ]
@@ -50,10 +50,7 @@ export default function Help({ merchant: _merchant }: { merchant: Merchant | nul
   return (
     <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
       <PageTabs tabs={[{ label: 'تذاكر الدعم', path: '/requests' }, { label: 'الأسئلة الشائعة', path: '/help' }]} />
-      <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>📚 مركز المساعدة</h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>إجابات على الأسئلة الشائعة + شرح المصطلحات</p>
-      </div>
+      <PageHeader title="مركز المساعدة" description="إجابات واضحة عن الربط والبيانات والتقارير وإدارة المتجر." icon={BookOpen} />
 
       <div style={{ position: 'relative', marginBottom: 22 }}>
         <Search size={16} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)' }} />
@@ -63,7 +60,7 @@ export default function Help({ merchant: _merchant }: { merchant: Merchant | nul
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>
-          🔍 لا نتائج
+          لا توجد نتائج مطابقة للبحث
         </div>
       ) : (
         filtered.map(section => (

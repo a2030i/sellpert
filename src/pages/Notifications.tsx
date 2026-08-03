@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
-import { Bell, Check, AlertTriangle, Info, AlertCircle } from 'lucide-react'
+import { Bell, Check, AlertTriangle, Info, AlertCircle, RefreshCw, CheckCheck } from 'lucide-react'
+import { PageHeader } from '../components/UI'
 
 interface Notif {
   id: string
@@ -71,16 +72,10 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 800, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>🔔 التنبيهات</h2>
-          <p style={{ fontSize: 13, color: 'var(--text3)' }}>{unread > 0 ? `${unread} تنبيه غير مقروء` : 'كل شيء مقروء'}</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={generateNew} style={btn('var(--accent)')}>🔄 فحص الآن</button>
-          {unread > 0 && <button onClick={markAllRead} style={btn('var(--surface2)', 'var(--text2)')}>✓ تعليم الكل كمقروء</button>}
-        </div>
-      </div>
+      <PageHeader title="التنبيهات" description={unread > 0 ? `${unread} تنبيه غير مقروء يحتاج مراجعتك.` : 'لا توجد تنبيهات جديدة.'} icon={Bell} action={<>
+        <button onClick={generateNew} disabled={loading} style={btn('var(--accent)')}><RefreshCw size={14} className={loading ? 'spin' : ''} /> فحص الآن</button>
+        {unread > 0 && <button onClick={markAllRead} style={btn('var(--surface2)', 'var(--text2)')}><CheckCheck size={14} /> تعليم الكل كمقروء</button>}
+      </>} />
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
@@ -145,5 +140,5 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
 }
 
 function btn(bg: string, color: string = '#fff'): React.CSSProperties {
-  return { background: bg, border: '1px solid var(--border)', color, padding: '8px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+  return { background: bg, border: '1px solid var(--border)', color, padding: '8px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }
 }
