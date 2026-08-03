@@ -95,7 +95,7 @@ begin
   limit 1;
 
   if target_id is null then
-    raise exception 'health payload did not expose a triageable incident id';
+    raise exception 'health payload did not expose a triageable incident id: %', health -> 'recent_client_incidents';
   end if;
 
   if not public.update_client_incident_status(target_id, 'resolved') then
