@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
-import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantRequest } from '../lib/supabase'
+import type { Merchant, Product, ProductPlatformPrice, CommissionRate } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
 import { Pagination } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
@@ -25,6 +25,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [prices, setPrices]             = useState<ProductPlatformPrice[]>([])
   const [rates, setRates]               = useState<CommissionRate[]>([])
   const [loading, setLoading]           = useState(true)
+  const [loadError, setLoadError]       = useState('')
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
   const [showAdd, setShowAdd]           = useState(false)
@@ -32,7 +33,6 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   // ?tab=analytics يفتح تبويب التحليلات مباشرة (روابط «منتج يبيع بخسارة» من اللوحة)
   const [tab, setTab]                   = useState<'catalog' | 'analytics'>(() =>
     new URLSearchParams(window.location.search).get('tab') === 'analytics' ? 'analytics' : 'catalog')
-  const [showRequest, setShowRequest]   = useState<Product | null>(null)
   const [editProduct, setEditProduct]   = useState<Product | null>(null)
   const [editForm, setEditForm]         = useState({ cost_price: '', target_net_price: '' })
   const [editSaving, setEditSaving]     = useState(false)
@@ -43,27 +43,35 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [form, setForm] = useState({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
   const [saving, setSaving] = useState(false)
 
-  // Request form state
-  const [reqType, setReqType]   = useState<MerchantRequest['type']>('price_change')
-  const [reqNote, setReqNote]   = useState('')
-  const [reqNewPrice, setReqNewPrice] = useState('')
-  const [reqSending, setReqSending]   = useState(false)
-
   // The loader is intentionally keyed by the current merchant.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) loadData() }, [merchant])
 
   async function loadData() {
     setLoading(true)
-    const [{ data: prods }, { data: prics }, { data: rts }] = await Promise.all([
-      supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
-      supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
-      supabase.from('platform_commission_rates').select('*'),
-    ])
-    setProducts(prods || [])
-    setPrices(prics || [])
-    setRates(rts || [])
-    setLoading(false)
+    setLoadError('')
+    try {
+      const [productResult, priceResult, rateResult] = await Promise.all([
+        supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
+        supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
+        supabase.from('platform_commission_rates').select('*'),
+      ])
+      const error = productResult.error || priceResult.error || rateResult.error
+      if (error) throw error
+      setProducts(productResult.data || [])
+      setPrices(priceResult.data || [])
+      setRates(rateResult.data || [])
+    } catch (error) {
+      console.error('load products', error)
+      setLoadError(userErrorMessage(error, 'تعذّر تحميل المنتجات الآن.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openProduct(productId: string) {
+    window.history.pushState(null, '', `/product-detail?id=${productId}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const getRate = useCallback((platform: string, category?: string): CommissionRate | undefined => {
@@ -133,8 +141,12 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     if (!editForm.target_net_price) { setMsg({ type: 'err', text: 'السعر الصافي المستهدف مطلوب' }); return }
     setEditSaving(true)
     const netPrice = parseFloat(editForm.target_net_price)
-    const costPrice = parseFloat(editForm.cost_price) || 0
-    const { error } = await supabase.from('products').update({ cost_price: costPrice, target_net_price: netPrice }).eq('id', editProduct.id)
+    const costPrice = editForm.cost_price.trim() ? parseFloat(editForm.cost_price) : 0
+    if (!Number.isFinite(netPrice) || netPrice <= 0 || !Number.isFinite(costPrice) || costPrice < 0) {
+      setMsg({ type:'err', text:'تحقق من التكلفة والسعر المستهدف.' }); setEditSaving(false); return
+    }
+    const { error } = await supabase.from('products').update({ cost_price: costPrice, target_net_price: netPrice })
+      .eq('id', editProduct.id).eq('merchant_code', merchant!.merchant_code)
     if (error) { console.error('update product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر حفظ تعديلات المنتج.') }); setEditSaving(false); return }
 
     // Recalculate platform prices
@@ -144,32 +156,18 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate }
     }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceUpserts.length) {
-      await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
+      const { error: priceError } = await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
+      if (priceError) {
+        console.error('recalculate platform prices', priceError)
+        setMsg({ type:'err', text:'حُفظت تكلفة المنتج، لكن تعذرت إعادة حساب أسعار المنصة. حاول مرة أخرى.' })
+        setEditProduct(null); setEditSaving(false); await loadData(); return
+      }
     }
 
     setMsg({ type: 'ok', text: 'تم تحديث الأسعار وإعادة الحساب' })
     setEditProduct(null)
     setEditSaving(false)
     loadData()
-  }
-
-  async function sendRequest() {
-    if (!showRequest) return
-    if (!reqNote.trim()) { setMsg({ type: 'err', text: 'يرجى كتابة تفاصيل الطلب' }); return }
-    setReqSending(true)
-    const details: Record<string, any> = { product_name: showRequest.name }
-    if (reqType === 'price_change' && reqNewPrice) details.new_target_price = parseFloat(reqNewPrice)
-    const { error } = await supabase.from('merchant_requests').insert({
-      merchant_code: merchant!.merchant_code,
-      type: reqType,
-      product_id: showRequest.id,
-      details,
-      note: reqNote.trim(),
-    })
-    if (error) setMsg({ type: 'err', text: 'فشل إرسال الطلب' })
-    else setMsg({ type: 'ok', text: 'تم إرسال الطلب بنجاح' })
-    setShowRequest(null); setReqNote(''); setReqNewPrice('')
-    setReqSending(false)
   }
 
   const deferredSearch = useDeferredValue(search)
@@ -199,6 +197,16 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
       <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  if (loadError) return (
+    <div style={S.wrap}>
+      <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
+        <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذّر تحميل المنتجات</h2>
+        <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
+        <button onClick={() => void loadData()} style={S.addBtn}>إعادة المحاولة</button>
+      </div>
     </div>
   )
 
@@ -341,10 +349,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
                 return (
-                  <div key={prod.id} role="link" tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => {
-                    window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
-                    window.dispatchEvent(new PopStateEvent('popstate'))
-                  }} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); window.history.pushState(null, '', `/product-detail?id=${prod.id}`); window.dispatchEvent(new PopStateEvent('popstate')) } }}>
+                  <div key={prod.id} role="link" tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{prod.name}</div>
@@ -363,12 +368,12 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                       ))}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, color: profit > 0 ? 'var(--accent2)' : 'var(--text3)' }}>
-                        هامش: {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
+                      <span style={{ fontSize: 11, color: prod.cost_price > 0 ? (profit > 0 ? 'var(--accent2)' : 'var(--danger-text)') : 'var(--warning-text)' }}>
+                        {prod.cost_price > 0 ? `هامش: ${profit > 0 ? '+' : ''}${profit.toLocaleString()} ر.س` : 'الربحية غير مكتملة'}
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={e => { e.stopPropagation(); openEdit(prod) }}>تعديل</button>
-                        <button style={S.reqBtn} onClick={e => { e.stopPropagation(); setShowRequest(prod) }}>طلب تعديل</button>
+                        <button style={S.reqBtn} onClick={e => { e.stopPropagation(); openProduct(prod.id) }}>إدارة المنتج</button>
                       </div>
                     </div>
                   </div>
@@ -390,10 +395,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
                     return (
-                      <tr key={prod.id} tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => {
-                        window.history.pushState(null, '', `/product-detail?id=${prod.id}`)
-                        window.dispatchEvent(new PopStateEvent('popstate'))
-                      }} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); window.history.pushState(null, '', `/product-detail?id=${prod.id}`); window.dispatchEvent(new PopStateEvent('popstate')) } }}>
+                      <tr key={prod.id} tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
                         <td style={S.td}>
                           <div style={{ fontWeight: 600 }}>{prod.name}</div>
                           {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}
@@ -406,8 +408,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                             {ps[p] ? ps[p].toLocaleString() + ' ر.س' : '—'}
                           </td>
                         ))}
-                        <td style={{ ...S.td, color: profit > 0 ? 'var(--accent2)' : 'var(--red)', fontWeight: 700 }}>
-                          {profit > 0 ? '+' : ''}{profit.toLocaleString()} ر.س
+                        <td style={{ ...S.td, color: prod.cost_price > 0 ? (profit > 0 ? 'var(--accent2)' : 'var(--red)') : 'var(--warning-text)', fontWeight: 700 }}>
+                          {prod.cost_price > 0 ? `${profit > 0 ? '+' : ''}${profit.toLocaleString()} ر.س` : 'غير مكتملة'}
                         </td>
                         <td style={S.td}>
                           <span style={{ ...S.statusBadge, ...(prod.status === 'active' ? S.badgeActive : S.badgeOff) }}>
@@ -417,7 +419,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         <td style={S.td}>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={e => { e.stopPropagation(); openEdit(prod) }}>تعديل السعر</button>
-                            <button style={S.reqBtn} onClick={e => { e.stopPropagation(); setShowRequest(prod) }}>طلب تعديل</button>
+                            <button style={S.reqBtn} onClick={e => { e.stopPropagation(); openProduct(prod.id) }}>إدارة المنتج</button>
                           </div>
                         </td>
                       </tr>
@@ -509,37 +511,6 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* Request Modal */}
-      {showRequest && (
-        <div style={S.overlay} onClick={() => setShowRequest(null)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={S.modalTitle}>طلب تعديل — {showRequest.name}</div>
-            <div style={S.field}>
-              <label style={S.label}>نوع الطلب</label>
-              <select style={S.input} value={reqType} onChange={e => setReqType(e.target.value as any)}>
-                <option value="price_change">تغيير السعر</option>
-                <option value="update_info">تعديل معلومات المنتج</option>
-                <option value="remove_product">إيقاف المنتج</option>
-                <option value="other">أخرى</option>
-              </select>
-            </div>
-            {reqType === 'price_change' && (
-              <div style={S.field}>
-                <label style={S.label}>السعر الصافي الجديد (ر.س)</label>
-                <input style={S.input} type="number" value={reqNewPrice} onChange={e => setReqNewPrice(e.target.value)} placeholder="مثال: 250" />
-              </div>
-            )}
-            <div style={S.field}>
-              <label style={S.label}>تفاصيل الطلب *</label>
-              <textarea style={{ ...S.input, height: 80, resize: 'vertical' }} value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="اكتب تفاصيل طلبك هنا..." />
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-              <button style={S.saveBtn} onClick={sendRequest} disabled={reqSending}>{reqSending ? 'جارٍ الإرسال...' : 'إرسال للفريق'}</button>
-              <button style={S.cancelBtn} onClick={() => setShowRequest(null)}>إلغاء</button>
-            </div>
-          </div>
-        </div>
-      )}
       </>)}
       {showCostImport && merchant ? <ProductCostImport merchantCode={merchant.merchant_code} products={products} onClose={() => setShowCostImport(false)} onComplete={loadData} /> : null}
     </div>
@@ -772,7 +743,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800 }}>💎 ربحية المنتجات</div>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>ربحية المنتجات</div>
         <button onClick={() => setShow(v => !v)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           {show ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
         </button>
@@ -791,7 +762,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
           {/* Star products */}
           {stats.star.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success-text)', marginBottom: 8 }}>🌟 منتجات نجمة (هامش &gt; 30%)</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success-text)', marginBottom: 8 }}>منتجات عالية الهامش (&gt; 30%)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {stats.star.map((p, i) => (
                   <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
@@ -846,7 +817,7 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
   const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>🔁 معدّل دوران المخزون</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>معدّل دوران المخزون</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
         <div style={kpiBox('#0f958c')}>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>دوران سنوي</div>
@@ -957,7 +928,7 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎨 أداء التشكيلات (لون × مقاس)</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>أداء التشكيلات (لون × مقاس)</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>أيّ تشكيلات تبيع أحسن وأيّها أعلى مرتجعات</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
