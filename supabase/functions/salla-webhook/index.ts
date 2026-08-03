@@ -16,17 +16,24 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getSettings } from '../_shared/getSettings.ts'
-import { stableWebhookEventKey } from '../_shared/webhookSecurity.ts'
+import { PayloadTooLargeError, readBoundedText, stableWebhookEventKey } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const MAX_BODY_BYTES = 1_000_000
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return json({ error: 'Method not allowed' }, 405)
   }
 
-  const rawBody = await req.text()
+  let rawBody = ''
+  try {
+    rawBody = await readBoundedText(req, MAX_BODY_BYTES)
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) return json({ error: 'Payload too large' }, 413)
+    return json({ error: 'Unable to read request body' }, 400)
+  }
   let payload: any
 
   try {

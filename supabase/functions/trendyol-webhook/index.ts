@@ -7,9 +7,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { commissionFromLines, mapTrendyolOrderStatus, numberOrNull, validIso } from '../_shared/trendyolWebhook.ts'
+import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const MAX_BODY_BYTES = 1_000_000
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -46,7 +48,13 @@ Deno.serve(async (req) => {
       return json({ error: 'Invalid webhook secret' }, 401)
     }
 
-    const body = await req.json()
+    const rawBody = await readBoundedText(req, MAX_BODY_BYTES)
+    let body: any
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      return json({ error: 'Invalid JSON' }, 400)
+    }
 
     const supplierId = String(body.supplierId || body.supplier_id || '')
     const eventType  = String(body.event || body.eventType || 'unknown')
@@ -168,6 +176,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true })
   } catch (e: any) {
+    if (e instanceof PayloadTooLargeError) return json({ error: 'Payload too large' }, 413)
     console.error('[trendyol-webhook] error:', e.message)
     if (eventLogId) {
       await admin.from('webhook_events').update({

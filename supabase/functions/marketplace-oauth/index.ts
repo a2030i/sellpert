@@ -78,8 +78,16 @@ async function finishAuthorization(req: Request, admin: any) {
   const code = url.searchParams.get('spapi_oauth_code') || url.searchParams.get('code') || ''
   if (!state || !code) throw new Error(url.searchParams.get('error_description') || 'بيانات التفويض غير مكتملة')
 
-  const { data: pending } = await admin.from('marketplace_oauth_states').select('*').eq('state', state).maybeSingle()
-  if (!pending || new Date(pending.expires_at).getTime() < Date.now()) throw new Error('انتهت جلسة التفويض، حاول مرة أخرى')
+  // Consume the state atomically before exchanging the provider code. Only one
+  // concurrent callback can receive the deleted row and reach credential write.
+  const { data: pending, error: consumeError } = await admin.from('marketplace_oauth_states')
+    .delete()
+    .eq('state', state)
+    .gt('expires_at', new Date().toISOString())
+    .select('*')
+    .maybeSingle()
+  if (consumeError) throw consumeError
+  if (!pending) throw new Error('انتهت جلسة التفويض أو تم استخدامها، حاول مرة أخرى')
 
   const tokenData = pending.platform === 'amazon' ? await exchangeAmazonCode(code) : await exchangeNoonCode(code)
   const sellerId = url.searchParams.get('selling_partner_id') || tokenData.seller_id || tokenData.account_id || null
@@ -108,7 +116,6 @@ async function finishAuthorization(req: Request, admin: any) {
     updated_at: new Date().toISOString(),
   }, { onConflict: 'merchant_code,platform' })
   if (saveError) throw saveError
-  await admin.from('marketplace_oauth_states').delete().eq('state', state)
   return redirectResult('success', pending.platform)
 }
 

@@ -1,5 +1,7 @@
 import {
   authorizeInternalWorker,
+  PayloadTooLargeError,
+  readBoundedText,
   sha256Hex,
   stableWebhookEventKey,
   timingSafeEqual,
@@ -48,4 +50,21 @@ Deno.test('internal worker rejects public anon tokens and accepts only dedicated
     !authorizeInternalWorker('', 'wrong-secret', serviceKey, workerSecret),
     'incorrect worker secret was accepted',
   )
+})
+
+Deno.test('readBoundedText accepts bounded payloads and rejects oversized streams', async () => {
+  const accepted = await readBoundedText(new Request('https://example.invalid', {
+    method: 'POST', body: '12345',
+  }), 5)
+  assert(accepted === '12345', 'bounded body was not read exactly')
+
+  let rejected = false
+  try {
+    await readBoundedText(new Request('https://example.invalid', {
+      method: 'POST', body: '123456',
+    }), 5)
+  } catch (error) {
+    rejected = error instanceof PayloadTooLargeError
+  }
+  assert(rejected, 'oversized body was accepted')
 })
