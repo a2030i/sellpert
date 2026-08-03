@@ -26,6 +26,7 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
   created: 'تم استلام الطلب', awaiting: 'بانتظار الإجراء', picking: 'قيد التجهيز', invoiced: 'تم إصدار الفاتورة',
   shipped: 'تم الشحن', atcollectionpoint: 'في نقطة التجميع', delivered: 'تم التسليم', cancelled: 'ملغاة',
   returned: 'مرتجعة', unsupplied: 'تعذر التوريد', unpacked: 'بانتظار التجهيز',
+  notinvoiced: 'لم تصدر الفاتورة', invoiceapproved: 'الفاتورة معتمدة', invoicerejected: 'الفاتورة مرفوضة',
 }
 
 function packageStatusLabel(status?: string | null) {
@@ -50,7 +51,7 @@ function financialMismatch(order: Order) {
 }
 
 function orderSource(o: Order) {
-  if (o.upload_id) return { label: '📄 ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
+  if (o.upload_id) return { label: 'ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
   if (o.platform === 'trendyol') return { label: 'API Trendyol', exportLabel: 'API Trendyol', title: 'تم سحب الطلب مباشرة من ربط Trendyol', bg: 'var(--success-bg)', color: 'var(--success-text)' }
   return { label: 'مصدر غير محدد', exportLabel: 'مصدر غير محدد', title: 'لا توجد بيانات كافية لتحديد مصدر هذا الطلب', bg: 'var(--warning-bg)', color: 'var(--warning-text)' }
 }
@@ -331,7 +332,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           <h2 style={S.pageTitle}>الطلبات</h2>
           <p style={S.pageSub}>عرض {totalOrders.toLocaleString()} من أصل {orders.length.toLocaleString()} طلب</p>
         </div>
-        <button style={S.exportBtn} onClick={exportCSV}>⬇ تصدير CSV</button>
+        <button style={S.exportBtn} onClick={exportCSV}>تصدير CSV</button>
       </div>
 
       {/* FILTERS */}
