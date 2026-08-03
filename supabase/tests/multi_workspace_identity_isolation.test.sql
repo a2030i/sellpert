@@ -31,6 +31,9 @@ VALUES (
   false
 );
 
+INSERT INTO public.products (merchant_code, name, sku, cost_price)
+VALUES ('LINK-QA-B', 'Linked Product', 'LINKED-SKU', 10);
+
 SELECT set_config('request.jwt.claim.sub', 'a1300000-0000-4000-8000-000000000001', true);
 SELECT set_config(
   'request.jwt.claims',
@@ -43,6 +46,7 @@ DO $$
 DECLARE
   linked_count integer;
   visible_count integer;
+  cost_updates integer;
 BEGIN
   IF NOT security.can_access_merchant('LINK-QA-A') THEN
     RAISE EXCEPTION 'owner workspace was denied';
@@ -76,6 +80,32 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'linked workspace profile update failed';
   END IF;
+
+  -- Analytics, derived-data maintenance, and product-cost imports all target
+  -- the selected linked workspace rather than silently using the primary one.
+  PERFORM public.merchant_health_score('LINK-QA-B');
+  PERFORM public.revenue_forecast('LINK-QA-B');
+  PERFORM public.merchant_executive_brief('LINK-QA-B');
+  PERFORM public.generate_proactive_alerts('LINK-QA-B');
+  PERFORM public.rebuild_all_derived_data('LINK-QA-B');
+
+  SELECT updated_count INTO cost_updates
+  FROM public.bulk_update_product_costs(
+    '[{"identifier":"LINKED-SKU","cost_price":"42.50"}]'::jsonb,
+    'LINK-QA-B'
+  );
+  IF cost_updates <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.products
+    WHERE merchant_code = 'LINK-QA-B' AND sku = 'LINKED-SKU' AND cost_price = 42.50
+  ) THEN
+    RAISE EXCEPTION 'linked workspace cost import failed';
+  END IF;
+
+  BEGIN
+    PERFORM public.merchant_health_score('LINK-QA-C');
+    RAISE EXCEPTION 'unlinked analytics access unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   BEGIN
     PERFORM public.update_my_store_profile(

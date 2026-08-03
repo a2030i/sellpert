@@ -37,7 +37,8 @@ function productIdentifiers(product: Product) {
     .filter(Boolean).map(value => String(value).trim().toLowerCase())
 }
 
-export default function ProductCostImport({ products, onClose, onComplete }: {
+export default function ProductCostImport({ merchantCode, products, onClose, onComplete }: {
+  merchantCode: string
   products: Product[]
   onClose: () => void
   onComplete: () => void
@@ -92,7 +93,10 @@ export default function ProductCostImport({ products, onClose, onComplete }: {
     setSaving(true)
     setParseError('')
     const payload = preview.valid.map(row => ({ identifier: row.identifier, cost_price: String(row.cost_price).replace(',', '.') }))
-    const { data, error } = await (supabase.rpc as any)('bulk_update_product_costs', { p_updates: payload })
+    const { data, error } = await (supabase.rpc as any)('bulk_update_product_costs', {
+      p_updates: payload,
+      p_merchant_code: merchantCode,
+    })
     if (error) {
       const permissionError = String(error.message || '').includes('PRODUCT_PERMISSION_REQUIRED')
       setParseError(permissionError ? 'ليس لديك صلاحية تعديل تكاليف المنتجات.' : 'تعذر حفظ التكاليف. تحقق من الملف وحاول مرة أخرى.')

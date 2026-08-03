@@ -539,7 +539,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
       </>)}
-      {showCostImport ? <ProductCostImport products={products} onClose={() => setShowCostImport(false)} onComplete={loadData} /> : null}
+      {showCostImport && merchant ? <ProductCostImport merchantCode={merchant.merchant_code} products={products} onClose={() => setShowCostImport(false)} onComplete={loadData} /> : null}
     </div>
   )
 }
