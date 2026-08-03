@@ -4,7 +4,8 @@ import {
   Activity, AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
   ClipboardPlus, Database, Megaphone, RefreshCw, Target, TrendingUp, WalletCards,
 } from 'lucide-react'
-import { supabase, type Merchant, type Order } from '../lib/supabase'
+import { supabase, type Merchant, type Order, type PlatformCredential } from '../lib/supabase'
+import { listPlatformCredentials } from '../lib/platformCredentialManager'
 import { fetchAll } from '../lib/db'
 import { PLATFORM_MAP } from '../lib/constants'
 import { useMobile } from '../lib/hooks'
@@ -171,7 +172,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status,data_as_of,data_age_days')
         .eq('merchant_code', merchantCode).range(from, to), 'صحة المخزون'),
       supabase.from('platform_file_uploads').select('uploaded_at').eq('merchant_code', merchantCode).order('uploaded_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('platform_credentials').select('last_sync_at').eq('merchant_code', merchantCode).order('last_sync_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
+      listPlatformCredentials(merchantCode),
       supabase.from('product_profitability').select('product_id,sku,product_name,cost_price,units_sold,revenue,platform_fees,ad_spend,returns_amount,net_profit,profit_margin_pct').eq('merchant_code', merchantCode),
       supabase.from('monthly_cashflow').select('platform,month,cash_in,cash_out,net,tx_count').eq('merchant_code', merchantCode).order('month', { ascending: false }).limit(36),
       supabase.from('ad_net_summary').select('platform,total_spend,total_gross,total_net,gross_roas,net_roas,fee_rate,return_rate').eq('merchant_code', merchantCode),
@@ -186,7 +187,10 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       const orderRows = settledValue(results[0]) as Order[] | null
       const inventoryRows = settledValue(results[1]) as InventoryHealthRow[] | null
       const uploadResult = settledValue(results[2]) as { data?: { uploaded_at?: string }; error?: unknown } | null
-      const syncResult = settledValue(results[3]) as { data?: { last_sync_at?: string }; error?: unknown } | null
+      const syncCredentials = settledValue(results[3]) as PlatformCredential[] | null
+      const sortedSyncTimes = (syncCredentials || []).map(item => item.last_sync_at).filter((value): value is string => Boolean(value)).sort()
+      const latestSyncAt = sortedSyncTimes[sortedSyncTimes.length - 1]
+      const syncResult = { data: latestSyncAt ? { last_sync_at: latestSyncAt } : null }
       const profitResult = settledValue(results[4]) as { data?: ProfitabilityRow[]; error?: unknown } | null
       const cashResult = settledValue(results[5]) as { data?: CashflowRow[]; error?: unknown } | null
       const adResult = settledValue(results[6]) as { data?: AdSummaryRow[]; error?: unknown } | null

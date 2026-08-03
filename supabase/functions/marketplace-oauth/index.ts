@@ -36,7 +36,7 @@ async function startAuthorization(req: Request, admin: any) {
   if (!['amazon', 'noon'].includes(platform)) throw new Error('المنصة غير مدعومة')
 
   const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
-    .eq('email', user.email).maybeSingle()
+    .eq('id', user.id).maybeSingle()
   if (!caller || caller.is_active === false) throw new Error('غير مصرح')
   const isAdmin = ['admin', 'super_admin'].includes(caller.role)
   const effectiveCode = caller.role === 'employee' ? caller.owner_merchant_code : caller.merchant_code

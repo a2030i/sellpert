@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
+import { listPlatformCredentials } from './lib/platformCredentialManager'
 import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
 import Login from './pages/Login'
@@ -315,10 +316,10 @@ export default function App() {
     Promise.all([
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('platform', 'trendyol'),
       supabase.from('merchant_requests').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'pending'),
-      supabase.from('platform_credentials').select('is_active,last_sync_at').eq('merchant_code', code).eq('platform', 'trendyol').maybeSingle(),
+      listPlatformCredentials(code),
     ]).then(([ordersResult, supportResult, credentialResult]) => {
       if (cancelled) return
-      const credential = credentialResult.data
+      const credential = credentialResult.find(item => item.platform === 'trendyol')
       const lastSyncAge = credential?.last_sync_at ? Date.now() - new Date(credential.last_sync_at).getTime() : Number.POSITIVE_INFINITY
       setSidebarBadges({
         orders: ordersResult.count || 0,

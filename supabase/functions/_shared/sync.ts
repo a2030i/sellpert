@@ -20,12 +20,12 @@ export async function authorizeMerchantSync(
   if (token === serviceKey) return { kind: 'service' }
 
   const { data: { user }, error } = await admin.auth.getUser(token)
-  if (error || !user?.email) throw new HttpError(401, 'Unauthorized')
+  if (error || !user) throw new HttpError(401, 'Unauthorized')
 
   const { data: caller } = await admin
     .from('merchants')
     .select('role,merchant_code,owner_merchant_code,is_active,permissions')
-    .eq('email', user.email)
+    .eq('id', user.id)
     .maybeSingle()
 
   if (!caller || caller.is_active === false) throw new HttpError(403, 'Forbidden')

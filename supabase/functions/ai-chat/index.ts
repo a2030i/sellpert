@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const db = createClient(SUPABASE_URL, SERVICE_KEY)
     const { data: { user } } = await db.auth.getUser(token)
     if (!user) return j({ error: 'Unauthorized' }, 401)
-    const { data: m } = await db.from('merchants').select('*').eq('email', user.email!).maybeSingle()
+    const { data: m } = await db.from('merchants').select('*').eq('id', user.id).maybeSingle()
     if (!m) return j({ error: 'merchant not found' }, 404)
 
     const body = await req.json()

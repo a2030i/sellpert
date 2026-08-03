@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: 'Unauthorized' }, 401)
 
     const { data: caller } = await callerClient
-      .from('merchants').select('role,permissions').eq('email', user.email!).single()
+      .from('merchants').select('role,permissions').eq('id', user.id).single()
 
     const allowed = ['admin', 'super_admin']
     const staffCanEnter = caller?.role === 'staff'

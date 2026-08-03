@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: 'Unauthorized' }, 401)
 
     const { data: callerRecord } = await adminClient
-      .from('merchants').select('*').eq('email', user.email!).maybeSingle()
+      .from('merchants').select('*').eq('id', user.id).maybeSingle()
     if (!callerRecord) return json({ error: 'merchant not found' }, 404)
 
     // Parse body early for permission checks
@@ -326,4 +326,3 @@ function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
-

@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const { data: caller } = await admin
       .from('merchants')
       .select('role')
-      .eq('email', user.email)
+      .eq('id', user.id)
       .maybeSingle()
 
     if (!caller || !['admin', 'super_admin'].includes(caller.role)) {

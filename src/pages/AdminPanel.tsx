@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
+import { listPlatformCredentials } from '../lib/platformCredentialManager'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PLATFORM_MAP } from '../lib/constants'
@@ -339,7 +340,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
       fetchAll<PerformanceData>((f, t) =>
         supabase.from('performance_data').select('*')
           .order('data_date', { ascending: false }).order('merchant_code').order('platform').range(f, t), 'بيانات الأداء'),
-      supabase.from('platform_credentials').select('*').order('updated_at', { ascending: false }),
+      listPlatformCredentials(),
       supabase.from('platform_file_uploads')
         .select('id,merchant_code,platform,status,rows_inserted,error_message,uploaded_at,finished_at')
         .order('uploaded_at', { ascending: false }).limit(20),
@@ -347,7 +348,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
     ])
     setMerchants(m.data || [])
     setPerfData(p)
-    setCredentials(c.data || [])
+    setCredentials(c || [])
     setSyncLogs(((uploads.data || []) as AdminUpload[]).map(upload => {
       const displayStatus = uploadDisplayStatus(upload.status, upload.uploaded_at)
       return {

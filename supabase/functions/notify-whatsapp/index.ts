@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       const { data: { user } } = await db.auth.getUser(bearer)
       if (!user?.email) return json({ error: 'Unauthorized' }, 401)
       const { data: callerRow } = await db.from('merchants')
-        .select('role, merchant_code, owner_merchant_code, permissions, is_active').eq('email', user.email).maybeSingle()
+        .select('role, merchant_code, owner_merchant_code, permissions, is_active').eq('id', user.id).maybeSingle()
       const isStaff = callerRow && ['admin', 'super_admin'].includes(callerRow.role)
       const platformStaffAllowed = callerRow?.role === 'staff'
         && Array.isArray(callerRow.permissions)

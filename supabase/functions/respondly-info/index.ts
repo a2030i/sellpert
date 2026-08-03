@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const callerClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } } })
     const { data: { user } } = await callerClient.auth.getUser()
     if (!user) return json({ error: 'Unauthorized' }, 401)
-    const { data: caller } = await callerClient.from('merchants').select('role').eq('email', user.email!).single()
+    const { data: caller } = await callerClient.from('merchants').select('role').eq('id', user.id).single()
     if (!caller || !['admin', 'super_admin'].includes(caller.role)) return json({ error: 'Forbidden' }, 403)
 
     const body = await req.json()
