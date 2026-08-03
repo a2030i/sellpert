@@ -1,8 +1,17 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
+import {
+  deliveryStatusLabel,
+  friendlyDeliveryError,
+  getProductContentChanges,
+  normalizeProductImages,
+  productActionLabel,
+  productActionMatches,
+  shortDeliveryReference,
+} from '../lib/productDelivery'
 import { ChevronLeft } from 'lucide-react'
 
 export default function ProductDetail({ merchant }: { merchant: Merchant | null }) {
@@ -331,21 +340,29 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const [checkingStatus, setCheckingStatus] = useState(false)
   const [editing, setEditing] = useState<any>({})
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [commercial, setCommercial] = useState({
+  const initialCommercial = {
     quantity: String(product.raw?.quantity ?? product.raw?.stock ?? ''),
     salePrice: String(product.sale_price ?? product.target_net_price ?? ''),
     listPrice: String(product.msrp ?? product.sale_price ?? product.target_net_price ?? ''),
-  })
+  }
+  const [commercial, setCommercial] = useState(initialCommercial)
+  const [commercialBaseline, setCommercialBaseline] = useState(initialCommercial)
   const [commercialSaving, setCommercialSaving] = useState(false)
+  const [reviewMode, setReviewMode] = useState<'content' | 'commercial' | null>(null)
+  const [actionHistory, setActionHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const contentSendLock = useRef(false)
+  const commercialSendLock = useRef(false)
 
   useEffect(() => {
-    if (!productId) return
-    supabase.from('product_platform_listings').select('*').eq('product_id', productId).then(({ data }) => {
+    if (!productId || !merchantCode) return
+    supabase.from('product_platform_listings').select('*').eq('merchant_code', merchantCode).eq('product_id', productId).then(({ data }) => {
       const map: any = {}
       for (const l of data || []) map[l.platform] = l
       setListings(map)
     })
-  }, [productId])
+  }, [productId, merchantCode])
 
   useEffect(() => {
     const cur = listings[activePlatform] || {}
@@ -357,6 +374,128 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       images: (cur.images || defaultImages || []).join('\n'),
     })
   }, [activePlatform, listings, defaultTitle, defaultDescription, defaultImages])
+
+  const loadActionHistory = useCallback(async () => {
+    if (!merchantCode) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const { data, error } = await supabase.from('marketplace_action_logs')
+      .select('id,action,status,error_message,external_batch_id,started_at,finished_at,request')
+      .eq('merchant_code', merchantCode)
+      .eq('platform', 'trendyol')
+      .in('action', ['products.v2_update_content', 'products.price_inventory'])
+      .order('started_at', { ascending: false })
+      .limit(100)
+    if (error) setHistoryError('تعذر تحميل سجل تحديثات المنتج الآن.')
+    else setActionHistory((data || []).filter(action => productActionMatches(action, product)).slice(0, 8))
+    setHistoryLoading(false)
+  }, [merchantCode, product])
+
+  useEffect(() => {
+    void loadActionHistory()
+  }, [loadActionHistory])
+
+  const currentListing = listings[activePlatform] || {}
+  const pendingDelivery = activePlatform === 'trendyol' && ['accepted', 'processing'].includes(currentListing.delivery_status)
+  const editedImages = useMemo(
+    () => normalizeProductImages(String(editing.images || '').split('\n')),
+    [editing.images],
+  )
+  const contentChanges = useMemo(() => getProductContentChanges({
+    title: currentListing.title ?? defaultTitle ?? '',
+    description: currentListing.description ?? defaultDescription ?? '',
+    images: normalizeProductImages(currentListing.images || defaultImages || []),
+  }, {
+    title: editing.title,
+    description: editing.description,
+    images: editedImages,
+  }), [currentListing.title, currentListing.description, currentListing.images, defaultTitle, defaultDescription, defaultImages, editing.title, editing.description, editedImages])
+
+  const commercialChanges = useMemo(() => {
+    const changes: Array<{ label: string; before: string; after: string }> = []
+    const values = [
+      { label: 'المخزون المتاح', before: commercialBaseline.quantity, after: commercial.quantity, money: false },
+      { label: 'سعر البيع', before: commercialBaseline.salePrice, after: commercial.salePrice, money: true },
+      { label: 'السعر قبل الخصم', before: commercialBaseline.listPrice, after: commercial.listPrice, money: true },
+    ]
+    for (const value of values) {
+      const before = value.before === '' ? '' : String(Number(value.before))
+      const after = value.after === '' ? '' : String(Number(value.after))
+      if (before === after) continue
+      changes.push({
+        label: value.label,
+        before: before === '' ? 'غير متوفر' : value.money ? fmtCurrency(Number(before)) : Number(before).toLocaleString('ar-SA-u-nu-latn'),
+        after: after === '' ? 'غير محدد' : value.money ? fmtCurrency(Number(after)) : Number(after).toLocaleString('ar-SA-u-nu-latn'),
+      })
+    }
+    return changes
+  }, [commercial, commercialBaseline])
+
+  function updateEditing(field: string, value: string) {
+    setEditing((current: any) => ({ ...current, [field]: value }))
+    setReviewMode(null)
+    setSaveMessage(null)
+  }
+
+  function updateCommercial(field: 'quantity' | 'salePrice' | 'listPrice', value: string) {
+    setCommercial(current => ({ ...current, [field]: value }))
+    setReviewMode(null)
+    setSaveMessage(null)
+  }
+
+  function commercialValidationError() {
+    if (commercial.quantity.trim() === '' || commercial.salePrice.trim() === '' || commercial.listPrice.trim() === '') return 'أكمل المخزون وسعر البيع والسعر قبل الخصم.'
+    const quantity = Number(commercial.quantity)
+    const salePrice = Number(commercial.salePrice)
+    const listPrice = Number(commercial.listPrice)
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20000) return 'المخزون المتاح يجب أن يكون عددًا صحيحًا بين 0 و20,000.'
+    if (!Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) return 'تحقق من الأسعار: السعر قبل الخصم لا يمكن أن يكون أقل من سعر البيع.'
+    return ''
+  }
+
+  function contentValidationError() {
+    const changedFields = new Set(contentChanges.map(change => change.field))
+    if (changedFields.has('title') && !String(editing.title || '').trim()) return 'عنوان المنتج لا يمكن أن يكون فارغًا.'
+    if (changedFields.has('description') && !String(editing.description || '').trim()) return 'وصف المنتج لا يمكن أن يكون فارغًا.'
+    if (changedFields.has('images') && !editedImages.length) return 'أضف صورة واحدة على الأقل للمنتج.'
+    return ''
+  }
+
+  function reviewContentUpdate() {
+    setSaveMessage(null)
+    if (pendingDelivery) {
+      setSaveMessage({ type: 'err', text: 'يوجد تعديل قيد مراجعة Trendyol. انتظر نتيجته قبل إرسال تعديل جديد.' })
+      return
+    }
+    if (!contentChanges.length) {
+      setSaveMessage({ type: 'err', text: 'لم تغيّر بيانات المنتج. عدّل العنوان أو الوصف أو الصور أولًا.' })
+      return
+    }
+    const validationError = contentValidationError()
+    if (validationError) {
+      setSaveMessage({ type: 'err', text: validationError })
+      return
+    }
+    setReviewMode('content')
+  }
+
+  function reviewCommercialUpdate() {
+    setSaveMessage(null)
+    if (pendingDelivery) {
+      setSaveMessage({ type: 'err', text: 'يوجد تحديث قيد مراجعة Trendyol. انتظر نتيجته قبل إرسال تحديث جديد.' })
+      return
+    }
+    const validationError = commercialValidationError()
+    if (validationError) {
+      setSaveMessage({ type: 'err', text: validationError })
+      return
+    }
+    if (!commercialChanges.length) {
+      setSaveMessage({ type: 'err', text: 'لم تغيّر السعر أو المخزون.' })
+      return
+    }
+    setReviewMode('commercial')
+  }
 
   async function checkDeliveryStatus(batchId: string, quiet = false) {
     if (!merchantCode || !batchId || checkingStatus) return
@@ -372,6 +511,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'تعذر تحديث حالة التعديل')
       setListings(previous => ({ ...previous, trendyol: { ...previous.trendyol, delivery_status: result.status, delivery_error: result.error || null, last_verified_at: new Date().toISOString() } }))
+      await loadActionHistory()
     } catch (error: any) {
       if (!quiet) setSaveMessage({ type: 'err', text: error.message || 'تعذر تحديث حالة التعديل' })
     } finally {
@@ -390,16 +530,25 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
 
   async function save() {
     if (!productId || !merchantCode) return
+    if (contentSendLock.current) return
+    if (pendingDelivery) {
+      setSaveMessage({ type: 'err', text: 'يوجد تعديل قيد مراجعة Trendyol. انتظر نتيجته قبل إرسال تعديل جديد.' })
+      return
+    }
+    contentSendLock.current = true
     setSaving(true)
     setSaveMessage(null)
     let deliveryResult: any = null
-    const images = editing.images ? editing.images.split('\n').map((s: string) => s.trim()).filter(Boolean) : []
+    const images = editedImages
     if (activePlatform === 'trendyol') {
       try {
         const contentId = product.external_id || product.raw?.contentId || product.raw?.id
         if (!contentId) throw new Error('لا يوجد معرّف Trendyol لهذا المنتج. شغّل المزامنة أولًا ثم حاول مجددًا.')
         if (!Number.isFinite(Number(contentId))) throw new Error('معرّف المنتج في Trendyol غير صالح. شغّل المزامنة ثم حاول مجددًا.')
-        if (!editing.title?.trim() && !editing.description?.trim() && !images.length) throw new Error('أدخل تعديلًا واحدًا على الأقل قبل الإرسال.')
+        if (!contentChanges.length) throw new Error('لم تغيّر بيانات المنتج. عدّل العنوان أو الوصف أو الصور أولًا.')
+        const validationError = contentValidationError()
+        if (validationError) throw new Error(validationError)
+        const changedFields = new Set(contentChanges.map(change => change.field))
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
@@ -418,9 +567,9 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
             language: 'ar',
             payload: { items: [{
               contentId: Number(contentId),
-              title: editing.title?.trim() || undefined,
-              description: editing.description?.trim() || undefined,
-              images: images.length ? images.map((url: string) => ({ url })) : undefined,
+              title: changedFields.has('title') ? editing.title.trim() : undefined,
+              description: changedFields.has('description') ? editing.description.trim() : undefined,
+              images: changedFields.has('images') ? images.map((url: string) => ({ url })) : undefined,
             }] },
           }),
         })
@@ -434,7 +583,8 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
             : 'تم تطبيق التعديل في Trendyol بنجاح.',
         })
       } catch (error: any) {
-        setSaveMessage({ type: 'err', text: error.message || 'تعذر إرسال التعديل إلى Trendyol' })
+        setSaveMessage({ type: 'err', text: friendlyDeliveryError(error.message) || 'تعذر إرسال التعديل إلى Trendyol' })
+        contentSendLock.current = false
         setSaving(false)
         return
       }
@@ -455,12 +605,15 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       delivery_error: null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'product_id,platform' })
+    contentSendLock.current = false
     setSaving(false)
-    if (error) setSaveMessage({ type: 'err', text: `تعذر حفظ التعديل: ${error.message}` })
+    if (error) setSaveMessage({ type: 'err', text: deliveryResult ? 'تم إرسال الطلب إلى Trendyol، لكن تعذر حفظ حالة المتابعة محليًا. حدّث الصفحة للتحقق من النتيجة.' : `تعذر حفظ التعديل: ${error.message}` })
     if (!error) {
-      const { data } = await supabase.from('product_platform_listings').select('*').eq('product_id', productId)
+      const { data } = await supabase.from('product_platform_listings').select('*').eq('merchant_code', merchantCode).eq('product_id', productId)
       const map: any = {}; for (const l of data || []) map[l.platform] = l
       setListings(map)
+      setReviewMode(null)
+      await loadActionHistory()
       if (activePlatform !== 'trendyol') setSaveMessage({ type: 'ok', text: 'تم حفظ التعديل.' })
     }
   }
@@ -469,15 +622,18 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     if (!merchantCode || !product.barcode) {
       setSaveMessage({ type:'err', text:'لا يمكن تحديث السعر والمخزون قبل توفر باركود Trendyol للمنتج.' }); return
     }
+    if (pendingDelivery) {
+      setSaveMessage({ type:'err', text:'يوجد تحديث قيد مراجعة Trendyol. انتظر نتيجته قبل إرسال تحديث جديد.' }); return
+    }
+    if (commercialSendLock.current) return
+    const validationError = commercialValidationError()
+    if (validationError) {
+      setSaveMessage({ type:'err', text:validationError }); return
+    }
     const quantity = Number(commercial.quantity)
     const salePrice = Number(commercial.salePrice)
     const listPrice = Number(commercial.listPrice)
-    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20000) {
-      setSaveMessage({ type:'err', text:'المخزون المتاح يجب أن يكون عددًا صحيحًا بين 0 و20,000.' }); return
-    }
-    if (!Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) {
-      setSaveMessage({ type:'err', text:'تحقق من الأسعار: السعر قبل الخصم لا يمكن أن يكون أقل من سعر البيع.' }); return
-    }
+    commercialSendLock.current = true
     setCommercialSaving(true); setSaveMessage(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -498,10 +654,13 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       if (error) throw error
       await supabase.from('products').update({ sale_price:salePrice, msrp:listPrice, updated_at:now }).eq('id',productId).eq('merchant_code',merchantCode)
       setListings(previous => ({ ...previous, trendyol:{ ...previous.trendyol, delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null, last_submitted_at:now } }))
+      setCommercialBaseline({ quantity:String(quantity), salePrice:String(salePrice), listPrice:String(listPrice) })
+      setReviewMode(null)
+      await loadActionHistory()
       setSaveMessage({ type:'ok', text:'تم إرسال السعر والمخزون إلى Trendyol، وتتم متابعة اعتماد التحديث تلقائيًا.' })
     } catch (error:any) {
-      setSaveMessage({ type:'err', text:error.message || 'تعذر تحديث السعر والمخزون في Trendyol' })
-    } finally { setCommercialSaving(false) }
+      setSaveMessage({ type:'err', text:friendlyDeliveryError(error.message) || 'تعذر تحديث السعر والمخزون في Trendyol' })
+    } finally { commercialSendLock.current = false; setCommercialSaving(false) }
   }
 
   const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }
@@ -509,8 +668,8 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>بيانات المنتج في Trendyol</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>عدّل العنوان أو الوصف أو الصور، ثم أرسل التغيير مباشرة إلى Trendyol للمراجعة.</div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 5 }}>إدارة المنتج في Trendyol</div>
+      <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>راجع التغييرات قبل إرسالها، ثم تابع اعتمادها من Trendyol من المكان نفسه.</div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
         {PLATFORMS.map(p => {
           const has = !!listings[p]
@@ -524,54 +683,115 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         })}
       </div>
       {activePlatform === 'trendyol' && listings.trendyol?.delivery_status && listings.trendyol.delivery_status !== 'draft' ? (
-        <div style={{ marginBottom:14, padding:'11px 13px', borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+        <div style={{ marginBottom:14, padding:'13px 14px', borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
           <div>
-            <div style={{ fontSize:12, fontWeight:800, color: listings.trendyol.delivery_status === 'success' ? 'var(--success-text)' : listings.trendyol.delivery_status === 'failed' ? 'var(--danger-text)' : 'var(--warning-text)' }}>
-              {{ accepted:'أُرسل إلى Trendyol', processing:'قيد مراجعة Trendyol', success:'اعتمد Trendyol التعديل', partial:'اعتمد Trendyol جزءًا من التعديل', failed:'يحتاج التعديل إلى تصحيح' }[listings.trendyol.delivery_status as string] || 'حالة التعديل غير معروفة'}
+            <div style={{ fontSize:13, fontWeight:700, color: deliveryStatusColor(listings.trendyol.delivery_status) }}>
+              {deliveryStatusLabel(listings.trendyol.delivery_status)}
             </div>
-            {listings.trendyol.delivery_error ? <div style={{ fontSize:11, color:'var(--danger-text)', marginTop:4 }}>{listings.trendyol.delivery_error}</div> : <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>يتم تحديث الحالة تلقائيًا دون الحاجة لإعادة الإرسال.</div>}
+            {listings.trendyol.delivery_error ? <div style={{ fontSize:12, color:'var(--danger-text)', marginTop:5 }}>{friendlyDeliveryError(listings.trendyol.delivery_error)}</div> : <div style={{ fontSize:12, color:'var(--text3)', marginTop:5 }}>تتحدث الحالة تلقائيًا؛ لا تعِد الإرسال أثناء المعالجة.</div>}
+            <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:6, fontSize:11, color:'var(--text3)' }}>
+              {listings.trendyol.last_submitted_at ? <span>آخر إرسال: {formatDeliveryDate(listings.trendyol.last_submitted_at)}</span> : null}
+              {listings.trendyol.external_batch_id ? <span>مرجع المتابعة: {shortDeliveryReference(listings.trendyol.external_batch_id)}</span> : null}
+            </div>
           </div>
           {listings.trendyol.external_batch_id && ['accepted','processing'].includes(listings.trendyol.delivery_status) ? <button onClick={() => void checkDeliveryStatus(listings.trendyol.external_batch_id)} disabled={checkingStatus} style={{ border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', padding:'7px 11px', borderRadius:8, fontFamily:'inherit', fontSize:11, fontWeight:700, cursor:'pointer' }}>{checkingStatus ? 'جارٍ التحقق...' : 'تحديث الحالة'}</button> : null}
         </div>
       ) : null}
       {activePlatform === 'trendyol' ? <div style={{ marginBottom:16, padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
-        <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>السعر والمخزون في Trendyol</div>
-        <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>المخزون هنا هو الكمية المتاحة للبيع. يرسل النظام القيم بالريال السعودي ويتابع نتيجة الاعتماد تلقائيًا.</div>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>السعر والمخزون</div>
+        <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>أدخل الكمية المتاحة للبيع والأسعار بالريال السعودي، ثم راجع الفرق قبل الإرسال.</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:8 }}>
-          <div><label style={fieldLabel}>المخزون المتاح</label><input type="number" min="0" max="20000" step="1" value={commercial.quantity} onChange={e => setCommercial({...commercial,quantity:e.target.value})} style={inp}/></div>
-          <div><label style={fieldLabel}>سعر البيع (ر.س)</label><input type="number" min="0" step="0.01" value={commercial.salePrice} onChange={e => setCommercial({...commercial,salePrice:e.target.value})} style={inp}/></div>
-          <div><label style={fieldLabel}>السعر قبل الخصم (ر.س)</label><input type="number" min="0" step="0.01" value={commercial.listPrice} onChange={e => setCommercial({...commercial,listPrice:e.target.value})} style={inp}/></div>
+          <div><label style={fieldLabel}>المخزون المتاح</label><input disabled={pendingDelivery} type="number" min="0" max="20000" step="1" value={commercial.quantity} onChange={e => updateCommercial('quantity', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>سعر البيع (ر.س)</label><input disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.salePrice} onChange={e => updateCommercial('salePrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>السعر قبل الخصم (ر.س)</label><input disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.listPrice} onChange={e => updateCommercial('listPrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
         </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={() => void savePriceInventory()} disabled={commercialSaving} style={{ background:'var(--surface)', border:'1px solid #f27a1a', color:'#f27a1a', padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:11, fontWeight:800, cursor:'pointer' }}>{commercialSaving ? 'جارٍ الإرسال...' : 'إرسال السعر والمخزون'}</button></div>
+        {reviewMode === 'commercial' ? <ProductChangeReview title="راجع تحديث السعر والمخزون" changes={commercialChanges} busy={commercialSaving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void savePriceInventory()} /> : null}
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={reviewCommercialUpdate} disabled={commercialSaving || pendingDelivery} style={{ background:'var(--surface)', border:'1px solid #f27a1a', color:'#d8630c', padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:commercialSaving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:commercialSaving || pendingDelivery ? .6 : 1 }}>{pendingDelivery ? 'تحديث قيد المعالجة' : 'مراجعة السعر والمخزون'}</button></div>
       </div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         <div>
           <label style={fieldLabel}>العنوان</label>
-          <input value={editing.title || ''} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
+          <input disabled={pendingDelivery} value={editing.title || ''} onChange={e => updateEditing('title', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }} />
         </div>
         {activePlatform !== 'trendyol' ? <div>
           <label style={fieldLabel}>الكلمات المفتاحية</label>
-          <input value={editing.keywords || ''} onChange={e => setEditing({ ...editing, keywords: e.target.value })} style={inp} placeholder="مفصولة بفواصل" />
+          <input value={editing.keywords || ''} onChange={e => updateEditing('keywords', e.target.value)} style={inp} placeholder="مفصولة بفواصل" />
         </div> : null}
       </div>
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>الوصف</label>
-        <textarea value={editing.description || ''} onChange={e => setEditing({ ...editing, description: e.target.value })} rows={3} style={{ ...inp, minHeight: 80 }} />
+        <textarea disabled={pendingDelivery} value={editing.description || ''} onChange={e => updateEditing('description', e.target.value)} rows={3} style={{ ...inp, minHeight: 80, opacity:pendingDelivery ? .65 : 1 }} />
       </div>
       {activePlatform !== 'trendyol' ? <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>النقاط (سطر لكل واحدة)</label>
-        <textarea value={editing.bullet_points || ''} onChange={e => setEditing({ ...editing, bullet_points: e.target.value })} rows={4} style={{ ...inp, minHeight: 90 }} />
+        <textarea value={editing.bullet_points || ''} onChange={e => updateEditing('bullet_points', e.target.value)} rows={4} style={{ ...inp, minHeight: 90 }} />
       </div> : null}
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>روابط الصور (سطر لكل واحدة)</label>
-        <textarea value={editing.images || ''} onChange={e => setEditing({ ...editing, images: e.target.value })} rows={3} style={{ ...inp, minHeight: 70 }} placeholder="https://..." />
+        <textarea disabled={pendingDelivery} value={editing.images || ''} onChange={e => updateEditing('images', e.target.value)} rows={3} style={{ ...inp, minHeight: 70, opacity:pendingDelivery ? .65 : 1 }} placeholder="https://..." />
       </div>
+      {reviewMode === 'content' ? <ProductChangeReview title="راجع تعديل بيانات المنتج" changes={contentChanges} busy={saving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void save()} /> : null}
       <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button onClick={save} disabled={saving} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          {saving ? 'جارٍ الإرسال...' : activePlatform === 'trendyol' ? 'إرسال التعديل إلى Trendyol' : 'حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
+        <button onClick={reviewContentUpdate} disabled={saving || pendingDelivery} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: saving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:saving || pendingDelivery ? .65 : 1, fontFamily: 'inherit' }}>
+          {pendingDelivery ? 'تعديل قيد المعالجة' : activePlatform === 'trendyol' ? 'مراجعة تعديل المنتج' : 'حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
         </button>
       </div>
       {saveMessage ? <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, fontSize:12, lineHeight:1.6, background:saveMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:saveMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{saveMessage.text}</div> : null}
+      <div style={{ marginTop:18, paddingTop:16, borderTop:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:10 }}>
+          <div><div style={{ fontSize:13, fontWeight:700 }}>سجل تحديثات Trendyol</div><div style={{ fontSize:11, color:'var(--text3)', marginTop:2 }}>آخر التحديثات الخاصة بهذا المنتج فقط.</div></div>
+          <button onClick={() => void loadActionHistory()} disabled={historyLoading} style={{ border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', padding:'6px 10px', borderRadius:7, fontSize:11, fontFamily:'inherit', cursor:historyLoading ? 'wait' : 'pointer' }}>{historyLoading ? 'جارٍ التحديث...' : 'تحديث السجل'}</button>
+        </div>
+        {historyError ? <div style={{ padding:'9px 11px', borderRadius:8, background:'var(--danger-bg)', color:'var(--danger-text)', fontSize:12 }}>{historyError}</div> : null}
+        {!historyLoading && !historyError && actionHistory.length === 0 ? <div style={{ padding:'13px', borderRadius:8, background:'var(--surface2)', color:'var(--text3)', fontSize:12 }}>لم تُرسل تحديثات لهذا المنتج من Sellpert بعد.</div> : null}
+        {actionHistory.length > 0 ? <div style={{ border:'1px solid var(--border)', borderRadius:9, overflow:'hidden' }}>
+          {actionHistory.map((action, index) => <div key={action.id} style={{ padding:'11px 12px', borderBottom:index === actionHistory.length - 1 ? 'none' : '1px solid var(--border)', display:'flex', flexWrap:'wrap', gap:'10px 18px', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ flex:'1 1 170px', minWidth:0 }}><div style={{ fontSize:12, fontWeight:700 }}>{productActionLabel(action.action)}</div><div style={{ fontSize:11, color:'var(--text3)', marginTop:3 }}>{formatDeliveryDate(action.started_at)}</div></div>
+            <div style={{ flex:'1 1 150px', minWidth:0 }}><div style={{ fontSize:12, fontWeight:600, color:deliveryStatusColor(action.status) }}>{deliveryStatusLabel(action.status)}</div>{friendlyDeliveryError(action.error_message) ? <div style={{ fontSize:11, color:'var(--danger-text)', marginTop:3 }}>{friendlyDeliveryError(action.error_message)}</div> : null}</div>
+            <div style={{ flex:'0 0 auto', fontSize:11, color:'var(--text3)', direction:'ltr' }}>{shortDeliveryReference(action.external_batch_id)}</div>
+          </div>)}
+        </div> : null}
+      </div>
     </div>
   )
+}
+
+function ProductChangeReview({ title, changes, busy, confirmLabel, onBack, onConfirm }: {
+  title: string
+  changes: Array<{ label: string; before: string; after: string }>
+  busy: boolean
+  confirmLabel: string
+  onBack: () => void
+  onConfirm: () => void
+}) {
+  return <div style={{ marginTop:12, padding:14, border:'1px solid var(--border2)', borderRadius:9, background:'var(--surface)' }}>
+    <div style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>{title}</div>
+    <div style={{ display:'grid', gap:8 }}>
+      {changes.map(change => <div key={change.label} style={{ display:'grid', gap:7, padding:'9px 10px', borderRadius:8, background:'var(--surface2)' }}>
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--text2)' }}>{change.label}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 20px minmax(0,1fr)', gap:8, alignItems:'start' }}>
+          <div style={{ fontSize:12, color:'var(--text3)', overflowWrap:'anywhere' }}>{change.before}</div>
+          <div aria-hidden="true" style={{ color:'var(--text3)', textAlign:'center' }}>←</div>
+          <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflowWrap:'anywhere' }}>{change.after}</div>
+        </div>
+      </div>)}
+    </div>
+    <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:12, flexWrap:'wrap' }}>
+      <button onClick={onBack} disabled={busy} style={{ border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', padding:'8px 12px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:600, cursor:'pointer' }}>العودة للتعديل</button>
+      <button onClick={onConfirm} disabled={busy} style={{ border:'none', background:'var(--accent-strong)', color:'#fff', padding:'8px 14px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:busy ? 'wait' : 'pointer' }}>{busy ? 'جارٍ الإرسال...' : confirmLabel}</button>
+    </div>
+  </div>
+}
+
+function deliveryStatusColor(status: unknown) {
+  if (status === 'success') return 'var(--success-text)'
+  if (status === 'failed' || status === 'partial') return 'var(--danger-text)'
+  return 'var(--warning-text)'
+}
+
+function formatDeliveryDate(value: unknown) {
+  if (!value) return 'الوقت غير متوفر'
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return 'الوقت غير متوفر'
+  return date.toLocaleString('ar-SA-u-nu-latn', { dateStyle:'medium', timeStyle:'short' })
 }

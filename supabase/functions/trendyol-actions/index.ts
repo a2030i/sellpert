@@ -211,6 +211,30 @@ function buildPath(template:string, values:Record<string,unknown>) {
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
 function validateActionInput(action:string,input:any) {
+  if (action === 'products.v2_update_content') {
+    const items = input?.payload?.items
+    if (!Array.isArray(items) || items.length < 1 || items.length > 1000) throw new HttpError(400, 'أرسل من 1 إلى 1,000 منتج في كل تحديث للمحتوى')
+    for (const item of items) {
+      const contentId = Number(item?.contentId)
+      if (!Number.isInteger(contentId) || contentId < 1) throw new HttpError(400, 'معرّف منتج Trendyol غير صالح')
+      const title = clean(item?.title)
+      const description = clean(item?.description)
+      const images = item?.images
+      const hasImages = Array.isArray(images) && images.length > 0
+      if (!title && !description && !hasImages) throw new HttpError(400, 'أرسل تعديلًا واحدًا على الأقل للعنوان أو الوصف أو الصور')
+      if (images !== undefined) {
+        if (!Array.isArray(images) || images.length < 1) throw new HttpError(400, 'أرسل صورة واحدة على الأقل للمنتج')
+        for (const image of images) {
+          const url = clean(image?.url)
+          try {
+            if (!url || !['http:', 'https:'].includes(new URL(url).protocol)) throw new Error('invalid')
+          } catch {
+            throw new HttpError(400, 'رابط صورة المنتج غير صالح؛ استخدم رابطًا مباشرًا للصورة')
+          }
+        }
+      }
+    }
+  }
   if (action === 'products.price_inventory') {
     const items = input?.payload?.items
     if (!Array.isArray(items) || items.length < 1 || items.length > 1000) throw new HttpError(400, 'أرسل من 1 إلى 1000 منتج في كل تحديث')
