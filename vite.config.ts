@@ -7,11 +7,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          // مكتبات ثقيلة في حزم منفصلة تُحمَّل عند الحاجة وتبقى في الكاش بين النشرات
-          recharts: ['recharts'],
-          supabase: ['@supabase/supabase-js'],
-          xlsx: ['xlsx'],
+        manualChunks(id) {
+          const path = id.replace(/\\/g, '/')
+          if (path.includes('/node_modules/recharts/') || path.includes('/node_modules/d3-')) return 'recharts'
+          if (path.includes('/node_modules/@supabase/')) return 'supabase'
+          if (path.includes('/node_modules/xlsx/')) return 'xlsx'
+          return undefined
         },
       },
     },
