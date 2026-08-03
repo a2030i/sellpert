@@ -37,6 +37,18 @@ export async function updateMerchantActionStatus(actionId: string, status: 'pend
   return data as { id: string; status: string }
 }
 
+export type ActionCompletionResult = 'achieved' | 'partial' | 'not_achieved'
+
+export async function completeMerchantAction(actionId: string, result: ActionCompletionResult, note: string) {
+  const { data, error } = await supabase.rpc('complete_my_action', {
+    p_action_id: actionId,
+    p_result: result,
+    p_note: note,
+  })
+  if (error) throw error
+  return data as { id: string; status: 'done'; result: ActionCompletionResult }
+}
+
 export function dueDateFromNow(days: number) {
   const date = new Date()
   date.setDate(date.getDate() + days)

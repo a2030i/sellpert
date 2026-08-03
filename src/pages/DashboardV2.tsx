@@ -88,6 +88,19 @@ type ExecutiveBrief = {
     priority: ActionPriority; category: string; actionable: boolean
   }
 }
+type GoalStatus = 'not_set' | 'ahead' | 'on_track' | 'behind'
+type MonthlyGoal = {
+  year: number; month: number; month_start: string; month_end: string
+  target_amount: number | null; actual_sales: number; attainment_pct: number | null
+  calendar_pace_pct: number; projected_sales: number; gap_amount: number | null
+  days_remaining: number; required_daily_sales: number | null; active_order_days: number
+  status: GoalStatus; is_reliable: boolean
+}
+type WeeklyBriefRow = {
+  id: string; week_start: string; week_end: string; source_data_as_of: string
+  actual_sales: number; monthly_target: number | null; target_attainment_pct: number | null
+  target_pace_pct: number | null; target_status: GoalStatus; created_at: string; updated_at: string
+}
 
 const RANGE_LABELS: Record<RangeKey, string> = { '30': '30 يومًا', '90': '90 يومًا', '180': '180 يومًا' }
 
@@ -132,16 +145,24 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [health, setHealth] = useState<MerchantHealth | null>(null)
   const [forecast, setForecast] = useState<SalesForecast | null>(null)
   const [executiveBrief, setExecutiveBrief] = useState<ExecutiveBrief | null>(null)
+  const [monthlyGoal, setMonthlyGoal] = useState<MonthlyGoal | null>(null)
+  const [weeklyHistory, setWeeklyHistory] = useState<WeeklyBriefRow[]>([])
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
   const [tracking, setTracking] = useState<string | null>(null)
+  const [savingTarget, setSavingTarget] = useState(false)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
     let cancelled = false
     setLoading(true)
     const merchantCode = merchant.merchant_code
+    const weeklyHistoryPromise = supabase.rpc('capture_my_weekly_brief').then(() =>
+      supabase.from('merchant_weekly_briefs')
+        .select('id,week_start,week_end,source_data_as_of,actual_sales,monthly_target,target_attainment_pct,target_pace_pct,target_status,created_at,updated_at')
+        .eq('merchant_code', merchantCode).order('week_start', { ascending: false }).limit(8)
+    )
     Promise.allSettled([
       fetchAll<Order>((from, to) => supabase.from('orders')
         .select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,discount_amount,currency,customer_city,order_date,created_at')
@@ -158,6 +179,8 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode }),
       supabase.rpc('revenue_forecast', { p_merchant_code: merchantCode }),
       supabase.rpc('merchant_executive_brief', { p_merchant_code: merchantCode }),
+      supabase.rpc('my_monthly_goal_progress'),
+      weeklyHistoryPromise,
     ]).then(results => {
       if (cancelled) return
       const orderRows = settledValue(results[0]) as Order[] | null
@@ -171,6 +194,8 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       const healthResult = settledValue(results[8]) as { data?: MerchantHealth; error?: unknown } | null
       const forecastResult = settledValue(results[9]) as { data?: SalesForecast; error?: unknown } | null
       const executiveResult = settledValue(results[10]) as { data?: ExecutiveBrief; error?: unknown } | null
+      const goalResult = settledValue(results[11]) as { data?: MonthlyGoal; error?: unknown } | null
+      const historyResult = settledValue(results[12]) as { data?: WeeklyBriefRow[]; error?: unknown } | null
 
       setOrders(orderRows || [])
       setInventory(inventoryRows || [])
@@ -181,12 +206,14 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setHealth(healthResult?.data || null)
       setForecast(forecastResult?.data || null)
       setExecutiveBrief(executiveResult?.data || null)
+      setMonthlyGoal(goalResult?.data || null)
+      setWeeklyHistory(historyResult?.data || [])
       const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
-      const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9, 10]
+      const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       const criticalRequestFailed = criticalIndexes.some(index => results[index].status === 'rejected')
-      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult].some(result => Boolean(result?.error)))
+      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult, goalResult, historyResult].some(result => Boolean(result?.error)))
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -334,6 +361,37 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     }
   }
 
+  async function saveMonthlyTarget(amount: number) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) {
+      toastErr('أدخل هدفًا صحيحًا أكبر من صفر')
+      return
+    }
+    const now = new Date()
+    setSavingTarget(true)
+    try {
+      const { error } = await supabase.rpc('set_my_monthly_sales_target', {
+        p_year: now.getFullYear(), p_month: now.getMonth() + 1, p_target_amount: amount,
+      })
+      if (error) throw error
+      const [{ data: goal, error: goalError }, captureResult] = await Promise.all([
+        supabase.rpc('my_monthly_goal_progress'),
+        supabase.rpc('capture_my_weekly_brief'),
+      ])
+      if (goalError || captureResult.error) throw goalError || captureResult.error
+      const { data: history, error: historyError } = await supabase.from('merchant_weekly_briefs')
+        .select('id,week_start,week_end,source_data_as_of,actual_sales,monthly_target,target_attainment_pct,target_pace_pct,target_status,created_at,updated_at')
+        .eq('merchant_code', merchant!.merchant_code).order('week_start', { ascending: false }).limit(8)
+      if (historyError) throw historyError
+      setMonthlyGoal(goal as MonthlyGoal)
+      setWeeklyHistory((history || []) as WeeklyBriefRow[])
+      toastOk('تم حفظ هدف المبيعات وتحديث متابعة الأسبوع')
+    } catch {
+      toastErr('تعذر حفظ هدف المبيعات')
+    } finally {
+      setSavingTarget(false)
+    }
+  }
+
   function changeRange(value: RangeKey) {
     setRange(value)
     const url = new URL(window.location.href)
@@ -359,6 +417,10 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
 
       <ExecutiveBriefPanel
         brief={executiveBrief}
+        goal={monthlyGoal}
+        history={weeklyHistory}
+        savingTarget={savingTarget}
+        onSaveTarget={amount => void saveMonthlyTarget(amount)}
         tracking={tracking === executiveBrief?.top_priority.source_key}
         onTrack={() => void trackExecutivePriority()}
       />
@@ -417,7 +479,11 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   )
 }
 
-function ExecutiveBriefPanel({ brief, tracking, onTrack }: { brief: ExecutiveBrief | null; tracking: boolean; onTrack: () => void }) {
+function ExecutiveBriefPanel({ brief, goal, history, savingTarget, onSaveTarget, tracking, onTrack }: {
+  brief: ExecutiveBrief | null; goal: MonthlyGoal | null; history: WeeklyBriefRow[]
+  savingTarget: boolean; onSaveTarget: (amount: number) => void
+  tracking: boolean; onTrack: () => void
+}) {
   const periodLabel = brief?.period.start && brief.period.end
     ? `${new Date(`${brief.period.start}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })} – ${new Date(`${brief.period.end}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' })}`
     : 'آخر أسبوع مكتمل في البيانات'
@@ -466,9 +532,44 @@ function ExecutiveBriefPanel({ brief, tracking, onTrack }: { brief: ExecutiveBri
           </div>
         </article>
       </div>
+      <OperatingCycle goal={goal} history={history} savingTarget={savingTarget} onSaveTarget={onSaveTarget} />
       <p className="db-executive-note">آخر يوم بيانات: {brief.data_as_of ? new Date(`${brief.data_as_of}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : 'غير متاح'}. الاستقطاعات المعروضة مؤكدة من حقول الطلب؛ صافي الربح لا يظهر قبل اكتمال تكاليف 80% من المنتجات المباعة.</p>
     </>}
   </section>
+}
+
+const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
+  not_set: 'لم يحدد هدف', ahead: 'متقدم على المسار', on_track: 'على المسار', behind: 'متأخر عن المسار',
+}
+
+function OperatingCycle({ goal, history, savingTarget, onSaveTarget }: {
+  goal: MonthlyGoal | null; history: WeeklyBriefRow[]; savingTarget: boolean; onSaveTarget: (amount: number) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const status = goal?.status || 'not_set'
+  const target = Number(goal?.target_amount || 0)
+  const attainment = Math.max(0, Math.min(100, Number(goal?.attainment_pct || 0)))
+  const monthLabel = goal ? new Date(goal.year, goal.month - 1, 1).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' }) : 'الشهر الحالي'
+
+  return <div className="db-cycle">
+    <article className="db-cycle-goal">
+      <header><div><h3>هدف المبيعات · {monthLabel}</h3><p>يقارن الإنجاز الفعلي بنسبة الوقت المنقضي من الشهر.</p></div><span className={`db-goal-status db-goal-status--${status}`}>{GOAL_STATUS_LABEL[status]}</span></header>
+      {target > 0 && goal ? <>
+        <div className="db-goal-numbers"><div><small>المبيعات حتى اليوم</small><strong>{money(goal.actual_sales, 2)}</strong></div><div><small>الهدف</small><strong>{money(target, 2)}</strong></div><div><small>التوقع بنهاية الشهر</small><strong>{goal.is_reliable ? money(goal.projected_sales, 2) : 'استرشادي فقط'}</strong></div></div>
+        <div className="db-goal-progress"><div><i style={{ width: `${attainment}%` }} /><b style={{ right: `${Math.max(0, Math.min(100, goal.calendar_pace_pct))}%` }} /></div><span>الإنجاز {percent(goal.attainment_pct || 0, 1)}</span><span>المسار الزمني {percent(goal.calendar_pace_pct, 1)}</span></div>
+        <p className="db-goal-guidance">{status === 'behind' ? `الفجوة ${money(goal.gap_amount || 0, 2)}؛ تحتاج متوسط ${money(goal.required_daily_sales || 0, 2)} يوميًا خلال ${goal.days_remaining.toLocaleString('ar-SA-u-nu-latn')} يومًا.` : status === 'ahead' ? 'الأداء أعلى من المسار الزمني الحالي. راقب الربحية والمخزون قبل زيادة الإنفاق.' : 'الأداء قريب من المسار المطلوب. استمر في المتابعة الأسبوعية.'}</p>
+      </> : <div className="db-goal-empty"><strong>حدد هدفًا شهريًا قابلًا للقياس</strong><p>سيحسب النظام الفجوة والمبيعات اليومية المطلوبة والانحراف عن المسار.</p></div>}
+      <form className="db-goal-form" onSubmit={event => { event.preventDefault(); onSaveTarget(Number(draft || target)) }}><label htmlFor="monthly-sales-target">{target > 0 ? 'تعديل الهدف' : 'الهدف الشهري'}</label><div><input id="monthly-sales-target" inputMode="decimal" type="number" min="1" max="1000000000" step="0.01" value={draft} onChange={event => setDraft(event.target.value)} placeholder={target ? target.toFixed(2) : 'مثال: 50000'} /><span>ر.س</span><button disabled={savingTarget || (!draft && !target)}>{savingTarget ? 'جارٍ الحفظ' : 'حفظ الهدف'}</button></div></form>
+    </article>
+
+    <article className="db-cycle-history">
+      <header><div><h3>سجل المتابعة الأسبوعية</h3><p>يحفظ النظام آخر قراءة متاحة لكل أسبوع عند فتح مركز القرارات.</p></div><span>{history.length === 1 ? 'أسبوع واحد' : `${history.length.toLocaleString('ar-SA-u-nu-latn')} أسابيع`}</span></header>
+      {history.length ? <div className="db-week-list">{history.map(row => {
+        const rowProgress = Math.max(0, Math.min(100, Number(row.target_attainment_pct || 0)))
+        return <div className="db-week-row" key={row.id}><span><strong>{new Date(`${row.week_start}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })} – {new Date(`${row.week_end}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })}</strong><small>البيانات حتى {new Date(`${row.source_data_as_of}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })}</small></span><b>{money(row.actual_sales, 2)}</b><span className={`db-goal-status db-goal-status--${row.target_status}`}>{GOAL_STATUS_LABEL[row.target_status]}</span><div><i style={{ width: `${rowProgress}%` }} /></div></div>
+      })}</div> : <div className="db-week-empty">سيظهر أول تقرير أسبوعي بعد توفر طلبات قابلة للتحليل.</div>}
+    </article>
+  </div>
 }
 
 function ExecutiveMetric({ label, value, delta = null, inverse = false, note }: { label: string; value: string; delta?: number | null; inverse?: boolean; note: string }) {
