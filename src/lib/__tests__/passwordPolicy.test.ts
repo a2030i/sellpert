@@ -6,12 +6,13 @@ describe('password policy', () => {
     expect(isStrongPassword('short1')).toBe(false)
     expect(isStrongPassword('longpassword')).toBe(false)
     expect(isStrongPassword('1234567890')).toBe(false)
+    expect(isStrongPassword('password123')).toBe(false)
     expect(isStrongPassword('متجرآمن1234')).toBe(true)
   })
 
   it('returns each requirement for the recovery UI', () => {
     const checks = passwordChecks('SecureStore42')
-    expect(checks).toHaveLength(3)
+    expect(checks).toHaveLength(4)
     expect(checks.every(check => check.passed)).toBe(true)
   })
 })

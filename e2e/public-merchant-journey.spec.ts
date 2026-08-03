@@ -43,6 +43,19 @@ test('merchant can understand and navigate the complete public entry journey', a
   await expect(page.getByLabel('تأكيد كلمة المرور')).toBeVisible()
   await expect(page.getByRole('button', { name: 'إنشاء المتجر والبدء' })).toBeVisible()
 
+  await page.route('**/auth/v1/signup', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { id: 'signup-e2e', email: 'new@example.test' }, session: null }),
+  }))
+  await page.getByLabel('اسم المتجر').fill('متجر جديد')
+  await page.getByLabel('البريد الإلكتروني').fill('new@example.test')
+  await page.getByLabel('كلمة المرور', { exact: true }).fill('SafeMerchant42')
+  await page.getByLabel('تأكيد كلمة المرور').fill('SafeMerchant42')
+  await page.getByRole('button', { name: 'إنشاء المتجر والبدء' }).click()
+  await expect(page.getByText('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /إعادة المحاولة بعد/ })).toBeDisabled()
+
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first().click()
   await page.getByRole('button', { name: 'نسيت كلمة المرور؟' }).click()
   await expect(page.getByText(/أدخل بريدك الإلكتروني أولًا/)).toBeVisible()

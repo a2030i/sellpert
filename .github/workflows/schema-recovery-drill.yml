@@ -1,0 +1,44 @@
+name: Schema recovery drill
+
+on:
+  schedule:
+    - cron: '20 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+      - name: Rebuild an isolated database from every migration
+        run: supabase start
+      - name: Run tenant and authorization invariants
+        run: bash scripts/run-database-tests.sh
+      - name: Produce portable schema and fixture-data dumps
+        run: |
+          mkdir -p recovery-artifacts
+          supabase db dump --local --schema public,security -f recovery-artifacts/schema.sql
+          supabase db dump --local --data-only --schema public --use-copy -f recovery-artifacts/data.sql
+          test -s recovery-artifacts/schema.sql
+          test -s recovery-artifacts/data.sql
+          grep -q "CREATE TABLE public.merchants" recovery-artifacts/schema.sql
+          grep -q "CREATE TABLE public.orders" recovery-artifacts/schema.sql
+          sha256sum recovery-artifacts/schema.sql recovery-artifacts/data.sql > recovery-artifacts/SHA256SUMS
+      - name: Destroy and reconstruct the isolated database again
+        run: |
+          supabase db reset --local
+          bash scripts/run-database-tests.sh
+      - name: Retain recovery evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: schema-recovery-evidence-${{ github.run_number }}
+          path: recovery-artifacts/
+          retention-days: 30
+          if-no-files-found: error

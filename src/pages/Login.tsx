@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { isStrongPassword, passwordChecks } from '../lib/passwordPolicy'
 import { registrationErrorMessage } from '../lib/authErrors'
+import { authCooldownRemaining, startAuthCooldown } from '../lib/authCooldown'
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -17,6 +18,17 @@ export default function Login() {
   const [success, setSuccess] = useState(() => new URLSearchParams(window.location.search).get('mfa') === 'recovered'
     ? 'تم استرداد الوصول وإيقاف التحقق بخطوتين. سجّل الدخول ثم فعّله من جديد واحفظ الرموز الجديدة.'
     : '')
+  const [registerCooldown, setRegisterCooldown] = useState(() => authCooldownRemaining(window.localStorage, 'register'))
+  const [recoverCooldown, setRecoverCooldown] = useState(() => authCooldownRemaining(window.localStorage, 'recover'))
+
+  useEffect(() => {
+    const refresh = () => {
+      setRegisterCooldown(authCooldownRemaining(window.localStorage, 'register'))
+      setRecoverCooldown(authCooldownRemaining(window.localStorage, 'recover'))
+    }
+    const timer = window.setInterval(refresh, 1_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   async function handleLogin() {
     setLoading(true)
@@ -36,6 +48,14 @@ export default function Login() {
       setError('كلمتا المرور غير متطابقتين')
       return
     }
+    const remaining = authCooldownRemaining(window.localStorage, 'register')
+    if (remaining > 0) {
+      setRegisterCooldown(remaining)
+      setError(`انتظر ${remaining} ثانية قبل إعادة محاولة إنشاء المتجر.`)
+      return
+    }
+    startAuthCooldown(window.localStorage, 'register')
+    setRegisterCooldown(60)
     setLoading(true)
     setError('')
     setSuccess('')
@@ -61,6 +81,14 @@ export default function Login() {
       setError('أدخل بريدك الإلكتروني أولًا لاستعادة كلمة المرور')
       return
     }
+    const remaining = authCooldownRemaining(window.localStorage, 'recover')
+    if (remaining > 0) {
+      setRecoverCooldown(remaining)
+      setError(`انتظر ${remaining} ثانية قبل طلب رابط استعادة جديد.`)
+      return
+    }
+    startAuthCooldown(window.localStorage, 'recover')
+    setRecoverCooldown(60)
     setLoading(true)
     setError('')
     setSuccess('')
@@ -159,7 +187,9 @@ export default function Login() {
         </>}
 
         {mode === 'login' && (
-          <button type="button" onClick={handleForgotPassword} disabled={loading} style={styles.forgot}>نسيت كلمة المرور؟</button>
+          <button type="button" onClick={handleForgotPassword} disabled={loading || recoverCooldown > 0} style={{ ...styles.forgot, opacity: recoverCooldown > 0 ? .55 : 1 }}>
+            {recoverCooldown > 0 ? `يمكن طلب رابط جديد بعد ${recoverCooldown} ث` : 'نسيت كلمة المرور؟'}
+          </button>
         )}
 
         {error && <div style={styles.error}>{error}</div>}
@@ -168,9 +198,15 @@ export default function Login() {
         <button
           style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}
           onClick={mode === 'login' ? handleLogin : handleRegister}
-          disabled={loading}
+          disabled={loading || (mode === 'register' && registerCooldown > 0)}
         >
-          {loading ? 'جاري التنفيذ...' : mode === 'login' ? 'تسجيل الدخول' : 'إنشاء المتجر والبدء'}
+          {loading
+            ? 'جاري التنفيذ...'
+            : mode === 'login'
+              ? 'تسجيل الدخول'
+              : registerCooldown > 0
+                ? `إعادة المحاولة بعد ${registerCooldown} ث`
+                : 'إنشاء المتجر والبدء'}
         </button>
 
         <p style={styles.footer}>
