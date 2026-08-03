@@ -19,7 +19,7 @@ import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity,
+  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -47,6 +47,7 @@ const Help = lazy(() => import('./pages/Help'))
 const QuickInventory = lazy(() => import('./pages/QuickInventory'))
 const Team = lazy(() => import('./pages/Team'))
 const StoreStatus = lazy(() => import('./pages/StoreStatus'))
+const StoreActivity = lazy(() => import('./pages/StoreActivity'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -55,9 +56,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -78,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
   ]},
   { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
     { Icon: Activity, label: 'حالة المتجر', key: 'store-status', permission: 'integrations' },
+    { Icon: History, label: 'سجل النشاط', key: 'activity', permission: 'settings' },
     { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations', permission: 'integrations' },
     { Icon: Users, label: 'الفريق والصلاحيات', key: 'team', permission: 'team' },
     { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings', permission: 'settings' },
@@ -112,6 +114,7 @@ const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
   statement: 'statement',
   integrations: 'integrations',
   'store-status': 'integrations',
+  activity: 'settings',
   team: 'team',
   settings: 'settings',
 }
@@ -585,6 +588,7 @@ export default function App() {
           {view === 'statement'    && <Statement    merchant={activeMerchant} />}
           {view === 'integrations' && <Integrations merchant={activeMerchant} />}
           {view === 'store-status' && <StoreStatus merchant={activeMerchant} />}
+          {view === 'activity' && <StoreActivity merchant={activeMerchant} />}
           {view === 'marketing'    && <Marketing    merchant={activeMerchant} />}
           {view === 'notifications'&& <Notifications merchant={activeMerchant} />}
           {view === 'product-detail'  && <ProductDetail  merchant={activeMerchant} />}
