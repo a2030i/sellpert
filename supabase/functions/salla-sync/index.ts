@@ -14,6 +14,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getSettings } from '../_shared/getSettings.ts'
+import { authorizeMerchantSync } from '../_shared/sync.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -26,12 +27,14 @@ const cors = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return json({ ok: true }, 200)
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
   try {
     const { merchant_code, job_type, payload: jobPayload } = await req.json()
     if (!merchant_code || !job_type) return json({ error: 'merchant_code and job_type required' }, 400)
+    await authorizeMerchantSync(req, admin, SERVICE_KEY, String(merchant_code))
 
     // ── GUARD: Check administrative account access ──────────────────────────
     const { data: merchant } = await admin

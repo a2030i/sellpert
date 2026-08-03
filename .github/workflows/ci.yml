@@ -45,3 +45,15 @@ jobs:
         run: supabase start
       - name: Run tenant isolation and authorization tests
         run: bash scripts/run-database-tests.sh
+
+  edge-functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check every Supabase Edge Function
+        run: deno check supabase/functions/*/index.ts
+      - name: Test shared Edge Function security utilities
+        run: deno test supabase/functions/_shared/*.test.ts

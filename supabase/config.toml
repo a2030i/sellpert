@@ -3,3 +3,37 @@ project_id = "sellpert"
 [db]
 major_version = 17
 
+# Provider callbacks cannot present a Supabase user JWT. Each endpoint performs
+# its own fail-closed signature/state validation before using service access.
+# Keeping these exceptions in version control prevents deployment drift.
+[functions.trendyol-webhook]
+verify_jwt = false
+
+[functions.salla-webhook]
+verify_jwt = false
+
+[functions.salla-oauth-callback]
+verify_jwt = false
+
+[functions.respondly-webhook]
+verify_jwt = false
+
+# Browser OAuth starts with a user token but provider callbacks return without
+# one; the function validates a single-use, expiring state record instead.
+[functions.marketplace-oauth]
+verify_jwt = false
+
+# Scheduled functions authenticate with dedicated internal credentials inside
+# their handlers because pg_cron cannot rely on an end-user JWT.
+[functions.queue-worker]
+verify_jwt = false
+
+[functions.daily-report]
+verify_jwt = false
+
+# All direct merchant and staff operations remain behind the Supabase gateway.
+[functions.salla-sync]
+verify_jwt = true
+
+[functions.impersonate-merchant]
+verify_jwt = true

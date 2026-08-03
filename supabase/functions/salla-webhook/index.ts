@@ -16,6 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getSettings } from '../_shared/getSettings.ts'
+import { stableWebhookEventKey } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -54,28 +55,31 @@ Deno.serve(async (req) => {
   }
   const event    = payload.event    || payload.type || ''
   const storeId  = String(payload.merchant?.id || payload.store_id || '')
-  const eventId  = String(payload.id || crypto.randomUUID())
+  const providerEventId = String(payload.id || payload.event_id || '')
+  const eventKey = await stableWebhookEventKey('salla', providerEventId, rawBody)
 
   // Log the event first (idempotency: skip if already processed)
   const { data: existing } = await admin
     .from('webhook_events')
     .select('id, status')
-    .eq('id', eventId)
+    .eq('source', 'salla')
+    .eq('event_key', eventKey)
     .maybeSingle()
 
   if (existing?.status === 'processed') {
     return json({ ok: true, skipped: true })
   }
 
-  await admin.from('webhook_events').upsert({
-    id:         eventId,
+  const { error: eventError } = await admin.from('webhook_events').upsert({
     source:     'salla',
+    event_key:  eventKey,
     event_type: event,
     store_id:   storeId,
     payload:    payload,
     status:     'received',
     received_at: new Date().toISOString(),
-  }).catch(() => {})
+  }, { onConflict: 'source,event_key' })
+  if (eventError) return json({ error: 'Unable to record webhook event' }, 500)
 
   // Find merchant_code from salla_store_id
   const { data: conn } = await admin
@@ -94,7 +98,7 @@ Deno.serve(async (req) => {
       status:       'processed',
       merchant_code: merchantCode,
       processed_at: new Date().toISOString(),
-    }).eq('id', eventId)
+    }).eq('source', 'salla').eq('event_key', eventKey)
 
     return json({ ok: true })
 
@@ -103,7 +107,8 @@ Deno.serve(async (req) => {
     await admin.from('webhook_events').update({
       status: 'failed',
       error:  e.message,
-    }).eq('id', eventId)
+      processed_at: new Date().toISOString(),
+    }).eq('source', 'salla').eq('event_key', eventKey)
     return json({ ok: false, error: e.message }, 500)
   }
 })

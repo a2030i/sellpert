@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { authorizeInternalWorker } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -17,16 +18,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return ok({ skipped: true })
 
   const bearerToken = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
-  const apiKeyToken = req.headers.get('apikey') || ''
+  const queueSecret = req.headers.get('x-queue-secret') || ''
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
-  const { data: anonSetting } = await admin.from('app_settings').select('value')
-    .eq('key', 'SUPABASE_ANON_KEY').maybeSingle()
-  const configuredAnonKey = String(anonSetting?.value || '')
-  // Cron uses the project's signed anon JWT; direct internal calls use service_role.
-  // pg_net may preserve apikey while normalizing Authorization, so validate both.
-  const authorized = [bearerToken, apiKeyToken].some(token =>
-    token === SERVICE_KEY || (configuredAnonKey.length > 0 && token === configuredAnonKey)
-  )
+  const { data: secretSetting } = await admin.from('app_settings').select('value')
+    .eq('key', 'QUEUE_WORKER_SECRET').maybeSingle()
+  const configuredSecret = String(secretSetting?.value || '')
+  // The anon key is intentionally not authorization: it is public in every
+  // browser client. Cron uses a dedicated random secret; internal jobs may use
+  // the service-role token.
+  const authorized = authorizeInternalWorker(bearerToken, queueSecret, SERVICE_KEY, configuredSecret)
   if (!authorized) return ok({ ok: false, error: 'Unauthorized' }, 401)
 
   const startedAt = Date.now()
