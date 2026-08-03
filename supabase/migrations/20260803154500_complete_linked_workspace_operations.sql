@@ -56,7 +56,10 @@ BEGIN
   ELSIF position(old_guard in function_definition) > 0 THEN
     updated_definition := replace(function_definition, old_guard, new_guard);
     EXECUTE updated_definition;
-  ELSIF position(new_guard in function_definition) = 0 THEN
+  ELSIF position(
+    'security.has_merchant_permission(p_merchant_code, ''integrations'')'
+    in function_definition
+  ) = 0 THEN
     RAISE EXCEPTION 'expected rebuild authorization guard not found';
   END IF;
 END
