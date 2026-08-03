@@ -83,10 +83,10 @@ declare
   target_id uuid;
 begin
   health := public.get_db_health();
-  if (health #>> '{client_incident_stats,open}')::integer <> 2 then
+  if (health #>> '{client_incident_stats,open}')::integer is distinct from 2 then
     raise exception 'health payload did not aggregate open client incidents: %', health -> 'client_incident_stats';
   end if;
-  if jsonb_array_length(health -> 'recent_client_incidents') <> 2 then
+  if jsonb_array_length(health -> 'recent_client_incidents') is distinct from 2 then
     raise exception 'health payload did not expose safe incident summaries';
   end if;
 
@@ -103,7 +103,7 @@ begin
   end if;
 
   health := public.get_db_health();
-  if (health #>> '{client_incident_stats,open}')::integer <> 1 then
+  if (health #>> '{client_incident_stats,open}')::integer is distinct from 1 then
     raise exception 'resolved incident remained open';
   end if;
 end
