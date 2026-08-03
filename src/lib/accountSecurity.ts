@@ -7,6 +7,23 @@ export type CurrentSessionSummary = {
   authenticationLevel: 'standard' | 'verified'
 }
 
+export type AssuranceLevelState = {
+  currentLevel?: string | null
+  nextLevel?: string | null
+}
+
+export function requiresMfaChallenge(state: AssuranceLevelState | null | undefined) {
+  return state?.nextLevel === 'aal2' && state.currentLevel !== 'aal2'
+}
+
+export function normalizeAuthenticatorCode(value: string) {
+  return value.replace(/\D/g, '').slice(0, 6)
+}
+
+export function normalizeRecoveryCode(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
+}
+
 export function summarizeCurrentSession(session: Session | null, user?: User | null): CurrentSessionSummary | null {
   if (!session) return null
   const aal = readJwtClaim(session.access_token, 'aal')

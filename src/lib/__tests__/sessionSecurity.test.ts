@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeBrowser, summarizeCurrentSession } from '../accountSecurity'
+import { describeBrowser, normalizeAuthenticatorCode, normalizeRecoveryCode, requiresMfaChallenge, summarizeCurrentSession } from '../accountSecurity'
 
 function token(payload: Record<string, unknown>) {
   return `x.${btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.x`
@@ -24,5 +24,16 @@ describe('session security helpers', () => {
   it('describes common browsers in merchant-friendly language', () => {
     expect(describeBrowser('Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36')).toBe('Google Chrome على Windows')
     expect(describeBrowser('Mozilla/5.0 (iPhone) Version/17 Safari/605.1')).toBe('Safari على iOS')
+  })
+
+  it('requires a second factor only when the session can reach aal2 but has not yet done so', () => {
+    expect(requiresMfaChallenge({ currentLevel: 'aal1', nextLevel: 'aal2' })).toBe(true)
+    expect(requiresMfaChallenge({ currentLevel: 'aal2', nextLevel: 'aal2' })).toBe(false)
+    expect(requiresMfaChallenge({ currentLevel: 'aal1', nextLevel: 'aal1' })).toBe(false)
+  })
+
+  it('normalizes authenticator and recovery codes before submission', () => {
+    expect(normalizeAuthenticatorCode('12 34-567')).toBe('123456')
+    expect(normalizeRecoveryCode('ab12-cd34 ef56-gh78 extra')).toBe('AB12CD34EF56GH78')
   })
 })

@@ -14,6 +14,7 @@ import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import NPSWidget from './components/NPSWidget'
 import AccountAccessState from './components/AccountAccessState'
+import MfaChallenge from './components/MfaChallenge'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import {
@@ -25,6 +26,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
+import { requiresMfaChallenge } from './lib/accountSecurity'
 
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
@@ -236,6 +238,7 @@ export default function App() {
   const [merchant, setMerchant]             = useState<Merchant | null>(null)
   const [merchantLoadError, setMerchantLoadError] = useState('')
   const [loading, setLoading]               = useState(true)
+  const [mfaRequired, setMfaRequired]       = useState(false)
   const [view, setView]                     = useState<View>(readView)
   const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -272,8 +275,7 @@ export default function App() {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ data, error }) => {
         if (!error && data.session) {
           if (type === 'recovery') setShowPasswordRecovery(true)
-          setSession(data.session)
-          fetchMerchant(data.session.user.id)
+          continueAuthenticatedSession(data.session, type === 'recovery')
         } else {
           setLoading(false)
         }
@@ -282,8 +284,7 @@ export default function App() {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (session) fetchMerchant(session.user.id)
+      if (session) continueAuthenticatedSession(session)
       else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -309,10 +310,9 @@ export default function App() {
         setSession(null); setMerchant(null); setLoading(false)
         return
       }
-      // SIGNED_IN, PASSWORD_RECOVERY
+      // SIGNED_IN, PASSWORD_RECOVERY and MFA_CHALLENGE_VERIFIED
       explicitSignOut.current = false
-      setSession(session)
-      if (session) fetchMerchant(session.user.id)
+      if (session) continueAuthenticatedSession(session, event === 'PASSWORD_RECOVERY')
       else { setMerchant(null); setLoading(false) }
     })
     const onPopState = () => setView(readView())
@@ -407,6 +407,21 @@ export default function App() {
     if (resolved && !resolved.onboarding_done && resolved.role === 'merchant') setShowOnboarding(true)
   }
 
+  async function continueAuthenticatedSession(nextSession: Session, skipMfa = false) {
+    setSession(nextSession)
+    if (!skipMfa) {
+      const { data: assurance, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(nextSession.access_token)
+      if (!error && requiresMfaChallenge(assurance)) {
+        setMerchant(null)
+        setMfaRequired(true)
+        setLoading(false)
+        return
+      }
+    }
+    setMfaRequired(false)
+    await fetchMerchant(nextSession.user.id)
+  }
+
   function goTo(v: View) {
     if (!canAccessMerchantView(activeMerchant, v)) {
       toastErr('ليس لديك صلاحية لفتح هذا القسم')
@@ -422,6 +437,7 @@ export default function App() {
     setSession(null)
     setMerchant(null)
     setImpersonating(null)
+    setMfaRequired(false)
     setShowOnboarding(false)
     setView('dashboard')
     window.history.replaceState(null, '', '/')
@@ -445,7 +461,17 @@ export default function App() {
   )
 
   if (!session) return <Login />
-  if (showPasswordRecovery) return <PasswordRecovery onComplete={() => setShowPasswordRecovery(false)} />
+  if (showPasswordRecovery) return <PasswordRecovery onComplete={async () => {
+    setShowPasswordRecovery(false)
+    setLoading(true)
+    const { data } = await supabase.auth.getSession()
+    if (data.session) await continueAuthenticatedSession(data.session)
+    else setLoading(false)
+  }} />
+  if (mfaRequired) return <MfaChallenge onVerified={verifiedSession => {
+    setLoading(true)
+    continueAuthenticatedSession(verifiedSession)
+  }} onSignOut={signOut} />
   if (!merchant) return (
     <AccountAccessState
       state="missing"

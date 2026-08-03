@@ -27,6 +27,7 @@ export const ACTIVITY_ENTITIES: Record<string, string> = {
   merchant_requests: 'طلبات المتجر',
   payment_requests: 'التحويلات',
   account_closure_requests: 'دورة حياة الحساب',
+  auth_security: 'أمان الحساب',
   operational_record: 'سجل تشغيلي',
 }
 
@@ -35,6 +36,10 @@ export const ACTIVITY_ACTIONS: Record<string, string> = {
   account_closure_requested: 'طلب إغلاق الحساب',
   account_closure_cancelled: 'إلغاء إغلاق الحساب',
   account_closure_completed: 'إغلاق الحساب',
+  mfa_enabled: 'تفعيل التحقق بخطوتين',
+  mfa_disabled: 'إيقاف التحقق بخطوتين',
+  mfa_recovery_codes_regenerated: 'إنشاء رموز استرداد جديدة',
+  mfa_recovered: 'استرداد الوصول للحساب',
 }
 
 export function activitySummary(entry: ActivityEntry) {

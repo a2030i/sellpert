@@ -14,7 +14,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [success, setSuccess] = useState(() => new URLSearchParams(window.location.search).get('mfa') === 'recovered'
+    ? 'تم استرداد الوصول وإيقاف التحقق بخطوتين. سجّل الدخول ثم فعّله من جديد واحفظ الرموز الجديدة.'
+    : '')
 
   async function handleLogin() {
     setLoading(true)
