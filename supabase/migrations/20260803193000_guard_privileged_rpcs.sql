@@ -82,7 +82,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF NOT public.is_staff() THEN
+  IF NOT security.has_platform_permission('view_db_health') THEN
     RAISE EXCEPTION 'forbidden' USING errcode = '42501';
   END IF;
   RETURN public.get_db_health_internal();
