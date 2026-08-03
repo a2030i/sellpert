@@ -43,7 +43,7 @@ test('merchant can understand and navigate the complete public entry journey', a
   await expect(page.getByLabel('تأكيد كلمة المرور')).toBeVisible()
   await expect(page.getByRole('button', { name: 'إنشاء المتجر والبدء' })).toBeVisible()
 
-  await page.route('**/auth/v1/signup', route => route.fulfill({
+  await page.route('**/auth/v1/signup**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ user: { id: 'signup-e2e', email: 'new@example.test' }, session: null }),
