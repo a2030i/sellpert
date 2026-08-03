@@ -51,7 +51,7 @@ export async function authorizeMerchantSync(
   const { data: link } = await admin
     .from('merchant_account_links')
     .select('id')
-    .eq('email', user.email)
+    .eq('user_id', user.id)
     .eq('merchant_code', merchantCode)
     .maybeSingle()
 

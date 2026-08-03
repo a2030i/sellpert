@@ -36,6 +36,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       const { data: { publicUrl } } = supabase.storage.from('merchant-assets').getPublicUrl(path)
       const { error: dbErr } = await supabase.rpc('update_my_store_profile', {
         p_logo_url: publicUrl,
+        p_merchant_code: merchant!.merchant_code,
       })
       if (dbErr) throw dbErr
 
@@ -54,6 +55,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       const { data: updated, error } = await supabase.rpc('update_my_store_profile', {
         p_name: name.trim(),
         p_whatsapp_phone: phone.trim(),
+        p_merchant_code: merchant!.merchant_code,
       })
       if (error) throw error
       onUpdate({ ...merchant!, ...(updated as Partial<Merchant>) })
