@@ -519,7 +519,7 @@ export default function App() {
 
       {/* ── Desktop Sidebar ── */}
       {!isMobile && (
-        <aside className="sidebar-dark" style={{ ...S.sidebar, top: impersonating ? BANNER_H : 0 }}>
+        <aside className="app-sidebar sidebar-dark" style={{ ...S.sidebar, top: impersonating ? BANNER_H : 0 }}>
           {/* Logo */}
           <div style={S.sidebarTop}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -559,7 +559,7 @@ export default function App() {
                 paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
                 borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
               }}>
-                <button type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.7, cursor: 'pointer', textAlign: 'right' }}>
+                <button className="sidebar-group-label" type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.7, cursor: 'pointer', textAlign: 'right' }}>
                   <span style={{ flex: 1 }}>{group.label}</span>
                   <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                 </button>
@@ -596,7 +596,7 @@ export default function App() {
                   : <div style={S.merchantAvatar}>{activeMerchant.name?.[0] || 'T'}</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f7fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
+                  <div className="sidebar-account-name" style={{ fontSize: 13, fontWeight: 600, color: '#f1f7fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeMerchant.name}</div>
                   <div className="sidebar-account-caption" style={{ color: '#9db1bd', marginTop: 3 }}>{activeMerchant.role === 'employee' ? 'عضو فريق' : 'حساب المتجر'}</div>
                 </div>
               </div>

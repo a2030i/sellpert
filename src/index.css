@@ -51,13 +51,13 @@
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
-  --font-body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-heading: 'Alexandria', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
-  --font-data: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
-  --t-micro:12.5px; --t-cap:13.5px; --t-label:14px; --t-sm:15px; --t-base:15.5px; --t-title:20px; --t-h2:24px; --t-hero:32px;
+  --font-body: 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-heading: 'Alexandria', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font-data: 'IBM Plex Sans', 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --t-micro:12px; --t-cap:13px; --t-label:14px; --t-sm:15px; --t-base:16px; --t-title:20px; --t-h2:24px; --t-hero:32px;
   --w-regular:400; --w-medium:500; --w-bold:600; --w-heavy:700;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-7:32px; --s-8:40px;
-  --lh-base:1.78; --lh-tight:1.45;
+  --lh-base:1.75; --lh-tight:1.5;
 
   --radius:    16px;
   --radius-sm: 10px;
@@ -188,14 +188,13 @@ body.ltr {
 
 /*
  * النظام الطباعي المؤسسي:
- * IBM Plex Sans Arabic لكل الواجهة حتى تبقى العربية والإنجليزية والأرقام
- * متجانسة. الاختلاف بين العناوين والمحتوى يأتي من الوزن والحجم، لا من مزج
- * عائلتين تختلفان في ارتفاع السطر وبنية الحروف.
+ * Alexandria للعناوين، Noto Sans Arabic للمحتوى، وIBM Plex Sans للأرقام
+ * والمعرّفات. الأدوار منفصلة حتى تبقى الواجهة رسمية ومقروءة في الجداول.
  */
 :where(h1, h2) {
   font-family: var(--font-heading) !important;
   font-weight: 700 !important;
-  line-height: 1.45;
+  line-height: 1.5;
   letter-spacing: 0;
   text-wrap: balance;
 }
@@ -203,7 +202,7 @@ body.ltr {
 :where(h3, h4, h5, h6) {
   font-family: var(--font-heading) !important;
   font-weight: 600 !important;
-  line-height: 1.55;
+  line-height: 1.6;
   letter-spacing: 0;
 }
 
@@ -222,9 +221,9 @@ main h4 { font-size: 15px; font-weight: 600; }
 body p { font-size: var(--t-sm); }
 body small { font-size: var(--t-cap); line-height: 1.65; }
 body label { font-size: var(--t-label); font-weight: 600; }
-body table { font-size: var(--t-label); line-height: 1.65; }
-table th { font-size: var(--t-label); font-weight: 600; line-height: 1.65; }
-table td { font-size: var(--t-label); line-height: 1.75; }
+body table { font-size: var(--t-label); line-height: 1.7; }
+table th { font-size: var(--t-cap); font-weight: 700; line-height: 1.65; }
+table td { font-size: var(--t-label); line-height: 1.7; }
 input, select, textarea { font-size: var(--t-sm); font-weight: 400; }
 button { font-size: var(--t-label); font-weight: 600; }
 
@@ -502,24 +501,25 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   font-family: var(--font-body) !important;
 }
 
-.sidebar-dark nav > div > button {
-  font-family: var(--font-body) !important;
-  font-size: 13px !important;
+.app-sidebar .sidebar-group-label {
+  font-family: var(--font-heading) !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
-  line-height: 1.7 !important;
+  line-height: 1.65 !important;
   letter-spacing: 0 !important;
 }
 
-.sidebar-dark .nav-item {
+.app-sidebar .nav-item {
   border-radius: 7px;
   margin-inline: 10px;
   font-family: var(--font-body) !important;
-  font-size: 14.25px !important;
-  font-weight: 500 !important;
-  line-height: 1.75 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
+  min-height: 42px;
 }
 
-.sidebar-dark .nav-item.active {
+.app-sidebar .nav-item.active {
   background: rgba(15,149,140,0.20);
   color: #d9fffb;
   font-weight: 600 !important;
@@ -541,8 +541,14 @@ main :where(.page-title, [class*="-header"] h1, [class*="-header"] h2) {
 
 .sidebar-dark .sidebar-brand-caption,
 .sidebar-dark .sidebar-account-caption {
-  font-size: 12.5px !important;
+  font-size: 12px !important;
   line-height: 1.65 !important;
+}
+
+.app-sidebar .sidebar-account-name {
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
 }
 
 @media (min-width: 769px) {
@@ -570,6 +576,19 @@ main :where(code, kbd, samp, .tabular-nums, [style*="monospace"]) {
 
 main :where(.card, article, section, dialog) :where(p, li) {
   line-height: 1.75;
+}
+
+/* Keep legacy inline styles aligned with the formal typography system. */
+main :where([style*="fontWeight: 800"], [style*="font-weight: 800"], [style*="font-weight:800"]) {
+  font-weight: 700 !important;
+}
+
+main :where(h1, h2, h3, h4, .page-title, .app-section-title) {
+  text-wrap: balance;
+}
+
+main :where(p, li, td, th, label, button, input, select, textarea) {
+  letter-spacing: 0;
 }
 
 @media (max-width: 768px) {

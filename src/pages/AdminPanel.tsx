@@ -428,12 +428,12 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
 
       {/* ── SIDEBAR (desktop) ── */}
       {!isMobile && (
-        <aside className="sidebar-dark" style={S.sidebar}>
+        <aside className="app-sidebar sidebar-dark" style={S.sidebar}>
           <div style={S.sidebarLogo}>
             <div style={S.logoIcon}>S</div>
             <div>
-              <div style={S.logoText}>Sellpert</div>
-              <div style={S.logoBadge}>لوحة الإدارة</div>
+              <div className="sidebar-brand-name" style={S.logoText}>Sellpert</div>
+              <div className="sidebar-brand-caption" style={S.logoBadge}>لوحة الإدارة</div>
             </div>
           </div>
 
@@ -444,7 +444,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
               const GIcon = group.Icon
               return (
                 <div key={group.key} style={S.navGroup}>
-                  <button type="button"
+                  <button type="button" className="sidebar-group-label"
                     aria-expanded={isOpen}
                     style={{ ...S.navGroupHeader, color: hasActive ? 'var(--accent)' : 'var(--text3)' }}
                     onClick={() => toggleGroup(group.key)}
@@ -460,6 +460,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
                     return (
                       <button type="button"
                         key={item.key}
+                        className={`nav-item${view === item.key ? ' active' : ''}`}
                         style={{ ...S.navItem, ...(view === item.key ? S.navActive : {}) }}
                         onClick={() => navTo(item.key)}
                       >
@@ -477,7 +478,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <div style={S.adminAvatar}>{adminMerchant?.name?.[0] || 'A'}</div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{adminMerchant?.name || 'مدير النظام'}</div>
+                <div className="sidebar-account-name" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{adminMerchant?.name || 'مدير النظام'}</div>
                 <div style={{ fontSize: 10, color: isManager ? 'var(--accent)' : '#f59e0b', fontWeight: 700 }}>
                   {isManager ? 'مدير' : `موظف · ${visibleNavFlat.length} صلاحية`}
                 </div>
