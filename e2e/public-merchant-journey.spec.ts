@@ -57,6 +57,7 @@ test('merchant can understand and navigate the complete public entry journey', a
   await expect(page.getByRole('button', { name: /إعادة المحاولة بعد/ })).toBeDisabled()
 
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first().click()
+  await page.getByLabel('البريد الإلكتروني').fill('')
   await page.getByRole('button', { name: 'نسيت كلمة المرور؟' }).click()
   await expect(page.getByText(/أدخل بريدك الإلكتروني أولًا/)).toBeVisible()
 
