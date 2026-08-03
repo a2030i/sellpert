@@ -44,12 +44,12 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
       })
       const data = await res.json()
       if (data.error) {
-        setMessages([...newMessages, { role: 'assistant', content: '❌ ' + data.error }])
+        setMessages([...newMessages, { role: 'assistant', content: 'تعذر إكمال الطلب: ' + data.error }])
       } else {
         setMessages([...newMessages, { role: 'assistant', content: data.answer || 'لا إجابة' }])
       }
     } catch (e: any) {
-      setMessages([...newMessages, { role: 'assistant', content: '❌ ' + e.message }])
+      setMessages([...newMessages, { role: 'assistant', content: 'تعذر الاتصال بالمساعد: ' + e.message }])
     }
     setLoading(false)
   }

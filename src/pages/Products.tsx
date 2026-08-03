@@ -8,6 +8,7 @@ import type { Merchant, Product, ProductPlatformPrice, CommissionRate, MerchantR
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
 import { Pagination } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
+import { ArrowRightLeft, Award } from 'lucide-react'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
@@ -1054,7 +1055,7 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🔀 أين يربح كل منتج؟</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowRightLeft size={16} color="var(--accent)" /> أين يربح كل منتج؟</div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>المنتج على أكثر من منصة — الرابح بالربح لا بالإيراد (رسوم أمازون أعلى من نون)</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {data.map((p, i) => {
@@ -1068,8 +1069,8 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
             <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8, alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.product_name}</div>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[bestNet.platform] || '#0f958c') + '20', color: PLATFORM_COLORS[bestNet.platform] || '#0f958c', fontWeight: 800, flexShrink: 0 }}>
-                  🏆 أربح على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: (PLATFORM_COLORS[bestNet.platform] || '#0f958c') + '20', color: PLATFORM_COLORS[bestNet.platform] || '#0f958c', fontWeight: 800, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Award size={12} /> أربح على {PLATFORM_NAMES[bestNet.platform] || bestNet.platform}
                 </span>
               </div>
               {conflict && (

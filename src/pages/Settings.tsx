@@ -41,7 +41,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       if (dbErr) throw dbErr
 
       onUpdate({ ...merchant!, logo_url: publicUrl })
-      setMsg({ type: 'ok', text: '✅ تم رفع اللوغو بنجاح' })
+      setMsg({ type: 'ok', text: 'تم رفع شعار المتجر بنجاح' })
     } catch (e: any) {
       setMsg({ type: 'err', text: e.message })
     }
@@ -59,7 +59,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       })
       if (error) throw error
       onUpdate({ ...merchant!, ...(updated as Partial<Merchant>) })
-      setMsg({ type: 'ok', text: '✅ تم حفظ البيانات' })
+      setMsg({ type: 'ok', text: 'تم حفظ بيانات المتجر بنجاح' })
     } catch (e: any) { setMsg({ type: 'err', text: e.message }) }
     setSaving(false)
   }

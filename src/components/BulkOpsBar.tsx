@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Bell, Pause, Play, X, Send, FileText } from 'lucide-react'
+import { Bell, Pause, Play, X, Send, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 
 interface Props {
@@ -157,7 +157,7 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
             {showModal === 'suspend' && (
               <>
                 <div style={{ background: 'var(--danger-bg)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
-                  ⚠️ سيتم إيقاف الوصول لـ {selected.length} تاجر فوراً
+                  <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} /> سيتم إيقاف الوصول لـ {selected.length} تاجر فوراً
                 </div>
                 <ModalActions onCancel={() => setShowModal(null)} onConfirm={() => bulkSuspend(true)} submitting={submitting} confirmLabel="إيقاف الكل" danger />
               </>
@@ -166,7 +166,7 @@ export default function BulkOpsBar({ selected, onClear, onDone }: Props) {
             {showModal === 'unsuspend' && (
               <>
                 <div style={{ background: 'var(--success-bg)', border: '1px solid rgba(0,184,148,0.3)', borderRadius: 9, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 14 }}>
-                  ✓ سيتم تفعيل الوصول لـ {selected.length} تاجر
+                  <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} /> سيتم تفعيل الوصول لـ {selected.length} تاجر
                 </div>
                 <ModalActions onCancel={() => setShowModal(null)} onConfirm={() => bulkSuspend(false)} submitting={submitting} confirmLabel="تفعيل الكل" />
               </>

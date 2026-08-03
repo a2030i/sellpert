@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Bell, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import { Bell, BellOff, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 import { PLATFORM_MAP } from '../lib/constants'
 
@@ -159,7 +159,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
                     <button onClick={() => toggleActive(a.id, a.is_active)} style={{
                       ...iconBtnStyle, color: a.is_active ? 'var(--accent)' : 'var(--text3)',
                     }} title={a.is_active ? 'إيقاف' : 'تفعيل'}>
-                      {a.is_active ? '🔔' : '🔕'}
+                      {a.is_active ? <Bell size={14} /> : <BellOff size={14} />}
                     </button>
                     <button onClick={() => remove(a.id)} style={{ ...iconBtnStyle, color: 'var(--danger-text)' }}>
                       <Trash2 size={13} />
