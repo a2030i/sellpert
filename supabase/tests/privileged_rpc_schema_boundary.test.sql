@@ -37,11 +37,12 @@ begin
       'derive_returns_from_account_tx', 'derive_returns_from_snapshots',
       'enqueue_daily_salla_sync', 'get_db_health_internal',
       'reactivate_merchant', 'rebuild_performance_data', 'suspend_merchant',
-      'trigger_queue_worker'
+      'trigger_queue_worker', 'report_client_incident',
+      'update_client_incident_status'
     );
 
-  if public_wrappers <> 31 then
-    raise exception 'expected 31 public SECURITY INVOKER wrappers, found %', public_wrappers;
+  if public_wrappers <> 33 then
+    raise exception 'expected 33 public SECURITY INVOKER wrappers, found %', public_wrappers;
   end if;
 
   select count(*) into private_implementations
@@ -62,11 +63,12 @@ begin
       'enqueue_daily_salla_sync', 'get_db_health_internal',
       'handle_self_service_merchant_signup', 'notify_order_whatsapp',
       'reactivate_merchant', 'rebuild_performance_data', 'suspend_merchant',
-      'trigger_queue_worker'
+      'trigger_queue_worker', 'report_client_incident',
+      'update_client_incident_status', 'prune_client_incidents'
     );
 
-  if private_implementations <> 33 then
-    raise exception 'expected 33 private privileged implementations, found %', private_implementations;
+  if private_implementations <> 36 then
+    raise exception 'expected 36 private privileged implementations, found %', private_implementations;
   end if;
 
   select count(*) into auth_wrappers
@@ -78,12 +80,13 @@ begin
       'delete_upload_with_data', 'get_db_health', 'is_admin', 'is_staff',
       'merchant_payouts', 'my_employees', 'my_linked_merchants',
       'my_owner_merchant', 'rebuild_all_derived_data', 'team_dashboard_kpis',
-      'update_employee', 'update_my_store_profile', 'wipe_merchant_data'
+      'update_employee', 'update_my_store_profile', 'wipe_merchant_data',
+      'report_client_incident', 'update_client_incident_status'
     )
     and has_function_privilege('authenticated', p.oid, 'execute')
     and not has_function_privilege('anon', p.oid, 'execute');
 
-  if auth_wrappers <> 16 then
+  if auth_wrappers <> 18 then
     raise exception 'authenticated wrapper grants are incomplete: %', auth_wrappers;
   end if;
 
@@ -157,6 +160,12 @@ begin
   begin
     perform public.update_my_store_profile(null, null, null, 'NO-AUTH');
     raise exception 'unauthorized profile RPC unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    perform public.report_client_incident('render', 'fatal', '/', 'application', null, 'unknown_error', null, 'test');
+    raise exception 'unauthenticated incident reporting unexpectedly succeeded';
   exception when insufficient_privilege then null;
   end;
 

@@ -5,9 +5,11 @@ import './index.css'
 import { applyStoredTheme } from './components/ThemeToggle'
 import { applyStoredAccent } from './lib/theme'
 import AppErrorBoundary from './components/AppErrorBoundary'
+import { installClientIncidentReporting } from './lib/clientIncident'
 
 applyStoredTheme()
 applyStoredAccent()
+installClientIncidentReporting()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

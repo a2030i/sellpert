@@ -3609,6 +3609,23 @@ export type Database = {
         Returns: number
       }
       get_db_health: { Args: never; Returns: Json }
+      report_client_incident: {
+        Args: {
+          p_action?: string
+          p_category: string
+          p_component: string
+          p_error_code?: string
+          p_http_status?: number
+          p_page_path: string
+          p_release?: string
+          p_severity: string
+        }
+        Returns: Json
+      }
+      update_client_incident_status: {
+        Args: { p_incident_id: string; p_status: string }
+        Returns: boolean
+      }
       inventory_turnover: {
         Args: { p_days?: number; p_merchant_code: string }
         Returns: Json

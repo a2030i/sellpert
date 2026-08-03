@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { reportClientIncident } from '../lib/clientIncident'
 
 interface Props {
   children: ReactNode
@@ -17,6 +18,13 @@ export default class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Unhandled application error', error, info.componentStack)
+    void reportClientIncident({
+      category: 'render',
+      severity: 'fatal',
+      component: 'react',
+      action: 'render',
+      error,
+    })
   }
 
   render() {

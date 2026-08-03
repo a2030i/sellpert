@@ -19,11 +19,19 @@ const KEY_TABLES = ['orders', 'merchants', 'sync_queue', 'webhook_events', 'sall
   'subscriptions', 'invoices', 'products', 'performance_data', 'notifications']
 
 type Incident = {
-  source: 'sync' | 'upload'
+  id?: string
+  source: 'sync' | 'upload' | 'client'
   merchant_code: string | null
   platform: string | null
   occurred_at: string | null
   message: string | null
+  category?: string
+  severity?: string
+  page_path?: string
+  component?: string
+  error_code?: string
+  occurrence_count?: number
+  status?: 'open' | 'resolved' | 'ignored'
 }
 
 type HealthPayload = {
@@ -35,6 +43,8 @@ type HealthPayload = {
   sync_stats: { errors_24h: number; success_24h: number; last_success_at: string | null; last_error_at: string | null }
   stale_active_connections: number
   recent_incidents: Incident[]
+  recent_client_incidents?: Incident[]
+  client_incident_stats?: { open: number; fatal_open: number; new_24h: number; occurrences_24h: number }
   webhook_errors_24h: number
   merchant_count: number
   active_subscriptions: number
@@ -92,14 +102,17 @@ export default function DBHealthView() {
   const uploadStats = health?.upload_stats
   const syncStats = health?.sync_stats
   const staleConnections = health?.stale_active_connections ?? 0
-  const incidents: Incident[] = health?.recent_incidents || []
+  const incidents: Incident[] = [...(health?.recent_client_incidents || []), ...(health?.recent_incidents || [])]
+    .sort((a, b) => new Date(b.occurred_at || 0).getTime() - new Date(a.occurred_at || 0).getTime())
+    .slice(0, 20)
+  const clientIncidentStats = health?.client_incident_stats
 
   const dbAlert   = dbPct >= 90 ? 'critical' : dbPct >= 70 ? 'warn' : 'ok'
   const connAlert = connPct >= 80 ? 'warn' : 'ok'
   const queueAlert = queueFail > 0 || queueStalled > 0 ? 'warn' : 'ok'
   const stalledOperations = queueStalled + (uploadStats?.stalled ?? 0)
-  const recentOperationErrors = (syncStats?.errors_24h ?? 0) + (uploadStats?.failed_24h ?? 0) + webhookErr
-  const operationsAlert = stalledOperations > 0 || recentOperationErrors > 0
+  const recentOperationErrors = (syncStats?.errors_24h ?? 0) + (uploadStats?.failed_24h ?? 0) + webhookErr + (clientIncidentStats?.new_24h ?? 0)
+  const operationsAlert = stalledOperations > 0 || recentOperationErrors > 0 || (clientIncidentStats?.open ?? 0) > 0
   const overallAlert = dbAlert !== 'ok' || operationsAlert
 
   const alertColor = (level: string) =>
@@ -110,6 +123,19 @@ export default function DBHealthView() {
     if (bytes >= 1048576)    return (bytes / 1048576).toFixed(1) + ' MB'
     return (bytes / 1024).toFixed(0) + ' KB'
   }
+
+  async function closeClientIncident(id: string, status: 'resolved' | 'ignored') {
+    setErrorMessage('')
+    const { error } = await supabase.rpc('update_client_incident_status', { p_incident_id: id, p_status: status })
+    if (error) {
+      setErrorMessage('تعذر تحديث حالة عطل الواجهة. تحقق من الصلاحية ثم أعد المحاولة.')
+      return
+    }
+    await load()
+  }
+
+  const incidentSourceLabel = (source: Incident['source']) =>
+    source === 'sync' ? 'مزامنة API' : source === 'upload' ? 'رفع ملف' : 'واجهة التاجر'
 
   const tableStats = (health?.table_stats || [])
     .filter(t => KEY_TABLES.includes(t.table))
@@ -203,6 +229,7 @@ export default function DBHealthView() {
               { label: 'فشل في الطابور', value: queueFail, Icon: CircleX, color: queueFail > 0 ? alertColor(queueAlert) : '#00a67e' },
               { label: 'مزامنات ناجحة 24h', value: syncStats?.success_24h ?? 0, Icon: CheckCircle2, color: '#00a67e' },
               { label: 'أخطاء مزامنة 24h', value: syncStats?.errors_24h ?? 0, Icon: AlertTriangle, color: (syncStats?.errors_24h ?? 0) > 0 ? '#d64545' : '#00a67e' },
+              { label: 'أعطال الواجهة المفتوحة', value: clientIncidentStats?.open ?? 0, Icon: CircleX, color: (clientIncidentStats?.open ?? 0) > 0 ? '#d64545' : '#00a67e' },
               { label: 'ملفات ناجحة 24h', value: uploadStats?.success_24h ?? 0, Icon: FileCheck2, color: '#0f958c' },
               { label: 'عمليات متوقفة', value: stalledOperations, Icon: ServerCog, color: stalledOperations > 0 ? '#d64545' : '#00a67e' },
               { label: 'روابط تحتاج تحديث', value: staleConnections, Icon: Link2Off, color: staleConnections > 0 ? '#b7791f' : '#00a67e' },
@@ -270,7 +297,7 @@ export default function DBHealthView() {
           <div style={{ ...S.chartCard, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
               <div style={S.chartTitle}>آخر الحوادث التشغيلية</div>
-              <div style={S.chartSub}>آخر أخطاء المزامنة واستيراد الملفات مع المتجر والمصدر ووقت الحدث</div>
+              <div style={S.chartSub}>أعطال واجهة التاجر والمزامنة واستيراد الملفات، مع دمج التكرارات ومن دون بيانات حساسة</div>
             </div>
             {incidents.length === 0 ? (
               <div style={{ padding: 24, color: 'var(--text3)', textAlign: 'center', fontSize: 13 }}>
@@ -279,13 +306,20 @@ export default function DBHealthView() {
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={S.table}>
-                  <thead><tr>{['المصدر', 'المتجر', 'المنصة', 'الوقت', 'التفاصيل'].map(label => <th key={label} style={S.th}>{label}</th>)}</tr></thead>
+                  <thead><tr>{['المصدر', 'المتجر', 'المنصة / الصفحة', 'الوقت', 'التكرار', 'التفاصيل', 'الإجراء'].map(label => <th key={label} style={S.th}>{label}</th>)}</tr></thead>
                   <tbody>{incidents.map((incident, index) => <tr key={`${incident.source}-${incident.occurred_at}-${index}`} style={S.tr}>
-                    <td style={S.td}>{incident.source === 'sync' ? 'مزامنة API' : 'رفع ملف'}</td>
+                    <td style={S.td}>{incidentSourceLabel(incident.source)}</td>
                     <td style={{ ...S.td, fontFamily: 'monospace' }}>{incident.merchant_code || '—'}</td>
-                    <td style={S.td}>{incident.platform || '—'}</td>
+                    <td style={S.td}>{incident.source === 'client' ? incident.page_path || '—' : incident.platform || '—'}</td>
                     <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{incident.occurred_at ? new Date(incident.occurred_at).toLocaleString('ar-SA-u-ca-gregory-nu-latn') : '—'}</td>
+                    <td style={{ ...S.td, fontWeight: 700 }}>{incident.occurrence_count ? `${incident.occurrence_count}×` : '1×'}</td>
                     <td style={{ ...S.td, maxWidth: 420, whiteSpace: 'normal', lineHeight: 1.6 }}>{incident.message || 'تعذر إكمال العملية'}</td>
+                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
+                      {incident.source === 'client' && incident.id ? <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => closeClientIncident(incident.id!, 'resolved')} style={{ ...S.miniBtn, color: 'var(--success-text)' }}>تم الحل</button>
+                        <button onClick={() => closeClientIncident(incident.id!, 'ignored')} style={S.miniBtn}>تجاهل</button>
+                      </div> : '—'}
+                    </td>
                   </tr>)}</tbody>
                 </table>
               </div>
