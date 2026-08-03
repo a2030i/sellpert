@@ -91,18 +91,21 @@ export default function Login() {
 
         {mode === 'register' && <>
           <div style={styles.field}>
-            <label style={styles.label}>اسم المتجر</label>
-            <input style={styles.input} value={name} onChange={e => setName(e.target.value)} placeholder="مثال: متجر النخبة" />
+            <label htmlFor="store-name" style={styles.label}>اسم المتجر</label>
+            <input id="store-name" name="store-name" autoComplete="organization" style={styles.input} value={name} onChange={e => setName(e.target.value)} placeholder="مثال: متجر النخبة" />
           </div>
           <div style={styles.field}>
-            <label style={styles.label}>رقم الجوال (اختياري)</label>
-            <input style={styles.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="05xxxxxxxx" inputMode="tel" />
+            <label htmlFor="store-phone" style={styles.label}>رقم الجوال (اختياري)</label>
+            <input id="store-phone" name="phone" autoComplete="tel" style={styles.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="05xxxxxxxx" inputMode="tel" />
           </div>
         </>}
 
         <div style={styles.field}>
-          <label style={styles.label}>البريد الإلكتروني</label>
+          <label htmlFor="auth-email" style={styles.label}>البريد الإلكتروني</label>
           <input
+            id="auth-email"
+            name="email"
+            autoComplete="email"
             style={styles.input}
             type="email"
             placeholder="merchant@example.com"
@@ -113,8 +116,11 @@ export default function Login() {
         </div>
 
         <div style={styles.field}>
-          <label style={styles.label}>كلمة المرور</label>
+          <label htmlFor="auth-password" style={styles.label}>كلمة المرور</label>
           <input
+            id="auth-password"
+            name="password"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             style={styles.input}
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
@@ -129,8 +135,11 @@ export default function Login() {
 
         {mode === 'register' && <>
           <div style={styles.field}>
-            <label style={styles.label}>تأكيد كلمة المرور</label>
+            <label htmlFor="auth-password-confirmation" style={styles.label}>تأكيد كلمة المرور</label>
             <input
+              id="auth-password-confirmation"
+              name="password-confirmation"
+              autoComplete="new-password"
               style={styles.input}
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
