@@ -20,9 +20,9 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
       - name: Verify production availability and authorization boundaries
         shell: pwsh
-        run: ./scripts/test-production-smoke.ps1 -ExpectedRelease '${{ github.sha }}'
+        run: ./scripts/test-production-smoke.ps1 -ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240

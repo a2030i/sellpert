@@ -1,7 +1,9 @@
 param(
   [string]$AppUrl = 'https://sellpert.vercel.app',
   [string]$SupabaseUrl = 'https://urdyzbsukcuibadlaath.supabase.co',
-  [string]$ExpectedRelease = ''
+  [string]$ExpectedRelease = '',
+  [ValidateRange(0, 600)]
+  [int]$ReleaseWaitSeconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,29 +72,40 @@ if ($ExpectedRelease) {
     throw 'ExpectedRelease must be a Git commit SHA'
   }
 
-  $scriptMatches = [regex]::Matches(
-    $homeResponse.Content,
-    '<script[^>]+src=["''](?<src>[^"'']+\.js(?:\?[^"'']*)?)["'']',
-    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
-  )
-  $scriptSources = @($scriptMatches | ForEach-Object { $_.Groups['src'].Value } | Select-Object -Unique)
-  if ($scriptSources.Count -eq 0) {
-    throw 'application shell does not reference a JavaScript bundle'
-  }
-
   $releaseFound = $false
-  foreach ($source in $scriptSources) {
-    $bundleUri = if ($source -match '^https?://') {
-      $source
-    } else {
-      "$($AppUrl.TrimEnd('/'))/$($source.TrimStart('/'))"
+  $releaseDeadline = (Get-Date).AddSeconds($ReleaseWaitSeconds)
+  do {
+    # Re-fetch the shell on every attempt because Vercel changes the hashed
+    # bundle URL when a deployment becomes active.
+    $releaseHome = Invoke-WithRetry { Invoke-WebRequest -Uri "$AppUrl/" -TimeoutSec 20 -UseBasicParsing }
+    $scriptMatches = [regex]::Matches(
+      $releaseHome.Content,
+      '<script[^>]+src=["''](?<src>[^"'']+\.js(?:\?[^"'']*)?)["'']',
+      [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    $scriptSources = @($scriptMatches | ForEach-Object { $_.Groups['src'].Value } | Select-Object -Unique)
+    if ($scriptSources.Count -eq 0) {
+      throw 'application shell does not reference a JavaScript bundle'
     }
-    $bundle = Invoke-WithRetry { Invoke-WebRequest -Uri $bundleUri -TimeoutSec 30 -UseBasicParsing }
-    if ($bundle.Content.Contains($ExpectedRelease)) {
-      $releaseFound = $true
-      break
+
+    foreach ($source in $scriptSources) {
+      $bundleUri = if ($source -match '^https?://') {
+        $source
+      } else {
+        "$($AppUrl.TrimEnd('/'))/$($source.TrimStart('/'))"
+      }
+      $bundle = Invoke-WithRetry { Invoke-WebRequest -Uri $bundleUri -TimeoutSec 30 -UseBasicParsing }
+      if ($bundle.Content.Contains($ExpectedRelease)) {
+        $releaseFound = $true
+        break
+      }
     }
-  }
+
+    if (-not $releaseFound -and (Get-Date) -lt $releaseDeadline) {
+      Write-Host "WAIT production has not activated $ExpectedRelease yet"
+      Start-Sleep -Seconds 15
+    }
+  } while (-not $releaseFound -and (Get-Date) -lt $releaseDeadline)
 
   if (-not $releaseFound) {
     throw "production is not serving expected release $ExpectedRelease"
