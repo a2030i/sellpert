@@ -4,12 +4,12 @@ begin;
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, raw_app_meta_data,
-  raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+  raw_user_meta_data, created_at, updated_at, email_confirmed_at, is_sso_user, is_anonymous
 ) values
   ('00000000-0000-4000-8000-000000009987', 'authenticated', 'authenticated', 'brief-a@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Brief A"}', now(), now(), false, false),
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Brief A"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009988', 'authenticated', 'authenticated', 'brief-b@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Brief B"}', now(), now(), false, false);
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Brief B"}', now(), now(), now(), false, false);
 
 set local role authenticated;
 set local request.jwt.claim.sub = '00000000-0000-4000-8000-000000009987';

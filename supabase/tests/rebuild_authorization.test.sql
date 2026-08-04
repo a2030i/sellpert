@@ -3,14 +3,14 @@ BEGIN;
 
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, raw_app_meta_data,
-  raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+  raw_user_meta_data, created_at, updated_at, email_confirmed_at, is_sso_user, is_anonymous
 ) VALUES
   ('00000000-0000-4000-8000-000000009981', 'authenticated', 'authenticated', 'rebuild-a@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Rebuild A"}', now(), now(), false, false),
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Rebuild A"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009982', 'authenticated', 'authenticated', 'rebuild-b@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Rebuild B"}', now(), now(), false, false),
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Rebuild B"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009983', 'authenticated', 'authenticated', 'rebuild-orphan@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{}'::jsonb, now(), now(), false, false);
+   '{"provider":"email","providers":["email"]}', '{}'::jsonb, now(), now(), now(), false, false);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000009981', true);
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-000000009981","email":"rebuild-a@test.invalid","role":"authenticated"}', true);

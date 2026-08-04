@@ -3,12 +3,12 @@ BEGIN;
 
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, raw_app_meta_data,
-  raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+  raw_user_meta_data, created_at, updated_at, email_confirmed_at, is_sso_user, is_anonymous
 ) VALUES
   ('00000000-0000-4000-8000-000000009971', 'authenticated', 'authenticated', 'suspended-owner@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Suspended Workspace"}', now(), now(), false, false),
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Suspended Workspace"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009972', 'authenticated', 'authenticated', 'suspended-employee@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{}'::jsonb, now(), now(), false, false);
+   '{"provider":"email","providers":["email"]}', '{}'::jsonb, now(), now(), now(), false, false);
 
 DO $$
 DECLARE

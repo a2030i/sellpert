@@ -3,12 +3,12 @@ BEGIN;
 
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, raw_app_meta_data,
-  raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous
+  raw_user_meta_data, created_at, updated_at, email_confirmed_at, is_sso_user, is_anonymous
 ) VALUES
   ('00000000-0000-4000-8000-000000009971', 'authenticated', 'authenticated', 'cost-a@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Cost A"}', now(), now(), false, false),
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Cost A"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009972', 'authenticated', 'authenticated', 'cost-b@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Cost B"}', now(), now(), false, false);
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Cost B"}', now(), now(), now(), false, false);
 
 INSERT INTO public.products (merchant_code, name, sku, cost_price, target_net_price)
 SELECT merchant_code, 'Cost fixture', 'COST-' || merchant_code, 0, 100
