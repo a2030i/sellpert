@@ -1,5 +1,11 @@
 type SourceCredential = { is_active?: boolean | null }
 
+export const SUCCESSFUL_UPLOAD_STATUSES = ['success', 'completed', 'done'] as const
+
+export function isSuccessfulUploadStatus(status?: string | null) {
+  return SUCCESSFUL_UPLOAD_STATUSES.includes(status as (typeof SUCCESSFUL_UPLOAD_STATUSES)[number])
+}
+
 export type DataSourceReadinessInput = {
   credentials?: SourceCredential[] | null
   hasSallaStore?: boolean

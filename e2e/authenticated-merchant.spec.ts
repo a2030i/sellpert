@@ -258,6 +258,71 @@ test('duplicate merchant file reaches a final skipped state without repeated sav
   await expect(page.getByText('اكتمل', { exact: true }).first()).toBeVisible()
 })
 
+test('failed file uploads do not mark a new merchant data source as ready', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+  let uploadStatusFilter = ''
+  await page.route('**/functions/v1/manage-platform-credentials', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ credentials: [] }),
+  }))
+  await page.route('**/rest/v1/platform_file_uploads**', async route => {
+    uploadStatusFilter = new URL(route.request().url()).searchParams.get('status') || ''
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': '*/0' },
+      body: '[]',
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'جاهزية مساحة العمل' })).toBeVisible()
+  await expect(page.getByText('اربط Trendyol أو ارفع ملف منصة لإحضار بياناتك.')).toBeVisible()
+  expect(uploadStatusFilter).toContain('success')
+  expect(uploadStatusFilter).toContain('completed')
+  expect(uploadStatusFilter).toContain('done')
+  expect(uploadStatusFilter).not.toContain('failed')
+  expect(uploadStatusFilter).not.toContain('partial')
+})
+
+test('first-time merchant completes onboarding without administration assistance', async ({ page }, testInfo) => {
+  await mockAuthenticatedMerchant(page)
+  const firstTimeMerchant = { ...merchant, onboarding_done: false }
+  let persisted = false
+  await page.route('**/rest/v1/merchants**', async route => {
+    if (route.request().method() === 'PATCH') {
+      persisted = route.request().postDataJSON()?.onboarding_done === true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.pgrst.object+json',
+        body: JSON.stringify({ id: merchant.id, onboarding_done: true }),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': '0-0/1' },
+      body: JSON.stringify([firstTimeMerchant]),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'مرحبًا بك في Sellpert' })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('first-time-onboarding.png'), fullPage: true })
+  await page.getByRole('button', { name: /متابعة/ }).click()
+  await page.getByRole('button', { name: /متابعة/ }).click()
+  await page.getByRole('button', { name: /متابعة/ }).click()
+  await page.getByRole('button', { name: 'الذهاب إلى الربط ورفع الملفات' }).click()
+
+  await expect.poll(() => persisted).toBe(true)
+  await expect(page).toHaveURL(/\/integrations$/)
+  await expect(page.getByRole('heading', { name: 'الربط ورفع الملفات' })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
 test('core merchant workspace is accessible and stable before the first import', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

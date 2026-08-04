@@ -12,6 +12,7 @@ import { useMobile } from '../lib/hooks'
 import { createMerchantAction, dueDateFromNow, type ActionPriority } from '../lib/merchantActions'
 import { buildMerchantOpportunities, type OpportunityConfidence, type OpportunityKind } from '../lib/merchantOpportunities'
 import { workspaceReadiness, type WorkspaceReadiness } from '../lib/workspaceReadiness'
+import { hasUsableDataSource, SUCCESSFUL_UPLOAD_STATUSES } from '../lib/onboardingActivation'
 import { orderContributionBeforeProductCost } from '../lib/orderProfit'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import './DashboardV2.css'
@@ -189,7 +190,9 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       fetchAll<InventoryHealthRow>((from, to) => supabase.from('inventory_health')
         .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status,data_as_of,data_age_days')
         .eq('merchant_code', merchantCode).range(from, to), 'صحة المخزون'),
-      supabase.from('platform_file_uploads').select('uploaded_at').eq('merchant_code', merchantCode).order('uploaded_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('platform_file_uploads').select('uploaded_at').eq('merchant_code', merchantCode)
+        .in('status', [...SUCCESSFUL_UPLOAD_STATUSES])
+        .order('uploaded_at', { ascending: false }).limit(1).maybeSingle(),
       listPlatformCredentials(merchantCode),
       supabase.from('product_profitability').select('product_id,sku,product_name,cost_price,units_sold,revenue,platform_fees,ad_spend,returns_amount,net_profit,profit_margin_pct').eq('merchant_code', merchantCode),
       supabase.from('monthly_cashflow').select('platform,month,cash_in,cash_out,net,tx_count').eq('merchant_code', merchantCode).order('month', { ascending: false }).limit(36),
@@ -235,7 +238,11 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setExecutiveBrief(executiveData)
       setMonthlyGoal(goalData)
       setWeeklyHistory(historyData)
-      setSourceReady(Boolean(uploadResult?.data?.uploaded_at || (syncCredentials || []).some(item => item.is_active)))
+      setSourceReady(hasUsableDataSource({
+        credentials: syncCredentials,
+        hasSallaStore: Boolean(merchant.salla_store_id),
+        successfulUploads: uploadResult?.data?.uploaded_at ? 1 : 0,
+      }))
       const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
@@ -252,7 +259,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setLoading(false)
     })
     return () => { cancelled = true }
-  }, [merchant?.merchant_code])
+  }, [merchant?.merchant_code, merchant?.salla_store_id])
 
   const model = useMemo(() => {
     const referenceDate = orders.reduce((latest, order) => {

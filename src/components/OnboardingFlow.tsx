@@ -44,10 +44,13 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
 
   async function finish(destination?: '/integrations') {
     setSaving(true)
-    const { error } = await supabase.from('merchants')
+    const { data, error } = await supabase.from('merchants')
       .update({ onboarding_done: true })
+      .eq('id', merchant.id)
       .eq('merchant_code', merchant.merchant_code)
-    if (error) {
+      .select('id,onboarding_done')
+      .single()
+    if (error || !data?.onboarding_done) {
       toastErr('تعذر حفظ اكتمال التهيئة. أعد المحاولة.')
       setSaving(false)
       return

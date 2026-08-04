@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Circle, X } from 'lucide-react'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
-import { hasUsableDataSource } from '../lib/onboardingActivation'
+import { hasUsableDataSource, SUCCESSFUL_UPLOAD_STATUSES } from '../lib/onboardingActivation'
 
 const STEPS = [
   { key: 'has_products',   label: 'إضافة المنتجات',     desc: 'أضف منتجاتك الأولى — ستراها في "منتجاتي"', path: '/products' },
@@ -35,7 +35,7 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
         supabase.from('merchants').select('salla_store_id').eq('merchant_code', merchantCode).maybeSingle(),
         listPlatformCredentials(merchantCode),
         supabase.from('platform_file_uploads').select('id', { count: 'exact', head: true })
-          .eq('merchant_code', merchantCode).in('status', ['success', 'completed', 'done']),
+          .eq('merchant_code', merchantCode).in('status', [...SUCCESSFUL_UPLOAD_STATUSES]),
       ])
       const direct = {
         has_products: (products.count || 0) > 0,
