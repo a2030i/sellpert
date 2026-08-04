@@ -41,7 +41,7 @@ const EMPTY_FORM: FormState = {
 const PLATFORM_META: Record<Platform, { label: string; icon: string; color: string; description: string }> = {
   amazon: { label: 'Amazon', icon: 'A', color: '#ff9900', description: 'تفويض آمن عبر حساب البائع في Amazon' },
   noon: { label: 'نون', icon: 'N', color: '#f2cf00', description: 'تفويض آمن عبر حساب الشريك في نون' },
-  trendyol: { label: 'Trendyol', icon: 'T', color: '#f27a1a', description: 'معرّف البائع ومفاتيح Partner API' },
+  trendyol: { label: 'Trendyol', icon: 'T', color: '#a94400', description: 'معرّف البائع ومفاتيح Partner API' },
 }
 
 type MarketplaceConnectionsProps = {
@@ -153,7 +153,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 16 }}>
               <PlugZap size={18} color="var(--accent)" /> ربط منصات البيع
             </div>
-            <div style={{ color: 'var(--text3)', fontSize: 12, marginTop: 5 }}>
+            <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 5 }}>
               {lockedMerchantCode ? 'اربط حساباتك مباشرة. المفاتيح تُحفظ مشفرة ولا تُعرض مجددًا.' : 'اختر التاجر ثم اربط حسابه. المفاتيح تُحفظ مشفرة ولا تُعرض مجددًا.'}
             </div>
           </div>
@@ -161,7 +161,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
             {!lockedMerchantCode && !compactHeader ? <select style={{ ...S.input, width: 260 }} value={merchantCode} onChange={event => setMerchantCode(event.target.value)}>
               {merchants.map(merchant => <option key={merchant.merchant_code} value={merchant.merchant_code}>{merchant.name} — {merchant.merchant_code}</option>)}
             </select> : null}
-            <button style={S.miniBtn} onClick={() => void loadCredentials()} disabled={loading} title="تحديث">
+            <button aria-label="تحديث حالة ربط المنصات" style={S.miniBtn} onClick={() => void loadCredentials()} disabled={loading} title="تحديث">
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
             </button>
           </div>
@@ -388,7 +388,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
             {status ? (
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>حالة الربط</span><strong>{status.is_active ? 'متصل' : 'بانتظار التفويض'}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text2)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text3)' }}>حالة المزامنة</span><strong>{syncStatusLabel(syncJob?.status, meta.label)}</strong></div>
                 {syncInProgress ? <div style={{ marginTop: 10 }}>
                   <div style={{ height: 7, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
@@ -412,7 +412,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                 {oauthBusy ? <Loader2 size={14} className="spin" /> : <ExternalLink size={14} />}
                 {status?.is_active ? 'إعادة تفويض الحساب' : `ربط حساب ${meta.label}`}
               </button>
-              {status ? <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}><Trash2 size={13} /></button> : null}
+              {status ? <button aria-label={`حذف ربط ${meta.label}`} style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}><Trash2 size={13} /></button> : null}
             </div>
           </div>
         ) : !editing && status ? (
@@ -420,7 +420,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, fontSize: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>{platform === 'trendyol' ? 'معرّف البائع (معرّف الكيان)' : 'Seller ID'}</span><code>{status.seller_id}</code></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر اختبار</span><span>{formatDate(status.last_tested_at)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text3)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}><span style={{ color: 'var(--text2)' }}>آخر مزامنة</span><span>{formatDate(status.last_sync_at)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text3)' }}>حالة المزامنة</span>
                 <strong style={{ color: syncInProgress || syncJob?.status === 'partial' ? 'var(--warning-text)' : syncJob?.status === 'done' ? 'var(--success-text)' : syncJob?.status === 'failed' ? 'var(--danger-text)' : 'var(--text3)' }}>
@@ -503,7 +503,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                 </button>
               ) : null}
               <button style={{ ...S.miniBtn, flex: 1 }} onClick={() => setEditing(true)}><KeyRound size={13} /> تحديث المفاتيح</button>
-              <button style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}>{busy === 'delete' ? <Loader2 size={13} /> : <Trash2 size={13} />}</button>
+              <button aria-label={`حذف ربط ${meta.label}`} style={{ ...S.miniBtn, color: 'var(--red)' }} onClick={() => void remove()} disabled={!!busy}>{busy === 'delete' ? <Loader2 size={13} /> : <Trash2 size={13} />}</button>
             </div>
             {status.is_active ? <button style={{ ...S.saveBtn, width:'100%', justifyContent:'center', marginTop:8, background:meta.color }} onClick={() => setShowActions(true)}><PlugZap size={14}/> {showAdvancedActions ? 'مركز عمليات Trendyol الكامل' : 'خدمات Trendyol'}</button> : null}
           </div>

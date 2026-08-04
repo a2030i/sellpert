@@ -191,7 +191,7 @@ function NotificationBell({ merchantCode }: { merchantCode?: string }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => { setOpen(v => !v); if (!open) loadNotifs() }}
+      <button aria-label="الإشعارات" aria-expanded={open} onClick={() => { setOpen(v => !v); if (!open) loadNotifs() }}
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         <Bell size={17} />
         {unread > 0 && (
@@ -675,13 +675,13 @@ export default function App() {
             if (!item) return null
             const Icon = item.Icon
             return (
-              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text3)' }}>
+              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text2)' }}>
                 <Icon size={20} />
                 <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>{item.label}</span>
               </button>
             )
           })}
-          <button aria-expanded={mobileMore} aria-controls="mobile-more-sheet" style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text3)' }} onClick={() => setMobileMore(true)}>
+          <button aria-expanded={mobileMore} aria-controls="mobile-more-sheet" style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text2)' }} onClick={() => setMobileMore(true)}>
             <MoreHorizontal size={20} />
             <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>المزيد</span>
           </button>

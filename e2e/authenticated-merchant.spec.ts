@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { expectNoSeriousAccessibilityViolations } from './accessibility'
 
 const merchant = {
   id: '00000000-0000-4000-8000-000000000111',
@@ -125,6 +126,7 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   await expect(page.getByRole('heading', { name: 'الربط ورفع الملفات' })).toBeVisible()
   await expect(page.getByText('متجر الاختبار', { exact: true })).toBeVisible()
   await expect(page.getByText('متصل', { exact: true })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'صفحة الربط ورفع الملفات')
 
   await page.getByRole('button', { name: 'خدمات Trendyol' }).click()
   await expect(page.getByText('نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية')).toBeVisible()

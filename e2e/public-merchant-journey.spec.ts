@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectNoSeriousAccessibilityViolations } from './accessibility'
 
 function collectRuntimeFailures(page: Page) {
   const failures: string[] = []
@@ -36,12 +37,14 @@ test('merchant can understand and navigate the complete public entry journey', a
   await expect(page.getByRole('heading', { name: 'Sellpert' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first()).toBeVisible()
   await expectHealthyViewport(page)
+  await expectNoSeriousAccessibilityViolations(page, 'صفحة تسجيل الدخول')
 
   await page.getByRole('button', { name: 'إنشاء متجر', exact: true }).click()
   await expect(page.getByLabel('اسم المتجر')).toBeVisible()
   await expect(page.getByLabel(/رقم الجوال/)).toBeVisible()
   await expect(page.getByLabel('تأكيد كلمة المرور')).toBeVisible()
   await expect(page.getByRole('button', { name: 'إنشاء المتجر والبدء' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'نموذج إنشاء المتجر')
 
   await page.route('**/auth/v1/signup**', route => route.fulfill({
     status: 200,

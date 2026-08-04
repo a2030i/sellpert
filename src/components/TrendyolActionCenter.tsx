@@ -190,7 +190,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   }
 
   return <div style={M.backdrop} onClick={onClose}><div style={{...M.modal,width:'min(760px,100%)'}} onClick={e=>e.stopPropagation()}>
-    <div style={M.header}><div><b style={{fontSize:18}}>خدمات Trendyol</b><div style={M.sub}>نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية</div></div><button style={M.close} onClick={onClose}><X size={18}/></button></div>
+    <div style={M.header}><div><b style={{fontSize:18}}>خدمات Trendyol</b><div style={M.sub}>نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية</div></div><button aria-label="إغلاق خدمات Trendyol" style={M.close} onClick={onClose}><X size={18}/></button></div>
     <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>chooseAction(id)} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
     {action==='questions'?<MerchantQuestions merchantCode={merchantCode}/>:<div style={F.form}>
       {action==='label'?input('رقم تتبع الشحنة','tracking','مثال: 3941019487'):

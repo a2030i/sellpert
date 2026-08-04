@@ -209,8 +209,8 @@ export default function Login() {
             <span>حساب مستقل ومجاني. تُعزل طلباتك ومنتجاتك وملفاتك عن جميع المتاجر الأخرى.</span>
           </div>
           <div style={styles.passwordRules}>
-            {passwordChecks(password).map(check => <span key={check.key} style={{ color: check.passed ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> {check.label}</span>)}
-            <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text3)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
+            {passwordChecks(password).map(check => <span key={check.key} style={{ color: check.passed ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> {check.label}</span>)}
+            <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
           </div>
         </>}
 
@@ -316,6 +316,6 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 8px 24px rgba(15,149,140,0.35)',
     marginTop: 4,
   },
-  footer: { fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginTop: 20 },
+  footer: { fontSize: 12, color: 'var(--text2)', textAlign: 'center', marginTop: 20 },
   footerLink: { color: 'var(--accent)', fontWeight: 700, textDecoration: 'none' },
 }
