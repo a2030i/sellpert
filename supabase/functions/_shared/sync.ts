@@ -11,6 +11,7 @@ export async function authorizeMerchantSync(
   admin: any,
   serviceKey: string,
   merchantCode: string,
+  employeePermissions: string[] = ['integrations'],
 ): Promise<SyncActor> {
   const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
   if (!token) throw new HttpError(401, 'Unauthorized')
@@ -42,8 +43,8 @@ export async function authorizeMerchantSync(
   }
 
   if (caller.role === 'employee') {
-    const canIntegrate = permissionEnabled(caller.permissions, 'integrations')
-    if (!canIntegrate || caller.owner_merchant_code !== merchantCode) {
+    const hasRequiredPermission = employeePermissions.some(permission => permissionEnabled(caller.permissions, permission))
+    if (!hasRequiredPermission || caller.owner_merchant_code !== merchantCode) {
       throw new HttpError(403, 'Forbidden')
     }
     await requireActiveWorkspace(admin, merchantCode)

@@ -117,7 +117,13 @@ Deno.serve(async req => {
     const merchantCode = String(input?.merchant_code || '')
     const action = String(input?.action || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
-    const actor = await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
+    const actor = await authorizeMerchantSync(
+      req,
+      admin,
+      SERVICE_KEY,
+      merchantCode,
+      action.startsWith('questions.') ? ['customers','integrations'] : ['integrations'],
+    )
     if (DEPRECATED_ACTIONS[action]) {
       throw new HttpError(410, `أوقف Trendyol هذه العملية ضمن Product V1 اعتبارًا من 10 أغسطس 2026. ${DEPRECATED_ACTIONS[action]}`)
     }
@@ -164,6 +170,7 @@ Deno.serve(async req => {
       throw new HttpError(409, 'يجب تأكيد العملية قبل إرسالها إلى Trendyol')
     }
     validateActionInput(action, input)
+    await validateQuestionContext(admin, merchantCode, action, input)
     await validatePackageContext(admin, merchantCode, action, input)
     await validateProductContext(admin, merchantCode, action, input)
     await validateClaimContext(admin, merchantCode, action, input)
@@ -504,6 +511,21 @@ async function validateClaimContext(admin:any,merchantCode:string,action:string,
     throw new HttpError(409,'تم اتخاذ قرار لهذا المرتجع مسبقًا؛ حدّث الصفحة لمشاهدة حالته الحالية')
   }
   input.__claimItemIds = itemIds
+}
+
+async function validateQuestionContext(admin:any,merchantCode:string,action:string,input:any) {
+  if (action !== 'questions.answer') return
+  const questionId = clean(String(input?.path?.questionId || ''))
+  const { data:question,error } = await admin.from('trendyol_customer_questions')
+    .select('status,question_text')
+    .eq('merchant_code',merchantCode).eq('question_id',questionId).maybeSingle()
+  if (error) throw error
+  if (!question) {
+    throw new HttpError(404,'السؤال غير موجود في صندوق خدمة عملاء هذا المتجر؛ حدّث الأسئلة ثم حاول مجددًا')
+  }
+  if (String(question.status || '').toUpperCase() !== 'WAITING_FOR_ANSWER') {
+    throw new HttpError(409,'تمت معالجة هذا السؤال مسبقًا؛ حدّث الصندوق لمشاهدة حالته الحالية')
+  }
 }
 
 async function fetchTrendyolProductPage(url:string,headers:Record<string,string>) {

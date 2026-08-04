@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 describe('Trendyol fulfillment action contract', () => {
   const gateway = readFileSync('supabase/functions/trendyol-actions/index.ts', 'utf8')
+  const syncBoundary = readFileSync('supabase/functions/_shared/sync.ts', 'utf8')
   const orders = readFileSync('src/pages/Orders.tsx', 'utf8')
   const statement = readFileSync('src/pages/Statement.tsx', 'utf8')
+  const customerService = readFileSync('src/pages/CustomerService.tsx', 'utf8')
+  const app = readFileSync('src/App.tsx', 'utf8')
+  const customerPermissionMigration = readFileSync('supabase/migrations/20260804204219_add_customer_service_permission.sql', 'utf8')
   const merchantCenter = readFileSync('src/components/TrendyolActionCenter.tsx', 'utf8')
 
   it('uses the current common-label path and explicit create/get actions', () => {
@@ -98,5 +102,25 @@ describe('Trendyol fulfillment action contract', () => {
     expect(statement).toContain('تحديث من Trendyol')
     expect(statement).not.toContain('window.confirm(`تأكيد ${label}')
     expect(statement).not.toContain('JSON')
+  })
+
+  it('separates customer-service permission from marketplace credential administration', () => {
+    expect(syncBoundary).toContain("employeePermissions: string[] = ['integrations']")
+    expect(gateway).toContain("action.startsWith('questions.') ? ['customers','integrations'] : ['integrations']")
+    expect(customerPermissionMigration).toContain("ARRAY['customers', 'integrations']::text[]")
+    expect(app).toContain("label: 'خدمة العملاء', key: 'customers', permission: 'customers'")
+  })
+
+  it('binds every customer reply to an unanswered question owned by the current merchant', () => {
+    expect(gateway).toContain('await validateQuestionContext(admin, merchantCode, action, input)')
+    expect(gateway).toContain(".eq('merchant_code',merchantCode).eq('question_id',questionId).maybeSingle()")
+    expect(gateway).toContain("String(question.status || '').toUpperCase() !== 'WAITING_FOR_ANSWER'")
+  })
+
+  it('provides a merchant-facing customer inbox without native confirmations or technical question numbers', () => {
+    expect(customerService).toContain('TrendyolCustomerInbox')
+    expect(merchantCenter).toContain('مراجعة الرد قبل الإرسال')
+    expect(merchantCenter).not.toContain("window.confirm('تأكيد إرسال هذا الرد")
+    expect(merchantCenter).not.toContain('السؤال رقم {reply.question_id}')
   })
 })

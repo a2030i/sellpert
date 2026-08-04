@@ -21,7 +21,7 @@ import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
   FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck, Eye,
+  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck, Eye, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
@@ -53,6 +53,7 @@ const Team = lazy(() => import('./pages/Team'))
 const StoreStatus = lazy(() => import('./pages/StoreStatus'))
 const StoreActivity = lazy(() => import('./pages/StoreActivity'))
 const AccountSecurity = lazy(() => import('./pages/AccountSecurity'))
+const CustomerService = lazy(() => import('./pages/CustomerService'))
 
 const PageFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -61,9 +62,9 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
   { key: 'store', label: 'إدارة المتجر', items: [
     { Icon: ListChecks, label: 'خطة العمل', key: 'actions', permission: 'dashboard' },
     { Icon: Package, label: 'الطلبات', key: 'orders', permission: 'orders' },
+    { Icon: MessageSquare, label: 'خدمة العملاء', key: 'customers', permission: 'customers' },
     { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
   ]},
@@ -105,6 +107,7 @@ const NAV_PARENT: Partial<Record<View, View>> = {
 
 type SidebarBadges = {
   orders: number
+  customers: number
   support: number
   integrationNeedsUpdate: boolean
 }
@@ -112,6 +115,7 @@ type SidebarBadges = {
 const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
   dashboard: 'dashboard', actions: 'dashboard', notifications: 'dashboard',
   orders: 'orders',
+  customers: 'customers',
   products: 'products', 'product-detail': 'products', 'product-compare': 'products',
   inventory: 'inventory', 'quick-inventory': 'inventory',
   marketing: 'marketing',
@@ -245,7 +249,7 @@ export default function App() {
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(() => window.location.pathname === '/auth/recovery')
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_GROUPS))
-  const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, support: 0, integrationNeedsUpdate: false })
+  const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, customers: 0, support: 0, integrationNeedsUpdate: false })
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
   const activeMerchant                      = impersonating || merchant
@@ -326,17 +330,23 @@ export default function App() {
     const code = activeMerchantCode
     if (!code) return
     let cancelled = false
-    Promise.all([
+    Promise.allSettled([
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('platform', 'trendyol'),
+      supabase.from('trendyol_customer_questions').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'WAITING_FOR_ANSWER'),
       supabase.from('merchant_requests').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'pending'),
       listPlatformCredentials(code),
-    ]).then(([ordersResult, supportResult, credentialResult]) => {
+    ]).then(([ordersSettled, customersSettled, supportSettled, credentialsSettled]) => {
       if (cancelled) return
+      const ordersResult = ordersSettled.status === 'fulfilled' ? ordersSettled.value : null
+      const customersResult = customersSettled.status === 'fulfilled' ? customersSettled.value : null
+      const supportResult = supportSettled.status === 'fulfilled' ? supportSettled.value : null
+      const credentialResult = credentialsSettled.status === 'fulfilled' ? credentialsSettled.value : []
       const credential = credentialResult.find(item => item.platform === 'trendyol')
       const lastSyncAge = credential?.last_sync_at ? Date.now() - new Date(credential.last_sync_at).getTime() : Number.POSITIVE_INFINITY
       setSidebarBadges({
-        orders: ordersResult.count || 0,
-        support: supportResult.count || 0,
+        orders: ordersResult?.count || 0,
+        customers: customersResult?.count || 0,
+        support: supportResult?.count || 0,
         integrationNeedsUpdate: !credential?.is_active || lastSyncAge > 24 * 60 * 60 * 1000,
       })
     })
@@ -567,7 +577,7 @@ export default function App() {
                 </button>
                 {!collapsedGroups.has(group.key) ? group.items.map(item => {
                   const Icon = item.Icon
-                  const numericBadge = item.key === 'orders' ? sidebarBadges.orders : item.key === 'requests' ? sidebarBadges.support : 0
+                  const numericBadge = item.key === 'orders' ? sidebarBadges.orders : item.key === 'customers' ? sidebarBadges.customers : item.key === 'requests' ? sidebarBadges.support : 0
                   const statusBadge = item.key === 'integrations' && sidebarBadges.integrationNeedsUpdate ? 'تحديث مطلوب' : ''
                   return (
                     <button type="button" key={item.key}
@@ -618,6 +628,7 @@ export default function App() {
             {view === 'actions'      && <Actions      merchant={activeMerchant} />}
             {view === 'products'     && <Products     merchant={activeMerchant} />}
             {view === 'orders'       && <Orders       merchant={activeMerchant} />}
+            {view === 'customers'    && <CustomerService merchant={activeMerchant} />}
             {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
             {view === 'requests'     && <Requests     merchant={activeMerchant} />}
             {view === 'statement'    && <Statement    merchant={activeMerchant} />}

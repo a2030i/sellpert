@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   Search, LayoutDashboard, Tags, Package, Megaphone, FileText,
-  Link2, Settings, Boxes, LifeBuoy, HelpCircle, Bell, Building2,
+  Link2, Settings, Boxes, LifeBuoy, HelpCircle, Bell, Building2, MessageCircle,
 } from 'lucide-react'
 
 type Cmd = {
@@ -33,6 +33,7 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
       { id: 'nav-dashboard', label: 'لوحة التحكم', Icon: LayoutDashboard, group: 'navigation', action: () => onNavigate('/dashboard') },
       { id: 'nav-products', label: 'منتجاتي', Icon: Tags, group: 'navigation', action: () => onNavigate('/products') },
       { id: 'nav-orders', label: 'الطلبات', Icon: Package, group: 'navigation', action: () => onNavigate('/orders') },
+      { id: 'nav-customers', label: 'خدمة العملاء', Icon: MessageCircle, group: 'navigation', action: () => onNavigate('/customers') },
       { id: 'nav-inventory', label: 'المخزون', Icon: Boxes, group: 'navigation', action: () => onNavigate('/inventory') },
       { id: 'nav-quick', label: 'تحديث المخزون السريع', hint: 'تعديل كميات بسرعة', Icon: Boxes, group: 'navigation', action: () => onNavigate('/quick-inventory') },
       { id: 'nav-marketing', label: 'التسويق', Icon: Megaphone, group: 'navigation', action: () => onNavigate('/marketing') },

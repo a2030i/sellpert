@@ -3,6 +3,7 @@ import type { Merchant } from './supabase'
 export type MerchantPermissionKey =
   | 'dashboard'
   | 'orders'
+  | 'customers'
   | 'products'
   | 'inventory'
   | 'marketing'
@@ -18,6 +19,7 @@ export const MERCHANT_PERMISSION_ITEMS: Array<{
 }> = [
   { key: 'dashboard',    label: 'نظرة عامة',          group: 'view' },
   { key: 'orders',       label: 'الطلبات',             group: 'view' },
+  { key: 'customers',    label: 'خدمة العملاء',         group: 'view' },
   { key: 'products',     label: 'المنتجات',            group: 'view' },
   { key: 'inventory',    label: 'المخزون',             group: 'manage' },
   { key: 'marketing',    label: 'الإعلانات والأداء',   group: 'view' },

@@ -211,6 +211,72 @@ test('merchant reviews and approves a Trendyol return without technical identifi
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant answers a Trendyol customer question from a dedicated service inbox', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  let status = 'WAITING_FOR_ANSWER'
+  let sentReply: any = null
+  const question = {
+    question_id:'987654321', status, question_text:'هل المنتج مناسب للاستخدام اليومي؟',
+    customer_name:'سارة', show_customer_name:true, product_name:'قهوة عربية فاخرة',
+    image_url:null, barcode:'COFFEE-1', product_content_id:'product-internal-id', answer_text:null,
+    answer_status:null, asked_at:'2026-08-04T09:00:00.000Z', answered_at:null,
+    provider_updated_at:'2026-08-04T09:00:00.000Z', last_synced_at:'2026-08-04T09:05:00.000Z',
+  }
+
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    const body = route.request().postDataJSON() as any
+    if (body.action === 'questions.inbox') {
+      await route.fulfill({
+        status:200, contentType:'application/json',
+        body:JSON.stringify({ ok:true, data:{
+          questions:[{ ...question, status }],
+          waitingCount:status === 'WAITING_FOR_ANSWER' ? 1 : 0,
+          replies:sentReply ? [{ id:'reply-1', question_id:question.question_id, answer_text:sentReply.payload.text, status:'sent', requested_at:'2026-08-04T10:00:00.000Z', completed_at:'2026-08-04T10:00:01.000Z' }] : [],
+        }}),
+      })
+      return
+    }
+    if (body.action === 'questions.answer') {
+      sentReply = body
+      status = 'ANSWERED'
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, status:'success' }) })
+      return
+    }
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, data:{ content:[question], totalElements:1 } }) })
+  })
+
+  await page.goto('/customers')
+  await expect(page.getByRole('heading', { name:'خدمة العملاء' })).toBeVisible()
+  await expect(page.getByText('هل المنتج مناسب للاستخدام اليومي؟')).toBeVisible()
+  await expect(page.getByText('987654321')).toHaveCount(0)
+  await expect(page.getByText('product-internal-id')).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'صندوق خدمة عملاء Trendyol')
+  await testInfo.attach('customer-service-inbox', { body:await page.screenshot({ fullPage:false }), contentType:'image/png' })
+
+  const answer = 'نعم، المنتج مناسب للاستخدام اليومي ويمكن تحضيره بالطريقة المعتادة.'
+  await page.getByRole('textbox', { name:'الرد على سؤال قهوة عربية فاخرة' }).fill(answer)
+  await page.getByRole('button', { name:'مراجعة الرد' }).click()
+  await expect(page.getByRole('dialog', { name:'مراجعة الرد قبل الإرسال' })).toContainText(answer)
+  await page.getByRole('button', { name:'تأكيد الإرسال' }).click()
+  await expect(page.getByText('تم إرسال الرد إلى Trendyol للمراجعة.')).toBeVisible()
+  expect(sentReply).toMatchObject({
+    merchant_code:merchant.merchant_code,
+    action:'questions.answer',
+    path:{ questionId:'987654321' },
+    payload:{ text:answer },
+    confirm:true,
+  })
+
+  await page.getByRole('button', { name:/سجل الردود/ }).click()
+  await expect(page.getByText(answer)).toBeVisible()
+  await expect(page.getByText('تم الإرسال', { exact:true })).toBeVisible()
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant imports a Noon order and goes directly to the resulting orders', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
