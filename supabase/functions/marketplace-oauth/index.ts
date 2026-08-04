@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {

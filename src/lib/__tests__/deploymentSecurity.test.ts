@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('deployment browser security', () => {
@@ -46,5 +46,23 @@ describe('deployment browser security', () => {
     expect(smokeWorkflow).toContain("-ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240")
     expect(smokeWorkflow).toContain("if ('${{ github.event_name }}' -eq 'push')")
     expect(smokeWorkflow).toMatch(/else\s*\{\s*\.\/scripts\/test-production-smoke\.ps1\s*\}/)
+  })
+
+  it('pins the Supabase client used by the app and every Edge Function', () => {
+    const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'))
+    const pinnedVersion = packageManifest.dependencies['@supabase/supabase-js'] as string
+    const edgeFunctionEntries = readdirSync('supabase/functions', { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && !entry.name.startsWith('_'))
+      .map(entry => `supabase/functions/${entry.name}/index.ts`)
+      .filter(path => {
+        try { return readFileSync(path, 'utf8').includes('@supabase/supabase-js') }
+        catch { return false }
+      })
+
+    expect(pinnedVersion).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(edgeFunctionEntries.length).toBeGreaterThan(0)
+    for (const path of edgeFunctionEntries) {
+      expect(readFileSync(path, 'utf8'), path).toContain(`@supabase/supabase-js@${pinnedVersion}`)
+    }
   })
 })
