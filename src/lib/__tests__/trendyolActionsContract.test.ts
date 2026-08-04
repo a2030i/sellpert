@@ -21,6 +21,18 @@ describe('Trendyol fulfillment action contract', () => {
     expect(exposedActions).toEqual(gatewayActions)
   })
 
+  it('blocks Product V1 before the Trendyol shutdown date and exposes V2 replacements', () => {
+    expect(gateway).toContain('DEPRECATED_ACTIONS')
+    expect(gateway).toContain("throw new HttpError(410")
+    for (const action of ['products.list', 'products.create', 'products.update']) {
+      expect(gateway).not.toContain(`  '${action}':          {`)
+      expect(merchantCenter).not.toContain(`action:'${action}'`)
+    }
+    expect(merchantCenter).toContain("action:'products.v2_create'")
+    expect(merchantCenter).toContain("action:'products.v2_update_content'")
+    expect(merchantCenter).toContain("action:'products.v2_update_variant'")
+  })
+
   it('binds label access to a tracking number owned by the merchant', () => {
     expect(gateway).toContain(".eq('merchant_code',merchantCode).eq('platform','trendyol')")
     expect(gateway).toContain(".eq('cargo_tracking_number',trackingNumber)")

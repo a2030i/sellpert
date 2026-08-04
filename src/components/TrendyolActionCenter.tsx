@@ -7,9 +7,6 @@ type Risk = 'read' | 'write' | 'destructive'
 type Capability = { action:string; label:string; group:string; risk:Risk; pathHint?:string; queryHint?:string; payloadHint?:string }
 
 const CAPABILITIES: Capability[] = [
-  { action:'products.list',label:'قراءة المنتجات',group:'المنتجات',risk:'read',queryHint:'{"approved":true,"page":0,"size":50}' },
-  { action:'products.create',label:'إنشاء منتجات',group:'المنتجات',risk:'write',payloadHint:'{"items":[...]}' },
-  { action:'products.update',label:'تحديث منتجات',group:'المنتجات',risk:'write',payloadHint:'{"items":[...]}' },
   { action:'products.delete',label:'حذف منتجات',group:'المنتجات',risk:'destructive',payloadHint:'{"items":[{"barcode":"..."}]}' },
   { action:'products.archive',label:'أرشفة/إلغاء أرشفة',group:'المنتجات',risk:'destructive',payloadHint:'{"items":[...]}' },
   { action:'products.unlock',label:'فك قفل المنتج',group:'المنتجات',risk:'write',payloadHint:'{"items":[...]}' },

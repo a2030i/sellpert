@@ -18,13 +18,16 @@ const cors = {
 type Risk = 'read' | 'write' | 'destructive'
 type Definition = { method: string; path: string; risk: Risk; storefront?: boolean; binary?: boolean; multipart?: boolean }
 
+const DEPRECATED_ACTIONS: Record<string, string> = {
+  'products.list': 'استخدم قائمة المنتجات المقبولة أو غير المقبولة عبر Product V2.',
+  'products.create': 'استخدم إنشاء منتج Product V2.',
+  'products.update': 'استخدم تحديث المحتوى أو المتغيرات أو معلومات التوصيل عبر Product V2.',
+}
+
 // Every outbound request is selected from this fixed registry. Callers cannot
 // provide a host, path, or method, preventing the gateway from becoming SSRF.
 const ACTIONS: Record<string, Definition> = {
   // Product catalogue and reference data
-  'products.list':            { method:'GET',    path:'/integration/product/sellers/{sellerId}/products', risk:'read' },
-  'products.create':          { method:'POST',   path:'/integration/product/sellers/{sellerId}/products', risk:'write' },
-  'products.update':          { method:'PUT',    path:'/integration/product/sellers/{sellerId}/products', risk:'write' },
   'products.delete':          { method:'DELETE', path:'/integration/product/sellers/{sellerId}/products', risk:'destructive' },
   'products.archive':         { method:'PUT',    path:'/integration/product/sellers/{sellerId}/products/archive-state', risk:'destructive' },
   'products.unlock':          { method:'PUT',    path:'/integration/product/sellers/{sellerId}/products/unlock', risk:'write' },
@@ -110,6 +113,9 @@ Deno.serve(async req => {
     const action = String(input?.action || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
+    if (DEPRECATED_ACTIONS[action]) {
+      throw new HttpError(410, `أوقف Trendyol هذه العملية ضمن Product V1 اعتبارًا من 10 أغسطس 2026. ${DEPRECATED_ACTIONS[action]}`)
+    }
     const bearer = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
     const actorId = bearer && bearer !== SERVICE_KEY
       ? (await admin.auth.getUser(bearer)).data?.user?.id || null
