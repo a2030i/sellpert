@@ -90,7 +90,9 @@ begin
   if (brief->'confirmed_deductions'->>'total_excluding_returns')::numeric <> 119 then
     raise exception 'confirmed deductions are incorrect';
   end if;
-  if (brief->'week'->>'contribution_before_product_cost')::numeric <> 581 then
+  -- total_amount is already net of marketplace discounts, so contribution
+  -- subtracts only platform fees and shipping (700 - 70 - 35).
+  if (brief->'week'->>'contribution_before_product_cost')::numeric <> 595 then
     raise exception 'pre-cost contribution is incorrect';
   end if;
   if (brief->'week'->>'exception_rate_pct')::numeric <> 12.5 then
