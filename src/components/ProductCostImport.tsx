@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Save, Upload, X } from 'lucide-react'
 import { supabase, type Product } from '../lib/supabase'
 import { userErrorMessage } from '../lib/userError'
 import './ProductCostImport.css'
@@ -38,6 +38,24 @@ function productIdentifiers(product: Product) {
     .filter(Boolean).map(value => String(value).trim().toLowerCase())
 }
 
+export function preferredProductIdentifier(product: Product) {
+  return [product.sku, product.barcode, product.external_id, product.model_code, product.supplier_sku, product.psku_code, product.noon_sku_child, product.asin]
+    .map(value => String(value || '').trim())
+    .find(Boolean) || ''
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? '')
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+export function productCostTemplateCsv(products: Product[]) {
+  const rows = products
+    .filter(product => Number(product.cost_price || 0) <= 0 && preferredProductIdentifier(product))
+    .map(product => [product.name, preferredProductIdentifier(product), ''].map(csvCell).join(','))
+  return `\uFEFFاسم المنتج,SKU,تكلفة الشراء\n${rows.join('\n')}${rows.length ? '\n' : ''}`
+}
+
 export default function ProductCostImport({ merchantCode, products, onClose, onComplete }: {
   merchantCode: string
   products: Product[]
@@ -50,6 +68,7 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
   const [parseError, setParseError] = useState('')
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
+  const [quickCosts, setQuickCosts] = useState<Record<string, string>>({})
 
   const knownIdentifiers = useMemo(() => new Set(products.flatMap(productIdentifiers)), [products])
   const preview = useMemo(() => {
@@ -58,6 +77,15 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
     const unmatched = valid.filter(row => !knownIdentifiers.has(row.identifier.toLowerCase()))
     return { valid, matched, unmatched, invalid: rows.length - valid.length }
   }, [knownIdentifiers, rows])
+  const missingProducts = useMemo(() => products
+    .filter(product => Number(product.cost_price || 0) <= 0 && preferredProductIdentifier(product))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar')), [products])
+  const quickUpdates = useMemo(() => missingProducts.flatMap(product => {
+    const cost = Number(String(quickCosts[product.id] || '').replace(',', '.'))
+    return cost > 0 ? [{ identifier: preferredProductIdentifier(product), cost_price: cost.toFixed(2) }] : []
+  }), [missingProducts, quickCosts])
+  const costedCount = products.filter(product => Number(product.cost_price || 0) > 0).length
+  const coverage = products.length ? Math.round(costedCount / products.length * 100) : 0
 
   async function readFile(file: File) {
     setParseError('')
@@ -81,22 +109,21 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
   }
 
   function downloadTemplate() {
-    const content = '\uFEFFSKU,تكلفة الشراء\nSKU-001,25.50\n'
+    const content = productCostTemplateCsv(products)
     const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = 'sellpert-product-costs-template.csv'
+    anchor.download = 'sellpert-missing-product-costs.csv'
     anchor.click()
     URL.revokeObjectURL(url)
   }
 
-  async function save() {
-    if (!preview.valid.length) return
+  async function persist(updates: Array<{ identifier: string; cost_price: string }>) {
+    if (!updates.length) return
     setSaving(true)
     setParseError('')
-    const payload = preview.valid.map(row => ({ identifier: row.identifier, cost_price: String(row.cost_price).replace(',', '.') }))
     const { data, error } = await (supabase.rpc as any)('bulk_update_product_costs', {
-      p_updates: payload,
+      p_updates: updates,
       p_merchant_code: merchantCode,
     })
     if (error) {
@@ -111,6 +138,11 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
     if (Number(outcome?.updated_count || 0) > 0) onComplete()
   }
 
+  async function save() {
+    const payload = preview.valid.map(row => ({ identifier: row.identifier, cost_price: String(row.cost_price).replace(',', '.') }))
+    await persist(payload)
+  }
+
   return <div className="cost-import-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section className="cost-import" role="dialog" aria-modal="true" aria-labelledby="cost-import-title">
       <header className="cost-import__header">
@@ -119,14 +151,25 @@ export default function ProductCostImport({ merchantCode, products, onClose, onC
       </header>
 
       <div className="cost-import__guide">
-        <div><strong>الأعمدة المطلوبة</strong><span>SKU أو الباركود</span><span>تكلفة الشراء</span></div>
-        <button onClick={downloadTemplate}><Download size={16} /> تنزيل نموذج</button>
+        <div><strong>اكتمال التكاليف الآن</strong><span>{costedCount.toLocaleString('ar-SA-u-nu-latn')} من {products.length.toLocaleString('ar-SA-u-nu-latn')} منتج</span><span>{coverage.toLocaleString('ar-SA-u-nu-latn')}٪</span></div>
+        <button onClick={downloadTemplate} disabled={!missingProducts.length}><Download size={16} /> تنزيل المنتجات الناقصة</button>
       </div>
 
-      <input ref={fileInput} type="file" accept=".xlsx,.xls,.csv" hidden onChange={event => { const file = event.target.files?.[0]; if (file) readFile(file) }} />
+      {!result && missingProducts.length ? <section className="cost-import__quick" aria-labelledby="quick-cost-title">
+        <div className="cost-import__quick-head"><div><strong id="quick-cost-title">إدخال سريع بدون ملف</strong><span>أدخل تكلفة الشراء للمنتجات الظاهرة، ثم احفظها مباشرة.</span></div><span>{missingProducts.length.toLocaleString('ar-SA-u-nu-latn')} منتج ناقص</span></div>
+        <div className="cost-import__quick-list">{missingProducts.slice(0, 12).map(product => <label key={product.id}>
+          <span><strong>{product.name}</strong><small dir="ltr">{preferredProductIdentifier(product)}</small></span>
+          <span className="cost-import__quick-input"><input aria-label={`تكلفة ${product.name}`} inputMode="decimal" type="number" min="0.01" step="0.01" value={quickCosts[product.id] || ''} onChange={event => setQuickCosts(current => ({ ...current, [product.id]: event.target.value }))} placeholder="0.00" /><em>ر.س</em></span>
+        </label>)}</div>
+        <div className="cost-import__quick-actions"><small>{missingProducts.length > 12 ? 'يظهر أول 12 منتجًا. استخدم قائمة المنتجات الجاهزة لإكمال البقية دفعة واحدة.' : 'يمكنك حفظ منتج واحد أو عدة منتجات معًا.'}</small><button disabled={saving || !quickUpdates.length} onClick={() => void persist(quickUpdates)}><Save size={15} />{saving ? 'جارٍ الحفظ…' : `حفظ ${quickUpdates.length.toLocaleString('ar-SA-u-nu-latn')} تكلفة`}</button></div>
+      </section> : null}
+
+      {!result ? <div className="cost-import__divider"><span>أو استكملها بملف</span></div> : null}
+
+      {!result ? <><input ref={fileInput} type="file" accept=".xlsx,.xls,.csv" hidden onChange={event => { const file = event.target.files?.[0]; if (file) readFile(file) }} />
       <button className="cost-import__drop" onClick={() => fileInput.current?.click()}>
         <Upload size={22} /><strong>{fileName || 'اختر ملف التكاليف'}</strong><span>Excel أو CSV، بحد أقصى 5,000 صف</span>
-      </button>
+      </button></> : null}
 
       {parseError ? <div className="cost-import__message cost-import__message--error"><AlertTriangle size={17} />{parseError}</div> : null}
 

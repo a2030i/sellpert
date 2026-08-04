@@ -58,8 +58,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (merchant) loadData() }, [merchant])
 
-  async function loadData() {
-    setLoading(true)
+  async function loadData(options: { background?: boolean } = {}) {
+    if (!options.background) setLoading(true)
     setLoadError('')
     try {
       const [productResult, priceResult, rateResult, inventoryResult, listingResult] = await Promise.all([
@@ -80,7 +80,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       console.error('load products', error)
       setLoadError(userErrorMessage(error, 'تعذّر تحميل المنتجات الآن.'))
     } finally {
-      setLoading(false)
+      if (!options.background) setLoading(false)
     }
   }
 
@@ -689,7 +689,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       )}
 
       </>)}
-      {showCostImport && merchant ? <ProductCostImport merchantCode={merchant.merchant_code} products={products} onClose={() => setShowCostImport(false)} onComplete={loadData} /> : null}
+      {showCostImport && merchant ? <ProductCostImport merchantCode={merchant.merchant_code} products={products} onClose={() => setShowCostImport(false)} onComplete={() => void loadData({ background: true })} /> : null}
     </div>
   )
 }

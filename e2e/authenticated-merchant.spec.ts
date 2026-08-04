@@ -146,6 +146,49 @@ test('merchant sees a truthful purchase funding decision and opens bank evidence
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant completes product costs directly without preparing a technical file', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const product = {
+    id:'cost-product-e2e', merchant_code:merchant.merchant_code, name:'قهوة عربية فاخرة', sku:'COFFEE-COST-1',
+    barcode:'628100000010', category:'قهوة', cost_price:0, target_net_price:54, status:'active',
+    created_at:'2026-08-01T08:00:00Z', updated_at:'2026-08-01T08:00:00Z',
+  }
+  let submitted: any = null
+  let savedCost = 0
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/rpc/bulk_update_product_costs')) {
+      submitted = route.request().postDataJSON()
+      savedCost = 24.75
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify([{ updated_count:1, unmatched_identifiers:[], ambiguous_identifiers:[], invalid_rows:0 }]) })
+      return
+    }
+    const table = url.pathname.split('/').pop()
+    const rows = table === 'merchants' ? [merchant] : table === 'products' ? [{ ...product, cost_price:savedCost }] : []
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(rows) })
+  })
+
+  await page.goto('/products?costs=import')
+  const dialog = page.getByRole('dialog', { name:'استيراد تكاليف المنتجات' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('إدخال سريع بدون ملف')).toBeVisible()
+  await dialog.getByLabel('تكلفة قهوة عربية فاخرة').fill('24.75')
+  await dialog.getByRole('button', { name:'حفظ 1 تكلفة' }).click()
+  await expect.poll(() => submitted).toEqual({
+    p_updates:[{ identifier:'COFFEE-COST-1', cost_price:'24.75' }],
+    p_merchant_code:merchant.merchant_code,
+  })
+  await expect(dialog.getByText('تم تحديث 1 منتج')).toBeVisible()
+  await expect(dialog.getByText('100٪')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'استكمال تكاليف المنتجات بدون ملف')
+  await page.screenshot({ path:testInfo.outputPath('product-cost-quick-entry.png'), fullPage:true })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('registered merchant reaches complete Trendyol actions without technical JSON', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
