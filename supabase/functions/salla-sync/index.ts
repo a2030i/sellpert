@@ -15,6 +15,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
 import { authorizeMerchantSync } from '../_shared/sync.ts'
+import { resolveSallaTokens, storeSallaTokens } from '../_shared/sallaTokenVault.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
     // ── Get Salla tokens ──────────────────────────────────────────────────────
     const { data: conn } = await admin
       .from('salla_connections')
-      .select('*')
+      .select('id,merchant_code,token_expires_at,sync_status,access_token,refresh_token')
       .eq('merchant_code', merchant_code)
       .eq('sync_status', 'idle')
       .maybeSingle()
@@ -61,9 +62,11 @@ Deno.serve(async (req) => {
     if (!conn) return json({ error: 'No active Salla connection' }, 404)
 
     // Refresh token if expiring in < 5 minutes
-    let accessToken = conn.access_token
+    const credentials = await resolveSallaTokens(admin, conn)
+    let accessToken = credentials.accessToken
+    if (!accessToken) return json({ error: 'Salla credentials are unavailable' }, 409)
     if (conn.token_expires_at && new Date(conn.token_expires_at).getTime() - Date.now() < 300000) {
-      accessToken = await refreshSallaToken(admin, conn)
+      accessToken = await refreshSallaToken(admin, conn, credentials)
     }
 
     // Mark connection as syncing
@@ -273,17 +276,17 @@ async function syncAnalytics(admin: any, merchantCode: string, token: string) {
 
 // ── Token Refresh ─────────────────────────────────────────────────────────────
 
-async function refreshSallaToken(admin: any, conn: any): Promise<string> {
+async function refreshSallaToken(admin: any, conn: any, credentials: { accessToken: string; refreshToken: string }): Promise<string> {
   const cfg = await getSettings(admin)
 
-  if (!conn.refresh_token) return conn.access_token
+  if (!credentials.refreshToken) return credentials.accessToken
 
   const res = await fetch('https://accounts.salla.sa/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type:    'refresh_token',
-      refresh_token: conn.refresh_token,
+      refresh_token: credentials.refreshToken,
       client_id:     cfg.clientId,
       client_secret: cfg.clientSecret,
     }).toString(),
@@ -291,19 +294,24 @@ async function refreshSallaToken(admin: any, conn: any): Promise<string> {
 
   if (!res.ok) {
     console.error('Token refresh failed:', await res.text())
-    return conn.access_token
+    return credentials.accessToken
   }
 
   const tokens = await res.json()
   const newToken = tokens.access_token
   const expiresIn = tokens.expires_in || 3600
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+  const nextRefreshToken = tokens.refresh_token || credentials.refreshToken
 
-  await admin.from('salla_connections').update({
-    access_token:    newToken,
-    refresh_token:   tokens.refresh_token || conn.refresh_token,
-    token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-    updated_at:      new Date().toISOString(),
-  }).eq('merchant_code', conn.merchant_code)
+  const storedInVault = await storeSallaTokens(admin, conn.id, newToken, nextRefreshToken, expiresAt)
+  if (!storedInVault) {
+    await admin.from('salla_connections').update({
+      access_token: newToken,
+      refresh_token: nextRefreshToken,
+      token_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    }).eq('merchant_code', conn.merchant_code)
+  }
 
   return newToken
 }

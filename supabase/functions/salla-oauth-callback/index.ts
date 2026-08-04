@@ -16,6 +16,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
 import { generateAccountCode, normalizeEmail } from '../_shared/accountSecurity.ts'
+import { storeSallaTokens } from '../_shared/sallaTokenVault.ts'
 
 const SALLA_TOKEN_URL = 'https://accounts.salla.sa/oauth2/token'
 const SALLA_STORE_API = 'https://api.salla.dev/admin/v2/store/info'
@@ -73,6 +74,7 @@ Deno.serve(async (req) => {
     const accessToken  = tokens.access_token
     const refreshToken = tokens.refresh_token
     const expiresIn    = tokens.expires_in || 3600
+    const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
     // ── Step 2: Fetch store info ──────────────────────────────────────────────
     const storeRes = await fetch(SALLA_STORE_API, {
@@ -110,17 +112,17 @@ Deno.serve(async (req) => {
     // Check if salla_connections already exists
     const { data: existingConn } = await admin
       .from('salla_connections')
-      .select('merchant_code')
+      .select('id,merchant_code')
       .eq('salla_store_id', sallaStoreId)
       .maybeSingle()
 
     if (existingConn) {
       // Existing connection → just refresh tokens
       merchantCode = existingConn.merchant_code
+      const storedInVault = await storeSallaTokens(admin, existingConn.id, accessToken, refreshToken, tokenExpiresAt)
       await admin.from('salla_connections').update({
-        access_token:    accessToken,
-        refresh_token:   refreshToken,
-        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+        ...(storedInVault ? {} : { access_token: accessToken, refresh_token: refreshToken }),
+        token_expires_at: tokenExpiresAt,
         uninstalled_at:  null,
         sync_status:     'idle',
         updated_at:      new Date().toISOString(),
@@ -188,8 +190,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Create salla_connections record
-      await admin.from('salla_connections').insert({
+      // Create metadata first. The null-token insert is the post-migration
+      // path; the second attempt supports deploying this function immediately
+      // before the Vault migration while access_token is still NOT NULL.
+      const connectionId = crypto.randomUUID()
+      const connectionMetadata = {
+        id:               connectionId,
         merchant_code:    merchantCode,
         salla_store_id:   sallaStoreId,
         salla_merchant_id: String(storeInfo.merchant_id || ''),
@@ -197,12 +203,27 @@ Deno.serve(async (req) => {
         store_domain:     storeDomain,
         store_currency:   storeCurrency,
         store_logo:       storeLogo,
-        access_token:     accessToken,
-        refresh_token:    refreshToken,
-        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+        token_expires_at: tokenExpiresAt,
         installed_at:     new Date().toISOString(),
         sync_status:      'idle',
+      }
+      let { error: connectionError } = await admin.from('salla_connections').insert({
+        ...connectionMetadata, access_token: null, refresh_token: null,
       })
+      let usedLegacyInsert = false
+      if (connectionError?.code === '23502') {
+        usedLegacyInsert = true
+        const legacyInsert = await admin.from('salla_connections').insert({
+          ...connectionMetadata, access_token: accessToken, refresh_token: refreshToken,
+        })
+        connectionError = legacyInsert.error
+      }
+      if (connectionError) throw new Error('Unable to create Salla connection')
+      const storedInVault = await storeSallaTokens(admin, connectionId, accessToken, refreshToken, tokenExpiresAt)
+      if (!storedInVault && !usedLegacyInsert) {
+        await admin.from('salla_connections').delete().eq('id', connectionId)
+        throw new Error('Salla token Vault is unavailable')
+      }
 
       // Welcome notification
       const { error: welcomeError } = await admin.from('notifications').insert({
