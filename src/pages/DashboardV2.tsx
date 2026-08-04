@@ -10,6 +10,7 @@ import { fetchAll } from '../lib/db'
 import { PLATFORM_MAP } from '../lib/constants'
 import { useMobile } from '../lib/hooks'
 import { createMerchantAction, dueDateFromNow, type ActionPriority } from '../lib/merchantActions'
+import { buildMerchantOpportunities, type OpportunityConfidence, type OpportunityKind } from '../lib/merchantOpportunities'
 import { workspaceReadiness, type WorkspaceReadiness } from '../lib/workspaceReadiness'
 import { orderContributionBeforeProductCost } from '../lib/orderProfit'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
@@ -103,6 +104,20 @@ type WeeklyBriefRow = {
   id: string; week_start: string; week_end: string; source_data_as_of: string
   actual_sales: number; monthly_target: number | null; target_attainment_pct: number | null
   target_pace_pct: number | null; target_status: GoalStatus; created_at: string; updated_at: string
+}
+
+const OPPORTUNITY_ICONS: Record<OpportunityKind, typeof AlertTriangle> = {
+  costs: Database,
+  profitability: AlertTriangle,
+  inventory: Boxes,
+  marketing: Megaphone,
+  cash: WalletCards,
+}
+
+const OPPORTUNITY_CONFIDENCE: Record<OpportunityConfidence, string> = {
+  high: 'دليل قوي',
+  medium: 'دليل متوسط',
+  low: 'دليل محدود',
 }
 
 const RANGE_LABELS: Record<RangeKey, string> = { '30': '30 يومًا', '90': '90 يومًا', '180': '180 يومًا' }
@@ -203,6 +218,11 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       const executiveResult = settledValue(results[10]) as { data?: ExecutiveBrief; error?: unknown } | null
       const goalResult = settledValue(results[11]) as { data?: MonthlyGoal; error?: unknown } | null
       const historyResult = settledValue(results[12]) as { data?: WeeklyBriefRow[]; error?: unknown } | null
+      const healthData = healthResult?.data?.breakdown ? healthResult.data : null
+      const forecastData = typeof forecastResult?.data?.forecast_30 === 'number' ? forecastResult.data : null
+      const executiveData = typeof executiveResult?.data?.available === 'boolean' ? executiveResult.data : null
+      const goalData = typeof goalResult?.data?.status === 'string' ? goalResult.data : null
+      const historyData = Array.isArray(historyResult?.data) ? historyResult.data : []
 
       setOrders(orderRows || [])
       setInventory(inventoryRows || [])
@@ -210,18 +230,25 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       setCashflow(cashResult?.data || [])
       setAds(adResult?.data || [])
       setAbc(abcResult?.data || [])
-      setHealth(healthResult?.data || null)
-      setForecast(forecastResult?.data || null)
-      setExecutiveBrief(executiveResult?.data || null)
-      setMonthlyGoal(goalResult?.data || null)
-      setWeeklyHistory(historyResult?.data || [])
+      setHealth(healthData)
+      setForecast(forecastData)
+      setExecutiveBrief(executiveData)
+      setMonthlyGoal(goalData)
+      setWeeklyHistory(historyData)
       setSourceReady(Boolean(uploadResult?.data?.uploaded_at || (syncCredentials || []).some(item => item.is_active)))
       const dates = [uploadResult?.data?.uploaded_at, syncResult?.data?.last_sync_at, orderRows?.[0]?.created_at].filter(Boolean) as string[]
       dates.sort()
       setLastUpdated(dates[dates.length - 1] || null)
       const criticalIndexes = [0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       const criticalRequestFailed = criticalIndexes.some(index => results[index].status === 'rejected')
-      setPartialData(criticalRequestFailed || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult, goalResult, historyResult].some(result => Boolean(result?.error)))
+      const malformedRpcResponse = Boolean(
+        (healthResult?.data && !healthData)
+        || (forecastResult?.data && !forecastData)
+        || (executiveResult?.data && !executiveData)
+        || (goalResult?.data && !goalData)
+        || (historyResult?.data && !Array.isArray(historyResult.data)),
+      )
+      setPartialData(criticalRequestFailed || malformedRpcResponse || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult, goalResult, historyResult].some(result => Boolean(result?.error)))
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -244,16 +271,12 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
 
     const costedProducts = profitability.filter(row => Number(row.cost_price || 0) > 0).length
     const soldProducts = profitability.filter(row => Number(row.units_sold || 0) > 0)
-    const confirmedLosses = soldProducts.filter(row => Number(row.net_profit || 0) < 0).sort((a, b) => Number(a.net_profit) - Number(b.net_profit))
-    const returnLeakage = profitability.reduce((sum, row) => sum + Number(row.returns_amount || 0), 0)
-    const velocityCovered = inventory.filter(row => Number(row.daily_velocity || 0) > 0 || Number(row.sold_30d || 0) > 0).length
-    const outOfStock = inventory.filter(row => row.health_status === 'out_of_stock').length
-    const inventoryDataAgeDays = inventory.reduce((oldest, row) => row.data_age_days == null ? oldest : Math.max(oldest, Number(row.data_age_days)), 0)
+    const confirmedLosses = soldProducts.filter(row => Number(row.cost_price || 0) > 0 && Number(row.net_profit || 0) < 0)
+      .sort((a, b) => Number(a.net_profit) - Number(b.net_profit))
 
     const adSpend = ads.reduce((sum, row) => sum + Number(row.total_spend || 0), 0)
     const adNet = ads.reduce((sum, row) => sum + Number(row.total_net || 0), 0)
     const adRoas = adSpend > 0 ? adNet / adSpend : 0
-    const bestChannel = [...ads].filter(row => Number(row.total_spend || 0) > 0).sort((a, b) => Number(b.net_roas || 0) - Number(a.net_roas || 0))[0]
 
     const cashByMonth = new Map<string, { month: string; cashIn: number; cashOut: number; net: number }>()
     for (const row of cashflow) {
@@ -278,48 +301,22 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       contribution: contribution(current), previousContribution: contribution(previous),
       costedProducts, costCoverage: profitability.length ? costedProducts / profitability.length * 100 : 0,
       totalProducts: profitability.length, soldProducts: soldProducts.length, confirmedLosses,
-      returnLeakage, velocityCoverage: inventory.length ? velocityCovered / inventory.length * 100 : 0,
-      inventoryItems: inventory.length, outOfStock, inventoryDataAgeDays, adSpend, adNet, adRoas, bestChannel,
+      adSpend, adNet, adRoas,
       cashChart, latestCash, classAProducts: classA.length, concentration,
     }
-  }, [orders, inventory, profitability, cashflow, ads, abc, range])
+  }, [orders, profitability, cashflow, ads, abc, range])
 
-  const decisions = useMemo(() => [
-    model.totalProducts > 0 && model.costCoverage < 100 ? {
-      Icon: Database, tone: 'red', priority: 'أولوية قصوى',
-      title: `أدخل تكلفة الشراء لـ ${(model.totalProducts - model.costedProducts).toLocaleString('ar-SA-u-nu-latn')} منتج`,
-      detail: 'بدون التكلفة لا يمكن اعتماد صافي الربح أو هامش المنتج أو قرار زيادة الإعلان.',
-      impact: 'يفتح الربحية الحقيقية', cta: 'استكمال التكاليف', path: '/products?costs=import',
-      sourceKey: 'cost_coverage', category: 'profitability', actionPriority: 'urgent' as ActionPriority,
-    } : null,
-    model.velocityCoverage === 0 && model.inventoryItems > 0 ? {
-      Icon: Boxes, tone: 'amber', priority: 'جودة بيانات',
-      title: 'اربط حركة البيع بالمخزون قبل قرارات إعادة الطلب',
-      detail: `${model.outOfStock.toLocaleString('ar-SA-u-nu-latn')} صنفًا يظهر نافدًا، لكن سرعة البيع غير محسوبة؛ إعادة الشراء الآن قد تكون قرارًا مضللًا.`,
-      impact: 'يمنع شراء مخزون راكد', cta: 'مراجعة المخزون', path: '/inventory',
-      sourceKey: 'inventory_velocity_missing', category: 'inventory', actionPriority: 'high' as ActionPriority,
-    } : model.inventoryDataAgeDays > 2 ? {
-      Icon: RefreshCw, tone: 'amber', priority: 'تحديث مطلوب',
-      title: `بيانات حركة المخزون متأخرة ${model.inventoryDataAgeDays.toLocaleString('ar-SA-u-nu-latn')} يومًا`,
-      detail: 'تم احتساب السرعة من آخر نافذة مبيعات متاحة، لكن قرارات إعادة الطلب تحتاج مزامنة حديثة.',
-      impact: 'قرارات شراء أحدث', cta: 'تحديث البيانات', path: '/integrations',
-      sourceKey: 'inventory_data_stale', category: 'data_quality', actionPriority: 'high' as ActionPriority,
-    } : null,
-    model.confirmedLosses.length > 0 ? {
-      Icon: AlertTriangle, tone: 'red', priority: 'خسارة مؤكدة',
-      title: `${model.confirmedLosses.length.toLocaleString('ar-SA-u-nu-latn')} منتجات خاسرة حتى قبل احتساب تكلفة الشراء`,
-      detail: `المرتجعات سحبت ${money(model.returnLeakage, 2)} من قيمة المنتجات المسجلة.`,
-      impact: 'إيقاف تسرب نقدي', cta: 'فحص المنتجات', path: '/products',
-      sourceKey: 'confirmed_product_losses', category: 'profitability', actionPriority: 'urgent' as ActionPriority,
-    } : null,
-    model.bestChannel ? {
-      Icon: Megaphone, tone: 'green', priority: 'فرصة نمو',
-      title: `${PLATFORM_MAP[model.bestChannel.platform] || model.bestChannel.platform} يحقق أعلى عائد إعلاني صافي`,
-      detail: `${Number(model.bestChannel.net_roas || 0).toFixed(2)}× بعد الرسوم والمرتجعات المتاحة، وقبل تكلفة المنتج.`,
-      impact: 'توجيه أفضل للميزانية', cta: 'تحليل الإعلانات', path: '/marketing',
-      sourceKey: `best_ad_channel:${model.bestChannel.platform}`, category: 'marketing', actionPriority: 'medium' as ActionPriority,
-    } : null,
-  ].filter(Boolean) as { Icon: typeof AlertTriangle; tone: string; priority: string; title: string; detail: string; impact: string; cta: string; path: string; sourceKey: string; category: string; actionPriority: ActionPriority }[], [model])
+  const decisions = useMemo(() => buildMerchantOpportunities({
+    profitability,
+    inventory,
+    ads,
+    latestCash: model.latestCash,
+    platformLabel: platform => PLATFORM_MAP[platform] || platform,
+  }).map(decision => ({
+    ...decision,
+    Icon: OPPORTUNITY_ICONS[decision.kind],
+    tone: decision.priority === 'urgent' ? 'red' : decision.kind === 'marketing' ? 'green' : 'amber',
+  })), [profitability, inventory, ads, model.latestCash])
 
   const readiness = workspaceReadiness({
     sourceReady,
@@ -336,11 +333,11 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         sourceKey: decision.sourceKey,
         title: decision.title,
         category: decision.category,
-        priority: decision.actionPriority,
+        priority: decision.priority,
         note: decision.detail,
         expectedImpact: decision.impact,
         details: { source: 'decision_center', destination: decision.path },
-        dueDate: dueDateFromNow(decision.actionPriority === 'urgent' ? 3 : 7),
+        dueDate: dueDateFromNow(decision.priority === 'urgent' ? 3 : 7),
       })
       if (result.created) toastOk('أُضيف القرار إلى خطة العمل')
       else toastInfo('هذا القرار موجود بالفعل في خطة العمل')
@@ -438,7 +435,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         history={weeklyHistory}
         savingTarget={savingTarget}
         onSaveTarget={amount => void saveMonthlyTarget(amount)}
-        tracking={tracking === executiveBrief?.top_priority.source_key}
+        tracking={tracking === executiveBrief?.top_priority?.source_key}
         onTrack={() => void trackExecutivePriority()}
       />
 
@@ -453,8 +450,8 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         <div className="db-section-heading"><div><h2 id="decisions-title">قرارات مرتبة حسب الأثر</h2><p>كل بند يوضح لماذا يهم وما النتيجة المتوقعة من معالجته.</p></div><span className="db-count">{decisions.length}</span></div>
         <div className="db-action-list">{decisions.length === 0 ? <div className="db-no-decisions"><strong>لا توجد قرارات عاجلة الآن</strong><span>سيضيف النظام البنود هنا عند ظهور نقص بيانات أو خطر تشغيلي أو فرصة قابلة للقياس.</span></div> : decisions.map(decision => <div key={decision.sourceKey} className="db-action">
           <span className={`db-action-icon db-action-icon--${decision.tone}`}><decision.Icon size={18} /></span>
-          <span className="db-action-copy"><small className="db-priority">{decision.priority}</small><strong>{decision.title}</strong><span>{decision.detail}</span></span>
-          <span className="db-impact"><small>الأثر</small><strong>{decision.impact}</strong></span>
+          <span className="db-action-copy"><small className="db-priority">{decision.priorityLabel}</small><strong>{decision.title}</strong><span>{decision.detail}</span><span className="db-evidence-row"><b>{decision.evidence}</b><em className={`db-evidence db-evidence--${decision.confidence}`}>{OPPORTUNITY_CONFIDENCE[decision.confidence]}</em></span></span>
+          <span className="db-impact"><small>{decision.valueLabel || 'الأثر المتوقع'}</small><strong>{decision.value == null ? decision.impact : decision.valueUnit === 'currency' ? money(decision.value, 2) : `${decision.value.toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 1 })} وحدة`}</strong>{decision.value != null ? <span>{decision.impact}</span> : null}</span>
           <span className="db-action-buttons"><button className="db-track" disabled={tracking === decision.sourceKey} onClick={() => void trackDecision(decision)}><ClipboardPlus size={14} />{tracking === decision.sourceKey ? 'جارٍ الإضافة' : 'إضافة للمتابعة'}</button><button className="db-action-cta" onClick={() => go(decision.path)}>{decision.cta}<ChevronLeft size={16} /></button></span>
         </div>)}</div>
         <button className="db-plan-link" onClick={() => go('/actions')}>عرض خطة العمل كاملة <ChevronLeft size={15} /></button>
@@ -483,10 +480,10 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       </div>
 
       <section className="db-panel db-loss-panel">
-        <div className="db-section-heading"><div><h2>تسرب الربحية المؤكد</h2><p>منتجات أصبحت سالبة حتى قبل احتساب تكلفة الشراء؛ لذا تحتاج مراجعة فورية.</p></div><button className="db-link" onClick={() => go('/products')}>كل المنتجات <ArrowLeft size={15} /></button></div>
+        <div className="db-section-heading"><div><h2>الخسارة الصافية المثبتة</h2><p>منتجات مباعة أصبحت سالبة بعد توفر تكلفة الشراء والاستقطاعات المسجلة.</p></div><button className="db-link" onClick={() => go('/products')}>كل المنتجات <ArrowLeft size={15} /></button></div>
         {model.confirmedLosses.length ? <div className="db-loss-list">{model.confirmedLosses.slice(0, 6).map(row => <button key={row.product_id} onClick={() => go(`/product-detail?id=${row.product_id}`)} className="db-loss-row">
           <span><strong>{row.product_name || row.sku || 'منتج غير مسمى'}</strong><small>SKU: {row.sku || 'غير متاح'}</small></span>
-          <Metric label="المبيعات" value={money(row.revenue, 2)} /><Metric label="المرتجعات" value={money(row.returns_amount, 2)} /><Metric label="النتيجة قبل التكلفة" value={money(row.net_profit, 2)} danger />
+          <Metric label="المبيعات" value={money(row.revenue, 2)} /><Metric label="المرتجعات" value={money(row.returns_amount, 2)} /><Metric label="صافي النتيجة" value={money(row.net_profit, 2)} danger />
           <ChevronLeft size={16} />
         </button>)}</div> : <EmptyState text="لا توجد منتجات سالبة مؤكدة ضمن البيانات الحالية." />}
       </section>
@@ -501,7 +498,7 @@ function ExecutiveBriefPanel({ brief, goal, history, savingTarget, onSaveTarget,
   savingTarget: boolean; onSaveTarget: (amount: number) => void
   tracking: boolean; onTrack: () => void
 }) {
-  const periodLabel = brief?.period.start && brief.period.end
+  const periodLabel = brief?.period?.start && brief.period.end
     ? `${new Date(`${brief.period.start}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })} – ${new Date(`${brief.period.end}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' })}`
     : 'آخر أسبوع مكتمل في البيانات'
   const priority = brief?.top_priority

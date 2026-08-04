@@ -18,3 +18,7 @@
 @media(max-width:850px){.db-cycle{grid-template-columns:1fr}}
 @media(max-width:600px){.db-goal-numbers{grid-template-columns:1fr 1fr}.db-goal-numbers>div:last-child{grid-column:1/-1}.db-week-row{grid-template-columns:minmax(115px,1fr) auto}.db-week-row>.db-goal-status{grid-column:1/-1}}
 @media(max-width:1400px) and (min-width:851px){.db-channel{grid-template-columns:minmax(96px,1.2fr) repeat(4,minmax(54px,1fr));gap:7px}.db-channel .db-metric{overflow-wrap:anywhere}.db-channel .db-metric strong{white-space:normal}}
+
+/* Evidence layer for the merchant opportunity engine. */
+.db-priority{font-size:13px!important}.db-evidence-row{display:flex!important;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}.db-evidence-row>b{font-size:12px;color:var(--text2);font-weight:700}.db-evidence{display:inline-flex;padding:2px 6px;border-radius:4px;font-size:12px;font-style:normal;font-weight:800}.db-evidence--high{background:var(--success-bg);color:var(--success-text)}.db-evidence--medium{background:var(--warning-bg);color:var(--warning-text)}.db-evidence--low{background:var(--surface2);color:var(--text3)}.db-impact small{font-size:12px}.db-impact>span{font-size:12px;color:var(--text3);line-height:1.4}
+@media(max-width:850px){.db-impact{display:flex;grid-column:2;border-right:0;padding-right:0;border-top:1px dashed var(--border);padding-top:8px}}

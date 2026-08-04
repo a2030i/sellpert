@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const merchant = {
   id: '00000000-0000-4000-8000-000000000111',
@@ -118,6 +118,7 @@ async function mockAuthenticatedMerchant(page: Page) {
 test('registered merchant reaches complete Trendyol actions without technical JSON', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
   await mockAuthenticatedMerchant(page)
 
   await page.goto('/integrations')
@@ -155,4 +156,52 @@ test('store owner downloads a complete paged data archive without integration se
   expect(download.suggestedFilename()).toMatch(/^sellpert-M-E2E-001-\d{4}-\d{2}-\d{2}\.zip$/)
   await expect(page.getByText(/تم تنزيل نسخة كاملة: 2 قسمًا و.+ سجلًا/)).toBeVisible()
   await expect(page.getByText(/مفاتيح الربط والأسرار/)).toBeVisible()
+})
+
+test('decision center explains evidence, value and action without misleading estimates', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const fulfillRows = (route: Route, rows: unknown[]) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' },
+    body: JSON.stringify(rows),
+  })
+
+  await page.route('**/rest/v1/product_profitability**', route => fulfillRows(route, [
+    { product_id: 'p-loss', sku: 'LOSS-1', product_name: 'منتج بخسارة', cost_price: 40, units_sold: 4, revenue: 160, platform_fees: 30, ad_spend: 70, returns_amount: 20, net_profit: -45.25, profit_margin_pct: -28.28 },
+    { product_id: 'p-missing', sku: 'MISS-1', product_name: 'منتج ناقص التكلفة', cost_price: 0, units_sold: 2, revenue: 100, platform_fees: 10, ad_spend: 0, returns_amount: 0, net_profit: 90, profit_margin_pct: 90 },
+  ]))
+  await page.route('**/rest/v1/inventory_health**', route => fulfillRows(route, [
+    { sku: 'LOSS-1', product_name: 'منتج بخسارة', quantity: 0, cost_price: 40, stock_value_cost: 0, daily_velocity: 1, sold_30d: 18, days_of_stock: 0, health_status: 'out_of_stock', data_as_of: '2026-08-03', data_age_days: 1 },
+  ]))
+  await page.route('**/rest/v1/ad_net_summary**', route => fulfillRows(route, [
+    { platform: 'trendyol', total_spend: 500, total_gross: 410, total_net: 320, gross_roas: 0.82, net_roas: 0.64, fee_rate: 0.1, return_rate: 0.05 },
+  ]))
+  await page.route('**/rest/v1/monthly_cashflow**', route => fulfillRows(route, [
+    { platform: 'trendyol', month: '2026-08-01', cash_in: 700, cash_out: 1000, net: -300, tx_count: 4 },
+  ]))
+  await page.route('**/rest/v1/orders**', route => fulfillRows(route, [
+    { id: 'o1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: 'T-1', status: 'delivered', product_name: 'منتج بخسارة', sku: 'LOSS-1', quantity: 1, unit_price: 100, total_amount: 100, platform_fee: 10, shipping_cost: 5, discount_amount: 0, currency: 'SAR', customer_city: 'Riyadh', order_date: '2026-08-03T10:00:00.000Z', created_at: '2026-08-03T10:00:00.000Z' },
+  ]))
+  await page.route('**/rest/v1/rpc/create_my_action**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'action-e2e', created: true }),
+  }))
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'مركز قرارات المتجر' })).toBeVisible()
+  expect(runtimeErrors).toEqual([])
+  await expect(page.getByRole('heading', { name: 'قرارات مرتبة حسب الأثر' })).toBeVisible()
+  await expect(page.getByText('دليل قوي').first()).toBeVisible()
+  await expect(page.getByText('الخسارة المسجلة')).toBeVisible()
+  await expect(page.getByText('45.25 ر.س', { exact: true })).toBeVisible()
+  await expect(page.getByText('ليست مبيعات مضمونة')).toBeVisible()
+  await expect(page.getByText('قبل احتساب تكلفة المنتج')).toBeVisible()
+
+  await page.getByRole('button', { name: 'إضافة للمتابعة' }).first().click()
+  await expect(page.getByText('أُضيف القرار إلى خطة العمل')).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('dashboard-opportunities.png'), fullPage: true })
 })
