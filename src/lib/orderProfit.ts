@@ -54,3 +54,11 @@ export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], co
     netProfit: costComplete ? revenue - fees - shipping - discounts - productCost : null,
   }
 }
+
+export function orderContributionBeforeProductCost(order: Pick<ProfitOrder, 'total_amount' | 'platform_fee' | 'shipping_cost'>) {
+  // total_amount is the marketplace net order amount. Discounts remain useful
+  // as a disclosure, but subtracting them here would count them twice.
+  return Number(order.total_amount || 0)
+    - Number(order.platform_fee || 0)
+    - Number(order.shipping_cost || 0)
+}

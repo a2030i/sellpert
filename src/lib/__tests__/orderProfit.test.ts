@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateOrderProfit } from '../orderProfit'
+import { calculateOrderProfit, orderContributionBeforeProductCost } from '../orderProfit'
 
 describe('order profit', () => {
   it('calculates the order net only when every line has a known cost', () => {
@@ -16,6 +16,10 @@ describe('order profit', () => {
       [], new Map([['sku:a', 40]]),
     )
     expect(result).toMatchObject({ revenue: 100, discounts: 0, netProfit: 50, usesGrossAmount: false })
+  })
+
+  it('keeps order contribution based on the net marketplace total', () => {
+    expect(orderContributionBeforeProductCost({ total_amount: 100, platform_fee: 10, shipping_cost: 5 })).toBe(85)
   })
 
   it('withholds the net when one line has no cost', () => {

@@ -11,6 +11,7 @@ import { PLATFORM_MAP } from '../lib/constants'
 import { useMobile } from '../lib/hooks'
 import { createMerchantAction, dueDateFromNow, type ActionPriority } from '../lib/merchantActions'
 import { workspaceReadiness, type WorkspaceReadiness } from '../lib/workspaceReadiness'
+import { orderContributionBeforeProductCost } from '../lib/orderProfit'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import './DashboardV2.css'
 
@@ -239,7 +240,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     const previous = orders.filter(order => { const date = new Date(order.order_date); return date >= previousFrom && date < currentFrom })
     const valid = (rows: Order[]) => rows.filter(order => !['cancelled', 'returned'].includes(order.status))
     const sales = (rows: Order[]) => valid(rows).reduce((sum, order) => sum + Number(order.total_amount || 0), 0)
-    const contribution = (rows: Order[]) => valid(rows).reduce((sum, order) => sum + Number(order.total_amount || 0) - Number(order.platform_fee || 0) - Number(order.shipping_cost || 0) - Number(order.discount_amount || 0), 0)
+    const contribution = (rows: Order[]) => valid(rows).reduce((sum, order) => sum + orderContributionBeforeProductCost(order), 0)
 
     const costedProducts = profitability.filter(row => Number(row.cost_price || 0) > 0).length
     const soldProducts = profitability.filter(row => Number(row.units_sold || 0) > 0)
