@@ -5,6 +5,35 @@ export type TrendyolProductSyncRows = {
   unapprovedVariants: number
 }
 
+export function normalizeTrendyolDeliveryUpdate(payload: unknown) {
+  const items = (payload as { items?: unknown } | null)?.items
+  if (!Array.isArray(items) || items.length < 1 || items.length > 1000) {
+    throw new Error('أرسل من 1 إلى 1,000 منتج في كل تحديث للتوصيل')
+  }
+  return {
+    items: items.map((value: unknown) => {
+      const item = value as { barcode?: unknown; deliveryOptions?: { deliveryDuration?: unknown; fastDeliveryType?: unknown } } | null
+      const barcode = String(item?.barcode || '').trim()
+      const deliveryDuration = Number(item?.deliveryOptions?.deliveryDuration)
+      const requestedType = item?.deliveryOptions?.fastDeliveryType
+      const fastDeliveryType = requestedType === null || requestedType === undefined || requestedType === ''
+        ? null
+        : String(requestedType).trim().toUpperCase()
+      if (!barcode) throw new Error('باركود المنتج مطلوب لتحديث التوصيل')
+      if (!Number.isInteger(deliveryDuration) || deliveryDuration < 0 || deliveryDuration > 30) {
+        throw new Error('مدة تجهيز المنتج يجب أن تكون عددًا صحيحًا بين 0 و30 يومًا')
+      }
+      if (fastDeliveryType !== null && !['FAST_DELIVERY', 'SAME_DAY_SHIPPING'].includes(fastDeliveryType)) {
+        throw new Error('خيار التوصيل السريع غير صالح')
+      }
+      if (fastDeliveryType !== null && deliveryDuration !== 1) {
+        throw new Error('يتطلب التوصيل السريع مدة تجهيز يوم واحد')
+      }
+      return { barcode, deliveryOptions: { deliveryDuration, fastDeliveryType } }
+    }),
+  }
+}
+
 function numberValue(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
@@ -109,4 +138,3 @@ export function normalizeTrendyolV2Products(
     unapprovedVariants,
   }
 }
-

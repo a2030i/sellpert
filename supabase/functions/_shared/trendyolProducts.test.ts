@@ -1,5 +1,5 @@
-import { assertEquals } from 'jsr:@std/assert'
-import { normalizeTrendyolV2Products } from './trendyolProducts.ts'
+import { assertEquals, assertThrows } from 'jsr:@std/assert'
+import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolV2Products } from './trendyolProducts.ts'
 
 Deno.test('Product V2 normalization preserves Arabic content and variant financials', () => {
   const result = normalizeTrendyolV2Products('M-1', [{
@@ -41,3 +41,14 @@ Deno.test('approved Product V2 variant wins over a duplicate rejected barcode', 
   assertEquals(result.unapprovedVariants, 1)
 })
 
+Deno.test('delivery update accepts merchant options and rejects inconsistent fast delivery', () => {
+  assertEquals(normalizeTrendyolDeliveryUpdate({ items:[{
+    barcode:'BAR-1', deliveryOptions:{ deliveryDuration:1, fastDeliveryType:'FAST_DELIVERY' },
+  }] }), { items:[{ barcode:'BAR-1', deliveryOptions:{ deliveryDuration:1, fastDeliveryType:'FAST_DELIVERY' } }] })
+  assertEquals(normalizeTrendyolDeliveryUpdate({ items:[{
+    barcode:'BAR-2', deliveryOptions:{ deliveryDuration:3, fastDeliveryType:null },
+  }] }), { items:[{ barcode:'BAR-2', deliveryOptions:{ deliveryDuration:3, fastDeliveryType:null } }] })
+  assertThrows(() => normalizeTrendyolDeliveryUpdate({ items:[{
+    barcode:'BAR-3', deliveryOptions:{ deliveryDuration:2, fastDeliveryType:'SAME_DAY_SHIPPING' },
+  }] }), Error, 'مدة تجهيز يوم واحد')
+})

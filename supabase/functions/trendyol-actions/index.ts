@@ -5,6 +5,7 @@ import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '.
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
+import { normalizeTrendyolDeliveryUpdate } from '../_shared/trendyolProducts.ts'
 import { normalizeTrendyolCancelPayload, normalizeTrendyolSplitPayload, requestedTrendyolPackageLines, trendyolPackageLinesAreAvailable } from '../_shared/trendyolPackageMutations.ts'
 import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 
@@ -408,6 +409,10 @@ function validateActionInput(action:string,input:any) {
       if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20000) throw new HttpError(400, 'المخزون يجب أن يكون عددًا صحيحًا بين 0 و20,000')
       if (!Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) throw new HttpError(400, 'السعر قبل الخصم يجب ألا يقل عن سعر البيع')
     }
+  }
+  if (action === 'products.v2_update_delivery') {
+    try { input.payload = normalizeTrendyolDeliveryUpdate(input?.payload) }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'بيانات تحديث التوصيل غير صالحة') }
   }
   if (action === 'packages.status') {
     const status = String(input?.payload?.status || '')

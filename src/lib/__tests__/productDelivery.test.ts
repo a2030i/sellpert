@@ -36,6 +36,7 @@ describe('product delivery lifecycle', () => {
     expect(deliveryStatusLabel('processing')).toBe('قيد مراجعة Trendyol')
     expect(deliveryStatusLabel('failed')).toBe('رفض Trendyol التعديل')
     expect(productActionLabel('products.price_inventory')).toBe('تحديث السعر والمخزون')
+    expect(productActionLabel('products.v2_update_delivery')).toBe('تحديث مدة التجهيز والتوصيل')
   })
 
   it('creates a short support reference and hides object-shaped errors', () => {

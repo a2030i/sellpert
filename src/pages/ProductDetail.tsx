@@ -363,7 +363,14 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const [commercial, setCommercial] = useState(initialCommercial)
   const [commercialBaseline, setCommercialBaseline] = useState(initialCommercial)
   const [commercialSaving, setCommercialSaving] = useState(false)
-  const [reviewMode, setReviewMode] = useState<'content' | 'commercial' | null>(null)
+  const initialDelivery = {
+    duration: String(product.raw?.selectedVariant?.deliveryOptions?.deliveryDuration ?? product.raw?.deliveryOptions?.deliveryDuration ?? 0),
+    speed: String(product.raw?.selectedVariant?.deliveryOptions?.fastDeliveryType ?? product.raw?.deliveryOptions?.fastDeliveryType ?? 'STANDARD'),
+  }
+  const [delivery, setDelivery] = useState(initialDelivery)
+  const [deliveryBaseline, setDeliveryBaseline] = useState(initialDelivery)
+  const [deliverySaving, setDeliverySaving] = useState(false)
+  const [reviewMode, setReviewMode] = useState<'content' | 'commercial' | 'delivery' | null>(null)
   const [actionHistory, setActionHistory] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
@@ -398,7 +405,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       .select('id,action,status,error_message,external_batch_id,started_at,finished_at,request')
       .eq('merchant_code', merchantCode)
       .eq('platform', 'trendyol')
-      .in('action', ['products.v2_update_content', 'products.price_inventory'])
+      .in('action', ['products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
       .order('started_at', { ascending: false })
       .limit(100)
     if (error) setHistoryError('تعذر تحميل سجل تحديثات المنتج الآن.')
@@ -446,6 +453,18 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     return changes
   }, [commercial, commercialBaseline])
 
+  const deliveryChanges = useMemo(() => {
+    const speedLabel = (value: string) => value === 'FAST_DELIVERY' ? 'توصيل سريع' : value === 'SAME_DAY_SHIPPING' ? 'شحن في اليوم نفسه' : 'توصيل قياسي'
+    const changes: Array<{ label: string; before: string; after: string }> = []
+    if (String(Number(delivery.duration)) !== String(Number(deliveryBaseline.duration))) changes.push({
+      label:'مدة التجهيز', before:`${Number(deliveryBaseline.duration)} يوم`, after:`${Number(delivery.duration)} يوم`,
+    })
+    if (delivery.speed !== deliveryBaseline.speed) changes.push({
+      label:'سرعة التوصيل', before:speedLabel(deliveryBaseline.speed), after:speedLabel(delivery.speed),
+    })
+    return changes
+  }, [delivery, deliveryBaseline])
+
   function updateEditing(field: string, value: string) {
     setEditing((current: any) => ({ ...current, [field]: value }))
     setReviewMode(null)
@@ -454,6 +473,12 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
 
   function updateCommercial(field: 'quantity' | 'salePrice' | 'listPrice', value: string) {
     setCommercial(current => ({ ...current, [field]: value }))
+    setReviewMode(null)
+    setSaveMessage(null)
+  }
+
+  function updateDelivery(field: 'duration' | 'speed', value: string) {
+    setDelivery(current => ({ ...current, [field]:value }))
     setReviewMode(null)
     setSaveMessage(null)
   }
@@ -510,6 +535,32 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       return
     }
     setReviewMode('commercial')
+  }
+
+  function reviewDeliveryUpdate() {
+    setSaveMessage(null)
+    if (pendingDelivery) {
+      setSaveMessage({ type:'err', text:'يوجد تحديث قيد مراجعة Trendyol. انتظر نتيجته قبل إرسال تحديث جديد.' })
+      return
+    }
+    if (!product.barcode) {
+      setSaveMessage({ type:'err', text:'لا يمكن تحديث التوصيل قبل توفر باركود Trendyol للمنتج.' })
+      return
+    }
+    const duration = Number(delivery.duration)
+    if (!Number.isInteger(duration) || duration < 0 || duration > 30) {
+      setSaveMessage({ type:'err', text:'مدة التجهيز يجب أن تكون عددًا صحيحًا بين 0 و30 يومًا.' })
+      return
+    }
+    if (delivery.speed !== 'STANDARD' && duration !== 1) {
+      setSaveMessage({ type:'err', text:'يتطلب التوصيل السريع أو الشحن في اليوم نفسه مدة تجهيز يوم واحد.' })
+      return
+    }
+    if (!deliveryChanges.length) {
+      setSaveMessage({ type:'err', text:'لم تغيّر مدة التجهيز أو سرعة التوصيل.' })
+      return
+    }
+    setReviewMode('delivery')
   }
 
   async function checkDeliveryStatus(batchId: string, quiet = false) {
@@ -681,6 +732,40 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     } finally { commercialSendLock.current = false; setCommercialSaving(false) }
   }
 
+  async function saveDeliveryOptions() {
+    if (!merchantCode || !product.barcode || deliverySaving) return
+    const duration = Number(delivery.duration)
+    setDeliverySaving(true); setSaveMessage(null)
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({ merchant_code:merchantCode, action:'products.v2_update_delivery', confirm:true, storefront:'SA', payload:{ items:[{
+          barcode:product.barcode,
+          deliveryOptions:{ deliveryDuration:duration, fastDeliveryType:delivery.speed === 'STANDARD' ? null : delivery.speed },
+        }] } }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol تحديث خيارات التوصيل')
+      const now = new Date().toISOString()
+      const { error } = await supabase.from('product_platform_listings').upsert({
+        product_id:productId, merchant_code:merchantCode, platform:'trendyol',
+        delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null,
+        last_submitted_at:now, last_verified_at:result.pendingApproval ? null : now, delivery_error:null, updated_at:now,
+      }, { onConflict:'product_id,platform' })
+      if (error) throw error
+      setListings(previous => ({ ...previous, trendyol:{ ...previous.trendyol, delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null, last_submitted_at:now } }))
+      setDeliveryBaseline({ duration:String(duration), speed:delivery.speed })
+      setReviewMode(null)
+      await loadActionHistory()
+      setSaveMessage({ type:'ok', text:'تم إرسال مدة التجهيز وخيار التوصيل إلى Trendyol، وستتحدث الحالة هنا تلقائيًا.' })
+    } catch (error:any) {
+      setSaveMessage({ type:'err', text:friendlyDeliveryError(error.message) || 'تعذر تحديث خيارات التوصيل في Trendyol' })
+    } finally { setDeliverySaving(false) }
+  }
+
   const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }
   const inp: React.CSSProperties = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
 
@@ -726,6 +811,17 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         </div>
         {reviewMode === 'commercial' ? <ProductChangeReview title="راجع تحديث السعر والمخزون" changes={commercialChanges} busy={commercialSaving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void savePriceInventory()} /> : null}
         <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={reviewCommercialUpdate} disabled={commercialSaving || pendingDelivery} style={{ background:'var(--surface)', border:`1px solid ${DATA_COLORS.trendyol}`, color:DATA_COLORS.trendyol, padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:commercialSaving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:commercialSaving || pendingDelivery ? .6 : 1 }}>{pendingDelivery ? 'تحديث قيد المعالجة' : 'مراجعة السعر والمخزون'}</button></div>
+      </div> : null}
+      {activePlatform === 'trendyol' ? <div style={{ marginBottom:16, padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>التجهيز والتوصيل</div>
+        <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>حدد المدة التي تحتاجها لتجهيز المنتج، ثم اختر سرعة التوصيل المتاحة. يُرسل التحديث مباشرة إلى Trendyol بعد المراجعة.</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:8 }}>
+          <div><label style={fieldLabel}>مدة التجهيز بالأيام</label><input aria-label="مدة تجهيز المنتج" disabled={pendingDelivery} type="number" min="0" max="30" step="1" value={delivery.duration} onChange={event => updateDelivery('duration', event.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>سرعة التوصيل</label><select aria-label="سرعة توصيل المنتج" disabled={pendingDelivery} value={delivery.speed} onChange={event => updateDelivery('speed', event.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}><option value="STANDARD">توصيل قياسي</option><option value="FAST_DELIVERY">توصيل سريع</option><option value="SAME_DAY_SHIPPING">شحن في اليوم نفسه</option></select></div>
+        </div>
+        {delivery.speed !== 'STANDARD' && Number(delivery.duration) !== 1 ? <div role="alert" style={{ marginTop:8, fontSize:11, color:'var(--warning-text)' }}>اختر يومًا واحدًا كمدة تجهيز لتفعيل هذا الخيار.</div> : null}
+        {reviewMode === 'delivery' ? <ProductChangeReview title="راجع تحديث التجهيز والتوصيل" changes={deliveryChanges} busy={deliverySaving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void saveDeliveryOptions()} /> : null}
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={reviewDeliveryUpdate} disabled={deliverySaving || pendingDelivery} style={{ background:'var(--surface)', border:`1px solid ${DATA_COLORS.trendyol}`, color:DATA_COLORS.trendyol, padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:deliverySaving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:deliverySaving || pendingDelivery ? .6 : 1 }}>{pendingDelivery ? 'تحديث قيد المعالجة' : 'مراجعة إعدادات التوصيل'}</button></div>
       </div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         <div>
