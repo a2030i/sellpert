@@ -151,6 +151,6 @@ export const S: Record<string, React.CSSProperties> = {
   tabBtn:    { padding: '10px 20px', background: 'transparent', border: 'none', color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: -1 },
   tabActive: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
   msgBox: { borderRadius: 10, padding: '12px 16px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  msgOk: { background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--green)' },
-  msgErr: { background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--red)' },
+  msgOk: { background: 'var(--success-bg)', border: '1px solid var(--success-bg)', color: 'var(--success-text)' },
+  msgErr: { background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)', color: 'var(--danger-text)' },
 }

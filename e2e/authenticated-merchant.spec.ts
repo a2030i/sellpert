@@ -146,6 +146,112 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant imports a Noon order and goes directly to the resulting orders', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const importedOrder = {
+    id: 'noon-order-e2e', merchant_code: merchant.merchant_code, platform: 'noon', order_id: 'N-1001',
+    status: 'delivered', product_name: null, sku: 'SKU-1001', quantity: 1, unit_price: 85,
+    total_amount: 85, gross_amount: 85, platform_fee: 0, shipping_cost: 0, discount_amount: 0,
+    currency: 'SAR', customer_city: null, order_date: '2026-08-03T10:00:00.000Z', created_at: '2026-08-04T10:00:00.000Z',
+  }
+  let saved = false
+  let insertedOrders: unknown[] = []
+
+  await page.route('**/storage/v1/object/merchant-imports/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ Key: 'merchant-imports/source.csv' }),
+  }))
+  await page.route('**/rest/v1/rpc/rebuild_all_derived_data**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ amazon_orders_derived: 0, platform_prices_derived: 0, returns_derived: 0 }),
+  }))
+  await page.route('**/rest/v1/platform_file_uploads**', async route => {
+    const method = route.request().method()
+    const url = new URL(route.request().url())
+    if (method === 'POST') {
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 'upload-noon-e2e' }) })
+      return
+    }
+    if (method === 'PATCH') {
+      if (route.request().postDataJSON()?.status === 'success') saved = true
+      await route.fulfill({ status: 204, body: '' })
+      return
+    }
+    const duplicateLookup = url.searchParams.has('fingerprint')
+    const rows = saved && !duplicateLookup ? [{
+      id: 'upload-noon-e2e', merchant_code: merchant.merchant_code, platform: 'noon', file_name: 'noon-sales.csv',
+      file_type: 'noon_sales', detected_report: 'مبيعات نون', status: 'success', rows_inserted: 1,
+      uploaded_at: '2026-08-04T10:00:00.000Z', storage_path: `${merchant.merchant_code}/upload-noon-e2e/noon-sales.csv`,
+    }] : []
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': rows.length ? '0-0/1' : '*/0' }, body: JSON.stringify(rows) })
+  })
+  await page.route('**/rest/v1/orders**', async route => {
+    if (route.request().method() === 'POST') {
+      insertedOrders = route.request().postDataJSON() as unknown[]
+      await route.fulfill({ status: 201, contentType: 'application/json', body: '[]' })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': saved ? '0-0/1' : '*/0' }, body: JSON.stringify(saved ? [importedOrder] : []) })
+  })
+
+  await page.goto('/integrations')
+  await page.getByRole('button', { name: 'رفع ملفات الآن' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'noon-sales.csv', mimeType: 'text/csv',
+    buffer: Buffer.from([
+      'item_nr,partner_sku,sku,brand_code,family,fulfillment_model,status,offer_price,gmv_lcy,currency_code,order_timestamp,shipment_timestamp,delivered_timestamp',
+      'N-1001,SKU-1001,NOON-1001,BRAND,coffee,FBN,delivered,85,85,SAR,2026-08-03T10:00:00Z,2026-08-03T11:00:00Z,2026-08-04T10:00:00Z',
+    ].join('\n')),
+  })
+
+  await expect(page.getByText('مبيعات نون', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'حفظ الكل' }).click()
+  await expect(page.getByRole('heading', { name: 'اكتمل استيراد بيانات متجرك' })).toBeVisible()
+  await expect(page.getByText('السجلات المعالجة').locator('..').getByText('1', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'عرض الطلبات' })).toBeVisible()
+  await expect(page.getByText('الملفات المرفوعة سابقًا (1)')).toBeVisible()
+  await expect.poll(() => insertedOrders).toHaveLength(1)
+  await expect.poll(() => insertedOrders[0]).toMatchObject({ merchant_code: merchant.merchant_code, order_id: 'N-1001', platform: 'noon' })
+  await expectNoSeriousAccessibilityViolations(page, 'نتيجة استيراد ملف منصة')
+  await page.screenshot({ path: testInfo.outputPath('merchant-import-complete.png'), fullPage: true })
+
+  await page.getByRole('button', { name: 'عرض الطلبات' }).click()
+  await expect(page).toHaveURL(/\/orders$/)
+  await expect(page.getByRole('button', { name: 'N-1001' })).toBeVisible()
+  expect(runtimeErrors).toEqual([])
+})
+
+test('duplicate merchant file reaches a final skipped state without repeated saving', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+  await page.route('**/rest/v1/platform_file_uploads**', async route => {
+    const method = route.request().method()
+    const url = new URL(route.request().url())
+    if (method === 'GET' && url.searchParams.has('fingerprint')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{
+        id: 'existing-upload', uploaded_at: '2026-08-03T10:00:00.000Z', file_name: 'noon-sales.csv', rows_inserted: 1,
+        storage_path: `${merchant.merchant_code}/existing-upload/noon-sales.csv`,
+      }]) })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  })
+
+  await page.goto('/integrations')
+  await page.getByRole('button', { name: 'رفع ملفات الآن' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'noon-sales.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('item_nr,partner_sku,sku,status,offer_price,gmv_lcy,currency_code,order_timestamp\nN-1001,SKU-1001,NOON-1001,delivered,85,85,SAR,2026-08-03T10:00:00Z'),
+  })
+  await expect(page.getByText(/هذا الملف مرفوع مسبقاً/)).toBeVisible()
+  await page.getByRole('button', { name: 'حفظ الكل' }).click()
+  await expect(page.getByText('مكرر — تم التخطي', { exact: true })).toBeVisible()
+  await expect(page.getByText(/تُخطّي 1 ملف مكرر/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'حفظ الكل' })).toHaveCount(0)
+  await expect(page.getByText('اكتمل', { exact: true }).first()).toBeVisible()
+})
+
 test('core merchant workspace is accessible and stable before the first import', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

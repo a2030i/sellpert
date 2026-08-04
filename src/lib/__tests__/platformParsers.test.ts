@@ -52,6 +52,13 @@ describe('detectFileKind (كشف نوع ملف CSV)', () => {
     })
     expect(kind).toBe('noon_sales')
   })
+  it('يكشف تصدير نون الذي يبدأ مباشرة برقم الطلب المستخدم في المحلل', () => {
+    const kind = detectFileKind({
+      name: 'noon-sales.csv', isCsv: true,
+      csvText: 'item_nr,partner_sku,sku,status,gmv_lcy,currency_code,order_timestamp\nN-1,P-1,S-1,delivered,85,SAR,2026-08-03',
+    })
+    expect(kind).toBe('noon_sales')
+  })
   it('يكشف أصناف نون', () => {
     const kind = detectFileKind({
       name: 'products.csv', isCsv: true,

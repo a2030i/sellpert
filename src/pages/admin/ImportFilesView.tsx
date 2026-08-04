@@ -6,7 +6,7 @@ import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
 import { reconcileAmazonReportTotals } from '../../lib/amazonReportReconciliation'
 import { uploadDisplayStatus } from '../../lib/uploadStatus'
-import { Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox } from 'lucide-react'
+import { Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox, ClipboardList, Boxes, PackageSearch, WalletCards, Megaphone, LayoutDashboard } from 'lucide-react'
 import { importArchiveContentType, importArchivePath, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_EXPANDED_BYTES, MAX_IMPORT_FILE_BYTES, validateImportFile } from '../../lib/importArchive'
 
 // ─── File guides per platform ────────────────────────────────────────────────
@@ -311,7 +311,7 @@ async function expandIfZip(file: File): Promise<File[]> {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Merchant = { merchant_code: string; name: string; role: string }
-type Stage = 'queued' | 'parsing' | 'parsed' | 'validating' | 'saving' | 'saved' | 'failed' | 'rejected'
+type Stage = 'queued' | 'parsing' | 'parsed' | 'validating' | 'saving' | 'saved' | 'skipped' | 'failed' | 'rejected'
 
 interface FileEntry {
   id: string
@@ -614,7 +614,9 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
   const allValid = files.length > 0 && files.every(f => f.validation?.ok)
   const anyParsing = files.some(f => f.stage === 'parsing' || f.stage === 'validating')
   const pendingSave = files.some(f => f.stage === 'parsed')
-  const allDone = files.length > 0 && files.every(f => f.stage === 'saved' || f.stage === 'rejected' || f.stage === 'failed')
+  const allDone = files.length > 0 && files.every(f => f.stage === 'saved' || f.stage === 'skipped' || f.stage === 'rejected' || f.stage === 'failed')
+
+  const completionSummary = useMemo(() => buildImportCompletionSummary(files), [files])
 
   const amazonPair = useMemo(() => {
     const business = files.find(f => f.validation?.ok && f.parsed?.kind === 'amazon_business_report')?.parsed
@@ -729,6 +731,11 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     // تخطّي الملفات المكررة التي اختار الموظف تخطّيها
     const validFiles = files.filter(f => f.validation?.ok && f.parsed && !(f.dup && (f.dupAction ?? 'skip') === 'skip'))
     const skipped = files.filter(f => f.validation?.ok && f.dup && (f.dupAction ?? 'skip') === 'skip').length
+    if (skipped > 0) {
+      setFiles(current => current.map(file => file.validation?.ok && file.dup && (file.dupAction ?? 'skip') === 'skip'
+        ? { ...file, stage: 'skipped', progress: 100, finishedAt: Date.now() }
+        : file))
+    }
     let totalInserted = 0
     const allErrors: string[] = []
 
@@ -856,6 +863,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     }
 
     setBusy(false)
+    setRefreshTick(tick => tick + 1)
     const skippedNote = skipped > 0 ? ` · تُخطّي ${skipped} ملف مكرر` : ''
     setGlobalMsg(allErrors.length === 0
       ? { type: 'ok',  text: `تم حفظ ${totalInserted.toLocaleString()} صف من ${validFiles.length} ملف${derivedSummary}${skippedNote}` }
@@ -1059,19 +1067,121 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
       {globalMsg && (
         <div style={{ ...S.msgBox, ...(globalMsg.type === 'ok' ? S.msgOk : S.msgErr) }}>
           <span>{globalMsg.text}</span>
-          <button onClick={() => setGlobalMsg(null)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 4 }}>
+          <button type="button" aria-label="إغلاق نتيجة الاستيراد" onClick={() => setGlobalMsg(null)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 4 }}>
             <X size={14} />
           </button>
         </div>
       )}
 
+      {merchantMode && completionSummary.savedFiles > 0 && (
+        <ImportCompletionCard summary={completionSummary} />
+      )}
+
       {/* الرفعات السابقة (مع زر حذف) */}
-      {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} readOnly={merchantMode} />}
+      {merchantCode && <PreviousUploadsPanel merchantCode={merchantCode} readOnly={merchantMode} refreshKey={refreshTick} />}
 
       {/* رصد: ملفات لم تُقبل مؤخراً (لاكتشاف صيغ جديدة/متغيّرة) */}
       {!merchantMode && <RecentRejectionsPanel refreshTick={refreshTick} />}
     </div>
   )
+}
+
+type ImportDestinationKey = 'orders' | 'products' | 'inventory' | 'statement' | 'marketing' | 'dashboard'
+
+type ImportCompletionSummary = {
+  savedFiles: number
+  skippedFiles: number
+  failedFiles: number
+  insertedRows: number
+  platforms: string[]
+  destinations: ImportDestinationKey[]
+}
+
+const IMPORT_DESTINATIONS: Record<ImportDestinationKey, { label: string; path: string; Icon: typeof ClipboardList }> = {
+  orders: { label: 'عرض الطلبات', path: '/orders', Icon: ClipboardList },
+  products: { label: 'عرض المنتجات', path: '/products', Icon: PackageSearch },
+  inventory: { label: 'عرض المخزون', path: '/inventory', Icon: Boxes },
+  statement: { label: 'عرض الأرباح والتسويات', path: '/statement', Icon: WalletCards },
+  marketing: { label: 'عرض الإعلانات والأداء', path: '/marketing', Icon: Megaphone },
+  dashboard: { label: 'الانتقال إلى نظرة عامة', path: '/', Icon: LayoutDashboard },
+}
+
+function buildImportCompletionSummary(files: FileEntry[]): ImportCompletionSummary {
+  const saved = files.filter(file => file.stage === 'saved' && file.parsed && file.result)
+  const tables = new Set(saved.flatMap(file => file.parsed!.payloads.map(payload => payload.table)))
+  const destinations: ImportDestinationKey[] = []
+  if (tables.has('orders')) destinations.push('orders')
+  if (['products', 'product_performance_snapshots', 'platform_deals', 'product_platform_prices'].some(table => tables.has(table))) destinations.push('products')
+  if (['inventory', 'inbound_shipments', 'inbound_shipment_items', 'goods_received'].some(table => tables.has(table))) destinations.push('inventory')
+  if (['account_transactions', 'amazon_daily_sales'].some(table => tables.has(table))) destinations.push('statement')
+  if (tables.has('ad_metrics')) destinations.push('marketing')
+  destinations.push('dashboard')
+
+  return {
+    savedFiles: saved.length,
+    skippedFiles: files.filter(file => file.stage === 'skipped').length,
+    failedFiles: files.filter(file => file.stage === 'failed' || file.stage === 'rejected').length,
+    insertedRows: saved.reduce((total, file) => total + Number(file.result?.inserted || 0), 0),
+    platforms: [...new Set(saved.map(file => PLATFORM_MAP[file.parsed!.platform] || file.parsed!.platform))],
+    destinations,
+  }
+}
+
+function ImportCompletionCard({ summary }: { summary: ImportCompletionSummary }) {
+  function navigate(path: string) {
+    window.history.pushState(null, '', path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  return (
+    <section aria-labelledby="merchant-import-complete-title" style={{
+      border: '1px solid rgba(15,149,140,.28)', borderRadius: 14, overflow: 'hidden',
+      background: 'var(--surface)', boxShadow: 'var(--shadow)',
+    }}>
+      <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'flex-start', gap: 12, background: 'var(--success-bg)', borderBottom: '1px solid rgba(15,149,140,.18)' }}>
+        <span style={{ width: 38, height: 38, borderRadius: 10, display: 'grid', placeItems: 'center', flexShrink: 0, background: 'var(--surface)', color: 'var(--success-text)', border: '1px solid rgba(15,149,140,.2)' }}>
+          <CheckCircle2 size={20} aria-hidden="true" />
+        </span>
+        <div>
+          <h4 id="merchant-import-complete-title" style={{ margin: 0, color: 'var(--text)', fontSize: 15, fontWeight: 850 }}>اكتمل استيراد بيانات متجرك</h4>
+          <p style={{ margin: '5px 0 0', color: 'var(--text2)', fontSize: 12, lineHeight: 1.7 }}>
+            أصبحت البيانات المحفوظة جاهزة في الأقسام المرتبطة، ولا تحتاج إلى التواصل مع الإدارة.
+          </p>
+        </div>
+      </div>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 8 }}>
+          <CompletionMetric label="الملفات المحفوظة" value={summary.savedFiles.toLocaleString('ar-SA-u-nu-latn')} />
+          <CompletionMetric label="السجلات المعالجة" value={summary.insertedRows.toLocaleString('ar-SA-u-nu-latn')} />
+          <CompletionMetric label="المنصات" value={summary.platforms.join('، ') || '—'} />
+          {summary.skippedFiles > 0 ? <CompletionMetric label="ملفات مكررة تم تخطيها" value={summary.skippedFiles.toLocaleString('ar-SA-u-nu-latn')} /> : null}
+        </div>
+        {summary.failedFiles > 0 ? <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 8, background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: 11 }}>
+          لم يُحفظ {summary.failedFiles.toLocaleString('ar-SA-u-nu-latn')} من الملفات. راجع سبب الرفض الظاهر بجانب الملف قبل إعادة المحاولة.
+        </div> : null}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ color: 'var(--text3)', fontSize: 10.5, fontWeight: 750, marginBottom: 8 }}>أين ظهرت البيانات؟</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {summary.destinations.map(key => {
+              const destination = IMPORT_DESTINATIONS[key]
+              return <button key={key} type="button" onClick={() => navigate(destination.path)} style={{
+                minHeight: 38, padding: '0 13px', borderRadius: 8, border: key === 'dashboard' ? '1px solid var(--border)' : '1px solid rgba(15,149,140,.3)',
+                background: key === 'dashboard' ? 'var(--surface2)' : 'var(--accent-strong)', color: key === 'dashboard' ? 'var(--text2)' : '#fff',
+                display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'inherit', fontSize: 11.5, fontWeight: 800, cursor: 'pointer',
+              }}><destination.Icon size={14} aria-hidden="true" />{destination.label}</button>
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CompletionMetric({ label, value }: { label: string; value: string }) {
+  return <div style={{ padding: '10px 11px', borderRadius: 9, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+    <span style={{ display: 'block', color: 'var(--text3)', fontSize: 9.5 }}>{label}</span>
+    <strong style={{ display: 'block', marginTop: 4, color: 'var(--text)', fontSize: 12.5 }}>{value}</strong>
+  </div>
 }
 
 // ─── رصد الملفات المرفوضة مؤخراً ───────────────────────────────────────────────
@@ -1304,7 +1414,7 @@ function FileCard({ entry, color, onRemove, canRemove, onDupAction }: { entry: F
             {stageInfo.label}
           </span>
           {canRemove && (
-            <button onClick={() => onRemove(entry.id)} style={{ background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4 }}>
+            <button type="button" aria-label={`إزالة الملف ${entry.file.name}`} onClick={() => onRemove(entry.id)} style={{ background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4 }}>
               <X size={14} />
             </button>
           )}
@@ -1429,13 +1539,14 @@ function stageMeta(stage: Stage) {
     case 'validating':return { label: 'تحقق…',        Icon: Loader2,       color: '#0f958c', bg: 'rgba(15,149,140,0.04)',                     borderColor: 'rgba(15,149,140,0.2)' }
     case 'saving':    return { label: 'حفظ…',         Icon: Loader2,       color: '#ff9900', bg: 'var(--warning-bg)',                          borderColor: 'var(--warning-bg)' }
     case 'saved':     return { label: 'تم الحفظ',     Icon: CheckCircle2,  color: '#00b894', bg: 'var(--success-bg)',                          borderColor: 'var(--success-bg)' }
+    case 'skipped':   return { label: 'مكرر — تم التخطي', Icon: CheckCircle2, color: 'var(--text3)', bg: 'var(--surface2)',                    borderColor: 'var(--border)' }
     case 'rejected':  return { label: 'مرفوض',        Icon: AlertTriangle, color: '#e84040', bg: 'var(--danger-bg)',                           borderColor: 'var(--danger-bg)' }
     case 'failed':    return { label: 'فشل',          Icon: AlertTriangle, color: '#e84040', bg: 'var(--danger-bg)',                           borderColor: 'var(--danger-bg)' }
   }
 }
 
 // ─── Previous Uploads Panel (with delete) ────────────────────────────────────
-function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode: string; readOnly?: boolean }) {
+function PreviousUploadsPanel({ merchantCode, readOnly = false, refreshKey = 0 }: { merchantCode: string; readOnly?: boolean; refreshKey?: number }) {
   const [uploads, setUploads] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -1449,7 +1560,7 @@ function PreviousUploadsPanel({ merchantCode, readOnly = false }: { merchantCode
     setUploads(data || [])
     setLoading(false)
   }
-  useEffect(() => { load() /* eslint-disable-line */ }, [merchantCode])
+  useEffect(() => { load() /* eslint-disable-line */ }, [merchantCode, refreshKey])
 
   async function deleteUpload(u: any) {
     if (!confirm(`حذف هذا الملف وكل البيانات المرتبطة به؟\n\n${u.file_name}\n${u.rows_inserted || 0} صف`)) return

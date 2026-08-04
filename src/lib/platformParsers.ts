@@ -178,7 +178,7 @@ export function detectFileKind(input: FileInput): string {
     // تقرير Business Reports > Detail Page Sales and Traffic by Child Item.
     // لا نعتمد على اسم الملف لأنه يتغير حسب لغة Seller Central وتاريخ التصدير.
     if (firstLine.includes('asin') && firstLine.includes('عدد جلسات المعاينة') && firstLine.includes('مبيعات المنتج المطلوب')) return 'amazon_business_report'
-    if (firstLine.includes('id_partner') && firstLine.includes('gmv_lcy'))           return 'noon_sales'
+    if ((firstLine.includes('item_nr') || firstLine.includes('id_partner')) && firstLine.includes('gmv_lcy')) return 'noon_sales'
     if (firstLine.includes('psku_code') && firstLine.includes('noon_title'))         return 'noon_products'
     // Noon ASN sometimes exported as CSV
     if (firstLine.includes('psku_code') && firstLine.includes('cubic_feet'))         return 'noon_asn'
@@ -219,7 +219,7 @@ export function detectFileKind(input: FileInput): string {
   // --- Noon sales report (could be xlsx) ---
   for (const sn of sheets) {
     const hStr = findHeaderRow(wb.Sheets[sn])
-    if (hStr.includes('id_partner') && hStr.includes('gmv_lcy')) return 'noon_sales'
+    if ((hStr.includes('item_nr') || hStr.includes('id_partner')) && hStr.includes('gmv_lcy')) return 'noon_sales'
   }
 
   // --- Amazon Inventory / Settlement (single sheet) ---
