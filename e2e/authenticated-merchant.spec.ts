@@ -791,6 +791,8 @@ test('merchant follows a synced Trendyol order into product management', async (
 
   await page.goto('/notifications')
   await expect(page.getByRole('heading', { name: 'مركز المتابعة' })).toBeVisible()
+  await page.getByRole('button', { name: 'تحديث المتابعة' }).click()
+  await expect(page.getByRole('status')).toContainText('اكتمل فحص الطلبات والشحن والعملاء والربط')
   const operationsTab = page.getByRole('tab', { name: /^عمليات المنصات/ })
   await expect(operationsTab.getByText('1', { exact:true })).toBeVisible()
   await operationsTab.click()

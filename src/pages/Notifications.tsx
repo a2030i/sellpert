@@ -9,6 +9,7 @@ import {
   type AttentionItem, type AttentionSeverity, type MarketplaceOperation,
 } from '../lib/attentionCenter'
 import { PageHeader } from '../components/UI'
+import { userErrorMessage } from '../lib/userError'
 import './Notifications.css'
 
 interface NotificationRow {
@@ -70,6 +71,7 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   const [data, setData] = useState<CenterData>(EMPTY_DATA)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [failedSources, setFailedSources] = useState<string[]>([])
   const [tab, setTab] = useState<Tab>(requestedTab)
   const merchantCode = merchant?.merchant_code
@@ -128,8 +130,22 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   async function generateNew() {
     if (!merchantCode) return
     setRefreshing(true)
-    await supabase.rpc('generate_proactive_alerts', { p_merchant_code: merchantCode })
-    await load(true)
+    setRefreshMessage(null)
+    try {
+      const { data: created, error } = await supabase.rpc('generate_proactive_alerts', { p_merchant_code: merchantCode })
+      if (error) throw error
+      await load(true)
+      const count = Number(created || 0)
+      setRefreshMessage({
+        type: 'ok',
+        text: count > 0
+          ? `اكتمل الفحص وأضيف ${count.toLocaleString('ar-SA-u-nu-latn')} تنبيه جديد إلى السجل.`
+          : 'اكتمل فحص الطلبات والشحن والعملاء والربط، ولا توجد تنبيهات جديدة.',
+      })
+    } catch (error) {
+      setRefreshing(false)
+      setRefreshMessage({ type: 'err', text: userErrorMessage(error, 'تعذر تحديث المتابعة الآن. لم تتغير بياناتك، ويمكنك إعادة المحاولة.') })
+    }
   }
 
   async function markRead(id: string) {
@@ -167,6 +183,13 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
           بعض البيانات لم تُحمّل الآن: {failedSources.join('، ')}. بقية النتائج المعروضة ما زالت صالحة ويمكن تحديثها لاحقًا.
         </div>
       )}
+
+      {refreshMessage ? (
+        <div className={`attention-refresh-message ${refreshMessage.type}`} role={refreshMessage.type === 'err' ? 'alert' : 'status'} aria-live="polite">
+          {refreshMessage.type === 'err' ? <AlertCircle size={16} /> : <Check size={16} />}
+          <span>{refreshMessage.text}</span>
+        </div>
+      ) : null}
 
       <div className="attention-tabs" role="tablist" aria-label="أقسام مركز المتابعة">
         <button role="tab" aria-selected={tab === 'actions'} className={tab === 'actions' ? 'active' : ''} onClick={() => selectTab('actions')}>

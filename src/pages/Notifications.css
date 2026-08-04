@@ -11,6 +11,10 @@
 .attention-kpi.attention > span { background: var(--warning-bg); color: var(--warning-text); }
 .attention-kpi.info > span { background: rgba(15,149,140,.1); color: var(--accent); }
 .attention-partial { padding: 11px 14px; margin: -8px 0 18px; border: 1px solid var(--warning-bg); border-radius: 9px; background: var(--warning-bg); color: var(--warning-text); font-size: 12px; line-height: 1.7; }
+.attention-refresh-message { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; margin: -8px 0 18px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; line-height: 1.7; }
+.attention-refresh-message svg { flex: 0 0 auto; margin-top: 2px; }
+.attention-refresh-message.ok { border-color: color-mix(in srgb, var(--success-text) 24%, transparent); background: var(--success-bg); color: var(--success-text); }
+.attention-refresh-message.err { border-color: color-mix(in srgb, var(--danger-text) 24%, transparent); background: var(--danger-bg); color: var(--danger-text); }
 .attention-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 .attention-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text2); padding: 10px 12px; font: 700 13px inherit; cursor: pointer; }
 .attention-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
