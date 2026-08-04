@@ -213,6 +213,14 @@ test('merchant follows a synced Trendyol order into product management', async (
     msrp: 60, status: 'active', image_url: null, images: [], external_id: '1492736729',
     raw: {}, created_at: '2026-08-01T08:00:00.000Z',
   }
+  const batchId = 'batch-e2e-20260804'
+  let sentProductAction: Record<string, any> | null = null
+  let productListing: Record<string, any> = {
+    id: 'listing-e2e-1', merchant_code: merchant.merchant_code, product_id: product.id,
+    platform: 'trendyol', title: product.name, description: product.description, images: [],
+    delivery_status: 'success',
+  }
+  let productActionHistory: Record<string, any>[] = []
 
   const fulfillRows = async (route: Route, rows: unknown[]) => {
     const accept = route.request().headers().accept || ''
@@ -261,14 +269,49 @@ test('merchant follows a synced Trendyol order into product management', async (
       return
     }
     if (table === 'product_platform_listings') {
-      await fulfillRows(route, [{ id: 'listing-e2e-1', merchant_code: merchant.merchant_code, product_id: product.id, platform: 'trendyol', title: product.name, description: product.description, images: [], delivery_status: 'success' }])
+      if (route.request().method() !== 'GET') {
+        const update = route.request().postDataJSON() as Record<string, any>
+        productListing = { ...productListing, ...update, id: productListing.id }
+        await route.fulfill({ status: 201, contentType: 'application/json', body: '[]' })
+        return
+      }
+      await fulfillRows(route, [productListing])
       return
     }
-    if (['product_performance_snapshots', 'returns', 'ad_metrics', 'marketplace_action_logs'].includes(table || '')) {
+    if (table === 'marketplace_action_logs') {
+      await fulfillRows(route, productActionHistory)
+      return
+    }
+    if (['product_performance_snapshots', 'returns', 'ad_metrics'].includes(table || '')) {
       await fulfillRows(route, [])
       return
     }
     await route.fallback()
+  })
+
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    const body = route.request().postDataJSON() as Record<string, any>
+    if (body.action === 'products.batch_result') {
+      productListing = { ...productListing, delivery_status: 'success', delivery_error: null, last_verified_at: '2026-08-04T15:31:00.000Z' }
+      productActionHistory = productActionHistory.map(action => ({ ...action, status: 'success', finished_at: '2026-08-04T15:31:00.000Z' }))
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, status: 'success', pendingApproval: false, error: null }),
+      })
+      return
+    }
+    sentProductAction = body
+    productActionHistory = [{
+      id: 'action-e2e-1', action: body.action, status: 'accepted', error_message: null,
+      external_batch_id: batchId, started_at: '2026-08-04T15:30:00.000Z', finished_at: null,
+      request: body,
+    }]
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, status: 'accepted', pendingApproval: true, batchRequestId: batchId }),
+    })
   })
 
   await page.goto('/orders')
@@ -300,6 +343,22 @@ test('merchant follows a synced Trendyol order into product management', async (
   await expect(page.getByText('راجع تعديل بيانات المنتج', { exact: true })).toBeVisible()
   await expect(page.getByText(updatedTitle, { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'تأكيد وإرسال إلى Trendyol' })).toBeVisible()
+  await page.getByRole('button', { name: 'تأكيد وإرسال إلى Trendyol' }).click()
+  await expect(page.getByText('تم الإرسال إلى Trendyol', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('progressbar', { name: 'تقدم تعديل المنتج في Trendyol' })).toHaveAttribute('aria-valuenow', '33')
+  await expect(page.getByText('مرجع المتابعة: TY-20260804', { exact: true })).toBeVisible()
+  await expect(page.getByText('تعديل محتوى المنتج', { exact: true })).toBeVisible()
+  await expect(page.getByText('تعديل قيد المعالجة', { exact: true })).toBeVisible()
+  await expect.poll(() => sentProductAction).toMatchObject({
+    action: 'products.v2_update_content',
+    confirm: true,
+    merchant_code: merchant.merchant_code,
+    payload: { items: [{ contentId: Number(product.external_id), title: updatedTitle }] },
+  })
+  await page.getByRole('button', { name: 'تحديث الحالة' }).click()
+  await expect(page.getByText('اعتمد Trendyol التعديل', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('progressbar', { name: 'تقدم تعديل المنتج في Trendyol' })).toHaveAttribute('aria-valuenow', '100')
+  await expect(page.getByRole('button', { name: 'مراجعة تعديل المنتج' })).toBeEnabled()
   await expectNoSeriousAccessibilityViolations(page, 'تفاصيل وإدارة منتج Trendyol')
   expect(runtimeErrors).toEqual([])
 })

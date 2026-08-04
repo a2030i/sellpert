@@ -703,10 +703,11 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       {activePlatform === 'trendyol' && listings.trendyol?.delivery_status && listings.trendyol.delivery_status !== 'draft' ? (
         <div style={{ marginBottom:14, padding:'13px 14px', borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
           <div>
-            <div style={{ fontSize:13, fontWeight:700, color: deliveryStatusColor(listings.trendyol.delivery_status) }}>
+            <div role="status" aria-live="polite" style={{ fontSize:13, fontWeight:700, color: deliveryStatusColor(listings.trendyol.delivery_status) }}>
               {deliveryStatusLabel(listings.trendyol.delivery_status)}
             </div>
             {listings.trendyol.delivery_error ? <div style={{ fontSize:12, color:'var(--danger-text)', marginTop:5 }}>{friendlyDeliveryError(listings.trendyol.delivery_error)}</div> : <div style={{ fontSize:12, color:'var(--text3)', marginTop:5 }}>تتحدث الحالة تلقائيًا؛ لا تعِد الإرسال أثناء المعالجة.</div>}
+            <ProductDeliveryProgress status={listings.trendyol.delivery_status} />
             <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:6, fontSize:11, color:'var(--text3)' }}>
               {listings.trendyol.last_submitted_at ? <span>آخر إرسال: {formatDeliveryDate(listings.trendyol.last_submitted_at)}</span> : null}
               {listings.trendyol.external_batch_id ? <span>مرجع المتابعة: {shortDeliveryReference(listings.trendyol.external_batch_id)}</span> : null}
@@ -754,7 +755,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           {pendingDelivery ? 'تعديل قيد المعالجة' : activePlatform === 'trendyol' ? 'مراجعة تعديل المنتج' : 'حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
         </button>
       </div>
-      {saveMessage ? <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, fontSize:12, lineHeight:1.6, background:saveMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:saveMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{saveMessage.text}</div> : null}
+      {saveMessage ? <div role={saveMessage.type === 'ok' ? 'status' : 'alert'} aria-live="polite" style={{ marginTop:10, padding:'10px 12px', borderRadius:8, fontSize:12, lineHeight:1.6, background:saveMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:saveMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{saveMessage.text}</div> : null}
       <div style={{ marginTop:18, paddingTop:16, borderTop:'1px solid var(--border)' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:10 }}>
           <div><div style={{ fontSize:13, fontWeight:700 }}>سجل تحديثات Trendyol</div><div style={{ fontSize:11, color:'var(--text3)', marginTop:2 }}>آخر التحديثات الخاصة بهذا المنتج فقط.</div></div>
@@ -772,6 +773,42 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       </div>
     </div>
   )
+}
+
+function ProductDeliveryProgress({ status }: { status: unknown }) {
+  const normalized = String(status || '').toLowerCase()
+  const terminal = ['success', 'partial', 'failed'].includes(normalized)
+  const progress = terminal ? 100 : normalized === 'processing' ? 66 : normalized === 'accepted' ? 33 : 0
+  const lastLabel = normalized === 'failed' ? 'يحتاج تصحيحًا' : normalized === 'partial' ? 'اعتماد جزئي' : 'اعتماد التعديل'
+  const steps = [
+    { label:'أُرسل إلى Trendyol', reached:progress >= 33 },
+    { label:'مراجعة المنصة', reached:progress >= 66 },
+    { label:lastLabel, reached:terminal },
+  ]
+
+  return <div
+    role="progressbar"
+    aria-label="تقدم تعديل المنتج في Trendyol"
+    aria-valuemin={0}
+    aria-valuemax={100}
+    aria-valuenow={progress}
+    aria-valuetext={deliveryStatusLabel(status)}
+    style={{ marginTop:11 }}
+  >
+    <div aria-hidden="true" style={{ height:4, borderRadius:999, background:'var(--border)', overflow:'hidden' }}>
+      <div style={{ width:`${progress}%`, height:'100%', borderRadius:999, background:normalized === 'failed' ? 'var(--danger-text)' : normalized === 'partial' ? 'var(--warning-text)' : 'var(--accent)', transition:'width 220ms ease' }} />
+    </div>
+    <ol style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:8, listStyle:'none', padding:0, margin:'8px 0 0' }}>
+      {steps.map((step, index) => {
+        const current = (normalized === 'accepted' && index === 0) || (normalized === 'processing' && index === 1) || (terminal && index === 2)
+        const tone = index === 2 && normalized === 'failed' ? 'var(--danger-text)' : index === 2 && normalized === 'partial' ? 'var(--warning-text)' : 'var(--accent)'
+        return <li key={step.label} aria-current={current ? 'step' : undefined} style={{ display:'flex', alignItems:'center', gap:6, minWidth:0, fontSize:10, fontWeight:step.reached ? 700 : 500, color:step.reached ? 'var(--text2)' : 'var(--text3)' }}>
+          <span aria-hidden="true" style={{ width:17, height:17, flex:'0 0 17px', display:'grid', placeItems:'center', borderRadius:'50%', border:`1px solid ${step.reached ? tone : 'var(--border2)'}`, background:step.reached ? tone : 'var(--surface)', color:step.reached ? '#fff' : 'var(--text3)', fontSize:9 }}>{index + 1}</span>
+          <span style={{ overflowWrap:'anywhere' }}>{step.label}</span>
+        </li>
+      })}
+    </ol>
+  </div>
 }
 
 function ProductChangeReview({ title, changes, busy, confirmLabel, onBack, onConfirm }: {
