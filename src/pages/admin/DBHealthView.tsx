@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
+import { adminIntegrationRequest, loadAdminIntegrationStatus } from '../../lib/adminIntegrationSettings'
 
 const SUPABASE_PLANS = {
   free:       { label: 'Free',       db_limit_mb: 500,   conn_limit: 60,   color: '#ffd166' },
@@ -64,8 +65,9 @@ export default function DBHealthView() {
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'supabase_plan').maybeSingle()
-      .then(({ data }) => { if (data?.value) setPlan(data.value as PlanKey) })
+    loadAdminIntegrationStatus()
+      .then(data => { const value = data.settings.supabase_plan?.value; if (value && value in SUPABASE_PLANS) setPlan(value as PlanKey) })
+      .catch(() => {})
     load()
   }, [])
 
@@ -82,8 +84,8 @@ export default function DBHealthView() {
   async function savePlan(p: PlanKey) {
     const previous = plan
     setPlan(p)
-    const { error } = await supabase.from('app_settings').upsert({ key: 'supabase_plan', value: p, is_secret: false })
-    if (error) {
+    try { await adminIntegrationRequest({ action: 'save_setting', key: 'supabase_plan', value: p }) }
+    catch {
       setPlan(previous)
       setErrorMessage('لم يتم حفظ سعة Supabase المختارة. تحقق من الصلاحيات ثم أعد المحاولة.')
     }

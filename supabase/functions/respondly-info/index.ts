@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,9 +30,10 @@ Deno.serve(async (req) => {
     const db = createClient(SUPABASE_URL, SERVICE_KEY)
     const { data: conn } = await db.from('platform_connections').select('*').eq('id', connection_id).single()
     if (!conn) return json({ error: 'الاتصال غير موجود' }, 404)
-    if (!conn.api_key) return json({ error: 'API Key غير موجود' }, 400)
+    const secrets = await resolveSecretPayload(conn)
+    if (!secrets.api_key) return json({ error: 'API Key غير موجود' }, 400)
 
-    const apiKey  = conn.api_key
+    const apiKey  = secrets.api_key
     const baseUrl = (conn.extra?.base_url || DEFAULT_BASE).replace(/\/$/, '')
     const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
 

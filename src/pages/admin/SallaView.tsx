@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
-import { Settings, KeyRound, Link2, RefreshCw, Copy, Eye, EyeOff, Pencil, X, Store, PauseCircle, ListTodo, CircleX } from 'lucide-react'
+import { Settings, KeyRound, Link2, RefreshCw, Copy, Pencil, X, Store, PauseCircle, ListTodo, CircleX } from 'lucide-react'
+import { adminIntegrationRequest, loadAdminIntegrationStatus } from '../../lib/adminIntegrationSettings'
 
 const SALLA_SETTING_FIELDS = [
   { key: 'SALLA_CLIENT_ID',      label: 'Client ID',        isSecret: false, placeholder: 'أدخل Client ID من لوحة شركاء سلة',  note: 'عام — يظهر في رابط OAuth' },
@@ -16,7 +17,7 @@ const STATUS_COLORS: Record<string, string> = { active: '#00e5b0', suspended: '#
 function SallaAppSettings() {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
-  type SettingEntry = { value: string; editing: boolean; draft: string; saving: boolean; revealed: boolean }
+  type SettingEntry = { value: string; configured: boolean; editing: boolean; draft: string; saving: boolean }
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({})
   const [loadingSettings, setLoadingSettings] = useState(true)
   const [copied, setCopied]             = useState<string | null>(null)
@@ -28,11 +29,13 @@ function SallaAppSettings() {
 
   async function loadSettings() {
     setLoadingSettings(true)
-    const { data } = await supabase.from('app_settings').select('key, value, is_secret')
+    let data: Awaited<ReturnType<typeof loadAdminIntegrationStatus>>['settings'] = {}
+    try { data = (await loadAdminIntegrationStatus()).settings }
+    catch (error: any) { showMsg('err', error.message) }
     const map: Record<string, SettingEntry> = {}
     SALLA_SETTING_FIELDS.forEach(f => {
-      const row = data?.find(r => r.key === f.key)
-      map[f.key] = { value: row?.value || '', editing: false, draft: '', saving: false, revealed: false }
+      const row = data[f.key]
+      map[f.key] = { value: row?.value || '', configured: Boolean(row?.configured), editing: false, draft: '', saving: false }
     })
     setSettings(map)
     setLoadingSettings(false)
@@ -46,13 +49,12 @@ function SallaAppSettings() {
     const s = settings[key]
     if (!s) return
     patchSetting(key, { saving: true })
-    const { error } = await supabase.from('app_settings').upsert({
-      key, value: s.draft,
-      is_secret: SALLA_SETTING_FIELDS.find(f => f.key === key)?.isSecret || false,
-      updated_at: new Date().toISOString(),
-    })
-    if (error) showMsg('err', 'خطأ في الحفظ: ' + error.message)
-    else { patchSetting(key, { value: s.draft, editing: false, saving: false }); showMsg('ok', `تم حفظ ${SALLA_SETTING_FIELDS.find(f => f.key === key)?.label}`) }
+    const field = SALLA_SETTING_FIELDS.find(f => f.key === key)
+    try {
+      await adminIntegrationRequest({ action: 'save_setting', key, value: s.draft })
+      patchSetting(key, { value: field?.isSecret ? '' : s.draft, configured: true, draft: '', editing: false, saving: false })
+      showMsg('ok', `تم حفظ ${field?.label}`)
+    } catch (error: any) { showMsg('err', 'خطأ في الحفظ: ' + error.message) }
     patchSetting(key, { saving: false })
   }
 
@@ -66,18 +68,13 @@ function SallaAppSettings() {
     setCopied(id); setTimeout(() => setCopied(null), 1500)
   }
 
-  function maskSecret(val: string) {
-    if (!val) return ''
-    return val.slice(0, 4) + '●●●●●●●●' + val.slice(-3)
-  }
-
   const callbackUrl = `${SUPABASE_URL}/functions/v1/salla-oauth-callback`
   const webhookUrl  = `${SUPABASE_URL}/functions/v1/salla-webhook`
 
   const urlRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)' }
   const copyBtnStyle: React.CSSProperties = { flexShrink: 0, padding: '6px 14px', borderRadius: 8, background: 'rgba(15,149,140,0.12)', border: '1px solid rgba(15,149,140,0.3)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
 
-  const statusDot = (val: string) => val
+  const statusDot = (configured: boolean) => configured
     ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontWeight: 700, marginRight: 6 }}>محفوظ</span>
     : <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700, marginRight: 6 }}>غير مكتمل</span>
 
@@ -106,37 +103,31 @@ function SallaAppSettings() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {SALLA_SETTING_FIELDS.map(f => {
-                const s = settings[f.key] || { value: '', editing: false, draft: '', saving: false, revealed: false }
+                const s = settings[f.key] || { value: '', configured: false, editing: false, draft: '', saving: false }
                 return (
-                  <div key={f.key} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface2)', border: `1px solid ${s.value ? 'var(--success-bg)' : 'var(--border)'}` }}>
+                  <div key={f.key} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface2)', border: `1px solid ${s.configured ? 'var(--success-bg)' : 'var(--border)'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: s.editing ? 10 : 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 12, fontWeight: 700 }}>{f.label}</span>
-                        {statusDot(s.value)}
+                        {statusDot(s.configured)}
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>— {f.note}</span>
                       </div>
                       {!s.editing && (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          {s.value && !f.isSecret && (
+                          {s.configured && !f.isSecret && (
                             <button style={copyBtnStyle} onClick={() => copy(s.value, f.key)}>{copied === f.key ? 'تم النسخ' : <Copy size={13} />}</button>
                           )}
-                          {s.value && f.isSecret && (
-                            <button style={{ ...copyBtnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)' }}
-                              onClick={() => patchSetting(f.key, { revealed: !s.revealed })}>
-                              {s.revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                          )}
                           <button style={{ ...copyBtnStyle, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text3)' }}
-                            onClick={() => patchSetting(f.key, { editing: true, draft: s.value })}>
-                            <Pencil size={13} /> {s.value ? 'تعديل' : 'إضافة'}
+                            onClick={() => patchSetting(f.key, { editing: true, draft: f.isSecret ? '' : s.value })}>
+                            <Pencil size={13} /> {s.configured ? 'تدوير' : 'إضافة'}
                           </button>
                         </div>
                       )}
                     </div>
 
-                    {!s.editing && s.value && (
+                    {!s.editing && s.configured && (
                       <code style={{ display: 'block', marginTop: 6, fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)', wordBreak: 'break-all' }}>
-                        {f.isSecret && !s.revealed ? maskSecret(s.value) : s.value}
+                        {f.isSecret ? 'محفوظ بأمان — لا يمكن عرضه بعد الحفظ' : s.value}
                       </code>
                     )}
 
@@ -194,7 +185,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
   async function load() {
     setLoading(true)
     const [{ data: conns }, { data: q }] = await Promise.all([
-      supabase.from('salla_connections').select('*, merchants(name,email,subscription_status)').order('installed_at', { ascending: false }),
+      supabase.from('salla_connections').select('id,merchant_code,salla_store_id,salla_merchant_id,store_name,store_domain,store_currency,store_country,store_logo,token_expires_at,scope,installed_at,uninstalled_at,last_sync_at,sync_status,orders_synced,products_synced,created_at,updated_at,merchants(name,email,subscription_status)').order('installed_at', { ascending: false }),
       supabase.from('sync_queue').select('merchant_code,status').in('status', ['pending', 'running', 'failed']),
     ])
     setConnections(conns || [])

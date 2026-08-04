@@ -27,7 +27,7 @@ function SallaCard({ merchant }: { merchant: Merchant | null }) {
 
   useEffect(() => {
     if (!merchant?.merchant_code) { setLoading(false); return }
-    supabase.from('salla_connections').select('*').eq('merchant_code', merchant.merchant_code).maybeSingle()
+    supabase.from('salla_connections').select('id,merchant_code,salla_store_id,salla_merchant_id,store_name,store_domain,store_currency,store_country,store_logo,token_expires_at,scope,installed_at,uninstalled_at,last_sync_at,sync_status,orders_synced,products_synced,created_at,updated_at').eq('merchant_code', merchant.merchant_code).maybeSingle()
       .then(({ data }) => { setConn(data); setLoading(false) })
   }, [merchant?.merchant_code])
 

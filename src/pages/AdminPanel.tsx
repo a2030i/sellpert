@@ -513,7 +513,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         {view === 'employees'   && <EmployeesView merchants={merchants} currentUser={adminMerchant} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
         {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
-        {view === 'ai'          && <AiView merchants={merchantOnly} />}
+        {view === 'ai'          && <AiView merchants={merchantOnly} canManageKey={Boolean(adminMerchant && ['admin', 'super_admin'].includes(adminMerchant.role))} />}
         {view === 'entry'       && <EntryView merchants={merchantOnly} />}
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
         {view === 'uploads'     && <UploadsLogView merchants={merchants} />}

@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,11 +56,11 @@ Deno.serve(async (req) => {
     if (!openrouterKey) {
       const { data: conn } = await adminClient
         .from('platform_connections')
-        .select('api_key')
+        .select('api_key,api_secret,extra,seller_id')
         .eq('platform', 'openrouter')
         .eq('is_active', true)
         .maybeSingle()
-      openrouterKey = conn?.api_key || ''
+      openrouterKey = (await resolveSecretPayload(conn)).api_key || ''
     }
     if (!openrouterKey) {
       return json({ error: 'مفتاح OpenRouter غير مضبوط — أضفه من تبويب AI في لوحة الإدارة' }, 500)

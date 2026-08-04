@@ -37,3 +37,6 @@ verify_jwt = true
 
 [functions.impersonate-merchant]
 verify_jwt = true
+
+[functions.admin-integration-settings]
+verify_jwt = true

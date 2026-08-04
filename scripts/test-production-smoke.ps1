@@ -159,6 +159,7 @@ $protectedFunctions = @(
   'create-merchant',
   'create-employee',
   'manage-platform-credentials',
+  'admin-integration-settings',
   'test-platform-connection',
   'trendyol-actions',
   'impersonate-merchant',

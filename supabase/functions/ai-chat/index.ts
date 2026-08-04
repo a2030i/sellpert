@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -48,8 +49,8 @@ Deno.serve(async (req) => {
 
     let openrouterKey = Deno.env.get('OPENROUTER_API_KEY') || ''
     if (!openrouterKey) {
-      const { data: c } = await db.from('platform_connections').select('api_key').eq('platform', 'openrouter').eq('is_active', true).maybeSingle()
-      openrouterKey = c?.api_key || ''
+      const { data: c } = await db.from('platform_connections').select('api_key,api_secret,extra,seller_id').eq('platform', 'openrouter').eq('is_active', true).maybeSingle()
+      openrouterKey = (await resolveSecretPayload(c)).api_key || ''
     }
     if (!openrouterKey) return j({ error: 'مفتاح OpenRouter غير مضبوط' }, 500)
 

@@ -4,11 +4,12 @@ import { S } from './adminShared'
 import { useMobile } from '../../lib/hooks'
 import type { Merchant, AiInsight } from '../../lib/supabase'
 import { normalizeAiInsightContent } from '../../lib/aiInsights'
+import { adminIntegrationRequest, loadAdminIntegrationStatus } from '../../lib/adminIntegrationSettings'
 
-export default function AiView({ merchants }: { merchants: Merchant[] }) {
+export default function AiView({ merchants, canManageKey = false }: { merchants: Merchant[]; canManageKey?: boolean }) {
   const isMobile = useMobile()
 
-  const [savedKey, setSavedKey]   = useState('')
+  const [savedKey, setSavedKey]   = useState(false)
   const [keyInput, setKeyInput]   = useState('')
   const [editKey, setEditKey]     = useState(false)
   const [savingKey, setSavingKey] = useState(false)
@@ -38,22 +39,19 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
   }, [selMode, selOne, selMulti]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadKey() {
-    const { data } = await supabase.from('platform_connections').select('api_key').eq('platform', 'openrouter').eq('is_active', true).maybeSingle()
-    if (data?.api_key) setSavedKey(data.api_key)
+    try {
+      const data = await loadAdminIntegrationStatus()
+      setSavedKey(Boolean(data.connections.openrouter?.configured))
+    } catch (error: any) { setKeyErr(error.message) }
   }
 
   async function saveKey() {
     if (!keyInput.trim()) return
     setSavingKey(true); setKeyMsg(''); setKeyErr('')
-    const { data: ex } = await supabase.from('platform_connections').select('id').eq('platform', 'openrouter').maybeSingle()
-    if (ex) {
-      const { error } = await supabase.from('platform_connections').update({ api_key: keyInput.trim(), is_active: true }).eq('id', ex.id)
-      if (error) { setKeyErr(error.message); setSavingKey(false); return }
-    } else {
-      const { error } = await supabase.from('platform_connections').insert({ platform: 'openrouter', label: 'OpenRouter AI', api_key: keyInput.trim(), is_active: true })
-      if (error) { setKeyErr(error.message); setSavingKey(false); return }
-    }
-    setSavedKey(keyInput.trim())
+    try {
+      await adminIntegrationRequest({ action: 'save_connection', platform: 'openrouter', api_key: keyInput.trim(), label: 'OpenRouter AI' })
+    } catch (error: any) { setKeyErr(error.message); setSavingKey(false); return }
+    setSavedKey(true)
     setKeyInput('')
     setEditKey(false)
     setSavingKey(false)
@@ -110,15 +108,15 @@ export default function AiView({ merchants }: { merchants: Merchant[] }) {
             <span style={{ fontSize: 12, fontWeight: 800 }}>{savedKey ? 'محفوظ' : 'غير مضبوط'}</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>مفتاح OpenRouter</div>
-              {savedKey ? <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>محفوظ · {savedKey.slice(0, 10)}••••••••</div>
+              {savedKey ? <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>محفوظ بأمان · لا يمكن عرض المفتاح بعد حفظه</div>
                 : <div style={{ fontSize: 11, color: 'var(--warning-text)', marginTop: 2 }}>غير مضبوط — أدخل مفتاحك من openrouter.ai</div>}
             </div>
           </div>
-          <button style={{ ...S.miniBtn, background: savedKey ? 'transparent' : 'var(--warning-bg)', borderColor: savedKey ? 'var(--border)' : 'var(--gold)', color: savedKey ? 'var(--text2)' : 'var(--warning-text)' }} onClick={() => { setEditKey(v => !v); setKeyErr('') }}>
+          {canManageKey && <button style={{ ...S.miniBtn, background: savedKey ? 'transparent' : 'var(--warning-bg)', borderColor: savedKey ? 'var(--border)' : 'var(--gold)', color: savedKey ? 'var(--text2)' : 'var(--warning-text)' }} onClick={() => { setEditKey(v => !v); setKeyErr('') }}>
             {editKey ? 'إلغاء' : savedKey ? 'تعديل' : 'إضافة'}
-          </button>
+          </button>}
         </div>
-        {editKey && (
+        {canManageKey && editKey && (
           <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
             <input style={{ ...S.input, flex: 1, fontFamily: 'monospace', fontSize: 12 }} type="password" placeholder="sk-or-v1-..." value={keyInput} onChange={e => setKeyInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveKey()} />
             <button style={{ ...S.btn, padding: '8px 18px' }} onClick={saveKey} disabled={savingKey || !keyInput.trim()}>{savingKey ? '...' : 'حفظ'}</button>

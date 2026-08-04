@@ -5,6 +5,7 @@ import { fmtRelative } from '../../lib/formatters'
 import { toastOk, toastErr } from '../../components/Toast'
 import { EmptyState, Pagination } from '../../components/UI'
 import { MessageSquare, Send, Plus, Trash2, RefreshCw, Megaphone, FileText, History } from 'lucide-react'
+import { adminIntegrationRequest, loadAdminIntegrationStatus } from '../../lib/adminIntegrationSettings'
 
 type Tab = 'send' | 'templates' | 'conversations' | 'bulk' | 'history' | 'events'
 
@@ -33,8 +34,8 @@ export default function WhatsAppManagerView({ merchants }: { merchants: any[] })
   useEffect(() => { loadConn() }, [])
   async function loadConn() {
     setLoading(true)
-    const { data } = await supabase.from('platform_connections').select('*').eq('platform', 'respondly').eq('is_active', true).maybeSingle()
-    setConn(data)
+    try { setConn((await loadAdminIntegrationStatus()).connections.respondly || null) }
+    catch (error: any) { toastErr(error.message); setConn(null) }
     setLoading(false)
   }
 
@@ -472,9 +473,9 @@ function EventsTab({ connection, onUpdate }: { connection: any; onUpdate: () => 
 
   async function save() {
     setSaving(true)
-    const { error } = await supabase.from('platform_connections').update({
-      extra: { ...connection.extra, events },
-    }).eq('id', connection.id)
+    let error: Error | null = null
+    try { await adminIntegrationRequest({ action: 'update_respondly_config', extra: { ...connection.extra, events } }) }
+    catch (caught: any) { error = caught }
     setSaving(false)
     if (error) toastErr(error.message)
     else { toastOk('حُفظت الإعدادات'); onUpdate() }

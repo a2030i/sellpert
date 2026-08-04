@@ -43,6 +43,7 @@ describe('deployment browser security', () => {
     expect(smokeScript).toContain('production is not serving expected release')
     expect(smokeScript).toContain("'sync-trendyol'")
     expect(smokeScript).toContain("'trendyol-actions'")
+    expect(smokeScript).toContain("'admin-integration-settings'")
     expect(smokeWorkflow).toContain("-ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240")
     expect(smokeWorkflow).toContain("if ('${{ github.event_name }}' -eq 'push')")
     expect(smokeWorkflow).toMatch(/else\s*\{\s*\.\/scripts\/test-production-smoke\.ps1\s*\}/)

@@ -1,13 +1,14 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
-import type { Merchant, PlatformConnection } from '../../lib/supabase'
+import type { Merchant } from '../../lib/supabase'
 import MarketplaceConnections from './MarketplaceConnections'
+import { adminIntegrationRequest, loadAdminIntegrationStatus, type SafeConnection } from '../../lib/adminIntegrationSettings'
 
 export default function ConnectionsView({ merchants: _merchants, onRefresh: _onRefresh }: { merchants: Merchant[]; onRefresh: () => void }) {
   const [loading, setLoading] = useState(true)
 
-  const [waConn, setWaConn]         = useState<PlatformConnection | null>(null)
+  const [waConn, setWaConn]         = useState<SafeConnection | null>(null)
   const [waChannels, setWaChannels] = useState<any[]>([])
   const [waTemplates, setWaTemplates] = useState<any[]>([])
   const [waLoading, setWaLoading]   = useState(false)
@@ -32,7 +33,9 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
 
   async function loadData() {
     setLoading(true)
-    const { data: found } = await supabase.from('platform_connections').select('*').eq('platform', 'respondly').limit(1).maybeSingle()
+    let found: SafeConnection | undefined
+    try { found = (await loadAdminIntegrationStatus()).connections.respondly }
+    catch (error: any) { setMsg({ type: 'err', text: error.message }) }
     setWaConn(found || null)
     if (found?.extra?.events) setWaEvents(found.extra.events)
     setLoading(false)
@@ -63,16 +66,11 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
     if (waForm.base_url.trim()) extra.base_url = waForm.base_url.trim()
     extra.events = waEvents
 
-    if (waConn) {
-      const { error } = await supabase.from('platform_connections').update({ api_key: waForm.api_key.trim(), label: waForm.label || 'Respondly', extra }).eq('id', waConn.id)
-      setWaSaving(false)
-      if (error) { setMsg({ type: 'err', text: error.message }); return }
-    } else {
-      const { data: inserted, error } = await supabase.from('platform_connections').insert({ platform: 'respondly', label: waForm.label || 'Respondly', api_key: waForm.api_key.trim(), is_active: true, extra }).select().maybeSingle()
-      setWaSaving(false)
-      if (error) { setMsg({ type: 'err', text: error.message }); return }
-      setWaConn(inserted)
-    }
+    try {
+      const result = await adminIntegrationRequest<{ connection: SafeConnection }>({ action: 'save_connection', platform: 'respondly', api_key: waForm.api_key.trim(), label: waForm.label || 'Respondly', extra })
+      setWaConn(result.connection)
+    } catch (error: any) { setMsg({ type: 'err', text: error.message }); setWaSaving(false); return }
+    setWaSaving(false)
     setWaEditKey(false)
     setMsg({ type: 'ok', text: 'تم حفظ إعدادات Respondly' })
     await loadData()
@@ -80,7 +78,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
   }
 
   async function loadWaInfo() {
-    const conn = waConn || (await supabase.from('platform_connections').select('*').eq('platform', 'respondly').eq('is_active', true).limit(1).maybeSingle()).data
+    const conn = waConn || (await loadAdminIntegrationStatus()).connections.respondly
     if (!conn) return
     setWaLoading(true)
     try {
@@ -100,8 +98,8 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
   async function saveWaDefaultChannel(channelId: string) {
     if (!waConn) return
     const extra = { ...(waConn.extra || {}), channel_id: channelId }
-    const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
-    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    try { await adminIntegrationRequest({ action: 'update_respondly_config', extra }) }
+    catch (error: any) { setMsg({ type: 'err', text: error.message }); return }
     setMsg({ type: 'ok', text: 'تم تحديد القناة الافتراضية' })
     loadData()
   }
@@ -109,8 +107,8 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
   async function saveWaEvents() {
     if (!waConn) return
     const extra = { ...(waConn.extra || {}), events: waEvents }
-    const { error } = await supabase.from('platform_connections').update({ extra }).eq('id', waConn.id)
-    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    try { await adminIntegrationRequest({ action: 'update_respondly_config', extra }) }
+    catch (error: any) { setMsg({ type: 'err', text: error.message }); return }
     setMsg({ type: 'ok', text: 'تم حفظ إعدادات الأحداث' })
     loadData()
   }
@@ -211,7 +209,7 @@ export default function ConnectionsView({ merchants: _merchants, onRefresh: _onR
               <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: '#25D366', display: 'inline-block' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>Respondly مربوط</div>
-                <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'monospace' }}>{waConn.api_key?.slice(0, 12)}••••••••</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>المفتاح محفوظ بأمان ولا يمكن عرضه</div>
               </div>
               <button style={S.miniBtn} onClick={() => { setWaForm({ label: waConn.label, api_key: '', base_url: waConn.extra?.base_url || '' }); setWaEditKey(true) }}>تعديل</button>
               <button style={{ ...S.miniBtn, color: '#25D366', borderColor: '#25D366' }} onClick={loadWaInfo} disabled={waLoading}>{waLoading ? 'جاري التحديث' : 'تحديث'}</button>

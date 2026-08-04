@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,7 +73,8 @@ Deno.serve(async (req) => {
       .limit(1)
       .single()
 
-    if (!conn?.api_key) return json({ skipped: true, reason: 'Respondly غير مربوط أو بدون API Key' })
+    const secrets = await resolveSecretPayload(conn)
+    if (!secrets.api_key) return json({ skipped: true, reason: 'Respondly غير مربوط أو بدون API Key' })
 
     // Check event is enabled
     const eventsConfig = conn.extra?.events || {}
@@ -90,7 +92,7 @@ Deno.serve(async (req) => {
     if (merchant?.is_active === false) return json({ error: 'Merchant account is inactive' }, 409)
     if (!merchant?.whatsapp_phone) return json({ skipped: true, reason: 'لا يوجد رقم واتساب للتاجر' })
 
-    const apiKey   = conn.api_key
+    const apiKey   = secrets.api_key
     const baseUrl  = (conn.extra?.base_url || 'https://ovbrrumnqfvtgmqsscat.supabase.co/functions/v1/public-api').replace(/\/$/, '')
     const channelId = conn.extra?.channel_id || null
 
