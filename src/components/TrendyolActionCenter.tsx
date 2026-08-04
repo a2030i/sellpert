@@ -127,13 +127,20 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
   const actions:[MerchantAction,string,string,any][]=[
     ['questions','أسئلة العملاء','شاهد الأسئلة الجديدة ورد عليها من Sellpert',MessageSquare],
-    ['label','طباعة ملصق الشحن','أدخل رقم التتبع وحمّل الملصق الجاهز',Printer],
-    ['status','تحديث حالة التجهيز','حوّل الشحنة إلى قيد التجهيز أو تم إصدار الفاتورة',PackageCheck],
-    ['tracking','تحديث رقم التتبع','أرسل رقم التتبع الصحيح لحزمة الشحن',Truck],
-    ['carrier','تغيير شركة الشحن','حدّث شركة الشحن المسؤولة عن الحزمة',RefreshCw],
-    ['stock','تحديث السعر والمخزون','حدّث سعر وكمية المنتج مباشرة',RefreshCw],
-    ['approve_return','قبول طلب مرتجع','وافق على عناصر المرتجع المحددة في Trendyol',RotateCcw],
+    ['label','ملصقات الشحن','افتح الطلب واختر شحنته لتنزيل الملصق الصحيح',Printer],
+    ['status','حالة التجهيز والفاتورة','نفّذ الإجراء من الطلب لتعبئة البنود تلقائيًا',PackageCheck],
+    ['tracking','بيانات الشحن والتتبع','اختر الطلب ثم سجّل شركة الشحن ورقم التتبع',Truck],
+    ['carrier','شركة الشحن','غيّر الناقل من الشحنة المرتبطة بالطلب',RefreshCw],
+    ['stock','السعر والمخزون','افتح المنتج المطلوب وراجع التغيير قبل إرساله',RefreshCw],
+    ['approve_return','قرارات المرتجعات','راجع المرتجع ثم اقبله أو ارفضه من سجل التسويات',RotateCcw],
   ]
+  const destinations:Partial<Record<MerchantAction,string>>={label:'/orders',status:'/orders',tracking:'/orders',carrier:'/orders',stock:'/products',approve_return:'/statement'}
+  function chooseAction(id:MerchantAction) {
+    if(id==='questions'){setAction(id);setMessage(null);return}
+    const destination=destinations[id]
+    if(!destination)return
+    onClose();window.history.pushState(null,'',destination);window.dispatchEvent(new PopStateEvent('popstate'))
+  }
   const set=(key:string,value:string)=>setForm(current=>({...current,[key]:value}))
   const input=(label:string,key:string,placeholder:string,type='text')=><label style={F.field}><span>{label}</span><input style={M.input} type={type} value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={placeholder}/></label>
 
@@ -184,7 +191,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
 
   return <div style={M.backdrop} onClick={onClose}><div style={{...M.modal,width:'min(760px,100%)'}} onClick={e=>e.stopPropagation()}>
     <div style={M.header}><div><b style={{fontSize:18}}>خدمات Trendyol</b><div style={M.sub}>نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية</div></div><button style={M.close} onClick={onClose}><X size={18}/></button></div>
-    <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>{setAction(id);setMessage(null)}} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
+    <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>chooseAction(id)} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
     {action==='questions'?<MerchantQuestions merchantCode={merchantCode}/>:<div style={F.form}>
       {action==='label'?input('رقم تتبع الشحنة','tracking','مثال: 3941019487'):
        action==='status'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم بند الطلب','lineId','Line ID','number')}{input('الكمية في البند','quantity','1','number')}<label style={F.field}><span>الحالة الجديدة</span><select style={M.input} value={form.status||'Picking'} onChange={e=>set('status',e.target.value)}><option value="Picking">قيد التجهيز</option><option value="Invoiced">تم إصدار الفاتورة</option></select></label>{(form.status||'Picking')==='Invoiced'?input('رقم الفاتورة','invoiceNumber','رقم الفاتورة'):null}</>:

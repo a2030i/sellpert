@@ -47,4 +47,13 @@ describe('Trendyol fulfillment action contract', () => {
     expect(merchantCenter).toContain("data?.data?.data_base64")
     expect(merchantCenter).not.toContain('payloadHint:\'{"status":"Shipped"}\'')
   })
+
+  it('routes merchants to contextual records instead of asking them to discover technical identifiers', () => {
+    expect(merchantCenter).toContain("label:'/orders'")
+    expect(merchantCenter).toContain("status:'/orders'")
+    expect(merchantCenter).toContain("stock:'/products'")
+    expect(merchantCenter).toContain("approve_return:'/statement'")
+    expect(merchantCenter).toContain('onClick={()=>chooseAction(id)}')
+    expect(merchantCenter).not.toContain('onClick={()=>{setAction(id);setMessage(null)}}')
+  })
 })
