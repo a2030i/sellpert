@@ -4,6 +4,7 @@ import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
+import { normalizeTrendyolQuestionPage } from '../_shared/trendyolQuestionInbox.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -101,6 +102,7 @@ Deno.serve(async req => {
   if (contentLength > 15_000_000) return json({ error:'حجم الطلب يتجاوز الحد المسموح' }, 413, cors)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
+  let questionReplyAttemptId = ''
   try {
     const input = await req.json()
     const merchantCode = String(input?.merchant_code || '')
@@ -111,6 +113,31 @@ Deno.serve(async req => {
     const actorId = bearer && bearer !== SERVICE_KEY
       ? (await admin.auth.getUser(bearer)).data?.user?.id || null
       : null
+    if (action === 'questions.inbox') {
+      const requestedLimit = Number(input?.query?.limit ?? 100)
+      const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 100
+      const [questionsResult, repliesResult, waitingResult] = await Promise.all([
+        admin.from('trendyol_customer_questions')
+          .select('question_id,status,question_text,customer_name,show_customer_name,product_name,image_url,barcode,product_content_id,answer_text,answer_status,asked_at,answered_at,provider_updated_at,last_synced_at')
+          .eq('merchant_code', merchantCode).order('asked_at', { ascending:false, nullsFirst:false }).limit(limit),
+        admin.from('trendyol_question_reply_attempts')
+          .select('id,question_id,answer_text,status,provider_message,error_message,requested_at,completed_at')
+          .eq('merchant_code', merchantCode).order('requested_at', { ascending:false }).limit(50),
+        admin.from('trendyol_customer_questions')
+          .select('id', { count:'exact', head:true }).eq('merchant_code', merchantCode).eq('status', 'WAITING_FOR_ANSWER'),
+      ])
+      if (questionsResult.error) throw questionsResult.error
+      if (repliesResult.error) throw repliesResult.error
+      if (waitingResult.error) throw waitingResult.error
+      return json({
+        ok:true,
+        data:{
+          questions:questionsResult.data || [],
+          replies:repliesResult.data || [],
+          waitingCount:waitingResult.count || 0,
+        },
+      }, 200, cors)
+    }
     const definition = ACTIONS[action]
     if (!definition) throw new HttpError(400, 'عملية Trendyol غير مدعومة')
     const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString()
@@ -150,6 +177,21 @@ Deno.serve(async req => {
     if (logError) throw logError
     logId = log.id
 
+    if (action === 'questions.answer') {
+      const { data: replyAttempt, error: replyAttemptError } = await admin
+        .from('trendyol_question_reply_attempts')
+        .insert({
+          merchant_code:merchantCode,
+          question_id:clean(String(input?.path?.questionId || '')),
+          answer_text:clean(input?.payload?.text),
+          actor_id:actorId,
+          status:'sending',
+        })
+        .select('id').single()
+      if (replyAttemptError) throw replyAttemptError
+      questionReplyAttemptId = replyAttempt.id
+    }
+
     const headers: Record<string,string> = {
       Authorization:`Basic ${btoa(`${credentials.apiKey}:${credentials.apiSecret}`)}`,
       'User-Agent':`${credentials.sellerId} - Sellpert`, Accept:'application/json',
@@ -184,6 +226,26 @@ Deno.serve(async req => {
       result = { content_type:contentType, file_name:response.headers.get('content-disposition'), data_base64:toBase64(bytes) }
     }
     if (!response.ok) throw new HttpError(response.status, trendyolError(result, response.status))
+    if (action === 'questions.list' || action === 'questions.detail') {
+      await persistTrendyolQuestions(admin, merchantCode, result, action === 'questions.list' ? clean(input?.query?.status).toUpperCase() : '')
+    }
+    if (action === 'questions.answer') {
+      const now = new Date().toISOString()
+      const questionId = clean(String(input?.path?.questionId || ''))
+      const [questionUpdate, replyUpdate] = await Promise.all([
+        admin.from('trendyol_customer_questions').update({
+          status:'ANSWERED', answer_text:clean(input?.payload?.text), answer_status:'SENT',
+          answered_at:now, provider_updated_at:now, last_synced_at:now, updated_at:now,
+        }).eq('merchant_code', merchantCode).eq('question_id', questionId),
+        admin.from('trendyol_question_reply_attempts').update({
+          status:'sent', provider_message:readableError(result?.message || result?.status) || null,
+          completed_at:now,
+        }).eq('id', questionReplyAttemptId).eq('merchant_code', merchantCode),
+      ])
+      if (questionUpdate.error || replyUpdate.error) {
+        console.error('Trendyol answer audit persistence failed', questionUpdate.error || replyUpdate.error)
+      }
+    }
     if (action === 'products.batch_result') {
       const batchId = clean(input?.path?.batchRequestId)
       const batchState = normalizeBatchState(result)
@@ -210,12 +272,38 @@ Deno.serve(async req => {
     }).eq('id',logId)
     return json({ ok:true, status:finalStatus, pendingApproval:Boolean(batchId), action, risk:definition.risk, batchRequestId:batchId, data:result }, 200, cors)
   } catch (error:any) {
+    if (questionReplyAttemptId) await admin.from('trendyol_question_reply_attempts').update({
+      status:'failed', error_message:String(error?.message || error).slice(0,4000), completed_at:new Date().toISOString(),
+    }).eq('id',questionReplyAttemptId)
     if (logId) await admin.from('marketplace_action_logs').update({
       status:'failed', error_message:String(error?.message || error).slice(0,4000), finished_at:new Date().toISOString(),
     }).eq('id',logId)
     return json({ error:error?.message || 'Trendyol operation failed' }, error instanceof HttpError ? error.status : 500, cors)
   }
 })
+
+async function persistTrendyolQuestions(admin:any, merchantCode:string, result:any, requestedStatus='') {
+  const rows = normalizeTrendyolQuestionPage(merchantCode, result)
+  if (rows.length) {
+    const { error } = await admin.from('trendyol_customer_questions').upsert(rows, {
+      onConflict:'merchant_code,question_id', ignoreDuplicates:false,
+    })
+    if (error) throw error
+  }
+  const totalElements = Number(result?.totalElements ?? result?.data?.totalElements)
+  if (requestedStatus !== 'WAITING_FOR_ANSWER' || !Number.isFinite(totalElements) || totalElements > rows.length) return
+  const { data: cached, error: cachedError } = await admin.from('trendyol_customer_questions')
+    .select('question_id').eq('merchant_code', merchantCode).eq('status', 'WAITING_FOR_ANSWER')
+  if (cachedError) throw cachedError
+  const currentIds = new Set(rows.map(row => row.question_id))
+  const resolvedIds = (cached || []).map((row:any) => String(row.question_id)).filter((id:string) => !currentIds.has(id))
+  if (!resolvedIds.length) return
+  const now = new Date().toISOString()
+  const { error: reconcileError } = await admin.from('trendyol_customer_questions').update({
+    status:'NO_LONGER_WAITING', last_synced_at:now, updated_at:now,
+  }).eq('merchant_code', merchantCode).in('question_id', resolvedIds)
+  if (reconcileError) throw reconcileError
+}
 
 async function resolveCredentials(admin:any, merchantCode:string) {
   const { data } = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')

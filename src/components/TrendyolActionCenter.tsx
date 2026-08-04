@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Loader2, MessageSquare, PackageCheck, Play, Printer, RefreshCw, RotateCcw, Send, Truck, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock3, History, Loader2, MessageSquare, PackageCheck, Play, Printer, RefreshCw, RotateCcw, Send, Truck, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { userErrorMessage } from '../lib/userError'
 
@@ -191,7 +191,12 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
 
 function MerchantQuestions({merchantCode}:{merchantCode:string}) {
   const [questions,setQuestions]=useState<any[]>([])
+  const [replies,setReplies]=useState<any[]>([])
+  const [waitingCount,setWaitingCount]=useState(0)
+  const [lastSyncedAt,setLastSyncedAt]=useState<string|null>(null)
+  const [view,setView]=useState<'pending'|'history'>('pending')
   const [loading,setLoading]=useState(true)
+  const [refreshing,setRefreshing]=useState(false)
   const [replying,setReplying]=useState('')
   const [answers,setAnswers]=useState<Record<string,string>>({})
   const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
@@ -208,46 +213,86 @@ function MerchantQuestions({merchantCode}:{merchantCode:string}) {
     return data
   },[merchantCode])
 
-  const load=useCallback(async () => {
-    setLoading(true); setMessage(null)
-    try {
-      const data=await call('questions.list',{query:{status:'WAITING_FOR_ANSWER',page:0,size:50,orderByField:'CreatedDate',orderByDirection:'DESC'}})
-      setQuestions(Array.isArray(data?.data?.content)?data.data.content:[])
-    } catch(error:any) { setMessage({type:'err',text:userErrorMessage(error,'تعذّر تحميل أسئلة العملاء.')}) }
-    finally { setLoading(false) }
+  const readInbox=useCallback(async () => {
+    const data=await call('questions.inbox',{query:{limit:100}})
+    const inbox:any[]=Array.isArray(data?.data?.questions)?data.data.questions:[]
+    setQuestions(inbox)
+    setReplies(Array.isArray(data?.data?.replies)?data.data.replies:[])
+    setWaitingCount(Number(data?.data?.waitingCount||0))
+    const newest=inbox.reduce((current:string|null,item:any)=>{
+      const value=typeof item?.last_synced_at==='string'?item.last_synced_at:null
+      return value&&(!current||value>current)?value:current
+    },null)
+    setLastSyncedAt(newest)
+    return inbox.length>0
   },[call])
+
+  const synchronize=useCallback(async (quiet=false) => {
+    setRefreshing(true)
+    if(!quiet)setMessage(null)
+    try {
+      await call('questions.list',{query:{status:'WAITING_FOR_ANSWER',page:0,size:50,orderByField:'CreatedDate',orderByDirection:'DESC'}})
+      await readInbox()
+      if(!quiet)setMessage({type:'ok',text:'تم تحديث صندوق أسئلة العملاء من Trendyol.'})
+    } catch(error:any) {
+      setMessage({type:'err',text:userErrorMessage(error,'تعذّر التحديث من Trendyol. ما زالت آخر نسخة محفوظة ظاهرة أمامك.')})
+    } finally { setRefreshing(false) }
+  },[call,readInbox])
+
+  const load=useCallback(async () => {
+    setLoading(true);setMessage(null)
+    let hasCached=false
+    try { hasCached=await readInbox() }
+    catch(error) { console.error('cached Trendyol questions',error) }
+    finally { setLoading(false) }
+    await synchronize(hasCached)
+  },[readInbox,synchronize])
 
   useEffect(()=>{void load()},[load])
 
   async function answer(question:any) {
-    const id=String(question.id)
+    const id=String(question.question_id||question.id)
     const text=(answers[id]||'').trim()
     if(text.length<10){setMessage({type:'err',text:'اكتب ردًا واضحًا من 10 أحرف على الأقل.'});return}
     if(!window.confirm('تأكيد إرسال هذا الرد إلى العميل عبر Trendyol؟'))return
     setReplying(id);setMessage(null)
     try {
       await call('questions.answer',{confirm:true,path:{questionId:id},payload:{text}})
-      setQuestions(current=>current.filter(item=>String(item.id)!==id))
       setAnswers(current=>({...current,[id]:''}))
+      await readInbox()
       setMessage({type:'ok',text:'تم إرسال الرد إلى Trendyol للمراجعة.'})
     } catch(error:any) { setMessage({type:'err',text:userErrorMessage(error,'تعذّر إرسال الرد إلى Trendyol.')}) }
     finally { setReplying('') }
   }
 
   return <div style={{...F.form,display:'block'}}>
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12}}>
-      <div><b style={{fontSize:13}}>الأسئلة التي تنتظر الرد</b><div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>يعرض آخر الأسئلة المفتوحة من Trendyol مباشرة.</div></div>
-      <button style={M.close} onClick={()=>void load()} disabled={loading} aria-label="تحديث الأسئلة"><RefreshCw size={16} className={loading?'spin':''}/></button>
+    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:12}}>
+      <div><b style={{fontSize:14}}>صندوق أسئلة العملاء</b><div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>محفوظ داخل متجرك ويتحدّث من Trendyol دون فقد سجل الردود.</div></div>
+      <button style={{...M.close,width:'auto',padding:'0 10px',display:'inline-flex',alignItems:'center',gap:6}} onClick={()=>void synchronize()} disabled={refreshing} aria-label="تحديث الأسئلة"><RefreshCw size={15} className={refreshing?'spin':''}/><span style={{fontSize:10,fontWeight:800}}>{refreshing?'جارٍ التحديث':'تحديث'}</span></button>
+    </div>
+    <div style={F.questionSummary}>
+      <div style={F.questionMetric}><span>تنتظر الرد</span><strong>{waitingCount.toLocaleString('ar-SA')}</strong></div>
+      <div style={F.questionMetric}><span>ردود أُرسلت</span><strong>{replies.filter(reply=>reply.status==='sent').length.toLocaleString('ar-SA')}</strong></div>
+      <div style={F.questionMetric}><span>آخر مزامنة</span><strong style={{fontSize:11}}>{lastSyncedAt?new Date(lastSyncedAt).toLocaleString('ar-SA-u-ca-gregory-nu-latn',{dateStyle:'short',timeStyle:'short'}):'لم تتم بعد'}</strong></div>
+    </div>
+    <div style={F.questionTabs}>
+      <button onClick={()=>setView('pending')} style={{...F.questionTab,...(view==='pending'?F.questionTabActive:{})}}><Clock3 size={14}/> بانتظار الرد <span>{waitingCount.toLocaleString('ar-SA')}</span></button>
+      <button onClick={()=>setView('history')} style={{...F.questionTab,...(view==='history'?F.questionTabActive:{})}}><History size={14}/> سجل الردود <span>{replies.length.toLocaleString('ar-SA')}</span></button>
     </div>
     {message?<div role="status" aria-live="polite" style={{...F.message,marginBottom:10,background:message.type==='ok'?'var(--success-bg)':'var(--danger-bg)',color:message.type==='ok'?'var(--success-text)':'var(--danger-text)'}}>{message.text}</div>:null}
-    {loading?<div style={F.empty}><Loader2 size={18} className="spin"/> جارٍ تحميل الأسئلة...</div>:
-     questions.length===0?<div style={F.empty}><CheckCircle2 size={20} color="var(--success-text)"/> لا توجد أسئلة تنتظر الرد الآن.</div>:
-     <div style={{display:'grid',gap:10}}>{questions.map(question=>{
-       const id=String(question.id)
+    {loading?<div style={F.empty}><Loader2 size={18} className="spin"/> جارٍ فتح صندوق الأسئلة...</div>:
+     view==='history' ? (replies.length===0?<div style={F.empty}><History size={20}/> لم ترسل ردودًا من Sellpert حتى الآن.</div>:<div style={{display:'grid',gap:9}}>{replies.map(reply=><article key={reply.id} style={F.replyCard}>
+       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><b style={{fontSize:11}}>السؤال رقم {reply.question_id}</b><span style={{...F.replyStatus,color:reply.status==='sent'?'var(--success-text)':reply.status==='failed'?'var(--danger-text)':'var(--warning-text)',background:reply.status==='sent'?'var(--success-bg)':reply.status==='failed'?'var(--danger-bg)':'var(--warning-bg)'}}>{reply.status==='sent'?'تم الإرسال':reply.status==='failed'?'تعذّر الإرسال':'جارٍ الإرسال'}</span></div>
+       <p style={{fontSize:12,lineHeight:1.8,margin:'8px 0 5px'}}>{reply.answer_text}</p>
+       {reply.error_message?<div style={{fontSize:10,color:'var(--danger-text)',marginBottom:5}}>{reply.error_message}</div>:null}
+       <small style={{color:'var(--text3)'}}>{new Date(reply.completed_at||reply.requested_at).toLocaleString('ar-SA-u-ca-gregory-nu-latn')}</small>
+     </article>)}</div>) : questions.filter(question=>question.status==='WAITING_FOR_ANSWER').length===0?<div style={F.empty}><CheckCircle2 size={20} color="var(--success-text)"/> لا توجد أسئلة تنتظر الرد الآن.</div>:
+     <div style={{display:'grid',gap:10}}>{questions.filter(question=>question.status==='WAITING_FOR_ANSWER').map(question=>{
+       const id=String(question.question_id||question.id)
        return <article key={id} style={F.questionCard}>
          <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
-           {question.imageUrl?<img src={question.imageUrl} alt="" style={{width:54,height:54,objectFit:'contain',borderRadius:8,border:'1px solid var(--border)',background:'#fff'}}/>:null}
-           <div style={{minWidth:0,flex:1}}><div style={{fontSize:11,fontWeight:800}}>{question.productName||'منتج Trendyol'}</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5}}>{question.text}</div><div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>{question.showUserName&&question.userName?question.userName:'عميل Trendyol'} · {question.creationDate?new Date(Number(question.creationDate)).toLocaleString('ar-SA-u-ca-gregory-nu-latn'):'الآن'}</div></div>
+           {question.image_url?<img src={question.image_url} alt="" style={{width:54,height:54,objectFit:'contain',borderRadius:8,border:'1px solid var(--border)',background:'#fff'}}/>:null}
+           <div style={{minWidth:0,flex:1}}><div style={{fontSize:11,fontWeight:800}}>{question.product_name||'منتج Trendyol'}</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5}}>{question.question_text}</div><div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>{question.show_customer_name&&question.customer_name?question.customer_name:'عميل Trendyol'} · {question.asked_at?new Date(question.asked_at).toLocaleString('ar-SA-u-ca-gregory-nu-latn'):'وقت غير متاح'}</div></div>
          </div>
          <textarea value={answers[id]||''} onChange={event=>setAnswers(current=>({...current,[id]:event.target.value.slice(0,2000)}))} placeholder="اكتب ردًا واضحًا للعميل..." style={{...M.textarea,minHeight:78,marginTop:10,fontFamily:'inherit',direction:'rtl',textAlign:'right'}}/>
          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginTop:7}}><span style={{fontSize:10,color:'var(--text3)'}}>{(answers[id]||'').length.toLocaleString('ar-SA')} / 2,000</span><button style={{...M.run,padding:'8px 13px',opacity:replying===id ? .6 : 1}} disabled={replying===id} onClick={()=>void answer(question)}>{replying===id?<Loader2 size={14} className="spin"/>:<Send size={14}/>} إرسال الرد</button></div>
@@ -257,4 +302,4 @@ function MerchantQuestions({merchantCode}:{merchantCode:string}) {
 }
 
 const M:Record<string,React.CSSProperties>={backdrop:{position:'fixed',inset:0,zIndex:1200,background:'rgba(4,15,23,.65)',display:'grid',placeItems:'center',padding:18},modal:{width:'min(940px,100%)',maxHeight:'92vh',overflowY:'auto',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:18,padding:22},header:{display:'flex',justifyContent:'space-between',borderBottom:'1px solid var(--border)',paddingBottom:14,marginBottom:16},sub:{fontSize:11,color:'var(--text3)',marginTop:4},close:{width:34,height:34,borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',cursor:'pointer'},grid:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:14},label:{display:'block',fontSize:11,fontWeight:700,color:'var(--text3)',marginBottom:6},input:{width:'100%',padding:'10px 12px',borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)'},textarea:{width:'100%',minHeight:105,padding:10,borderRadius:9,border:'1px solid var(--border)',background:'var(--surface2)',color:'var(--text)',fontFamily:'monospace',fontSize:11,resize:'vertical'},risk:{display:'inline-flex',padding:'6px 12px',borderRadius:20,fontSize:11,fontWeight:800},confirm:{display:'flex',alignItems:'center',gap:8,padding:11,borderRadius:9,background:'var(--warning-bg)',color:'var(--warning-text)',fontSize:12,marginBottom:12},run:{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px 18px',border:0,borderRadius:10,background:'var(--accent-strong)',color:'#fff',fontWeight:800,cursor:'pointer'},error:{padding:10,borderRadius:9,background:'var(--danger-bg)',color:'var(--danger-text)',fontSize:12,marginBottom:12},result:{padding:12,borderRadius:10,background:'var(--success-bg)',color:'var(--success-text)',marginBottom:12},pre:{maxHeight:240,overflow:'auto',direction:'ltr',textAlign:'left',fontSize:10,whiteSpace:'pre-wrap'}}
-const F:Record<string,React.CSSProperties>={actions:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:9,marginBottom:16},action:{display:'grid',gridTemplateColumns:'26px 1fr',gap:'3px 8px',alignItems:'center',textAlign:'right',padding:12,border:'1px solid var(--border)',borderRadius:11,color:'var(--text)',cursor:'pointer',fontFamily:'inherit'},form:{padding:16,borderRadius:12,background:'var(--surface2)',border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:12},field:{display:'grid',gap:6,fontSize:11,fontWeight:700,color:'var(--text2)'},message:{gridColumn:'1/-1',padding:10,borderRadius:8,fontSize:12},empty:{minHeight:110,display:'flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--text3)',fontSize:12},questionCard:{padding:13,border:'1px solid var(--border)',borderRadius:11,background:'var(--surface)'},}
+const F:Record<string,React.CSSProperties>={actions:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:9,marginBottom:16},action:{display:'grid',gridTemplateColumns:'26px 1fr',gap:'3px 8px',alignItems:'center',textAlign:'right',padding:12,border:'1px solid var(--border)',borderRadius:11,color:'var(--text)',cursor:'pointer',fontFamily:'inherit'},form:{padding:16,borderRadius:12,background:'var(--surface2)',border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:12},field:{display:'grid',gap:6,fontSize:11,fontWeight:700,color:'var(--text2)'},message:{gridColumn:'1/-1',padding:10,borderRadius:8,fontSize:12},empty:{minHeight:110,display:'flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--text3)',fontSize:12},questionCard:{padding:13,border:'1px solid var(--border)',borderRadius:11,background:'var(--surface)'},questionSummary:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(125px,1fr))',gap:8,marginBottom:12},questionMetric:{padding:'10px 11px',border:'1px solid var(--border)',borderRadius:10,background:'var(--surface)',display:'grid',gap:5,fontSize:10,color:'var(--text3)'},questionTabs:{display:'flex',gap:7,borderBottom:'1px solid var(--border)',marginBottom:12},questionTab:{border:0,borderBottom:'2px solid transparent',background:'transparent',color:'var(--text3)',padding:'9px 10px',display:'inline-flex',alignItems:'center',gap:6,fontFamily:'inherit',fontSize:11,fontWeight:800,cursor:'pointer'},questionTabActive:{color:'#d96000',borderBottomColor:'#f27a1a'},replyCard:{padding:12,border:'1px solid var(--border)',borderRadius:10,background:'var(--surface)'},replyStatus:{padding:'4px 8px',borderRadius:999,fontSize:9,fontWeight:800},}
