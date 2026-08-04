@@ -5,7 +5,7 @@
  * Every received event (including test events) is logged to webhook_events.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { commissionFromLines, mapTrendyolOrderStatus, numberOrNull, validIso } from '../_shared/trendyolWebhook.ts'
 import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 

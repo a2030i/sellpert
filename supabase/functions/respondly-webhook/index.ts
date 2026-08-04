@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { stableWebhookEventKey, timingSafeEqual } from '../_shared/webhookSecurity.ts'
 
 const corsHeaders = {

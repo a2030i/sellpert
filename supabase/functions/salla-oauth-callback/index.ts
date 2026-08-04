@@ -13,7 +13,7 @@
  *  6. Redirect merchant to dashboard with magic-link / temp token
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
 import { generateAccountCode, normalizeEmail } from '../_shared/accountSecurity.ts'
 

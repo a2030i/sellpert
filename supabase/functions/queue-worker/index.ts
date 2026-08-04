@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { authorizeInternalWorker } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!

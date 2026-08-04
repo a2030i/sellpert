@@ -14,7 +14,7 @@
  *  store.updated            → update salla_connections
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
 import { PayloadTooLargeError, readBoundedText, stableWebhookEventKey } from '../_shared/webhookSecurity.ts'
 

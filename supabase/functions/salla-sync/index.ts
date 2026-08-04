@@ -12,7 +12,7 @@
  * Body: { merchant_code, job_type, payload? }
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.104.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
 import { authorizeMerchantSync } from '../_shared/sync.ts'
 
