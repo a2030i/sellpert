@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react'
-import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
 import { fetchAll } from '../../lib/db'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
@@ -7,7 +6,8 @@ import { parsePlatformFile, type ParseResult } from '../../lib/platformParsers'
 import { reconcileAmazonReportTotals } from '../../lib/amazonReportReconciliation'
 import { uploadDisplayStatus } from '../../lib/uploadStatus'
 import { Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox, ClipboardList, Boxes, PackageSearch, WalletCards, Megaphone, LayoutDashboard } from 'lucide-react'
-import { importArchiveContentType, importArchivePath, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_EXPANDED_BYTES, MAX_IMPORT_FILE_BYTES, validateImportFile } from '../../lib/importArchive'
+import { expandImportArchive, importArchiveContentType, importArchivePath } from '../../lib/importArchive'
+import { escapeReportHtml } from '../../lib/reportHtml'
 
 // ─── File guides per platform ────────────────────────────────────────────────
 type Importance = 'critical' | 'recommended' | 'optional'
@@ -53,6 +53,8 @@ const IMPORTANCE_META: Record<Importance, { label: string; color: string }> = {
 
 // ─── تقرير PDF بسيط للتاجر ─────────────────────────────────────────────────
 async function generateMerchantReport(merchantCode: string, merchantName: string, savedFiles: { kind: string; label: string; rows: number; platform: string }[]) {
+  merchantCode = escapeReportHtml(merchantCode)
+  merchantName = escapeReportHtml(merchantName)
   // جلب الإجماليات الحالية للتاجر
   const monthStart = new Date()
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
@@ -98,7 +100,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     .sort(([, a], [, b]) => b.sales - a.sales)
     .map(([p, v]) => `
       <tr>
-        <td><b>${PLATFORM_MAP[p] || p}</b></td>
+        <td><b>${escapeReportHtml(PLATFORM_MAP[p] || p)}</b></td>
         <td>${Math.round(v.sales).toLocaleString('ar-SA')} ر.س</td>
         <td>${v.orders.toLocaleString('ar-SA')}</td>
         <td>${Math.round(v.adSpend).toLocaleString('ar-SA')} ر.س</td>
@@ -107,8 +109,8 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
 
   const filesRows = savedFiles.map(f => `
     <tr>
-      <td>${f.label}</td>
-      <td><span class="badge ${f.platform}">${PLATFORM_MAP[f.platform] || f.platform}</span></td>
+      <td>${escapeReportHtml(f.label)}</td>
+      <td><span class="badge ${escapeReportHtml(f.platform)}">${escapeReportHtml(PLATFORM_MAP[f.platform] || f.platform)}</span></td>
       <td style="text-align:left">${f.rows.toLocaleString('ar-SA')} صف</td>
     </tr>`).join('')
 
@@ -262,51 +264,6 @@ function relativeTime(iso: string | null): string {
   if (d < 30)  return `قبل ${d} يوم`
   const mo = Math.floor(d / 30)
   return `قبل ${mo} شهر`
-}
-
-// ─── Expand zip → file list — يتحقّق من الامتداد ومن الـ signature ──────────
-async function expandIfZip(file: File): Promise<File[]> {
-  const fileError = validateImportFile(file)
-  if (fileError) throw new Error(fileError)
-  const looksLikeZipByName = /\.zip$/i.test(file.name)
-  // Read first 4 bytes to detect PK signature (zip files start with 0x50 0x4B 0x03 0x04)
-  let isZipByContent = false
-  let buf: ArrayBuffer | null = null
-  try {
-    buf = await file.arrayBuffer()
-    const sig = new Uint8Array(buf.slice(0, 4))
-    isZipByContent = sig[0] === 0x50 && sig[1] === 0x4B && (sig[2] === 0x03 || sig[2] === 0x05) && (sig[3] === 0x04 || sig[3] === 0x06)
-  } catch { /* ignore */ }
-
-  // xlsx files are also PK-based archives — only treat as zip if extension says so OR if it's a .zip without the proper xlsx structure (we'll validate by trying)
-  if (!looksLikeZipByName && !isZipByContent) return [file]
-  if (!looksLikeZipByName) {
-    // Only check content if extension is missing/wrong; xlsx must NOT be expanded
-    if (/\.(xlsx|xlsm|xltx)$/i.test(file.name)) return [file]
-  }
-
-  try {
-    const zip = await JSZip.loadAsync(buf || await file.arrayBuffer())
-    const out: File[] = []
-    let expandedBytes = 0
-    for (const entry of Object.values(zip.files)) {
-      if (entry.dir) continue
-      if (!/\.(csv|xlsx|xlsm|xls|txt|tsv)$/i.test(entry.name)) continue
-      if (out.length >= MAX_ARCHIVE_ENTRIES) throw new Error(`ملف ZIP يحتوي أكثر من ${MAX_ARCHIVE_ENTRIES} ملف صالح`)
-      const estimatedSize = Number((entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0)
-      if (estimatedSize > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
-      if (expandedBytes + estimatedSize > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
-      const blob = await entry.async('blob')
-      if (blob.size > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
-      expandedBytes += blob.size
-      if (expandedBytes > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
-      const cleanName = entry.name.split('/').pop() || entry.name
-      out.push(new File([blob], cleanName, { type: blob.type }))
-    }
-    return out.length ? out : [file]
-  } catch {
-    return [file]
-  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -596,7 +553,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     const rejected: string[] = []
     for (const f of Array.from(picked)) {
       try {
-        const inner = await expandIfZip(f)
+        const inner = await expandImportArchive(f)
         expanded.push(...inner)
       } catch (error) {
         rejected.push(`${f.name}: ${error instanceof Error ? error.message : 'تعذر قراءة الملف'}`)

@@ -21,7 +21,7 @@ Deno.test('normalizes a Trendyol question without retaining the provider payload
     question_id: '123',
     status: 'WAITING_FOR_ANSWER',
     question_text: 'هل المنتج متوفر؟',
-    customer_name: 'عميل',
+    customer_name: null,
     show_customer_name: false,
     product_name: 'منتج تجريبي',
     image_url: 'https://example.test/image.jpg',
@@ -36,6 +36,15 @@ Deno.test('normalizes a Trendyol question without retaining the provider payload
     last_synced_at: '2026-08-04T00:00:00.000Z',
     updated_at: '2026-08-04T00:00:00.000Z',
   })
+})
+
+Deno.test('retains a Trendyol customer name only when the provider permits it', () => {
+  assertEquals(normalizeTrendyolQuestion('merchant-1', {
+    id: 'visible-name', text: 'question', userName: 'Visible Customer', showUserName: true,
+  })?.customer_name, 'Visible Customer')
+  assertEquals(normalizeTrendyolQuestion('merchant-1', {
+    id: 'hidden-name', text: 'question', userName: 'Hidden Customer', showUserName: false,
+  })?.customer_name, null)
 })
 
 Deno.test('extracts both list pages and detail responses', () => {

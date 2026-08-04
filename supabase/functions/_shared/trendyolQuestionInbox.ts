@@ -71,13 +71,14 @@ export function normalizeTrendyolQuestion(
     ? question.product as QuestionRecord
     : null
   const status = firstText(question.status, question.questionStatus).toUpperCase() || 'WAITING_FOR_ANSWER'
+  const showCustomerName = question.showUserName === true
   return {
     merchant_code: merchantCode,
     question_id: questionId,
     status,
     question_text: questionText,
-    customer_name: firstText(question.userName, question.customerName) || null,
-    show_customer_name: question.showUserName === true,
+    customer_name: showCustomerName ? firstText(question.userName, question.customerName) || null : null,
+    show_customer_name: showCustomerName,
     product_name: firstText(question.productName, product?.name) || null,
     image_url: firstText(question.imageUrl, question.productImageUrl, product?.imageUrl) || null,
     barcode: firstText(question.barcode, question.productBarcode, product?.barcode) || null,

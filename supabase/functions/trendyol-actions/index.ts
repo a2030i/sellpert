@@ -6,10 +6,12 @@ import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
 import { normalizeTrendyolCancelPayload, normalizeTrendyolSplitPayload, requestedTrendyolPackageLines, trendyolPackageLinesAreAvailable } from '../_shared/trendyolPackageMutations.ts'
+import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const API = 'https://apigw.trendyol.com'
+const MAX_REQUEST_BYTES = 15_000_000
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key',
@@ -101,18 +103,20 @@ const ACTIONS: Record<string, Definition> = {
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:cors })
   if (req.method !== 'POST') return json({ error:'Method not allowed' }, 405, cors)
-  const contentLength = Number(req.headers.get('content-length') || 0)
-  // A 10 MB invoice expands to about 13.4 MB when transported as base64 JSON.
-  if (contentLength > 15_000_000) return json({ error:'حجم الطلب يتجاوز الحد المسموح' }, 413, cors)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
   let questionReplyAttemptId = ''
   try {
-    const input = await req.json()
+    // A 10 MB invoice expands to about 13.4 MB in base64 JSON. Enforce the
+    // limit while streaming; Content-Length is optional and cannot be trusted.
+    const rawInput = await readBoundedText(req, MAX_REQUEST_BYTES)
+    let input: any
+    try { input = JSON.parse(rawInput) }
+    catch { throw new HttpError(400, 'جسم الطلب غير صالح') }
     const merchantCode = String(input?.merchant_code || '')
     const action = String(input?.action || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
-    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
+    const actor = await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
     if (DEPRECATED_ACTIONS[action]) {
       throw new HttpError(410, `أوقف Trendyol هذه العملية ضمن Product V1 اعتبارًا من 10 أغسطس 2026. ${DEPRECATED_ACTIONS[action]}`)
     }
@@ -147,6 +151,9 @@ Deno.serve(async req => {
     }
     const definition = ACTIONS[action]
     if (!definition) throw new HttpError(400, 'عملية Trendyol غير مدعومة')
+    if (definition.risk === 'destructive' && actor.kind === 'employee') {
+      throw new HttpError(403, 'هذه العملية الحساسة متاحة لمالك المتجر فقط')
+    }
     const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString()
     const { count: recentCount } = await admin.from('marketplace_action_logs')
       .select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode)
@@ -285,7 +292,8 @@ Deno.serve(async req => {
     if (logId) await admin.from('marketplace_action_logs').update({
       status:'failed', error_message:String(error?.message || error).slice(0,4000), finished_at:new Date().toISOString(),
     }).eq('id',logId)
-    return json({ error:error?.message || 'Trendyol operation failed' }, error instanceof HttpError ? error.status : 500, cors)
+    const status = error instanceof PayloadTooLargeError ? 413 : error instanceof HttpError ? error.status : 500
+    return json({ error:error?.message || 'Trendyol operation failed' }, status, cors)
   }
 })
 

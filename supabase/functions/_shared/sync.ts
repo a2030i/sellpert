@@ -1,4 +1,4 @@
-export type SyncActor = { kind: 'service' | 'staff' | 'merchant'; email?: string }
+export type SyncActor = { kind: 'service' | 'staff' | 'merchant' | 'employee'; email?: string }
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -47,7 +47,7 @@ export async function authorizeMerchantSync(
       throw new HttpError(403, 'Forbidden')
     }
     await requireActiveWorkspace(admin, merchantCode)
-    return { kind: 'merchant', email: user.email }
+    return { kind: 'employee', email: user.email }
   }
 
   const ownedCode = caller.merchant_code

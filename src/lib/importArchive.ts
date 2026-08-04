@@ -1,3 +1,5 @@
+import JSZip from 'jszip'
+
 export const MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024
 export const MAX_ARCHIVE_ENTRIES = 100
 export const MAX_ARCHIVE_EXPANDED_BYTES = 100 * 1024 * 1024
@@ -39,4 +41,50 @@ export function validateImportFile(file: Pick<File, 'name' | 'size'>) {
   if (file.size <= 0) return 'الملف فارغ.'
   if (file.size > MAX_IMPORT_FILE_BYTES) return 'حجم الملف يتجاوز الحد الأقصى 25MB.'
   return null
+}
+
+export async function expandImportArchive(file: File): Promise<File[]> {
+  const fileError = validateImportFile(file)
+  if (fileError) throw new Error(fileError)
+
+  const looksLikeZipByName = /\.zip$/i.test(file.name)
+  const buffer = await file.arrayBuffer()
+  const signature = new Uint8Array(buffer.slice(0, 4))
+  const looksLikeZipByContent = signature[0] === 0x50
+    && signature[1] === 0x4b
+    && (signature[2] === 0x03 || signature[2] === 0x05)
+    && (signature[3] === 0x04 || signature[3] === 0x06)
+
+  // Excel workbooks use the same container signature and must remain intact.
+  if (/\.(xlsx|xlsm|xltx)$/i.test(file.name)) return [file]
+  if (!looksLikeZipByName && !looksLikeZipByContent) return [file]
+
+  let archive: JSZip
+  try {
+    archive = await JSZip.loadAsync(buffer)
+  } catch {
+    throw new Error('ملف ZIP غير صالح أو تالف.')
+  }
+
+  const files: File[] = []
+  let expandedBytes = 0
+  for (const entry of Object.values(archive.files)) {
+    if (entry.dir || !/\.(csv|xlsx|xlsm|xls|txt|tsv)$/i.test(entry.name)) continue
+    if (files.length >= MAX_ARCHIVE_ENTRIES) throw new Error(`ملف ZIP يحتوي أكثر من ${MAX_ARCHIVE_ENTRIES} ملف صالح`)
+
+    const estimatedSize = Number((entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0)
+    if (estimatedSize > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
+    if (expandedBytes + estimatedSize > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
+
+    const blob = await entry.async('blob')
+    if (blob.size > MAX_IMPORT_FILE_BYTES) throw new Error(`الملف «${entry.name}» داخل ZIP يتجاوز 25MB`)
+    expandedBytes += blob.size
+    if (expandedBytes > MAX_ARCHIVE_EXPANDED_BYTES) throw new Error('الحجم الإجمالي بعد فك ZIP يتجاوز 100MB')
+
+    const cleanName = entry.name.split('/').pop() || entry.name
+    files.push(new File([blob], cleanName, { type: blob.type }))
+  }
+
+  if (!files.length) throw new Error('ملف ZIP لا يحتوي تقارير مدعومة.')
+  return files
 }

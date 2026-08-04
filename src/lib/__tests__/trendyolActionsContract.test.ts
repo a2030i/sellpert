@@ -33,6 +33,12 @@ describe('Trendyol fulfillment action contract', () => {
     expect(merchantCenter).toContain("action:'products.v2_update_variant'")
   })
 
+  it('streams request limits and reserves destructive actions for the store owner', () => {
+    expect(gateway).toContain('readBoundedText(req, MAX_REQUEST_BYTES)')
+    expect(gateway).toContain("definition.risk === 'destructive' && actor.kind === 'employee'")
+    expect(gateway).not.toContain("const contentLength = Number(req.headers.get('content-length')")
+  })
+
   it('binds label access to a tracking number owned by the merchant', () => {
     expect(gateway).toContain(".eq('merchant_code',merchantCode).eq('platform','trendyol')")
     expect(gateway).toContain(".eq('cargo_tracking_number',trackingNumber)")

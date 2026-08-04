@@ -68,4 +68,21 @@ begin
 end
 $$;
 
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint constraint_record
+    join pg_class relation_record on relation_record.oid = constraint_record.conrelid
+    join pg_namespace namespace_record on namespace_record.oid = relation_record.relnamespace
+    where namespace_record.nspname = 'public'
+      and relation_record.relname = 'trendyol_customer_questions'
+      and constraint_record.conname = 'trendyol_customer_questions_hidden_name_check'
+      and pg_get_constraintdef(constraint_record.oid) ilike '%show_customer_name%customer_name is null%'
+  ) then
+    raise exception 'hidden Trendyol customer names are not protected by a database constraint';
+  end if;
+end
+$$;
+
 rollback;
