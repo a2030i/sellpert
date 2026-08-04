@@ -163,7 +163,9 @@ Deno.serve(async req => {
       form.append('shipmentPackageId', invoice.shipmentPackageId)
       if (invoice.invoiceNumber) form.append('invoiceNumber', invoice.invoiceNumber)
       if (invoice.invoiceDateTime) form.append('invoiceDateTime', invoice.invoiceDateTime)
-      form.append('file', new Blob([invoice.bytes], { type:invoice.contentType }), invoice.fileName)
+      const fileBuffer = new ArrayBuffer(invoice.bytes.byteLength)
+      new Uint8Array(fileBuffer).set(invoice.bytes)
+      form.append('file', new Blob([fileBuffer], { type:invoice.contentType }), invoice.fileName)
       body = form
     } else if (!['GET','DELETE'].includes(definition.method) && input?.payload !== undefined) {
       headers['Content-Type'] = 'application/json'
