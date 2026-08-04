@@ -443,7 +443,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       />
 
       <section className="db-kpis" aria-label="ملخص القيمة التجارية">
-        <Kpi Icon={CircleDollarSign} label="المساهمة بعد رسوم البيع" value={money(model.contribution, 2)} note="قبل تكلفة المنتج والإعلان"><Trend current={model.contribution} previous={model.previousContribution} /></Kpi>
+        <Kpi Icon={CircleDollarSign} label="المساهمة من صافي المبيعات" value={money(model.contribution, 2)} note="بعد رسوم المنصة والشحن، وقبل تكلفة المنتج والإعلان"><Trend current={model.contribution} previous={model.previousContribution} /></Kpi>
         <Kpi Icon={WalletCards} label="صافي التدفق النقدي الأخير" value={model.latestCash ? money(model.latestCash.net, 2) : 'غير متاح'} note={model.latestCash ? new Date(`${model.latestCash.month}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' }) : 'لا توجد معاملات'}><span className="db-muted">دخل {money(model.latestCash?.cashIn || 0)} · خرج {money(model.latestCash?.cashOut || 0)}</span></Kpi>
         <Kpi Icon={Megaphone} label="عائد الإعلان الصافي" value={model.adSpend ? `${model.adRoas.toFixed(2)}×` : 'غير متاح'} note="بعد الخصومات المتاحة وقبل تكلفة المنتج"><span className="db-muted">إنفاق {money(model.adSpend, 2)}</span></Kpi>
         <Kpi Icon={Target} label="تركيز الإيراد" value={model.classAProducts ? percent(model.concentration, 1) : 'غير متاح'} note={`من ${model.classAProducts} منتجًا من الفئة A`}><span className="db-muted">حماية توفرها أولوية تشغيلية</span></Kpi>
@@ -523,14 +523,14 @@ function ExecutiveBriefPanel({ brief, goal, history, savingTarget, onSaveTarget,
 
       <div className="db-executive-metrics">
         <ExecutiveMetric label="مبيعات الأسبوع" value={money(brief.week.sales, 2)} delta={brief.week.sales_change_pct} note={`${brief.week.orders.toLocaleString('ar-SA-u-nu-latn')} طلبًا مكتملًا`} />
-        <ExecutiveMetric label="بعد استقطاعات البيع" value={money(brief.week.contribution_before_product_cost, 2)} delta={brief.week.contribution_change_pct} note="قبل تكلفة المنتج والإعلان" />
+        <ExecutiveMetric label="المساهمة من صافي المبيعات" value={money(brief.week.contribution_before_product_cost, 2)} delta={brief.week.contribution_change_pct} note="بعد رسوم المنصة والشحن، وقبل تكلفة المنتج والإعلان" />
         <ExecutiveMetric label="متوسط الطلب" value={money(brief.week.average_order_value, 2)} note={`${Number(brief.week.units || 0).toLocaleString('ar-SA-u-nu-latn')} وحدة مباعة`} />
         <ExecutiveMetric label="إلغاءات ومرتجعات الطلبات" value={brief.week.exception_rate_pct == null ? 'غير متاح' : percent(brief.week.exception_rate_pct, 1)} delta={brief.week.previous_exception_rate_pct == null || brief.week.exception_rate_pct == null ? null : brief.week.exception_rate_pct - brief.week.previous_exception_rate_pct} inverse note={`${brief.week.cancelled_or_returned_orders.toLocaleString('ar-SA-u-nu-latn')} طلبًا في الفترة`} />
       </div>
 
       <div className="db-executive-details">
         <article className="db-executive-block">
-          <header><div><h3>الاستقطاعات المؤكدة</h3><p>لا تشمل تكلفة المنتج أو الإعلان أو مرتجعات غير مسجلة.</p></div><strong>{money(brief.confirmed_deductions.total_excluding_returns, 2)}</strong></header>
+          <header><div><h3>الخصومات ورسوم البيع المسجلة</h3><p>الخصم موضح للمراجعة؛ صافي المبيعات الوارد من المنصة يتضمنه مسبقًا.</p></div><strong>{money(brief.confirmed_deductions.total_excluding_returns, 2)}</strong></header>
           <div className="db-deduction-list">
             <ExecutiveLine label="عمولات ورسوم المنصة" value={money(brief.confirmed_deductions.platform_fees, 2)} total={brief.week.sales} amount={brief.confirmed_deductions.platform_fees} />
             <ExecutiveLine label="تكلفة الشحن المسجلة" value={money(brief.confirmed_deductions.shipping, 2)} total={brief.week.sales} amount={brief.confirmed_deductions.shipping} />
@@ -550,7 +550,7 @@ function ExecutiveBriefPanel({ brief, goal, history, savingTarget, onSaveTarget,
         </article>
       </div>
       <OperatingCycle goal={goal} history={history} savingTarget={savingTarget} onSaveTarget={onSaveTarget} />
-      <p className="db-executive-note">آخر يوم بيانات: {brief.data_as_of ? new Date(`${brief.data_as_of}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : 'غير متاح'}. الاستقطاعات المعروضة مؤكدة من حقول الطلب؛ صافي الربح لا يظهر قبل اكتمال تكاليف 80% من المنتجات المباعة.</p>
+      <p className="db-executive-note">آخر يوم بيانات: {brief.data_as_of ? new Date(`${brief.data_as_of}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : 'غير متاح'}. المبيعات صافية بعد الخصم؛ لذلك لا يُخصم الخصم مرة ثانية عند حساب المساهمة. صافي الربح لا يظهر قبل اكتمال تكاليف 80% من المنتجات المباعة.</p>
     </>}
   </section>
 }
