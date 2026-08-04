@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { isStrongPassword } from '../../lib/passwordPolicy'
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from '../../lib/passwordPolicy'
 import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
 import BulkOpsBar from '../../components/BulkOpsBar'
@@ -59,7 +59,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
 
   async function addMerchant() {
     if (!addForm.name.trim() || !addForm.email.trim()) { setMsg({ type: 'err', text: 'الاسم والبريد الإلكتروني مطلوبان' }); return }
-    if (!isStrongPassword(addForm.password)) { setMsg({ type: 'err', text: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }); return }
+    if (!isStrongPassword(addForm.password)) { setMsg({ type: 'err', text: PASSWORD_POLICY_MESSAGE }); return }
     setSaving(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -145,7 +145,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
             {[
               { key: 'name',           label: 'الاسم الكامل',       placeholder: 'متجر النور',        type: 'text'     },
               { key: 'email',          label: 'البريد الإلكتروني',  placeholder: 'merchant@example.com', type: 'email'  },
-              { key: 'password',       label: 'كلمة المرور',        placeholder: '10 أحرف على الأقل، حرف ورقم',  type: 'password' },
+              { key: 'password',       label: 'كلمة المرور',        placeholder: '12 حرفًا، حرف ورقم ورمز',  type: 'password' },
               { key: 'whatsapp_phone', label: 'واتساب (اختياري)',   placeholder: '+966501234567',      type: 'text'     },
             ].map(f => (
               <div key={f.key}>

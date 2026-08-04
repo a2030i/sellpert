@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       return json({ error: 'الاسم أو البريد الإلكتروني غير صالح' }, 400)
     }
     if (!isStrongAccountPassword(password)) {
-      return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+      return json({ error: 'كلمة المرور يجب أن تكون من 12 إلى 128 حرفًا وتحتوي على حرف ورقم ورمز، وألا تكون كلمة شائعة' }, 400)
     }
     if (currency !== 'SAR') return json({ error: 'Invalid currency' }, 400)
     if (whatsapp_phone != null && (typeof whatsapp_phone !== 'string' || whatsapp_phone.trim().length > 32)) {

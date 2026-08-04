@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       const { employee_code, new_password } = body
       if (!employee_code || !new_password) return json({ error: 'employee_code & new_password required' }, 400)
       if (!isStrongAccountPassword(new_password)) {
-        return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+        return json({ error: 'كلمة المرور يجب أن تكون من 12 إلى 128 حرفًا وتحتوي على حرف ورقم ورمز، وألا تكون كلمة شائعة' }, 400)
       }
 
       const { data: emp } = await adminClient.from('merchants')
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       return json({ error: 'الاسم أو البريد الإلكتروني غير صالح' }, 400)
     }
     if (!isStrongAccountPassword(password)) {
-      return json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' }, 400)
+      return json({ error: 'كلمة المرور يجب أن تكون من 12 إلى 128 حرفًا وتحتوي على حرف ورقم ورمز، وألا تكون كلمة شائعة' }, 400)
     }
     if (!safePermissions) return json({ error: 'الصلاحيات المرسلة غير صالحة' }, 400)
     if (job_title != null && (typeof job_title !== 'string' || job_title.trim().length > 100)) {

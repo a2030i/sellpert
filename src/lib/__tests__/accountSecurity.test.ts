@@ -19,8 +19,11 @@ describe('account provisioning security', () => {
     expect(isStrongAccountPassword('short1')).toBe(false)
     expect(isStrongAccountPassword('longpassword')).toBe(false)
     expect(isStrongAccountPassword('1234567890')).toBe(false)
-    expect(isStrongAccountPassword('Secure12345')).toBe(true)
-    expect(isStrongAccountPassword('آمنة1234567')).toBe(true)
+    expect(isStrongAccountPassword('Secure12345')).toBe(false)
+    expect(isStrongAccountPassword('SecureStore42!')).toBe(true)
+    expect(isStrongAccountPassword('متجر-آمن-1234!')).toBe(true)
+    expect(isStrongAccountPassword('Sellpert123!')).toBe(false)
+    expect(isStrongAccountPassword(`A1!${'x'.repeat(126)}`)).toBe(false)
   })
 
   it('normalizes identity fields and rejects malformed values', () => {

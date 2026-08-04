@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
-import { isStrongPassword, passwordChecks } from '../lib/passwordPolicy'
+import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 import { registrationErrorMessage } from '../lib/authErrors'
 import { authCooldownRemaining, startAuthCooldown } from '../lib/authCooldown'
 
@@ -44,8 +44,12 @@ export default function Login() {
 
   async function handleRegister() {
     const normalizedEmail = email.trim().toLowerCase()
-    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || !isStrongPassword(password)) {
-      setError('أدخل اسم المتجر وبريدًا صحيحًا وكلمة مرور تحقق متطلبات الأمان')
+    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setError('أدخل اسم المتجر وبريدًا إلكترونيًا صحيحًا')
+      return
+    }
+    if (!isStrongPassword(password)) {
+      setError(PASSWORD_POLICY_MESSAGE)
       return
     }
     if (password !== confirmPassword) {

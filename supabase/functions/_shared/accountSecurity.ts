@@ -11,6 +11,13 @@ export const MERCHANT_PERMISSION_KEYS = [
   'settings',
 ] as const
 
+const COMMON_ACCOUNT_PASSWORDS = new Set([
+  'password123', 'password1234', 'password123!', 'qwerty12345',
+  '1234567890', '123456789012', 'admin123456', 'admin123456!',
+  'sellpert123', 'sellpert123!', 'trendyol123', 'trendyol123!',
+  'amazon12345', 'amazon12345!',
+])
+
 export function generateAccountCode(prefix: 'M' | 'E' | 'S' | 'A'): string {
   const bytes = new Uint8Array(8)
   crypto.getRandomValues(bytes)
@@ -20,9 +27,12 @@ export function generateAccountCode(prefix: 'M' | 'E' | 'S' | 'A'): string {
 
 export function isStrongAccountPassword(password: unknown): password is string {
   return typeof password === 'string'
-    && password.length >= 10
+    && password.length >= 12
+    && password.length <= 128
     && /\p{L}/u.test(password)
     && /\d/u.test(password)
+    && /[^\p{L}\p{N}\s]/u.test(password)
+    && !COMMON_ACCOUNT_PASSWORDS.has(password.trim().toLocaleLowerCase('en'))
 }
 
 export function normalizeEmail(value: unknown): string | null {

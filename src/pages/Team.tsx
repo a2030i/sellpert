@@ -8,7 +8,7 @@ import {
 import { toastOk, toastErr } from '../components/Toast'
 import { fmtRelative } from '../lib/formatters'
 import { DEFAULT_MERCHANT_PERMISSIONS, MERCHANT_PERMISSION_ITEMS } from '../lib/merchantPermissions'
-import { isStrongPassword } from '../lib/passwordPolicy'
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 import { userErrorMessage } from '../lib/userError'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
@@ -73,7 +73,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
       toastErr('الاسم والبريد وكلمة المرور مطلوبة'); return
     }
-    if (!isStrongPassword(form.password)) { toastErr('كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم'); return }
+    if (!isStrongPassword(form.password)) { toastErr(PASSWORD_POLICY_MESSAGE); return }
     setBusy(true)
     const data = await callFn({
       name: form.name, email: form.email, password: form.password,
@@ -134,7 +134,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function resetPassword() {
-    if (!resetPwdFor || !isStrongPassword(newPwd)) { toastErr('كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم'); return }
+    if (!resetPwdFor || !isStrongPassword(newPwd)) { toastErr(PASSWORD_POLICY_MESSAGE); return }
     setBusy(true)
     const data = await callFn({ action: 'reset_password', employee_code: resetPwdFor, new_password: newPwd })
     setBusy(false)

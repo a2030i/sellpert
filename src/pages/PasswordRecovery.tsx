@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { isStrongPassword, passwordChecks } from '../lib/passwordPolicy'
+import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 
 export default function PasswordRecovery({ onComplete }: { onComplete: () => void }) {
   const [password, setPassword] = useState('')
@@ -13,7 +13,7 @@ export default function PasswordRecovery({ onComplete }: { onComplete: () => voi
 
   async function save() {
     if (!isStrongPassword(password)) {
-      setError('اختر كلمة مرور تحقق جميع متطلبات الأمان')
+      setError(PASSWORD_POLICY_MESSAGE)
       return
     }
     if (password !== confirm) {
