@@ -1,5 +1,44 @@
 import { assertEquals, assertThrows } from 'jsr:@std/assert'
-import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolV2Products } from './trendyolProducts.ts'
+import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2, normalizeTrendyolV2Products } from './trendyolProducts.ts'
+
+Deno.test('Product Create V2 keeps only the supported normalized merchant fields', () => {
+  const result = normalizeTrendyolProductCreateV2({ items:[{
+    barcode:'AR-123', title:'منتج عربي', productMainId:'MODEL-1', brandId:'12', categoryId:34,
+    quantity:'7', stockCode:'SKU-1', description:'وصف واضح', listPrice:'60', salePrice:'54', vatRate:'20',
+    images:[{ url:'https://cdn.example.com/1.jpg' }],
+    attributes:[
+      { attributeId:1, attributeValueIds:['10', 11] },
+      { attributeId:2, attributeValue:'قيمة مخصصة' },
+    ],
+    origin:'sa', shipmentAddressId:'88', returningAddressId:89,
+    deliveryOption:{ deliveryDuration:'1', fastDeliveryType:'fast_delivery' },
+    attackerControlledField:'discard me',
+  }] }) as any
+
+  assertEquals(result.items[0], {
+    barcode:'AR-123', title:'منتج عربي', productMainId:'MODEL-1', brandId:12, categoryId:34,
+    quantity:7, stockCode:'SKU-1', description:'وصف واضح', listPrice:60, salePrice:54, vatRate:20,
+    images:[{ url:'https://cdn.example.com/1.jpg' }],
+    attributes:[
+      { attributeId:1, attributeValueIds:[10, 11] },
+      { attributeId:2, attributeValue:'قيمة مخصصة' },
+    ],
+    origin:'SA', shipmentAddressId:88, returningAddressId:89,
+    deliveryOption:{ deliveryDuration:1, fastDeliveryType:'FAST_DELIVERY' },
+  })
+})
+
+Deno.test('Product Create V2 rejects unsafe or commercially invalid payloads', () => {
+  const base = {
+    barcode:'BAR-1', title:'Product', productMainId:'MODEL-1', brandId:1, categoryId:2,
+    quantity:1, stockCode:'SKU-1', description:'Description', listPrice:60, salePrice:54, vatRate:20,
+    images:[{ url:'https://cdn.example.com/1.jpg' }], attributes:[],
+  }
+  assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, barcode:'bad barcode' }] }), Error, 'دون مسافات')
+  assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, images:[{ url:'http://cdn.example.com/1.jpg' }] }] }), Error, 'HTTPS')
+  assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, listPrice:50 }] }), Error, 'سعر البيع')
+  assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, attributes:[{ attributeId:1 }] }] }), Error, 'اختر قيمة')
+})
 
 Deno.test('Product V2 normalization preserves Arabic content and variant financials', () => {
   const result = normalizeTrendyolV2Products('M-1', [{

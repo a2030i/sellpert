@@ -562,6 +562,65 @@ test('merchant follows a synced Trendyol order into product management', async (
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant prepares a local product for Trendyol without technical identifiers', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const productId = '00000000-0000-4000-8000-000000000222'
+  const product = {
+    id:productId, merchant_code:merchant.merchant_code, name:'قهوة عربية فاخرة', sku:'COFFEE-1', barcode:'628100000001',
+    category:'قهوة', brand:'علامة تجريبية', description:'قهوة عربية محمصة بعناية.', target_net_price:54, sale_price:54, msrp:60,
+    vat_rate:20, model_code:'MODEL-1', platform_source:'excel', images:[{ url:'https://cdn.example.test/coffee.jpg' }], raw:{ quantity:10 },
+  }
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    const accept = route.request().headers().accept || ''
+    const object = accept.includes('application/vnd.pgrst.object')
+    let rows: any[] = []
+    if (table === 'merchants') rows = [merchant]
+    else if (table === 'products') rows = [product]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(object ? (rows[0] ?? null) : rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    const body = route.request().postDataJSON() as { action?:string }
+    const data = body.action === 'categories.list'
+      ? { categories:[{ id:1, name:'الأغذية', subCategories:[{ id:2, name:'القهوة', subCategories:[] }] }] }
+      : body.action === 'seller.addresses'
+        ? { shipmentAddresses:[{ id:3, addressName:'مستودع الرياض' }], returningAddresses:[{ id:4, addressName:'إرجاع الرياض' }] }
+        : body.action === 'brands.search'
+          ? { brands:[{ id:5, name:'علامة تجريبية' }] }
+          : body.action === 'categories.v2_attributes'
+            ? { categoryAttributes:[{ attribute:{ id:6, name:'نوع التحميص' }, required:true, allowCustom:false, attributeValues:[{ id:7, name:'متوسط' }] }] }
+            : {}
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, data }) })
+  })
+
+  await page.goto(`/product-detail?id=${productId}`)
+  await expect(page.getByRole('button', { name:'بدء تجهيز المنتج' })).toBeVisible()
+  await page.getByRole('button', { name:'بدء تجهيز المنتج' }).click()
+  await expect(page.getByText('تجهيز المنتج للنشر في Trendyol')).toBeVisible()
+  await expect(page.locator('input[value="قهوة عربية فاخرة"]')).toBeVisible()
+
+  const brandField = page.locator('label').filter({ hasText:'العلامة التجارية' })
+  await brandField.getByRole('button', { name:'بحث' }).click()
+  await brandField.getByRole('button', { name:'علامة تجريبية' }).click()
+  await expect(brandField.getByText('تم الاختيار: علامة تجريبية')).toBeVisible()
+
+  const categoryField = page.locator('label').filter({ hasText:'فئة Trendyol النهائية' })
+  await categoryField.getByRole('textbox').fill('القهوة')
+  await categoryField.getByRole('button', { name:/الأغذية.*القهوة/ }).click()
+  await expect(page.getByText('نوع التحميص — إلزامي')).toBeVisible()
+  await page.getByLabel('نوع التحميص — إلزامي').selectOption('7')
+  await page.getByRole('button', { name:'مراجعة المنتج قبل النشر' }).click()
+  await expect(page.getByText('راجع المنتج قبل إرساله')).toBeVisible()
+  await expect(page.getByRole('button', { name:'تأكيد ونشر في Trendyol' })).toBeVisible()
+  await expect(page.getByText(/JSON|معرّف العلامة|معرّف الفئة/)).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
+})
+
 test('decision center explains evidence, value and action without misleading estimates', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

@@ -5,7 +5,7 @@ import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '.
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
-import { normalizeTrendyolDeliveryUpdate } from '../_shared/trendyolProducts.ts'
+import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2 } from '../_shared/trendyolProducts.ts'
 import { normalizeTrendyolCancelPayload, normalizeTrendyolSplitPayload, requestedTrendyolPackageLines, trendyolPackageLinesAreAvailable } from '../_shared/trendyolPackageMutations.ts'
 import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 
@@ -47,13 +47,13 @@ const ACTIONS: Record<string, Definition> = {
   'products.v2_update_content':    { method:'POST', path:'/integration/product/sellers/{sellerId}/products/content-bulk-update', risk:'write', storefront:true },
   'products.v2_update_variant':    { method:'POST', path:'/integration/product/sellers/{sellerId}/products/variant-bulk-update', risk:'write', storefront:true },
   'products.v2_update_delivery':   { method:'POST', path:'/integration/product/sellers/{sellerId}/products/delivery-info-bulk-update', risk:'write', storefront:true },
-  'brands.list':              { method:'GET',    path:'/integration/product/brands', risk:'read' },
-  'brands.search':            { method:'GET',    path:'/integration/product/brands/by-name', risk:'read' },
+  'brands.list':              { method:'GET',    path:'/integration/product/brands', risk:'read', storefront:true },
+  'brands.search':            { method:'GET',    path:'/integration/product/brands/by-name', risk:'read', storefront:true },
   'brands.create':            { method:'POST',   path:'/integration/product/sellers/{sellerId}/brands', risk:'write' },
-  'categories.list':          { method:'GET',    path:'/integration/product/product-categories', risk:'read' },
+  'categories.list':          { method:'GET',    path:'/integration/product/product-categories', risk:'read', storefront:true },
   'categories.attributes':    { method:'GET',    path:'/integration/product/product-categories/{categoryId}/attributes', risk:'read' },
-  'categories.v2_attributes': { method:'GET',    path:'/integration/product/categories/{categoryId}/attributes', risk:'read' },
-  'categories.v2_values':     { method:'GET',    path:'/integration/product/categories/{categoryId}/attributes/{attributeId}/values', risk:'read' },
+  'categories.v2_attributes': { method:'GET',    path:'/integration/product/categories/{categoryId}/attributes', risk:'read', storefront:true },
+  'categories.v2_values':     { method:'GET',    path:'/integration/product/categories/{categoryId}/attributes/{attributeId}/values', risk:'read', storefront:true },
   'videos.list':              { method:'GET',    path:'/integration/video/sellers/{sellerId}/videos', risk:'read' },
   'videos.upload':            { method:'POST',   path:'/integration/video/sellers/{sellerId}/videos', risk:'write' },
 
@@ -71,7 +71,7 @@ const ACTIONS: Record<string, Definition> = {
   'packages.common_label_get':    { method:'GET',  path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'read', binary:true, storefront:true },
   // Compatibility alias for callers created before the explicit create/get flow.
   'packages.common_label':        { method:'GET',  path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'read', binary:true, storefront:true },
-  'seller.addresses':         { method:'GET', path:'/integration/sellers/{sellerId}/addresses', risk:'read' },
+  'seller.addresses':         { method:'GET', path:'/integration/sellers/{sellerId}/addresses', risk:'read', storefront:true },
 
   // Customer questions
   'questions.list':           { method:'GET',  path:'/integration/qna/sellers/{sellerId}/questions/filter', risk:'read' },
@@ -165,6 +165,7 @@ Deno.serve(async req => {
     }
     validateActionInput(action, input)
     await validatePackageContext(admin, merchantCode, action, input)
+    await validateProductContext(admin, merchantCode, action, input)
     const idempotencyKey = clean(req.headers.get('idempotency-key') || input?.idempotency_key)
     if (definition.risk !== 'read' && !idempotencyKey) throw new HttpError(400, 'idempotency_key مطلوب للعمليات التي تغيّر البيانات')
 
@@ -191,6 +192,22 @@ Deno.serve(async req => {
     }).select('id').single()
     if (logError) throw logError
     logId = log.id
+
+    if (action === 'products.v2_create') {
+      const item = input.payload.items[0]
+      const { error: listingError } = await admin.from('product_platform_listings').upsert({
+        merchant_code:merchantCode,
+        product_id:input.product_id,
+        platform:'trendyol',
+        title:item.title,
+        description:item.description,
+        images:item.images.map((image:any) => image.url),
+        delivery_status:'draft',
+        delivery_error:null,
+        updated_at:new Date().toISOString(),
+      }, { onConflict:'product_id,platform' })
+      if (listingError) throw listingError
+    }
 
     if (action === 'questions.answer') {
       const { data: replyAttempt, error: replyAttemptError } = await admin
@@ -281,6 +298,18 @@ Deno.serve(async req => {
     }
     const batchId = String(result?.batchRequestId || result?.batch_request_id || '') || null
     const finalStatus = batchId ? 'accepted' : 'success'
+    if (action === 'products.v2_create') {
+      const now = new Date().toISOString()
+      const { error: listingError } = await admin.from('product_platform_listings').update({
+        delivery_status:finalStatus,
+        external_batch_id:batchId,
+        last_submitted_at:now,
+        last_verified_at:now,
+        delivery_error:null,
+        updated_at:now,
+      }).eq('merchant_code',merchantCode).eq('product_id',input.product_id).eq('platform','trendyol')
+      if (listingError) console.error('Trendyol product publication tracking update failed', listingError)
+    }
     await admin.from('marketplace_action_logs').update({
       status:finalStatus, response:sanitize(result), external_batch_id:batchId,
       finished_at:batchId ? null : new Date().toISOString(),
@@ -360,6 +389,23 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
     }
   }
 }
+async function validateProductContext(admin:any,merchantCode:string,action:string,input:any) {
+  if (action !== 'products.v2_create') return
+  const productId = clean(input?.product_id)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(productId)) {
+    throw new HttpError(400, 'المنتج المحلي غير صالح')
+  }
+  const [productResult, listingResult] = await Promise.all([
+    admin.from('products').select('id,platform_source').eq('merchant_code',merchantCode).eq('id',productId).maybeSingle(),
+    admin.from('product_platform_listings').select('delivery_status').eq('merchant_code',merchantCode).eq('product_id',productId).eq('platform','trendyol').maybeSingle(),
+  ])
+  if (productResult.error) throw productResult.error
+  if (listingResult.error) throw listingResult.error
+  if (!productResult.data) throw new HttpError(404, 'المنتج غير موجود ضمن هذا المتجر')
+  const alreadyPublished = String(productResult.data.platform_source || '').startsWith('trendyol') ||
+    ['accepted','processing','success','partial'].includes(String(listingResult.data?.delivery_status || ''))
+  if (alreadyPublished) throw new HttpError(409, 'المنتج مرتبط بـ Trendyol بالفعل؛ استخدم تعديل المنتج بدل نشر نسخة جديدة')
+}
 function validateActionInput(action:string,input:any) {
   if (action === 'questions.list') {
     try { validateTrendyolQuestionQuery(input?.query) }
@@ -399,6 +445,10 @@ function validateActionInput(action:string,input:any) {
         }
       }
     }
+  }
+  if (action === 'products.v2_create') {
+    try { input.payload = normalizeTrendyolProductCreateV2(input?.payload) }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'بيانات نشر المنتج غير مكتملة') }
   }
   if (action === 'products.price_inventory') {
     const items = input?.payload?.items

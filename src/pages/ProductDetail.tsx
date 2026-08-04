@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
@@ -14,6 +14,8 @@ import {
 } from '../lib/productDelivery'
 import { userErrorMessage } from '../lib/userError'
 import { ChevronLeft } from 'lucide-react'
+
+const TrendyolPublishWizard = lazy(() => import('../components/TrendyolPublishWizard'))
 
 const DATA_COLORS = {
   accent: 'var(--accent)',
@@ -350,6 +352,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const productId = product.id
   const PLATFORMS = ['trendyol']
   const [listings, setListings] = useState<Record<string, any>>({})
+  const [listingsLoaded, setListingsLoaded] = useState(false)
   const [activePlatform, setActivePlatform] = useState<string>('trendyol')
   const [saving, setSaving] = useState(false)
   const [checkingStatus, setCheckingStatus] = useState(false)
@@ -383,6 +386,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       const map: any = {}
       for (const l of data || []) map[l.platform] = l
       setListings(map)
+      setListingsLoaded(true)
     })
   }, [productId, merchantCode])
 
@@ -405,7 +409,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       .select('id,action,status,error_message,external_batch_id,started_at,finished_at,request')
       .eq('merchant_code', merchantCode)
       .eq('platform', 'trendyol')
-      .in('action', ['products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
+      .in('action', ['products.v2_create', 'products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
       .order('started_at', { ascending: false })
       .limit(100)
     if (error) setHistoryError('تعذر تحميل سجل تحديثات المنتج الآن.')
@@ -768,6 +772,30 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
 
   const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }
   const inp: React.CSSProperties = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  const existsInTrendyol = Boolean(
+    ['accepted','processing','success','partial'].includes(String(listings.trendyol?.delivery_status || '')) ||
+    String(product.platform_source || '').startsWith('trendyol') ||
+    product.raw?.contentId ||
+    product.raw?.selectedVariant?.variantId,
+  )
+
+  if (listingsLoaded && !existsInTrendyol) return (
+    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18, marginBottom:16 }}>
+      <div style={{ fontSize:16, fontWeight:700, marginBottom:5 }}>إدارة المنتج في Trendyol</div>
+      <div style={{ fontSize:12, color:'var(--text3)', marginBottom:14 }}>انشر المنتج من بيانات Sellpert الحالية ثم تابع مراجعة Trendyol من الصفحة نفسها.</div>
+      <Suspense fallback={<div role="status" style={{ padding:18, color:'var(--text3)', fontSize:12 }}>جارٍ تجهيز نموذج النشر…</div>}>
+        <TrendyolPublishWizard
+          product={product}
+          merchantCode={merchantCode || ''}
+          onSubmitted={listing => {
+            setListings(current => ({ ...current, trendyol:listing }))
+            void loadActionHistory()
+          }}
+        />
+      </Suspense>
+    </div>
+  )
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>

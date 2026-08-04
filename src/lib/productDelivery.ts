@@ -29,6 +29,7 @@ const STATUS_LABELS: Record<ProductDeliveryStatus, string> = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
+  'products.v2_create': 'نشر المنتج في Trendyol',
   'products.v2_update_content': 'تعديل محتوى المنتج',
   'products.price_inventory': 'تحديث السعر والمخزون',
   'products.v2_update_delivery': 'تحديث مدة التجهيز والتوصيل',
