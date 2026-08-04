@@ -29,7 +29,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const TRENDYOL_API = 'https://apigw.trendyol.com/integration/order/sellers'
 const TRENDYOL_PRODUCT_API = 'https://apigw.trendyol.com/integration/product/sellers'
 const TRENDYOL_FINANCE_API = 'https://apigw.trendyol.com/integration/finance/che/sellers'
-const TRENDYOL_QUESTION_API = 'https://apigw.trendyol.com/integration/sellers'
+const TRENDYOL_QUESTION_API = 'https://apigw.trendyol.com/integration/qna/sellers'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })

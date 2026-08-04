@@ -4,6 +4,8 @@ export type TrendyolPackageWorkflow = {
   canStartPicking: boolean
   canInvoice: boolean
   canUpdateTracking: boolean
+  canCancel: boolean
+  canSplit: boolean
   guidance: string
 }
 
@@ -25,12 +27,16 @@ export function trendyolPackageProviderStatus(packageRow: any, orderStatus?: str
 export function trendyolPackageWorkflow(packageRow: any, orderStatus?: string): TrendyolPackageWorkflow {
   const providerStatus = trendyolPackageProviderStatus(packageRow, orderStatus)
   const state = normalized(providerStatus)
-  const canStartPicking = ['created', 'awaiting', 'unpacked', 'pending'].includes(state)
+  const canStartPicking = ['created', 'unpacked'].includes(state)
   const canInvoice = ['picking', 'processing'].includes(state)
   const canUpdateTracking = ['picking', 'processing'].includes(state)
-  const closed = !canStartPicking && !canInvoice && !canUpdateTracking
+  const canCancel = ['created', 'unpacked', 'picking', 'processing'].includes(state)
+  const canSplit = canCancel
+  const closed = !canStartPicking && !canInvoice && !canUpdateTracking && !canCancel && !canSplit
 
-  const guidance = canStartPicking
+  const guidance = state === 'awaiting'
+    ? 'الطلب بانتظار تأكيد الدفع من Trendyol؛ لا تنفّذ أي إجراء حتى تتحول حالته إلى Created.'
+    : canStartPicking
     ? 'ابدأ تجهيز الشحنة أولًا، وبعد قبول Trendyol يمكنك تسجيل الفاتورة وبيانات الشحن.'
     : canInvoice
       ? 'الشحنة قيد التجهيز؛ يمكنك الآن تسجيل الفاتورة أو تحديث رقم التتبع.'
@@ -38,7 +44,7 @@ export function trendyolPackageWorkflow(packageRow: any, orderStatus?: string): 
         ? 'تم تسجيل الفاتورة. ستنتقل حالات الشحن والتسليم تلقائيًا من Trendyol.'
         : 'لا توجد إجراءات يدوية متاحة لهذه الشحنة في حالتها الحالية.'
 
-  return { providerStatus, closed, canStartPicking, canInvoice, canUpdateTracking, guidance }
+  return { providerStatus, closed, canStartPicking, canInvoice, canUpdateTracking, canCancel, canSplit, guidance }
 }
 
 export function trendyolPackageTransitionError(packageRow: any, action: string, desiredStatus?: string) {
@@ -52,6 +58,12 @@ export function trendyolPackageTransitionError(packageRow: any, action: string, 
   }
   if (action === 'packages.tracking' && !workflow.canUpdateTracking) {
     return 'يمكن تحديث رقم التتبع فقط عندما تكون الشحنة قيد التجهيز'
+  }
+  if (action === 'packages.cancel' && !workflow.canCancel) {
+    return 'لا يمكن تسجيل تعذر توفير منتج في حالة الشحنة الحالية؛ حدّث الطلب وتحقق من حالته أولًا'
+  }
+  if (action === 'packages.split' && !workflow.canSplit) {
+    return 'لا يمكن تقسيم الشحنة في حالتها الحالية؛ حدّث الطلب وتحقق من حالته أولًا'
   }
   return null
 }

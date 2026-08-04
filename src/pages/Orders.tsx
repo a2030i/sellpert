@@ -9,6 +9,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
 import { userErrorMessage } from '../lib/userError'
 import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
+import OrderExceptionPanel from '../components/OrderExceptionPanel'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -342,9 +343,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         return packageRow
       }))
       setOrderActionMessage({ type:'ok', text:`تم ${label} في Trendyol بنجاح.` })
+      return true
     } catch (error:any) {
       console.error('order marketplace action', error)
       setOrderActionMessage({ type:'err', text:userErrorMessage(error, `تعذّر ${label}.`) })
+      return false
     } finally { setOrderActionLoading(false) }
   }
 
@@ -816,6 +819,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 <button disabled={orderActionLoading || !activePackage?.cargo_tracking_number || (!packageWorkflow.canInvoice && String(packageWorkflow.providerStatus).toLowerCase() !== 'invoiced')} onClick={() => void runPackageLabelAction('packages.common_label_create')} style={S.actionBtn}>طلب ملصق الشحن</button>
                 <button disabled={orderActionLoading || !activePackage?.cargo_tracking_number} onClick={() => void runPackageLabelAction('packages.common_label_get')} style={S.actionBtn}>تنزيل الملصق</button>
               </div>
+              <OrderExceptionPanel key={activePackageId} items={activePackageItems} workflow={packageWorkflow} busy={orderActionLoading} onRun={runPackageAction}/>
               {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>
                 <div style={{ display:'grid', gap:5 }}>{selectedActions.map(log => <div key={log.id} style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10 }}>

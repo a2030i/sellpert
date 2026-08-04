@@ -5,6 +5,7 @@ import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '.
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
+import { normalizeTrendyolCancelPayload, normalizeTrendyolSplitPayload, requestedTrendyolPackageLines, trendyolPackageLinesAreAvailable } from '../_shared/trendyolPackageMutations.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -55,8 +56,8 @@ const ACTIONS: Record<string, Definition> = {
   'orders.stream':            { method:'GET', path:'/integration/order/sellers/{sellerId}/orders/stream', risk:'read', storefront:true },
   'packages.tracking':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/tracking-details', risk:'write', storefront:true },
   'packages.status':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}', risk:'write', storefront:true },
-  'packages.cancel':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/items/unsupplied', risk:'destructive' },
-  'packages.split':           { method:'POST',path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/split-packages', risk:'write' },
+  'packages.cancel':          { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/items/unsupplied', risk:'destructive', storefront:true },
+  'packages.split':           { method:'POST',path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/split-packages', risk:'write', storefront:true },
   'packages.alternative':     { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/alternative-delivery', risk:'write' },
   'packages.cargo_provider':  { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/cargo-providers', risk:'write' },
   'packages.box_info':        { method:'PUT', path:'/integration/order/sellers/{sellerId}/shipment-packages/{packageId}/box-info', risk:'write' },
@@ -321,7 +322,7 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   if (!/^\d+$/.test(packageId)) throw new HttpError(400, 'رقم شحنة Trendyol غير صالح')
 
   const { data: packageRow, error } = await admin.from('order_packages')
-    .select('provider_status,status,raw')
+    .select('order_id,provider_status,status,raw')
     .eq('merchant_code',merchantCode).eq('platform','trendyol')
     .eq('shipment_package_id',packageId).maybeSingle()
   if (error) throw error
@@ -331,6 +332,18 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
 
   const transitionError = trendyolPackageTransitionError(packageRow,action,String(input?.payload?.status || ''))
   if (transitionError) throw new HttpError(409,transitionError)
+
+  if (action === 'packages.cancel' || action === 'packages.split') {
+    const requested = requestedTrendyolPackageLines(action,input.payload)
+    const requestedIds = [...new Set(requested.map((line:any) => line.lineId))]
+    const { data: packageItems, error: itemsError } = await admin.from('order_items')
+      .select('line_id,quantity').eq('merchant_code',merchantCode).eq('platform','trendyol')
+      .eq('order_id',packageRow.order_id).eq('shipment_package_id',packageId).in('line_id',requestedIds)
+    if (itemsError) throw itemsError
+    if (!trendyolPackageLinesAreAvailable(requested,packageItems || [])) {
+      throw new HttpError(409,'بنود الإجراء لا تطابق الشحنة الحالية؛ حدّث الطلب من Trendyol ثم حاول مجددًا')
+    }
+  }
 }
 function validateActionInput(action:string,input:any) {
   if (action === 'questions.list') {
@@ -391,6 +404,14 @@ function validateActionInput(action:string,input:any) {
   }
   if (action === 'packages.tracking') {
     if (!clean(input?.payload?.cargoSenderNumber) || !clean(input?.payload?.providerCode)) throw new HttpError(400, 'رقم التتبع وشركة الشحن مطلوبان')
+  }
+  if (action === 'packages.cancel') {
+    try { input.payload = normalizeTrendyolCancelPayload(input?.payload) }
+    catch (error) { throw new HttpError(400,error instanceof Error ? error.message : 'بيانات إلغاء البنود غير صالحة') }
+  }
+  if (action === 'packages.split') {
+    try { input.payload = normalizeTrendyolSplitPayload(input?.payload) }
+    catch (error) { throw new HttpError(400,error instanceof Error ? error.message : 'بيانات تقسيم الشحنة غير صالحة') }
   }
   if (action === 'packages.common_label_create') {
     const format = clean(input?.payload?.format).toUpperCase()
