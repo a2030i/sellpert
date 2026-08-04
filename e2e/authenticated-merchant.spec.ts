@@ -541,7 +541,7 @@ test('merchant follows a synced Trendyol order into product management', async (
     payload: { items: [{ contentId: Number(product.external_id), title: updatedTitle }] },
   })
   await page.getByRole('button', { name: 'تحديث الحالة' }).click()
-  await expect(page.getByText('اعتمد Trendyol التعديل', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('اكتملت المعالجة في Trendyol', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('progressbar', { name: 'تقدم تعديل المنتج في Trendyol' })).toHaveAttribute('aria-valuenow', '100')
   await expect(page.getByRole('button', { name: 'مراجعة تعديل المنتج' })).toBeEnabled()
   await expectNoSeriousAccessibilityViolations(page, 'تفاصيل وإدارة منتج Trendyol')

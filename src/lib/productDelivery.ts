@@ -23,8 +23,8 @@ const STATUS_LABELS: Record<ProductDeliveryStatus, string> = {
   running: 'جارٍ الإرسال إلى Trendyol',
   accepted: 'تم الإرسال إلى Trendyol',
   processing: 'قيد مراجعة Trendyol',
-  success: 'اعتمد Trendyol التعديل',
-  partial: 'اعتمد Trendyol جزءًا من التعديل',
+  success: 'اكتملت المعالجة في Trendyol',
+  partial: 'اكتملت المعالجة جزئيًا في Trendyol',
   failed: 'رفض Trendyol التعديل',
 }
 
