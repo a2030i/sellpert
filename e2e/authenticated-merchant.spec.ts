@@ -129,14 +129,14 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   await expect(page.getByText('نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية')).toBeVisible()
 
   for (const action of [
-    'طباعة ملصق الشحن',
-    'تحديث حالة التجهيز',
-    'تحديث رقم التتبع',
-    'تغيير شركة الشحن',
-    'تحديث السعر والمخزون',
-    'قبول طلب مرتجع',
+    'ملصقات الشحن',
+    'حالة التجهيز والفاتورة',
+    'بيانات الشحن والتتبع',
+    'شركة الشحن',
+    'السعر والمخزون',
+    'قرارات المرتجعات',
   ]) {
-    await expect(page.getByRole('button', { name: new RegExp(action) })).toBeVisible()
+    await expect(page.getByRole('button', { name: new RegExp(`^${action}`) })).toBeVisible()
   }
 
   await expect(page.getByText(/JSON/)).toHaveCount(0)
