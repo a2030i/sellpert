@@ -429,115 +429,69 @@ function dedupeByConflict(rows: any[], conflictKey: string): { rows: any[]; drop
 // ─── Save logic with progress callback ───────────────────────────────────────
 async function saveParsedResult(
   parsed: ParseResult,
-  merchantCode: string,
   uploadId: string,
   onProgress: (pct: number, message: string) => void
-): Promise<{ inserted: number; errors: string[] }> {
-  const errors: string[] = []
-  let inserted = 0
-  const total = parsed.payloads.reduce((a, p) => a + p.rows.length, 0) || 1
-
-  // Special handling for ASN parent-child relationship
-  if (parsed.kind === 'noon_asn') {
-    const headerPayload = parsed.payloads.find(p => p.table === 'inbound_shipments')
-    const itemsPayload = parsed.payloads.find(p => p.table === 'inbound_shipment_items')
-    if (headerPayload && itemsPayload) {
-      onProgress(10, 'حفظ بيانات الإرسالية الرئيسية…')
-      const dedupedHeaders = headerPayload.conflict
-        ? dedupeByConflict(headerPayload.rows, headerPayload.conflict).rows
-        : headerPayload.rows
-      const headerRowsTagged = dedupedHeaders.map((r: any) => ({ ...r, upload_id: uploadId }))
-      const { data: parentRows, error: pErr } = await supabase
-        .from('inbound_shipments')
-        .upsert(headerRowsTagged, { onConflict: headerPayload.conflict, ignoreDuplicates: false })
-        .select('id, asn_number')
-      if (pErr) errors.push(`الإرسالية: ${pErr.message}`)
-      else inserted += parentRows?.length || 0
-
-      const map: Record<string, string> = {}
-      for (const r of parentRows || []) map[r.asn_number] = r.id
-      const itemsToInsert = itemsPayload.rows
-        .map((it: any) => ({ ...it, shipment_id: map[it._asn_number], upload_id: uploadId, _asn_number: undefined }))
-        .filter((it: any) => it.shipment_id)
-        .map(({ _asn_number, ...rest }: any) => rest)
-
-      if (itemsToInsert.length) {
-        onProgress(60, `حفظ ${itemsToInsert.length} صنف داخل الإرسالية…`)
-        for (let i = 0; i < itemsToInsert.length; i += 500) {
-          const slice = itemsToInsert.slice(i, i + 500)
-          // upsert على (shipment_id,sku) فإعادة رفع نفس الإرسالية تستبدل الأصناف بدل أن تضاعفها
-          const { error: iErr } = await supabase.from('inbound_shipment_items').upsert(slice, { onConflict: 'shipment_id,sku', ignoreDuplicates: false })
-          if (iErr) errors.push(`الأصناف: ${iErr.message}`)
-          else inserted += slice.length
-          onProgress(60 + Math.round((i / itemsToInsert.length) * 35), `حُفظ ${Math.min(i + 500, itemsToInsert.length)}/${itemsToInsert.length}…`)
-        }
+): Promise<{ inserted: number; errors: string[]; derived?: Record<string, number> }> {
+  const payloads = parsed.payloads
+    .filter(payload => payload.rows.length > 0)
+    .map(payload => {
+      const deduped = payload.conflict
+        ? dedupeByConflict(payload.rows, payload.conflict)
+        : { rows: payload.rows, dropped: 0 }
+      if (deduped.dropped > 0) {
+        onProgress(12, `دُمج ${deduped.dropped} صف مكرر في ${arabicTable(payload.table)}…`)
       }
-      // تحديث سجل التدقيق للـ ASN
-      await supabase.from('platform_file_uploads').update({
-        rows_processed: total, rows_inserted: inserted,
-        status: errors.length ? 'partial' : 'success',
-        error_message: errors.length ? errors.join(' | ').slice(0, 500) : null,
-        finished_at: new Date().toISOString(),
-      }).eq('id', uploadId)
-      onProgress(100, 'اكتمل')
-      return { inserted, errors }
-    }
+      return { table: payload.table, rows: deduped.rows }
+    })
+
+  onProgress(20, 'جارٍ حفظ الملف كوحدة واحدة آمنة…')
+  const { data, error } = await supabase.rpc('commit_my_file_import', {
+    p_upload_id: uploadId,
+    p_payloads: payloads,
+  })
+
+  if (error) {
+    const detail = friendlyAtomicImportError(error.message)
+    await supabase.from('platform_file_uploads').update({
+      rows_processed: 0,
+      rows_inserted: 0,
+      status: 'failed',
+      error_message: detail.slice(0, 500),
+      finished_at: new Date().toISOString(),
+    }).eq('id', uploadId)
+    onProgress(100, 'لم يُحفظ أي صف')
+    return { inserted: 0, errors: [detail] }
   }
 
-  // Standard payloads
-  let processed = 0
-  for (const payload of parsed.payloads) {
-    if (payload.rows.length === 0) continue
-
-    // For upserts, dedupe by conflict key first — Postgres refuses to update
-    // the same row twice in one ON CONFLICT statement, so duplicates would
-    // crash the whole batch ("cannot affect row a second time").
-    let rowsToSave = payload.rows
-    if (payload.conflict) {
-      const { rows: deduped, dropped } = dedupeByConflict(payload.rows, payload.conflict)
-      rowsToSave = deduped
-      if (dropped > 0) {
-        onProgress(Math.round((processed / total) * 95), `دُمج ${dropped} صف مكرر في ${arabicTable(payload.table)}…`)
-      }
-    }
-
-    onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)} (${rowsToSave.length} صف)…`)
-
-    // Chunked insert (مع upload_id لتتبّع الرفع)
-    const TAGGABLE = ['orders','products','inventory','account_transactions','ad_metrics','returns','goods_received','product_performance_snapshots','platform_deals','amazon_daily_sales']
-    const CHUNK = 500
-    for (let i = 0; i < rowsToSave.length; i += CHUNK) {
-      const slice = rowsToSave.slice(i, i + CHUNK).map((r: any) =>
-        TAGGABLE.includes(payload.table) ? { ...r, upload_id: uploadId } : r
-      )
-      let err: any
-      if (payload.conflict) {
-        const { error } = await supabase.from(payload.table).upsert(slice, { onConflict: payload.conflict, ignoreDuplicates: false })
-        err = error
-      } else {
-        const { error } = await supabase.from(payload.table).insert(slice)
-        err = error
-      }
-      if (err) {
-        errors.push(`${payload.table}: ${err.message}`)
-      } else {
-        inserted += slice.length
-      }
-      processed += slice.length
-      onProgress(Math.round((processed / total) * 95), `معالجة ${arabicTable(payload.table)}: ${Math.min(processed, total)}/${total}`)
-    }
+  onProgress(100, 'اكتمل الحفظ والتحقق بنجاح')
+  return {
+    inserted: Number(data?.inserted || 0),
+    errors: [],
+    derived: data?.derived || undefined,
   }
+}
 
-  // Update upload audit
-  await supabase.from('platform_file_uploads').update({
-    rows_processed: total, rows_inserted: inserted,
-    status: errors.length ? 'partial' : 'success',
-    error_message: errors.length ? errors.join(' | ').slice(0, 500) : null,
-    finished_at: new Date().toISOString(),
-  }).eq('id', uploadId)
-
-  onProgress(100, errors.length ? 'اكتمل مع تحذيرات' : 'اكتمل بنجاح')
-  return { inserted, errors }
+function friendlyAtomicImportError(message: string): string {
+  const text = String(message || '').toLowerCase()
+  if (text.includes('active merchant workspace') || text.includes('permission') || text.includes('42501')) {
+    return 'لا تملك صلاحية الاستيراد لهذا المتجر. حدّث الصفحة وتأكد من اختيار مساحة متجرك.'
+  }
+  if (text.includes('source file must be archived') || text.includes('source archive')) {
+    return 'تعذر توثيق نسخة الملف الأصلية؛ لم يُحفظ أي صف. أعد رفع الملف.'
+  }
+  if (text.includes('missing a required identifier') || text.includes('missing its asn')) {
+    return 'ينقص الملف رقم أساسي مطلوب للتعرّف على السجلات؛ لم يُحفظ أي صف.'
+  }
+  if (text.includes('could not be matched to its asn')) {
+    return 'تعذر ربط أحد الأصناف بالإرسالية المقابلة؛ لم يُحفظ أي صف.'
+  }
+  if (text.includes('too large') || text.includes('supported range')) {
+    return 'حجم بيانات الملف أكبر من الحد الآمن للمعالجة دفعة واحدة.'
+  }
+  if (text.includes('invalid input syntax') || text.includes('violates') || text.includes('constraint')) {
+    return 'يحتوي الملف قيمة غير صالحة في أحد الحقول؛ لم يُحفظ أي صف.'
+  }
+  return 'تعذر حفظ الملف، ولم يُحفظ منه أي صف. راجع تنسيق الملف ثم أعد المحاولة.'
 }
 
 const TABLE_LABELS: Record<string, string> = {
@@ -737,6 +691,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
         : file))
     }
     let totalInserted = 0
+    let latestDerived: Record<string, number> | undefined
     const allErrors: string[] = []
 
     for (const entry of validFiles) {
@@ -813,11 +768,12 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           }
         : entry.parsed!
 
-      const result = await saveParsedResult(parsedForSave, merchantCode, uploadId, (pct, _msg) => {
+      const result = await saveParsedResult(parsedForSave, uploadId, (pct, _msg) => {
         setFiles(p => p.map(f => f.id === entry.id ? { ...f, progress: pct } : f))
       })
 
       totalInserted += result.inserted
+      if (result.derived) latestDerived = result.derived
       allErrors.push(...result.errors.map(e => `${entry.file.name}: ${e}`))
 
       setFiles(p => p.map(f => f.id === entry.id ? {
@@ -829,18 +785,12 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
       } : f))
     }
 
-    // إعادة بناء كل البيانات المشتقّة (طلبات أمازون + أسعار المنصات + المرتجعات + الأداء اليومي)
-    let derivedSummary = ''
+    // أعاد الاستيراد الذرّي بناء البيانات المشتقة داخل المعاملة نفسها؛ إذا
+    // فشل الاشتقاق يتراجع الملف كاملاً ولا تظهر أرقام غير متسقة للتاجر.
+    const derivedSummary = latestDerived
+      ? ` · ${latestDerived.amazon_orders_derived || 0} طلب أمازون · ${latestDerived.platform_prices_derived || 0} سعر · ${latestDerived.returns_derived || 0} مرتجع`
+      : ''
     if (totalInserted > 0) {
-      try {
-        const { data: derived } = await supabase.rpc('rebuild_all_derived_data', { p_merchant_code: merchantCode })
-        if (derived) {
-          derivedSummary = ` · ${derived.amazon_orders_derived || 0} طلب أمازون · ${derived.platform_prices_derived || 0} سعر · ${derived.returns_derived || 0} مرتجع`
-        }
-      } catch (e: any) {
-        allErrors.push(`اشتقاق: ${e.message}`)
-      }
-
       // إرسال تقرير واتساب تلقائي للتاجر بعد الاستيراد
       try {
         const { data: { session } } = await supabase.auth.getSession()

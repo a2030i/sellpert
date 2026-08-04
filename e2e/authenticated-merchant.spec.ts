@@ -164,9 +164,20 @@ test('merchant imports a Noon order and goes directly to the resulting orders', 
   await page.route('**/storage/v1/object/merchant-imports/**', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ Key: 'merchant-imports/source.csv' }),
   }))
-  await page.route('**/rest/v1/rpc/rebuild_all_derived_data**', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ amazon_orders_derived: 0, platform_prices_derived: 0, returns_derived: 0 }),
-  }))
+  await page.route('**/rest/v1/rpc/commit_my_file_import**', async route => {
+    const body = route.request().postDataJSON() as { p_payloads?: Array<{ table: string; rows: unknown[] }> }
+    insertedOrders = body.p_payloads?.find(payload => payload.table === 'orders')?.rows || []
+    saved = true
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        inserted: insertedOrders.length,
+        processed: insertedOrders.length,
+        derived: { amazon_orders_derived: 0, platform_prices_derived: 0, returns_derived: 0 },
+      }),
+    })
+  })
   await page.route('**/rest/v1/platform_file_uploads**', async route => {
     const method = route.request().method()
     const url = new URL(route.request().url())
@@ -188,11 +199,6 @@ test('merchant imports a Noon order and goes directly to the resulting orders', 
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': rows.length ? '0-0/1' : '*/0' }, body: JSON.stringify(rows) })
   })
   await page.route('**/rest/v1/orders**', async route => {
-    if (route.request().method() === 'POST') {
-      insertedOrders = route.request().postDataJSON() as unknown[]
-      await route.fulfill({ status: 201, contentType: 'application/json', body: '[]' })
-      return
-    }
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': saved ? '0-0/1' : '*/0' }, body: JSON.stringify(saved ? [importedOrder] : []) })
   })
 
