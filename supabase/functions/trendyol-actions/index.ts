@@ -166,6 +166,7 @@ Deno.serve(async req => {
     validateActionInput(action, input)
     await validatePackageContext(admin, merchantCode, action, input)
     await validateProductContext(admin, merchantCode, action, input)
+    await validateClaimContext(admin, merchantCode, action, input)
     const idempotencyKey = clean(req.headers.get('idempotency-key') || input?.idempotency_key)
     if (definition.risk !== 'read' && !idempotencyKey) throw new HttpError(400, 'idempotency_key مطلوب للعمليات التي تغيّر البيانات')
 
@@ -277,6 +278,19 @@ Deno.serve(async req => {
       ])
       if (questionUpdate.error || replyUpdate.error) {
         console.error('Trendyol answer audit persistence failed', questionUpdate.error || replyUpdate.error)
+      }
+    }
+    if (action === 'claims.approve' || action === 'claims.reject') {
+      const now = new Date().toISOString()
+      const nextStatus = action === 'claims.approve' ? 'approved' : 'rejected'
+      const { error: returnUpdateError } = await admin.from('returns').update({
+        status:nextStatus,
+        last_synced_at:now,
+      }).eq('merchant_code',merchantCode).eq('platform','trendyol')
+        .eq('claim_id',clean(input?.path?.claimId))
+        .in('provider_claim_item_id',input.__claimItemIds || [])
+      if (returnUpdateError) {
+        console.error('Trendyol claim decision persistence failed',returnUpdateError)
       }
     }
     if (action === 'products.batch_result') {
@@ -466,6 +480,30 @@ async function validateProductContext(admin:any,merchantCode:string,action:strin
       (deliveryStatus === 'failed' || providerStatus.includes('reject') || providerStatus.includes('pending'))
     if (!canCorrect) throw new HttpError(409, 'هذا المنتج ليس ضمن المنتجات غير المقبولة التي يمكن تصحيحها')
   }
+}
+
+async function validateClaimContext(admin:any,merchantCode:string,action:string,input:any) {
+  if (action !== 'claims.approve' && action !== 'claims.reject') return
+  const claimId = clean(input?.path?.claimId)
+  const rawItemIds = action === 'claims.approve'
+    ? input?.payload?.claimLineItemIdList
+    : String(input?.query?.claimItemIdList || '').split(',')
+  const itemIds = [...new Set((Array.isArray(rawItemIds) ? rawItemIds : [])
+    .map((value:any) => clean(String(value))).filter(Boolean))]
+  if (!claimId || !itemIds.length) throw new HttpError(400,'بيانات عناصر المرتجع غير مكتملة')
+
+  const { data:claimRows,error } = await admin.from('returns')
+    .select('id,status,provider_claim_item_id')
+    .eq('merchant_code',merchantCode).eq('platform','trendyol').eq('claim_id',claimId)
+    .in('provider_claim_item_id',itemIds)
+  if (error) throw error
+  if (!claimRows || claimRows.length !== itemIds.length) {
+    throw new HttpError(404,'طلب المرتجع غير موجود ضمن مرتجعات هذا المتجر؛ حدّث بيانات Trendyol ثم حاول مجددًا')
+  }
+  if (claimRows.some((row:any) => String(row.status || '').toLowerCase() !== 'pending')) {
+    throw new HttpError(409,'تم اتخاذ قرار لهذا المرتجع مسبقًا؛ حدّث الصفحة لمشاهدة حالته الحالية')
+  }
+  input.__claimItemIds = itemIds
 }
 
 async function fetchTrendyolProductPage(url:string,headers:Record<string,string>) {

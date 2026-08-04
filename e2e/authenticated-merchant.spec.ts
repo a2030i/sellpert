@@ -153,6 +153,64 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant reviews and approves a Trendyol return without technical identifiers', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const claim = {
+    id:'return-e2e-1', merchant_code:merchant.merchant_code, platform:'trendyol', order_id:'11344951785',
+    product_name:'قسط هندي حب 250 جم', sku:'4999', quantity:1, return_amount:23.75,
+    reason:'I believe this item is not original', return_date:'2026-08-04', status:'pending',
+    claim_id:'provider-claim-secret', provider_claim_item_id:'provider-item-secret',
+    created_at:'2026-08-04T10:00:00.000Z', last_synced_at:'2026-08-04T10:00:00.000Z',
+  }
+  let currentStatus = 'pending'
+  let approvePayload: any = null
+
+  await page.route('**/rest/v1/returns**', async route => {
+    const url = new URL(route.request().url())
+    const pendingOnly = url.searchParams.get('status')?.includes('pending')
+    const rows = pendingOnly && currentStatus !== 'pending' ? [] : [{ ...claim, status:currentStatus }]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? '0-0/1' : '*/0' }, body:JSON.stringify(rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    const body = route.request().postDataJSON() as any
+    if (body.action === 'claims.approve') {
+      approvePayload = body
+      currentStatus = 'approved'
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, status:'success' }) })
+      return
+    }
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, data:[] }) })
+  })
+  await page.route('**/functions/v1/sync-trendyol', route => route.fulfill({
+    status:200, contentType:'application/json', body:JSON.stringify({ ok:true, records_synced:1 }),
+  }))
+
+  await page.goto('/statement?tab=returns')
+  await expect(page.getByText('إدارة المرتجعات', { exact:true })).toBeVisible()
+  await expect(page.getByText('تحتاج قرارك').locator('..').getByText('1', { exact:true })).toBeVisible()
+  await expect(page.getByRole('cell', { name:'قسط هندي حب 250 جم' })).toBeVisible()
+  await expect(page.getByText('provider-claim-secret')).toHaveCount(0)
+  await expect(page.getByText('provider-item-secret')).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'إدارة مرتجعات Trendyol')
+
+  await page.getByRole('button', { name:'قبول الطلب' }).click()
+  await expect(page.getByRole('dialog', { name:'تأكيد قبول طلب المرتجع' })).toBeVisible()
+  await page.getByRole('button', { name:'تأكيد القبول وإرساله' }).click()
+  await expect(page.getByText('تمت الموافقة')).toBeVisible()
+  expect(approvePayload).toMatchObject({
+    merchant_code:merchant.merchant_code,
+    action:'claims.approve',
+    path:{ claimId:'provider-claim-secret' },
+    payload:{ claimLineItemIdList:['provider-item-secret'] },
+    confirm:true,
+  })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant imports a Noon order and goes directly to the resulting orders', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

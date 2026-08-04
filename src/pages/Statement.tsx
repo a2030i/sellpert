@@ -6,13 +6,13 @@ import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Landmark } from 'lucide-react'
+import { Landmark, RefreshCw } from 'lucide-react'
 import { financialTransactionMeta } from '../lib/trendyolFinance'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
   noon:     { label: 'نون',       color: '#f5c518' },
-  trendyol: { label: 'Trendyol', color: '#f27a1a' },
+  trendyol: { label: 'Trendyol', color: '#a84400' },
 }
 
 const RETURN_STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
@@ -894,19 +894,40 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   const [rejectReasons, setRejectReasons] = useState<ReturnReasonOption[]>([])
   const [rejectReasonId, setRejectReasonId] = useState('')
   const [rejectDescription, setRejectDescription] = useState('')
+  const [approvingReturn, setApprovingReturn] = useState<any | null>(null)
+  const [syncingClaims, setSyncingClaims] = useState(false)
 
   // The returns query is intentionally keyed by the selected period.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadReturns() }, [month, year])
+  useEffect(() => { loadReturns() }, [month, year, merchant?.merchant_code])
 
   async function loadReturns() {
+    if (!merchant) return
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const end = new Date(year, month, 0).toISOString().split('T')[0]
-    const rows = await fetchAll<any>((f, t) =>
-      supabase.from('returns').select('*').eq('merchant_code', merchant!.merchant_code)
+    const [periodRows, pendingRows] = await Promise.all([
+      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code)
         .gte('return_date', start).lte('return_date', end)
-        .order('created_at', { ascending: false }).order('id').range(f, t), 'المرتجعات')
-    setReturns(rows)
+        .order('created_at', { ascending: false }).order('id').range(f, t), 'مرتجعات الفترة'),
+      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code)
+        .eq('platform', 'trendyol').eq('status', 'pending')
+        .order('created_at', { ascending: false }).order('id').range(f, t), 'قرارات المرتجعات'),
+    ])
+    const rowsById = new Map([...pendingRows, ...periodRows].map(row => [row.id, row]))
+    setReturns([...rowsById.values()])
+  }
+
+  async function refreshClaims() {
+    if (!merchant || syncingClaims) return
+    setSyncingClaims(true); setReturnActionMessage(null)
+    const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code } })
+    if (error || data?.error) {
+      setReturnActionMessage({ type:'err', text:data?.error || error?.message || 'تعذر تحديث المرتجعات من Trendyol.' })
+    } else {
+      await loadReturns(); onUpdate()
+      setReturnActionMessage({ type:'ok', text:'تم تحديث طلبات المرتجعات من Trendyol.' })
+    }
+    setSyncingClaims(false)
   }
 
   async function addReturn() {
@@ -964,7 +985,6 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
       return
     }
     const label = decision === 'approve' ? 'الموافقة على المرتجع' : 'رفض المرتجع'
-    if (!window.confirm(`تأكيد ${label} وإرساله مباشرة إلى Trendyol؟`)) return
     setReturnActionId(String(row.id)); setReturnActionMessage(null)
     const body = decision === 'approve'
       ? {
@@ -996,7 +1016,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     const syncResult = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant!.merchant_code } })
     await loadReturns()
     onUpdate()
-    setRejectingReturn(null); setRejectDescription(''); setReturnActionId(null)
+    setRejectingReturn(null); setApprovingReturn(null); setRejectDescription(''); setReturnActionId(null)
     setReturnActionMessage({
       type: 'ok',
       text: syncResult.error || syncResult.data?.error
@@ -1005,16 +1025,37 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     })
   }
 
-  const totalReturns = returns.reduce((s, r) => s + r.return_amount, 0)
+  const pendingDecisions = returns.filter(row => row.platform === 'trendyol' && row.status === 'pending' && row.claim_id && row.provider_claim_item_id)
+  const completedDecisions = returns.filter(row => ['approved','refunded'].includes(String(row.status || '').toLowerCase())).length
+  const rejectedDecisions = returns.filter(row => String(row.status || '').toLowerCase() === 'rejected').length
+  const totalReturns = returns.reduce((s, r) => s + Number(r.return_amount || 0), 0)
 
   return (
     <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:12, flexWrap:'wrap' }}>
         <div>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>المرتجعات</span>
-          {returns.length > 0 && <span style={{ fontSize: 12, color: 'var(--warning-text)', marginRight: 10 }}>إجمالي: {fmt(totalReturns)}</span>}
+          <div style={{ fontWeight: 800, fontSize: 15 }}>إدارة المرتجعات</div>
+          <div style={{ fontSize: 11, color:'var(--text3)', marginTop:4 }}>راجع طلبات العملاء واتخذ القرار مباشرة في Trendyol</div>
         </div>
-        <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? 'إلغاء' : 'إضافة مرتجع يدويًا'}</button>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button style={S.addBtn} onClick={() => void refreshClaims()} disabled={syncingClaims}>
+            <RefreshCw size={14} aria-hidden="true" style={{ marginLeft:6, verticalAlign:'middle' }} />
+            {syncingClaims ? 'جارٍ التحديث...' : 'تحديث من Trendyol'}
+          </button>
+          <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? 'إلغاء' : 'إضافة مرتجع يدويًا'}</button>
+        </div>
+      </div>
+
+      <div style={{ padding:'16px 20px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:10, borderBottom:'1px solid var(--border)' }}>
+        {[
+          { label:'تحتاج قرارك', value:pendingDecisions.length, color:pendingDecisions.length ? 'var(--warning-text)' : 'var(--text)' },
+          { label:'مقبولة أو مستردة', value:completedDecisions, color:'var(--success-text)' },
+          { label:'مرفوضة', value:rejectedDecisions, color:'var(--danger-text)' },
+          { label:'قيمة المرتجعات المعروضة', value:fmt(totalReturns), color:'var(--text)' },
+        ].map(item => <div key={item.label} style={{ padding:'12px 14px', border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+          <div style={{ fontSize:11, color:'var(--text3)', marginBottom:5 }}>{item.label}</div>
+          <div style={{ fontSize:17, fontWeight:800, color:item.color }}>{item.value}</div>
+        </div>)}
       </div>
 
       {showForm && (
@@ -1054,15 +1095,31 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
         </div>
       ) : null}
 
+      {approvingReturn ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="approve-return-title" style={{ margin:'14px 20px 0', padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+          <div id="approve-return-title" style={{ fontSize:13, fontWeight:800, marginBottom:4 }}>تأكيد قبول طلب المرتجع</div>
+          <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.7 }}>
+            سيتم إرسال الموافقة مباشرة إلى Trendyol للمنتج «{approvingReturn.product_name || 'المنتج'}»
+            {approvingReturn.order_id ? ` في الطلب ${approvingReturn.order_id}` : ''}. لا يمكن التراجع عن القرار من Sellpert بعد إرساله.
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' }}>
+            <button autoFocus style={{ ...S.addBtn, background:'var(--success-bg)', color:'var(--success-text)' }} disabled={returnActionId === String(approvingReturn.id)} onClick={() => void runReturnDecision(approvingReturn, 'approve')}>
+              {returnActionId === String(approvingReturn.id) ? 'جارٍ إرسال القرار...' : 'تأكيد القبول وإرساله'}
+            </button>
+            <button style={S.addBtn} disabled={returnActionId === String(approvingReturn.id)} onClick={() => setApprovingReturn(null)}>العودة دون إرسال</button>
+          </div>
+        </div>
+      ) : null}
+
       {rejectingReturn ? (
-        <div style={{ margin: '14px 20px 0', padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface2)' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>رفض مرتجع {rejectingReturn.product_name || `الطلب ${rejectingReturn.order_id || ''}`}</div>
+        <div role="dialog" aria-modal="true" aria-labelledby="reject-return-title" style={{ margin: '14px 20px 0', padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface2)' }}>
+          <div id="reject-return-title" style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>رفض مرتجع {rejectingReturn.product_name || `الطلب ${rejectingReturn.order_id || ''}`}</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>اختر السبب الذي سيُرسل إلى Trendyol. لن يتم تنفيذ القرار قبل التأكيد النهائي.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(260px, 2fr)', gap: 10 }}>
-            <select style={S.input} value={rejectReasonId} onChange={event => setRejectReasonId(event.target.value)}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+            <select aria-label="سبب رفض المرتجع" style={S.input} value={rejectReasonId} onChange={event => setRejectReasonId(event.target.value)}>
               {rejectReasons.map(reason => <option key={reason.id} value={reason.id}>{reason.label}</option>)}
             </select>
-            <input style={S.input} value={rejectDescription} onChange={event => setRejectDescription(event.target.value)} placeholder="ملاحظة توضح سبب الرفض (اختيارية)" />
+            <input aria-label="ملاحظة رفض المرتجع" style={S.input} value={rejectDescription} onChange={event => setRejectDescription(event.target.value)} placeholder="ملاحظة توضح سبب الرفض (اختيارية)" />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button style={{ ...S.addBtn, background: 'var(--danger-bg)', color: 'var(--danger-text)' }} disabled={returnActionId === String(rejectingReturn.id)} onClick={() => void runReturnDecision(rejectingReturn, 'reject')}>
@@ -1098,10 +1155,10 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
                   </td>
                   <td style={S.td}>
                     {isPendingTrendyol ? <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
-                      <button style={{ ...S.addBtn, color: 'var(--success-text)' }} disabled={returnActionId === String(r.id)} onClick={() => void runReturnDecision(r, 'approve')}>
-                        {returnActionId === String(r.id) ? 'جارٍ الإرسال...' : 'موافقة'}
+                      <button style={{ ...S.addBtn, color: 'var(--success-text)' }} disabled={returnActionId === String(r.id)} onClick={() => { setRejectingReturn(null); setReturnActionMessage(null); setApprovingReturn(r) }}>
+                        قبول الطلب
                       </button>
-                      <button style={{ ...S.addBtn, color: 'var(--danger-text)' }} disabled={returnActionId === String(r.id)} onClick={() => void loadRejectReasons(r)}>رفض</button>
+                      <button style={{ ...S.addBtn, color: 'var(--danger-text)' }} disabled={returnActionId === String(r.id)} onClick={() => { setApprovingReturn(null); void loadRejectReasons(r) }}>رفض الطلب</button>
                     </div> : <span style={{ fontSize: 11, color: 'var(--text3)' }}>لا يوجد إجراء مطلوب</span>}
                   </td>
                 </tr>

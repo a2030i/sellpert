@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 describe('Trendyol fulfillment action contract', () => {
   const gateway = readFileSync('supabase/functions/trendyol-actions/index.ts', 'utf8')
   const orders = readFileSync('src/pages/Orders.tsx', 'utf8')
+  const statement = readFileSync('src/pages/Statement.tsx', 'utf8')
   const merchantCenter = readFileSync('src/components/TrendyolActionCenter.tsx', 'utf8')
 
   it('uses the current common-label path and explicit create/get actions', () => {
@@ -81,5 +82,21 @@ describe('Trendyol fulfillment action contract', () => {
     expect(gateway).toContain('input.__bulkProducts = barcodes.map')
     expect(gateway).toContain("notes:product.listing?.notes || 'trendyol_price_inventory'")
     expect(gateway).toContain("upsert(rows,{ onConflict:'product_id,platform' })")
+  })
+
+  it('binds return decisions to pending claims owned by the same merchant and persists the result', () => {
+    expect(gateway).toContain('await validateClaimContext(admin, merchantCode, action, input)')
+    expect(gateway).toContain(".eq('merchant_code',merchantCode).eq('platform','trendyol').eq('claim_id',claimId)")
+    expect(gateway).toContain("String(row.status || '').toLowerCase() !== 'pending'")
+    expect(gateway).toContain("const nextStatus = action === 'claims.approve' ? 'approved' : 'rejected'")
+    expect(gateway).toContain(".in('provider_claim_item_id',input.__claimItemIds || [])")
+  })
+
+  it('presents returns as merchant decisions without browser-native confirmations or technical identifiers', () => {
+    expect(statement).toContain('إدارة المرتجعات')
+    expect(statement).toContain('تأكيد القبول وإرساله')
+    expect(statement).toContain('تحديث من Trendyol')
+    expect(statement).not.toContain('window.confirm(`تأكيد ${label}')
+    expect(statement).not.toContain('JSON')
   })
 })
