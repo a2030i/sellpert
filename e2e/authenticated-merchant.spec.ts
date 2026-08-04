@@ -116,6 +116,36 @@ async function mockAuthenticatedMerchant(page: Page) {
   })
 }
 
+test('merchant sees a truthful purchase funding decision and opens bank evidence', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  await page.route('**/rest/v1/rpc/my_purchase_cash_readiness', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      horizon_days: 30, status: 'bank_balance_missing', confidence: 'low',
+      bank: { balance: null, balance_date: null, age_days: null, is_fresh: false, currency: 'SAR', account_hint: null },
+      payouts: { confirmed_total: 50.25, count: 1, api_count: 1, manual_count: 0, rows: [] },
+      purchase_plan: { item_count: 2, unit_count: 20, estimated_cost: 300, data_as_of: '2026-08-05', age_days: 0, top_items: [] },
+      readiness: { available_before_purchase: null, cash_after_purchase: null, funding_gap: null, coverage_pct: null },
+      data_quality: { inventory_item_count: 2, demand_covered_count: 2, missing_cost_count: 0, stale_inventory_count: 0 },
+      unconfirmed_sales: { gross_total: 1000, included_in_available_cash: false, rows: [] },
+    }),
+  }))
+
+  await page.goto('/inventory')
+  await expect(page.getByRole('heading', { name: 'جاهزية تمويل المشتريات' })).toBeVisible()
+  await expect(page.getByText('أضف رصيد الحساب لتقييم القدرة الشرائية')).toBeVisible()
+  await expect(page.getByText(/المبيعات غير المحوّلة.*لم تُحتسب ضمن النقد المتاح/)).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('purchase-cash-readiness.png'), fullPage: true })
+  await page.getByRole('button', { name: /رفع كشف بنكي حديث/ }).click()
+  await expect(page).toHaveURL(/\/statement\?tab=settlements$/)
+  expect(runtimeErrors).toEqual([])
+})
+
 test('registered merchant reaches complete Trendyol actions without technical JSON', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

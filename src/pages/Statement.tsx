@@ -516,7 +516,6 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             <PnLPanel merchant={merchant} year={year} month={month} />
             <RevenueForecastPanel merchant={merchant} />
             <MonthlyCashflowPanel merchant={merchant} />
-            <CashFlowForecast merchant={merchant} />
           </>)}
 
           {stab === 'returns' && (<>
@@ -687,7 +686,10 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
   )
 }
 
-function CashFlowForecast({ merchant }: { merchant: Merchant | null }) {
+// Retained temporarily for migration archaeology; the rendered panel was removed
+// because marketplace payout debits were incorrectly presented as cash outflows.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function CashFlowForecastLegacy({ merchant }: { merchant: Merchant | null }) {
   const [data, setData] = useState<any[]>([])
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
   async function load() {

@@ -8,6 +8,7 @@ import { ClipboardPlus, ShieldAlert } from 'lucide-react'
 import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import { userErrorMessage } from '../lib/userError'
+import PurchaseCashReadinessPanel from '../components/PurchaseCashReadinessPanel'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -380,6 +381,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 
       {/* لوحات تحليلية أسفل القائمة (كانت تدفن مهمة الصفحة الأساسية: عرض/تعديل الكميات) */}
       <div style={{ marginTop: 28 }}>
+        <PurchaseCashReadinessPanel />
         <ReorderRecommendationsPanel merchant={merchant} />
         <InventoryHealthPanel merchant={merchant} />
         {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
