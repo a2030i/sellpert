@@ -611,7 +611,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   if (loadError) return (
     <div style={S.wrap}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
         <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذر تحميل الطلبات</h2>
         <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
@@ -624,7 +624,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
   if (orders.length === 0 && trendyolSnaps.length === 0) return (
     <div style={S.wrap}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
           <div style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>لا توجد طلبات بعد</div>
         <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
@@ -641,7 +641,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   return (
     <div style={S.wrap}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       {/* TOPBAR */}
       <div style={S.topbar}>
         <div>

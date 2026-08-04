@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 describe('Trendyol fulfillment action contract', () => {
   const gateway = readFileSync('supabase/functions/trendyol-actions/index.ts', 'utf8')
   const syncBoundary = readFileSync('supabase/functions/_shared/sync.ts', 'utf8')
+  const trendyolSync = readFileSync('supabase/functions/sync-trendyol/index.ts', 'utf8')
   const orders = readFileSync('src/pages/Orders.tsx', 'utf8')
   const statement = readFileSync('src/pages/Statement.tsx', 'utf8')
   const customerService = readFileSync('src/pages/CustomerService.tsx', 'utf8')
@@ -54,6 +55,11 @@ describe('Trendyol fulfillment action contract', () => {
     expect(gateway).toContain("return ['orders','integrations']")
     expect(gateway).toContain("return ['products','integrations']")
     expect(gateway).toContain("return ['statement','integrations']")
+  })
+
+  it('lets merchant teams refresh the Trendyol data they operate without credential access', () => {
+    expect(trendyolSync).toContain("['integrations','orders','products','statement','customers']")
+    expect(trendyolSync).toContain('authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode')
   })
 
   it('binds invoice links and files to a package owned by the merchant', () => {

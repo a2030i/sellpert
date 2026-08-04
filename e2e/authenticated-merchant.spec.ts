@@ -211,6 +211,58 @@ test('merchant reviews and approves a Trendyol return without technical identifi
   expect(runtimeErrors).toEqual([])
 })
 
+test('accountant reconciles Trendyol settlements and sees exact transfer differences', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const transactions = [
+    { id:'tx-1', platform:'trendyol', settlement_id:'SET-1', transaction_date:'2026-08-01T10:00:00Z', posted_date:null, transaction_type:'Sale', debit:0, credit:100, net_amount:100, currency:'SAR', upload_id:null },
+    { id:'tx-2', platform:'trendyol', settlement_id:'SET-1', transaction_date:'2026-08-01T10:01:00Z', posted_date:null, transaction_type:'CommissionNegative', debit:10, credit:0, net_amount:-10, currency:'SAR', upload_id:null },
+    { id:'tx-3', platform:'trendyol', settlement_id:'SET-1', transaction_date:'2026-08-03T10:00:00Z', posted_date:'2026-08-03T10:00:00Z', transaction_type:'WireTransfer', debit:90, credit:0, net_amount:-90, currency:'SAR', upload_id:null },
+    { id:'tx-4', platform:'trendyol', settlement_id:'SET-2', transaction_date:'2026-08-02T10:00:00Z', posted_date:null, transaction_type:'Sale', debit:0, credit:75, net_amount:75, currency:'SAR', upload_id:null },
+    { id:'tx-5', platform:'trendyol', settlement_id:'SET-3', transaction_date:'2026-08-02T11:00:00Z', posted_date:null, transaction_type:'Sale', debit:0, credit:50, net_amount:50, currency:'SAR', upload_id:null },
+    { id:'tx-6', platform:'trendyol', settlement_id:'SET-3', transaction_date:'2026-08-04T10:00:00Z', posted_date:'2026-08-04T10:00:00Z', transaction_type:'PaymentOrder', debit:45, credit:0, net_amount:-45, currency:'SAR', upload_id:null },
+  ]
+  let refreshed = false
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    const object = (route.request().headers().accept || '').includes('application/vnd.pgrst.object')
+    let payload: any = []
+    if (table === 'merchants') payload = [merchant]
+    else if (table === 'performance_data') payload = [{ merchant_code:merchant.merchant_code, platform:'trendyol', data_date:'2026-08-04', total_sales:225, platform_fees:10, ad_spend:0, order_count:3 }]
+    else if (table === 'orders') payload = [{ id:'finance-order-1', sku:'SKU-1', quantity:1, status:'delivered', platform:'trendyol', platform_fee:10, upload_id:null, last_synced_at:'2026-08-04T10:00:00Z' }]
+    else if (table === 'products') payload = [{ id:'finance-product-1', sku:'SKU-1', cost_price:40 }]
+    else if (table === 'account_transactions') payload = transactions
+    else if (table === 'rpc' && url.pathname.endsWith('/merchant_payouts')) payload = { scheduled:[], pending_sales:[] }
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':Array.isArray(payload) && payload.length ? `0-${payload.length - 1}/${payload.length}` : '*/0' }, body:JSON.stringify(object ? (payload[0] ?? null) : payload) })
+  })
+  await page.route('**/functions/v1/sync-trendyol', async route => {
+    refreshed = true
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, records_synced:transactions.length }) })
+  })
+
+  await page.goto('/statement?tab=settlements')
+  await expect(page.getByRole('heading', { name:'الأرباح والتحصيل' })).toBeVisible()
+  const panel = page.getByRole('region', { name:'مطابقة التسويات والتحويلات' })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('مطابقة', { exact:true }).last()).toBeVisible()
+  await expect(panel.getByText('بانتظار التحويل', { exact:true })).toBeVisible()
+  await expect(panel.getByText('يوجد فرق', { exact:true })).toBeVisible()
+  const settlementWithVariance = panel.locator('details').filter({ hasText:'تسوية SET-3' })
+  await settlementWithVariance.getByText(/تسوية SET-3/).click()
+  await expect(settlementWithVariance.getByText('الفرق').first().locator('..')).toContainText('5.00')
+  await expect(panel.getByText(/JSON|transaction_type|net_amount/)).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'مطابقة تسويات Trendyol')
+  await panel.getByRole('button', { name:'تحديث من Trendyol' }).click()
+  await expect.poll(() => refreshed).toBe(true)
+  await expect(page.getByText('تم تحديث معاملات وتسويات Trendyol وإعادة المطابقة.')).toBeVisible()
+  await page.screenshot({ path:testInfo.outputPath('settlement-reconciliation.png'), fullPage:false })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant answers a Trendyol customer question from a dedicated service inbox', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
@@ -466,7 +518,7 @@ test('core merchant workspace is accessible and stable before the first import',
     { path: '/orders', heading: 'لا توجد طلبات بعد', context: 'الطلبات' },
     { path: '/products', heading: 'المنتجات', context: 'المنتجات' },
     { path: '/inventory', heading: 'المخزون', context: 'المخزون' },
-    { path: '/statement', heading: 'الأرباح والتسويات', context: 'الأرباح والتسويات' },
+    { path: '/statement', heading: 'الأرباح والتحصيل', context: 'الأرباح والتحصيل' },
     { path: '/marketing', heading: 'لا توجد بيانات إعلانية بعد', context: 'الإعلانات والأداء' },
     { path: '/actions', heading: 'خطة العمل', context: 'خطة العمل' },
     { path: '/notifications', heading: 'مركز المتابعة', context: 'مركز المتابعة' },

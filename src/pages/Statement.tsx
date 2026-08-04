@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
+import SettlementReconciliationPanel from '../components/SettlementReconciliationPanel'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Landmark, RefreshCw } from 'lucide-react'
@@ -50,11 +51,11 @@ function parseReturnReasonOptions(payload: any): ReturnReasonOption[] {
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 
-type StatementTab = 'month' | 'trends' | 'returns'
+type StatementTab = 'month' | 'settlements' | 'trends' | 'returns'
 
 function requestedStatementTab(): StatementTab {
   const value = new URLSearchParams(window.location.search).get('tab')
-  return value === 'trends' || value === 'returns' ? value : 'month'
+  return value === 'settlements' || value === 'trends' || value === 'returns' ? value : 'month'
 }
 
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
@@ -65,6 +66,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [perfData, setPerfData]     = useState<any[]>([])
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
+  const [financialTransactions, setFinancialTransactions] = useState<any[]>([])
+  const [refreshingFinance, setRefreshingFinance] = useState(false)
+  const [financeMessage, setFinanceMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [costInfo, setCostInfo] = useState({ cogs: 0, costedUnits: 0, missingUnits: 0 })
   const [qualityInfo, setQualityInfo] = useState({
     orders: 0, apiOrders: 0, uploadedOrders: 0, costCoverage: 0,
@@ -128,7 +132,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         .order('id').range(f, t), 'تكلفة الطلبات'),
       fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
         .eq('merchant_code', code).order('id').range(f, t), 'تكلفة المنتجات'),
-      fetchAll<any>((f, t) => supabase.from('account_transactions').select('id,platform,settlement_id,transaction_date,upload_id')
+      fetchAll<any>((f, t) => supabase.from('account_transactions').select('id,platform,settlement_id,transaction_date,posted_date,transaction_type,debit,credit,net_amount,currency,upload_id')
         .eq('merchant_code', code).gte('transaction_date', `${start}T00:00:00`).lte('transaction_date', `${end}T23:59:59`)
         .order('id').range(f, t), 'معاملات الشهر'),
       fetchAll<any>((f, t) => supabase.from('ad_metrics').select('id,platform,report_date,upload_id')
@@ -138,6 +142,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     setPerfData(perf)
     setReturns(rets)
     setTargets(tgts || [])
+    setFinancialTransactions(monthTransactions)
     const costs = new Map<string, number>()
     for (const product of productCosts) if (product.sku && Number(product.cost_price) > 0) costs.set(String(product.sku).toLowerCase(), Number(product.cost_price))
     let cogs = 0, costedUnits = 0, missingUnits = 0
@@ -229,6 +234,19 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     if (month === 12) { setYear(y => y + 1); setMonth(1) } else setMonth(m => m + 1)
   }
 
+  async function refreshTrendyolFinance() {
+    if (!merchantCode || refreshingFinance) return
+    setRefreshingFinance(true); setFinanceMessage(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-trendyol', { body:{ merchant_code:merchantCode } })
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'تعذر تحديث Trendyol')
+      await load(merchantCode)
+      setFinanceMessage({ type:'ok', text:'تم تحديث معاملات وتسويات Trendyol وإعادة المطابقة.' })
+    } catch (error:any) {
+      setFinanceMessage({ type:'err', text:error?.message || 'تعذر تحديث التسويات الآن.' })
+    } finally { setRefreshingFinance(false) }
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
       <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -237,14 +255,14 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   )
 
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px 32px', maxWidth: 960, margin: '0 auto' }}>
-      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتسويات', path: '/statement' }]} />
+    <div style={{ padding: isMobile ? '16px' : '28px 32px', maxWidth: 1180, margin: '0 auto' }}>
+      <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
 
       {/* Header + month nav */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>الأرباح والتسويات</h2>
-          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>راجع المبيعات والرسوم والإعلانات والمرتجعات، وافصل الأداء التشغيلي عن التسويات البنكية.</p>
+          <h2 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>الأرباح والتحصيل</h2>
+          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>اعرف ربحك، مستحقاتك، وما سجّلته المنصات كتحويل، واكشف أي فرق يحتاج مراجعة.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '6px 12px' }}>
           <button style={S.navBtn} onClick={prevMonth}>›</button>
@@ -255,6 +273,16 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         </div>
       </div>
 
+      <div role="tablist" aria-label="أقسام الأرباح والتحصيل" style={{ display:'flex', gap:6, background:'var(--surface2)', padding:4, borderRadius:10, marginBottom:20, width:isMobile ? '100%' : 'fit-content', overflowX:'auto' }}>
+        {[{ k:'month', l:'الملخص المالي' }, { k:'settlements', l:'التسويات والتحويلات' }, { k:'trends', l:'تحليلات واتجاهات' }, { k:'returns', l:'المرتجعات' }].map(t => (
+          <button role="tab" aria-selected={stab === t.k} key={t.k} onClick={() => selectStatementTab(t.k as StatementTab)} style={{
+            padding:'7px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit', whiteSpace:'nowrap',
+            background:stab === t.k ? 'var(--surface)' : 'transparent', color:stab === t.k ? 'var(--accent)' : 'var(--text2)', boxShadow:stab === t.k ? 'var(--shadow)' : 'none',
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      {stab === 'month' ? <>
       <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,1fr)', gap:10, marginBottom:20 }}>
         {[
           ['ملخص الربحية','المبيعات ناقص رسوم المنصات والإعلانات والمرتجعات.'],
@@ -304,29 +332,18 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           </div>)}
         </div>
       </div>
+      </> : null}
 
       {/* القادم لحسابك: أول ما يبحث عنه التاجر — كم ومتى تصله مستحقاته */}
-      <PayoutCalendar merchantCode={merchant?.merchant_code} />
+      {stab === 'month' ? <PayoutCalendar merchantCode={merchant?.merchant_code} /> : null}
 
-      {perfData.length === 0 && stab !== 'returns' ? (
+      {perfData.length === 0 && stab !== 'returns' && stab !== 'settlements' ? (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text3)' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>لا توجد بيانات لهذا الشهر</div>
           <div style={{ fontSize: 13 }}>لم يتم إدخال مبيعات لـ {MONTHS[month-1]} {year}</div>
         </div>
       ) : (
         <>
-          {/* تبويبات فرعية: بدل 14 قسماً مكدّساً بعمود واحد */}
-          <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', padding: 4, borderRadius: 10, marginBottom: 20, width: 'fit-content', flexWrap: 'wrap' }}>
-            {[{ k: 'month', l: 'كشف الشهر' }, { k: 'trends', l: 'تحليلات واتجاهات' }, { k: 'returns', l: 'المرتجعات' }].map(t => (
-              <button key={t.k} onClick={() => selectStatementTab(t.k as StatementTab)} style={{
-                padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
-                background: stab === t.k ? 'var(--surface)' : 'transparent',
-                color: stab === t.k ? 'var(--accent)' : 'var(--text2)',
-                boxShadow: stab === t.k ? 'var(--shadow)' : 'none',
-              }}>{t.l}</button>
-            ))}
-          </div>
-
           {stab === 'month' && (<>
           {/* Target progress */}
           {monthTarget > 0 && (
@@ -486,6 +503,13 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <TransactionsLedger merchant={merchant} month={month} year={year} />
           </>)}
 
+          {stab === 'settlements' && (<>
+            {financeMessage ? <div role="status" style={{ marginBottom:10, padding:'10px 12px', borderRadius:9, background:financeMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:financeMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)', fontSize:11, fontWeight:700 }}>{financeMessage.text}</div> : null}
+            <SettlementReconciliationPanel transactions={financialTransactions} refreshing={refreshingFinance} onRefresh={() => void refreshTrendyolFinance()} />
+            <PayoutCalendar merchantCode={merchant?.merchant_code} />
+            <TransactionsLedger merchant={merchant} month={month} year={year} />
+          </>)}
+
           {stab === 'trends' && (<>
             <PnLPanel merchant={merchant} year={year} month={month} />
             <RevenueForecastPanel merchant={merchant} />
@@ -556,7 +580,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
         <span>المدين: <b style={{ color: 'var(--danger-text)' }}>{fmt(totals.debit)}</b></span>
         <span>الصافي: <b style={{ color: totals.net >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{fmt(totals.net)}</b></span>
       </div>
-      <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+      <div role="region" aria-label="جدول المعاملات المالية" tabIndex={0} style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead style={{ position: 'sticky', top: 0, background: 'var(--surface2)' }}>
             <tr>

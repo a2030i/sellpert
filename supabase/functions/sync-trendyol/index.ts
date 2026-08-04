@@ -52,7 +52,10 @@ Deno.serve(async (req) => {
     const merchantCode = String(body?.merchant_code || '')
     mappingId = String(body?.mapping_id || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
-    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode)
+    // Each team can refresh the provider data it is responsible for without
+    // receiving access to marketplace credentials. RLS still limits which
+    // synchronized records that employee can read in the application.
+    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations','orders','products','statement','customers'])
 
     const { data: merchant } = await admin.from('merchants')
       .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()

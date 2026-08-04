@@ -82,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
   ]},
   { key: 'analytics', label: 'التقارير والتحليلات', items: [
-    { Icon: FileText, label: 'الأرباح والتسويات', key: 'statement', permission: 'statement' },
+    { Icon: FileText, label: 'الأرباح والتحصيل', key: 'statement', permission: 'statement' },
     { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing', permission: 'marketing' },
   ]},
   { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [

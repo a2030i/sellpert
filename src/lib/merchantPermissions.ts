@@ -23,7 +23,7 @@ export const MERCHANT_PERMISSION_ITEMS: Array<{
   { key: 'products',     label: 'المنتجات',            group: 'view' },
   { key: 'inventory',    label: 'المخزون',             group: 'manage' },
   { key: 'marketing',    label: 'الإعلانات والأداء',   group: 'view' },
-  { key: 'statement',    label: 'الأرباح والتسويات',   group: 'finance' },
+  { key: 'statement',    label: 'الأرباح والتحصيل',   group: 'finance' },
   { key: 'integrations', label: 'الربط ورفع الملفات', group: 'admin' },
   { key: 'settings',     label: 'إعدادات المتجر',      group: 'admin' },
 ]

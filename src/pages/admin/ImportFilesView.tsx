@@ -1008,7 +1008,7 @@ const IMPORT_DESTINATIONS: Record<ImportDestinationKey, { label: string; path: s
   orders: { label: 'عرض الطلبات', path: '/orders', Icon: ClipboardList },
   products: { label: 'عرض المنتجات', path: '/products', Icon: PackageSearch },
   inventory: { label: 'عرض المخزون', path: '/inventory', Icon: Boxes },
-  statement: { label: 'عرض الأرباح والتسويات', path: '/statement', Icon: WalletCards },
+  statement: { label: 'عرض الأرباح والتحصيل', path: '/statement', Icon: WalletCards },
   marketing: { label: 'عرض الإعلانات والأداء', path: '/marketing', Icon: Megaphone },
   dashboard: { label: 'الانتقال إلى نظرة عامة', path: '/', Icon: LayoutDashboard },
 }
