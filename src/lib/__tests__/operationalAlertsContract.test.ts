@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync('supabase/migrations/20260804215429_automate_operational_alerts.sql', 'utf8')
+const schedule = readFileSync('supabase/migrations/20260804220409_schedule_operational_alert_refresh.sql', 'utf8')
 
 describe('operational alerts database contract', () => {
   it('keeps notification writes behind an internal tenant-checked function', () => {
@@ -24,5 +25,13 @@ describe('operational alerts database contract', () => {
     expect(migration).toContain('select distinct on (platform)')
     expect(migration).toContain("created_at > now() - interval '6 hours'")
     expect(migration).toContain("started_at > now() - interval '24 hours'")
+  })
+
+  it('refreshes active workspaces without requiring an open merchant session', () => {
+    expect(schedule).toContain('security.refresh_all_merchant_operational_alerts')
+    expect(schedule).toContain("jobname = 'merchant-operational-alert-refresh'")
+    expect(schedule).toContain("'7 * * * *'")
+    expect(schedule).toContain('exception when others then')
+    expect(schedule).toContain('revoke all on function security.refresh_all_merchant_operational_alerts() from public, anon, authenticated')
   })
 })
