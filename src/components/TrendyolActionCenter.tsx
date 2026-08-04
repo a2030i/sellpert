@@ -37,8 +37,8 @@ const CAPABILITIES: Capability[] = [
   { action:'videos.upload',label:'رفع فيديو منتج',group:'الفيديو',risk:'write',payloadHint:'{}' },
   { action:'orders.list',label:'قراءة الطلبات',group:'الطلبات والشحن',risk:'read',queryHint:'{"startDate":0,"endDate":0,"page":0,"size":50}' },
   { action:'orders.stream',label:'قراءة الطلبات Stream',group:'الطلبات والشحن',risk:'read',queryHint:'{"startDate":0,"endDate":0}' },
-  { action:'packages.tracking',label:'تحديث رقم التتبع',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"trackingNumber":"..."}' },
-  { action:'packages.status',label:'تحديث حالة الشحنة',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"status":"Shipped"}' },
+  { action:'packages.tracking',label:'تحديث رقم التتبع',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"cargoSenderNumber":"...","providerCode":"STARLINKS"}' },
+  { action:'packages.status',label:'تحديث حالة الشحنة',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"status":"Picking","lines":[{"lineId":1,"quantity":1}]}' },
   { action:'packages.cancel',label:'إلغاء عناصر الشحنة',group:'الطلبات والشحن',risk:'destructive',pathHint:'{"packageId":"..."}',payloadHint:'{"lines":[...]}' },
   { action:'packages.split',label:'تقسيم الشحنة',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"splitPackages":[...]}' },
   { action:'packages.alternative',label:'تسليم بديل',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{}' },
@@ -144,11 +144,14 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
         if(!form.tracking?.trim()) throw new Error('أدخل رقم تتبع الشحنة')
         request={...request,action:'packages.common_label_get',path:{cargoTrackingNumber:form.tracking.trim()}}
       } else if(action==='status') {
+        const lineId=Number(form.lineId), quantity=Number(form.quantity)
         if(!form.packageId?.trim()) throw new Error('أدخل رقم حزمة الشحنة')
-        request={...request,action:'packages.status',path:{packageId:form.packageId.trim()},payload:{status:form.status||'Picking'}}
+        if(!Number.isInteger(lineId)||lineId<1||!Number.isInteger(quantity)||quantity<1) throw new Error('أدخل رقم بند الطلب والكمية بشكل صحيح')
+        if((form.status||'Picking')==='Invoiced'&&!form.invoiceNumber?.trim()) throw new Error('أدخل رقم الفاتورة قبل تحويل الشحنة إلى مفوترة')
+        request={...request,action:'packages.status',path:{packageId:form.packageId.trim()},payload:{status:form.status||'Picking',lines:[{lineId,quantity}],...((form.status||'Picking')==='Invoiced'?{params:{invoiceNumber:form.invoiceNumber.trim()}}:{})}}
       } else if(action==='tracking') {
-        if(!form.packageId?.trim()||!form.tracking?.trim()) throw new Error('أدخل رقم الحزمة ورقم التتبع')
-        request={...request,action:'packages.tracking',path:{packageId:form.packageId.trim()},payload:{trackingNumber:form.tracking.trim()}}
+        if(!form.packageId?.trim()||!form.tracking?.trim()||!form.carrier?.trim()) throw new Error('أدخل رقم الحزمة ورقم التتبع وشركة الشحن')
+        request={...request,action:'packages.tracking',path:{packageId:form.packageId.trim()},payload:{cargoSenderNumber:form.tracking.trim(),providerCode:form.carrier.trim()}}
       } else if(action==='carrier') {
         if(!form.packageId?.trim()||!form.carrier?.trim()) throw new Error('أدخل رقم الحزمة ورمز شركة الشحن')
         request={...request,action:'packages.cargo_provider',path:{packageId:form.packageId.trim()},payload:{cargoProviderCode:form.carrier.trim()}}
@@ -164,10 +167,15 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
       const data=await response.json().catch(()=>({}))
       if(!response.ok||data.error) throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error)||`HTTP ${response.status}`)
       if(action==='label') {
+        const encoded=data?.data?.data_base64
         const label=data?.data?.data?.[0]?.label
-        if(!label) throw new Error('لم يُصدر Trendyol ملصقًا لهذه الشحنة بعد. تأكد أن الشحنة في حالة التجهيز أو مفوترة.')
-        if(/^https?:\/\//i.test(label)) window.open(label,'_blank','noopener,noreferrer')
-        else { const blob=new Blob([label],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`trendyol-label-${form.tracking}.zpl`; a.click(); URL.revokeObjectURL(url) }
+        if(encoded) {
+          const binary=atob(encoded); const bytes=new Uint8Array(binary.length)
+          for(let index=0;index<binary.length;index+=1) bytes[index]=binary.charCodeAt(index)
+          const blob=new Blob([bytes],{type:data?.data?.content_type||'application/octet-stream'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`trendyol-label-${form.tracking}.zpl`; a.click(); URL.revokeObjectURL(url)
+        } else if(/^https?:\/\//i.test(label)) window.open(label,'_blank','noopener,noreferrer')
+        else if(label) { const blob=new Blob([label],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`trendyol-label-${form.tracking}.zpl`; a.click(); URL.revokeObjectURL(url) }
+        else throw new Error('لم يُصدر Trendyol ملصقًا لهذه الشحنة بعد. تأكد أن الشحنة في حالة التجهيز أو مفوترة.')
       }
       setMessage({type:'ok',text:action==='label'?'تم تجهيز ملصق الشحن للتحميل.':'تم إرسال الإجراء إلى Trendyol بنجاح.'})
     } catch(error:any) { console.error('merchant Trendyol action',error);setMessage({type:'err',text:userErrorMessage(error,'تعذّر تنفيذ الإجراء في Trendyol.')}) } finally { setBusy(false) }
@@ -178,8 +186,8 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
     <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>{setAction(id);setMessage(null)}} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
     {action==='questions'?<MerchantQuestions merchantCode={merchantCode}/>:<div style={F.form}>
       {action==='label'?input('رقم تتبع الشحنة','tracking','مثال: 3941019487'):
-       action==='status'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}<label style={F.field}><span>الحالة الجديدة</span><select style={M.input} value={form.status||'Picking'} onChange={e=>set('status',e.target.value)}><option value="Picking">قيد التجهيز</option><option value="Invoiced">تم إصدار الفاتورة</option></select></label></>:
-       action==='tracking'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم التتبع','tracking','رقم التتبع الجديد')}</>:
+       action==='status'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم بند الطلب','lineId','Line ID','number')}{input('الكمية في البند','quantity','1','number')}<label style={F.field}><span>الحالة الجديدة</span><select style={M.input} value={form.status||'Picking'} onChange={e=>set('status',e.target.value)}><option value="Picking">قيد التجهيز</option><option value="Invoiced">تم إصدار الفاتورة</option></select></label>{(form.status||'Picking')==='Invoiced'?input('رقم الفاتورة','invoiceNumber','رقم الفاتورة'):null}</>:
+       action==='tracking'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم التتبع','tracking','رقم التتبع الجديد')}{input('رمز شركة الشحن','carrier','مثال: STARLINKS')}</>:
        action==='carrier'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رمز شركة الشحن','carrier','مثال: ARAMEX')}</>:
        action==='stock'?<>{input('باركود المنتج','barcode','Barcode')}{input('الكمية المتاحة','quantity','0','number')}{input('سعر البيع','salePrice','0.00','number')}{input('السعر قبل الخصم','listPrice','اختياري','number')}</>:
        <>{input('رقم مطالبة المرتجع','claimId','Claim ID')}{input('أرقام عناصر المرتجع','claimItems','افصل بينها بفاصلة')}</>}

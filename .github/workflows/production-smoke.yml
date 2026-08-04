@@ -22,4 +22,9 @@ jobs:
       - uses: actions/checkout@v5
       - name: Verify production availability and authorization boundaries
         shell: pwsh
-        run: ./scripts/test-production-smoke.ps1 -ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240
+        run: |
+          if ('${{ github.event_name }}' -eq 'push') {
+            ./scripts/test-production-smoke.ps1 -ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240
+          } else {
+            ./scripts/test-production-smoke.ps1
+          }
