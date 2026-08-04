@@ -14,7 +14,7 @@ export const PLATFORM_COLORS: Record<string, string> = {
   salla:     '#00b894',  // أخضر سلة
   noon:      '#feee00',  // أصفر نون
   amazon:    '#146eb4',  // أزرق أمازون (الرسمي)
-  trendyol:  '#f27a1a',  // برتقالي تراندايول
+  trendyol:  '#9a3f00',  // برتقالي داكن متوافق مع تباين النصوص
   zid:       '#0f958c',
   shopify:   '#96bf48',
   other:     '#5a5a7a',

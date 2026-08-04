@@ -302,6 +302,25 @@ Deno.serve(async req => {
     }
     const batchId = String(result?.batchRequestId || result?.batch_request_id || '') || null
     const finalStatus = batchId ? 'accepted' : 'success'
+    if (action === 'products.price_inventory') {
+      const now = new Date().toISOString()
+      const rows = (input.__bulkProducts || []).map((product:any) => ({
+        merchant_code:merchantCode,
+        product_id:product.id,
+        platform:'trendyol',
+        notes:product.listing?.notes || 'trendyol_price_inventory',
+        delivery_status:finalStatus,
+        external_batch_id:batchId,
+        last_submitted_at:now,
+        last_verified_at:batchId ? null : now,
+        delivery_error:null,
+        updated_at:now,
+      }))
+      if (rows.length) {
+        const { error:listingError } = await admin.from('product_platform_listings').upsert(rows,{ onConflict:'product_id,platform' })
+        if (listingError) console.error('Trendyol bulk price and inventory tracking failed',listingError)
+      }
+    }
     if (action === 'products.v2_create' || action === 'products.v2_update_unapproved') {
       const now = new Date().toISOString()
       const { error: listingError } = await admin.from('product_platform_listings').update({
@@ -394,6 +413,36 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   }
 }
 async function validateProductContext(admin:any,merchantCode:string,action:string,input:any) {
+  if (action === 'products.price_inventory') {
+    const barcodes = [...new Set((input?.payload?.items || []).map((item:any) => clean(item?.barcode)).filter(Boolean))]
+    const { data:products,error:productsError } = await admin.from('products')
+      .select('id,name,barcode,platform_source,raw').eq('merchant_code',merchantCode).in('barcode',barcodes)
+    if (productsError) throw productsError
+    const productByBarcode = new Map((products || []).map((product:any) => [clean(product.barcode),product]))
+    if (productByBarcode.size !== barcodes.length) throw new HttpError(409,'بعض المنتجات لا تنتمي إلى هذا المتجر أو لم تعد متاحة؛ حدّث الصفحة ثم حاول مجددًا')
+    const productIds = (products || []).map((product:any) => product.id)
+    const { data:listings,error:listingsError } = await admin.from('product_platform_listings')
+      .select('product_id,delivery_status,notes').eq('merchant_code',merchantCode).eq('platform','trendyol').in('product_id',productIds)
+    if (listingsError) throw listingsError
+    const listingByProduct = new Map((listings || []).map((listing:any) => [listing.product_id,listing]))
+    for (const barcode of barcodes) {
+      const product:any = productByBarcode.get(barcode)
+      const listing:any = listingByProduct.get(product.id)
+      const status = String(listing?.delivery_status || '')
+      const providerStatus = String(product.raw?.approvalStatus || '').toLowerCase()
+      const linked = String(product.platform_source || '').startsWith('trendyol') || Boolean(listing && status !== 'draft')
+      if (!linked) throw new HttpError(409,`المنتج «${clean(product.name) || 'غير المسمى'}» غير منشور في Trendyol بعد`)
+      if (['accepted','processing','running'].includes(status)) throw new HttpError(409,`يوجد تحديث قيد المعالجة للمنتج «${clean(product.name) || 'غير المسمى'}»`)
+      if (status === 'failed' || providerStatus.includes('reject') || providerStatus.includes('pending') || providerStatus.includes('unapproved')) {
+        throw new HttpError(409,`يجب اعتماد المنتج «${clean(product.name) || 'غير المسمى'}» في Trendyol قبل تحديث سعره أو مخزونه`)
+      }
+    }
+    input.__bulkProducts = barcodes.map(barcode => {
+      const product:any = productByBarcode.get(barcode)
+      return { id:product.id,barcode,listing:listingByProduct.get(product.id) || null }
+    })
+    return
+  }
   if (action !== 'products.v2_create' && action !== 'products.v2_update_unapproved') return
   const productId = clean(input?.product_id)
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(productId)) {
@@ -438,7 +487,7 @@ async function reconcileCreatedProduct(
     admin.from('marketplace_action_logs').select('request').eq('merchant_code',merchantCode).eq('platform','trendyol')
       .in('action',['products.v2_create','products.v2_update_unapproved']).eq('external_batch_id',batchId).maybeSingle(),
     admin.from('product_platform_listings').select('product_id').eq('merchant_code',merchantCode).eq('platform','trendyol')
-      .eq('external_batch_id',batchId).maybeSingle(),
+      .eq('external_batch_id',batchId).limit(1).maybeSingle(),
   ])
   if (actionResult.error) throw actionResult.error
   if (listingResult.error) throw listingResult.error

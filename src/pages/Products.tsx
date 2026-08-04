@@ -10,9 +10,14 @@ import { Pagination } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
 import { ArrowRightLeft, Award } from 'lucide-react'
 import { userErrorMessage } from '../lib/userError'
+import { friendlyDeliveryError } from '../lib/productDelivery'
+import { trendyolCatalogReadiness, type TrendyolCatalogReadiness } from '../lib/trendyolCatalog'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
+
+type TrendyolInventoryRow = { sku: string; partner_sku: string | null; quantity: number }
+type TrendyolListingRow = { product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null }
 
 function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
   if (!netTarget || netTarget <= 0) return 0
@@ -24,6 +29,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [products, setProducts]         = useState<Product[]>([])
   const [prices, setPrices]             = useState<ProductPlatformPrice[]>([])
   const [rates, setRates]               = useState<CommissionRate[]>([])
+  const [trendyolInventory, setTrendyolInventory] = useState<TrendyolInventoryRow[]>([])
+  const [trendyolListings, setTrendyolListings] = useState<TrendyolListingRow[]>([])
   const [loading, setLoading]           = useState(true)
   const [loadError, setLoadError]       = useState('')
   const [search, setSearch]             = useState('')
@@ -36,6 +43,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [editProduct, setEditProduct]   = useState<Product | null>(null)
   const [editForm, setEditForm]         = useState({ cost_price: '', target_net_price: '' })
   const [editSaving, setEditSaving]     = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkRefreshing, setBulkRefreshing] = useState(false)
   const [msg, setMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const isMobile = useMobile()
 
@@ -51,16 +62,20 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     setLoading(true)
     setLoadError('')
     try {
-      const [productResult, priceResult, rateResult] = await Promise.all([
+      const [productResult, priceResult, rateResult, inventoryResult, listingResult] = await Promise.all([
         supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
         supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
         supabase.from('platform_commission_rates').select('*'),
+        supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
+        supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
       ])
-      const error = productResult.error || priceResult.error || rateResult.error
+      const error = productResult.error || priceResult.error || rateResult.error || inventoryResult.error || listingResult.error
       if (error) throw error
       setProducts(productResult.data || [])
       setPrices(priceResult.data || [])
       setRates(rateResult.data || [])
+      setTrendyolInventory((inventoryResult.data || []) as TrendyolInventoryRow[])
+      setTrendyolListings((listingResult.data || []) as TrendyolListingRow[])
     } catch (error) {
       console.error('load products', error)
       setLoadError(userErrorMessage(error, 'تعذّر تحميل المنتجات الآن.'))
@@ -178,7 +193,38 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const costedProducts = useMemo(() => products.filter(product => Number(product.cost_price || 0) > 0).length, [products])
   const missingCosts = products.length - costedProducts
 
+  const trendyolStateByProduct = useMemo(() => {
+    const inventory = new Map<string, TrendyolInventoryRow>()
+    for (const row of trendyolInventory) {
+      if (row.sku) inventory.set(row.sku, row)
+      if (row.partner_sku) inventory.set(row.partner_sku, row)
+    }
+    const listings = new Map(trendyolListings.map(row => [row.product_id, row]))
+    const result = new Map<string, TrendyolCatalogReadiness>()
+    for (const product of products) {
+      const platformPrice = prices.find(row => row.product_id === product.id && row.platform === 'trendyol')
+      const rate = getRate('trendyol', product.category)
+      const calculatedPrice = platformPrice?.override_price ?? platformPrice?.selling_price ?? (rate ? calcSellingPrice(product.target_net_price, rate) : null)
+      const stock = inventory.get(String(product.sku || '')) || inventory.get(String(product.supplier_sku || '')) || inventory.get(String(product.barcode || ''))
+      result.set(product.id, trendyolCatalogReadiness(product, stock, listings.get(product.id), calculatedPrice))
+    }
+    return result
+  }, [products, prices, trendyolInventory, trendyolListings, getRate])
+
+  const trendyolSummary = useMemo(() => {
+    const values = [...trendyolStateByProduct.values()]
+    return {
+      linked: values.filter(value => value.linked).length,
+      ready: values.filter(value => value.ready).length,
+      pending: values.filter(value => value.pending).length,
+      needsWork: values.filter(value => value.linked && !value.ready && !value.pending).length,
+    }
+  }, [trendyolStateByProduct])
+
   useEffect(() => { setPage(1) }, [deferredSearch])
+  useEffect(() => {
+    setSelectedProducts(current => new Set([...current].filter(id => products.some(product => product.id === id))))
+  }, [products])
   useEffect(() => {
     const last = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
     if (page > last) setPage(last)
@@ -214,6 +260,82 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     window.history.pushState(null, '', '/inventory')
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
+
+  function toggleSelected(productId: string) {
+    setSelectedProducts(current => {
+      const next = new Set(current)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  function selectReadyProducts() {
+    const ids = filtered.filter(product => trendyolStateByProduct.get(product.id)?.ready).slice(0, 1000).map(product => product.id)
+    setSelectedProducts(new Set(ids))
+    if (!ids.length) setMsg({ type:'err', text:'لا توجد منتجات جاهزة الآن. افتح المنتج لمعرفة البيانات الناقصة.' })
+  }
+
+  function toggleReadyPage(checked: boolean) {
+    setSelectedProducts(current => {
+      const next = new Set(current)
+      for (const product of pageProducts) {
+        if (!trendyolStateByProduct.get(product.id)?.ready) continue
+        if (checked) next.add(product.id)
+        else next.delete(product.id)
+      }
+      return next
+    })
+  }
+
+  async function callTrendyol(action: string, body: Record<string, unknown>) {
+    const { data:{ session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+      method:'POST',
+      headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+      body:JSON.stringify({ merchant_code:merchant!.merchant_code, action, ...body }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol العملية')
+    return result
+  }
+
+  async function submitBulkPriceInventory() {
+    const selected = products.filter(product => selectedProducts.has(product.id))
+    const blocked = selected.filter(product => !trendyolStateByProduct.get(product.id)?.ready)
+    const items = selected.map(product => trendyolStateByProduct.get(product.id)?.item).filter((item): item is NonNullable<typeof item> => Boolean(item))
+    if (!selected.length || blocked.length || items.length !== selected.length) {
+      setMsg({ type:'err', text:'بعض المنتجات المحددة غير جاهزة. أزلها أو استكمل بياناتها قبل الإرسال.' })
+      setShowBulkConfirm(false)
+      return
+    }
+    setBulkSaving(true); setMsg(null)
+    try {
+      const result = await callTrendyol('products.price_inventory', { confirm:true, storefront:'SA', payload:{ items } })
+      setMsg({ type:'ok', text:result.batchRequestId ? `تم إرسال ${items.length.toLocaleString('ar-SA-u-nu-latn')} منتج إلى Trendyol، وتتم متابعة الدفعة الآن.` : `تم تحديث ${items.length.toLocaleString('ar-SA-u-nu-latn')} منتج في Trendyol.` })
+      setSelectedProducts(new Set()); setShowBulkConfirm(false)
+      await loadData()
+    } catch (error) {
+      setMsg({ type:'err', text:friendlyDeliveryError(error instanceof Error ? error.message : '') || 'تعذر إرسال الأسعار والمخزون إلى Trendyol.' })
+    } finally { setBulkSaving(false) }
+  }
+
+  async function refreshPendingBatches() {
+    const batches = [...new Set(trendyolListings.filter(row => ['accepted','processing'].includes(row.delivery_status) && row.external_batch_id).map(row => row.external_batch_id!))].slice(0, 20)
+    if (!batches.length) return
+    setBulkRefreshing(true); setMsg(null)
+    try {
+      await Promise.all(batches.map(batchRequestId => callTrendyol('products.batch_result', { path:{ batchRequestId } })))
+      await loadData()
+      setMsg({ type:'ok', text:'تم تحديث حالات دفعات Trendyol.' })
+    } catch (error) {
+      setMsg({ type:'err', text:friendlyDeliveryError(error instanceof Error ? error.message : '') || 'تعذر تحديث حالات Trendyol الآن.' })
+    } finally { setBulkRefreshing(false) }
+  }
+
+  const selectedRows = products.filter(product => selectedProducts.has(product.id))
+  const selectedBlocked = selectedRows.filter(product => !trendyolStateByProduct.get(product.id)?.ready)
 
   return (
     <div style={S.wrap}>
@@ -330,6 +452,32 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
+      <section aria-label="تشغيل كتالوج Trendyol" style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'16px 18px', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:14, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800 }}>تشغيل كتالوج Trendyol</div>
+            <div style={{ color:'var(--text3)', fontSize:11, marginTop:4, lineHeight:1.7 }}>حدّد المنتجات المرتبطة لإرسال السعر والمخزون في دفعة واحدة. لن تُرسل المنتجات الناقصة أو التي لديها تحديث قيد المعالجة.</div>
+          </div>
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+            <button style={{ ...S.reqBtn, padding:'8px 13px' }} onClick={selectReadyProducts}>تحديد الجاهز ({trendyolSummary.ready.toLocaleString('ar-SA-u-nu-latn')})</button>
+            {selectedProducts.size ? <button style={{ ...S.reqBtn, padding:'8px 13px' }} onClick={() => setSelectedProducts(new Set())}>إلغاء التحديد</button> : null}
+            {trendyolSummary.pending ? <button disabled={bulkRefreshing} style={{ ...S.reqBtn, padding:'8px 13px', opacity:bulkRefreshing ? .6 : 1 }} onClick={() => void refreshPendingBatches()}>{bulkRefreshing ? 'جارٍ التحديث…' : 'تحديث الحالات'}</button> : null}
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(4,minmax(110px,1fr))', gap:8, marginTop:14 }}>
+          {[
+            ['مرتبط', trendyolSummary.linked, 'var(--text)'],
+            ['جاهز للإرسال', trendyolSummary.ready, 'var(--success-text)'],
+            ['قيد المعالجة', trendyolSummary.pending, 'var(--warning-text)'],
+            ['يحتاج استكمال', trendyolSummary.needsWork, 'var(--danger-text)'],
+          ].map(([label,value,color]) => <div key={String(label)} style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:9, padding:'9px 11px' }}><div style={{ fontSize:10, color:'var(--text3)' }}>{label}</div><div style={{ fontSize:18, fontWeight:800, color:String(color), marginTop:2 }}>{Number(value).toLocaleString('ar-SA-u-nu-latn')}</div></div>)}
+        </div>
+        {selectedProducts.size ? <div role="status" style={{ marginTop:12, padding:'11px 13px', borderRadius:10, border:`1px solid ${selectedBlocked.length ? 'color-mix(in srgb,var(--danger-text) 25%,transparent)' : 'color-mix(in srgb,var(--accent) 25%,transparent)'}`, background:selectedBlocked.length ? 'var(--danger-bg)' : 'color-mix(in srgb,var(--accent) 7%,var(--surface))', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div><strong style={{ fontSize:12 }}>{selectedProducts.size.toLocaleString('ar-SA-u-nu-latn')} منتج محدد</strong><div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{selectedBlocked.length ? `${selectedBlocked.length.toLocaleString('ar-SA-u-nu-latn')} منتج غير جاهز — راجع الحالة بجانب كل منتج.` : 'جميع المنتجات المحددة جاهزة لتحديث السعر والمخزون.'}</div></div>
+          <button disabled={Boolean(selectedBlocked.length)} onClick={() => setShowBulkConfirm(true)} style={{ ...S.addBtn, padding:'8px 15px', opacity:selectedBlocked.length ? .5 : 1, cursor:selectedBlocked.length ? 'not-allowed' : 'pointer' }}>مراجعة وإرسال إلى Trendyol</button>
+        </div> : null}
+      </section>
+
       {/* Search */}
       <input style={S.search} value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث باسم المنتج أو SKU..." />
 
@@ -348,16 +496,23 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               {pageProducts.map(prod => {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
+                const readiness = trendyolStateByProduct.get(prod.id)
                 return (
                   <div key={prod.id} role="link" tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <div>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:9 }}>
+                        <input type="checkbox" aria-label={`تحديد ${prod.name}`} checked={selectedProducts.has(prod.id)} onClick={e => e.stopPropagation()} onChange={() => toggleSelected(prod.id)} style={{ width:24, height:24, margin:0, flexShrink:0 }} />
+                        <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{prod.name}</div>
                         {prod.sku && <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'monospace' }}>{prod.sku}</div>}
+                        </div>
                       </div>
                       <span style={{ ...S.statusBadge, ...(prod.status === 'active' ? S.badgeActive : S.badgeOff) }}>
                         {prod.status === 'active' ? 'نشط' : prod.status === 'out_of_stock' ? 'نفد' : 'موقوف'}
                       </span>
+                    </div>
+                    <div style={{ marginBottom:10, fontSize:11, color:readiness?.ready ? 'var(--accent2)' : readiness?.pending ? 'var(--warning-text)' : 'var(--text3)', fontWeight:700 }}>
+                      Trendyol: {readiness?.ready ? 'جاهز لتحديث السعر والمخزون' : readiness?.pending ? 'تحديث قيد المعالجة' : readiness?.reason || 'يحتاج استكمال الربط'}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
                       {PLATFORMS.map(p => (
@@ -385,7 +540,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               <table style={S.table}>
                 <thead>
                   <tr>
-                    {['المنتج', 'SKU', 'التكلفة', 'الصافي المستهدف', ...PLATFORMS.map(p => PLATFORM_NAMES[p]), 'الهامش', 'الحالة', ''].map(h => (
+                    <th style={{ ...S.th, width:38 }}><input type="checkbox" aria-label="تحديد المنتجات الجاهزة في الصفحة" checked={pageProducts.some(product => trendyolStateByProduct.get(product.id)?.ready) && pageProducts.filter(product => trendyolStateByProduct.get(product.id)?.ready).every(product => selectedProducts.has(product.id))} onChange={event => toggleReadyPage(event.target.checked)} style={{ width:24, height:24 }} /></th>
+                    {['المنتج', 'SKU', 'التكلفة', 'الصافي المستهدف', ...PLATFORMS.map(p => PLATFORM_NAMES[p]), 'الهامش', 'جاهزية Trendyol', 'الحالة', ''].map(h => (
                       <th key={h} style={S.th}>{h}</th>
                     ))}
                   </tr>
@@ -394,8 +550,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                   {pageProducts.map(prod => {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
+                    const readiness = trendyolStateByProduct.get(prod.id)
                     return (
                       <tr key={prod.id} tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
+                        <td style={{ ...S.td, width:38 }}><input type="checkbox" aria-label={`تحديد ${prod.name}`} checked={selectedProducts.has(prod.id)} onClick={e => e.stopPropagation()} onChange={() => toggleSelected(prod.id)} style={{ width:24, height:24 }} /></td>
                         <td style={S.td}>
                           <div style={{ fontWeight: 600 }}>{prod.name}</div>
                           {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}
@@ -411,6 +569,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         <td style={{ ...S.td, color: prod.cost_price > 0 ? (profit > 0 ? 'var(--accent2)' : 'var(--red)') : 'var(--warning-text)', fontWeight: 700 }}>
                           {prod.cost_price > 0 ? `${profit > 0 ? '+' : ''}${profit.toLocaleString()} ر.س` : 'غير مكتملة'}
                         </td>
+                        <td style={S.td}><span title={readiness?.reason || undefined} style={{ ...S.statusBadge, background:readiness?.ready ? 'var(--success-bg)' : readiness?.pending ? 'var(--warning-bg)' : 'var(--surface2)', color:readiness?.ready ? 'var(--accent2)' : readiness?.pending ? 'var(--warning-text)' : 'var(--text3)', whiteSpace:'nowrap' }}>{readiness?.ready ? 'جاهز' : readiness?.pending ? 'قيد المعالجة' : readiness?.reason || 'غير جاهز'}</span></td>
                         <td style={S.td}>
                           <span style={{ ...S.statusBadge, ...(prod.status === 'active' ? S.badgeActive : S.badgeOff) }}>
                             {prod.status === 'active' ? 'نشط' : prod.status === 'out_of_stock' ? 'نفد' : 'موقوف'}
@@ -507,6 +666,24 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
               <button style={S.saveBtn} onClick={saveEditProduct} disabled={editSaving}>{editSaving ? 'جارٍ الحفظ...' : 'حفظ وإعادة الحساب'}</button>
               <button style={S.cancelBtn} onClick={() => setEditProduct(null)}>إلغاء</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkConfirm && (
+        <div style={S.overlay} onClick={() => !bulkSaving && setShowBulkConfirm(false)}>
+          <div role="dialog" aria-modal="true" aria-label="مراجعة تحديث منتجات Trendyol" style={{ ...S.modal, maxWidth:620 }} onClick={event => event.stopPropagation()}>
+            <div style={S.modalTitle}>مراجعة تحديث Trendyol</div>
+            <p style={{ margin:'-5px 0 0', fontSize:12, lineHeight:1.8, color:'var(--text2)' }}>سيتم إرسال سعر البيع والسعر قبل الخصم وكمية المخزون الحالية لـ {selectedRows.length.toLocaleString('ar-SA-u-nu-latn')} منتج. لا يتم تعديل اسم المنتج أو صوره في هذه العملية.</p>
+            <div style={{ maxHeight:260, overflowY:'auto', border:'1px solid var(--border)', borderRadius:10 }}>
+              {selectedRows.slice(0, 50).map(product => {
+                const item = trendyolStateByProduct.get(product.id)?.item
+                return <div key={product.id} style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(0,1fr) 90px 110px', gap:8, padding:'10px 12px', borderBottom:'1px solid var(--border)', fontSize:11 }}><strong style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{product.name}</strong><span>المخزون: {item?.quantity.toLocaleString('ar-SA-u-nu-latn')}</span><span>السعر: {item?.salePrice.toFixed(2)} ر.س</span></div>
+              })}
+              {selectedRows.length > 50 ? <div style={{ padding:10, color:'var(--text3)', fontSize:11 }}>و{(selectedRows.length - 50).toLocaleString('ar-SA-u-nu-latn')} منتج إضافي ضمن الدفعة.</div> : null}
+            </div>
+            <div style={{ padding:'10px 12px', borderRadius:9, background:'var(--warning-bg)', color:'var(--warning-text)', fontSize:11, lineHeight:1.7 }}>تأكيدك يرسل البيانات مباشرة إلى Trendyol. ستظهر حالة الدفعة في صفحة المنتجات ويمكن تحديثها دون إعادة الإرسال.</div>
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}><button disabled={bulkSaving} style={S.cancelBtn} onClick={() => setShowBulkConfirm(false)}>العودة</button><button disabled={bulkSaving} style={S.addBtn} onClick={() => void submitBulkPriceInventory()}>{bulkSaving ? 'جارٍ الإرسال…' : 'تأكيد وإرسال الدفعة'}</button></div>
           </div>
         </div>
       )}

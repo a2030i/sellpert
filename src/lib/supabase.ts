@@ -230,6 +230,12 @@ export interface Product {
   category?: string
   description?: string
   image_url?: string
+  images?: Array<{ url?: string } | string> | null
+  brand?: string
+  sale_price?: number | null
+  msrp?: number | null
+  platform_source?: string | null
+  raw?: Record<string, any> | null
   cost_price: number
   target_net_price: number
   status: 'active' | 'inactive' | 'out_of_stock'

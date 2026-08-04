@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Sparkles, Send, X, MessageSquare } from 'lucide-react'
+import { Send, X, MessageSquare } from 'lucide-react'
 import { useMobile } from '../lib/hooks'
 import { userErrorMessage } from '../lib/userError'
 
@@ -60,16 +60,15 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
   return (
     <>
       {/* Floating button */}
-      <button aria-label="فتح مساعد Sellpert الذكي" onClick={() => setOpen(true)} style={{
+      <button aria-label="فتح مساعد Sellpert" onClick={() => setOpen(true)} style={{
         position: 'fixed', bottom: isMobile ? 76 : 26, left: isMobile ? 12 : 26, zIndex: 500,
-        width: 56, height: 56, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #0f958c, var(--green))',
-        border: 'none', color: '#fff', cursor: 'pointer',
-        boxShadow: '0 6px 24px rgba(15,149,140,0.4)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 40, borderRadius: 9, padding:'0 13px',
+        background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer',
+        boxShadow: '0 4px 14px rgba(15,23,42,0.12)', fontFamily:'inherit', fontSize:12, fontWeight:700,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap:7,
         transform: open ? 'scale(0)' : 'scale(1)', transition: 'transform 0.2s',
-      }} title="اسأل AI عن بياناتك">
-        <Sparkles size={22} />
+      }} title="اسأل عن بيانات متجرك">
+        <MessageSquare size={15} /> {isMobile ? 'المساعد' : 'مساعد Sellpert'}
       </button>
 
       {/* Chat panel */}
@@ -83,13 +82,13 @@ export default function AIChat({ merchantCode }: { merchantCode?: string }) {
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           <div style={{
-            padding: '14px 18px', background: 'linear-gradient(135deg, #0f958c, var(--green))',
+            padding: '14px 18px', background: 'var(--accent-strong)',
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Sparkles size={18} />
+              <MessageSquare size={18} />
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>مساعد Sellpert الذكي</div>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>مساعد Sellpert</div>
                 <div style={{ fontSize: 11, opacity: 0.9 }}>اسألني عن أرقامك وأداء متجرك</div>
               </div>
             </div>

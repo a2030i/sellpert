@@ -74,4 +74,12 @@ describe('Trendyol fulfillment action contract', () => {
     expect(merchantCenter).toContain('onClick={()=>chooseAction(id)}')
     expect(merchantCenter).not.toContain('onClick={()=>{setAction(id);setMessage(null)}}')
   })
+
+  it('binds bulk price and inventory updates to linked products in the same merchant', () => {
+    expect(gateway).toContain("if (action === 'products.price_inventory')")
+    expect(gateway).toContain(".select('id,name,barcode,platform_source,raw').eq('merchant_code',merchantCode).in('barcode',barcodes)")
+    expect(gateway).toContain('input.__bulkProducts = barcodes.map')
+    expect(gateway).toContain("notes:product.listing?.notes || 'trendyol_price_inventory'")
+    expect(gateway).toContain("upsert(rows,{ onConflict:'product_id,platform' })")
+  })
 })

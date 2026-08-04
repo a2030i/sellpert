@@ -691,6 +691,60 @@ test('merchant corrects a rejected Trendyol product and returns it to review', a
   await expect(page.getByText('تم إرسال المنتج إلى Trendyol')).toBeVisible()
 })
 
+test('merchant updates ready Trendyol catalogue prices and inventory in one reviewed batch', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const readyProduct = {
+    id:'00000000-0000-4000-8000-000000000444', merchant_code:merchant.merchant_code, name:'قهوة تركية 3 كجم', sku:'COFFEE-BULK-1', barcode:'628100000044',
+    category:'القهوة', target_net_price:54, sale_price:54, msrp:60, cost_price:30, status:'active', platform_source:'trendyol_api_v2', created_at:'2026-08-01T10:00:00Z',
+  }
+  const localProduct = {
+    id:'00000000-0000-4000-8000-000000000445', merchant_code:merchant.merchant_code, name:'منتج محلي غير منشور', sku:'LOCAL-1', barcode:'628100000045',
+    category:'القهوة', target_net_price:40, sale_price:40, msrp:45, cost_price:20, status:'active', platform_source:'excel', created_at:'2026-08-01T09:00:00Z',
+  }
+  let submitted: any = null
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    let rows: any[] = []
+    if (table === 'merchants') rows = [merchant]
+    else if (table === 'products') rows = [readyProduct, localProduct]
+    else if (table === 'product_platform_prices') rows = [{ id:'price-1', product_id:readyProduct.id, merchant_code:merchant.merchant_code, platform:'trendyol', selling_price:54, commission_rate:10, is_active:true }]
+    else if (table === 'platform_commission_rates') rows = [{ id:'rate-1', platform:'trendyol', category:'default', rate:10, vat_rate:1.5, shipping_fee:0, other_fees:0 }]
+    else if (table === 'inventory') rows = [{ sku:readyProduct.sku, partner_sku:null, quantity:12 }]
+    else if (table === 'product_platform_listings') rows = [{ product_id:readyProduct.id, delivery_status:'success', delivery_error:null, external_batch_id:null }]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    submitted = route.request().postDataJSON()
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, status:'accepted', batchRequestId:'bulk-price-stock-1' }) })
+  })
+
+  await page.goto('/products')
+  await expect(page.getByRole('region', { name:'تشغيل كتالوج Trendyol' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'تشغيل كتالوج Trendyol جماعيًا')
+  await page.getByRole('button', { name:'تحديد الجاهز (1)' }).click()
+  await expect(page.getByText('1 منتج محدد')).toBeVisible()
+  await page.getByRole('button', { name:'مراجعة وإرسال إلى Trendyol' }).click()
+  const dialog = page.getByRole('dialog', { name:'مراجعة تحديث منتجات Trendyol' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText(readyProduct.name, { exact:true })).toBeVisible()
+  await expect(dialog.getByText('منتج محلي غير منشور', { exact:true })).toHaveCount(0)
+  await expect(page.getByText(/JSON/)).toHaveCount(0)
+  await page.screenshot({ path:testInfo.outputPath('trendyol-bulk-review.png'), fullPage:true })
+  await page.getByRole('button', { name:'تأكيد وإرسال الدفعة' }).click()
+  await expect.poll(() => submitted).toMatchObject({
+    merchant_code:merchant.merchant_code,
+    action:'products.price_inventory', confirm:true, storefront:'SA',
+    payload:{ items:[{ barcode:readyProduct.barcode, quantity:12, salePrice:54, listPrice:60 }] },
+  })
+  await expect(page.getByText('تم إرسال 1 منتج إلى Trendyol، وتتم متابعة الدفعة الآن.')).toBeVisible()
+  expect(runtimeErrors).toEqual([])
+})
+
 test('decision center explains evidence, value and action without misleading estimates', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

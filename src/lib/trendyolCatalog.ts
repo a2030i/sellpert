@@ -91,3 +91,72 @@ export function parseTrendyolAddresses(raw: any): TrendyolAddress[] {
   }
   return result
 }
+
+export type TrendyolCatalogProduct = {
+  id: string
+  status?: string | null
+  barcode?: string | null
+  sku?: string | null
+  supplier_sku?: string | null
+  external_id?: string | null
+  platform_source?: string | null
+  sale_price?: number | null
+  msrp?: number | null
+  target_net_price?: number | null
+  raw?: Record<string, any> | null
+}
+
+export type TrendyolCatalogInventory = {
+  sku?: string | null
+  partner_sku?: string | null
+  quantity?: number | null
+}
+
+export type TrendyolCatalogListing = {
+  delivery_status?: string | null
+  external_batch_id?: string | null
+}
+
+export type TrendyolCatalogReadiness = {
+  ready: boolean
+  linked: boolean
+  pending: boolean
+  reason: string | null
+  item: { barcode: string; quantity: number; salePrice: number; listPrice: number } | null
+}
+
+export function trendyolCatalogReadiness(
+  product: TrendyolCatalogProduct,
+  inventory: TrendyolCatalogInventory | null | undefined,
+  listing: TrendyolCatalogListing | null | undefined,
+  calculatedPrice?: number | null,
+): TrendyolCatalogReadiness {
+  const listingStatus = String(listing?.delivery_status || '').toLowerCase()
+  const providerStatus = String(product.raw?.approvalStatus || '').toLowerCase()
+  const linked = String(product.platform_source || '').toLowerCase().startsWith('trendyol') ||
+    Boolean(listing && listingStatus !== 'draft')
+  const pending = ['accepted', 'processing', 'running'].includes(listingStatus)
+  const rejected = listingStatus === 'failed' || providerStatus.includes('reject') || providerStatus.includes('pending') || providerStatus.includes('unapproved')
+  const barcode = String(product.barcode || '').trim()
+  const quantity = Number(inventory?.quantity)
+  const salePrice = Number(calculatedPrice || product.sale_price || product.target_net_price || 0)
+  const listPrice = Math.max(salePrice, Number(product.msrp || salePrice))
+
+  let reason: string | null = null
+  if (!linked) reason = 'يحتاج نشره في Trendyol أولًا'
+  else if (pending) reason = 'يوجد تحديث قيد المعالجة'
+  else if (rejected) reason = 'يحتاج اعتماد المنتج في Trendyol أولًا'
+  else if (product.status === 'inactive') reason = 'المنتج موقوف في المتجر'
+  else if (!barcode) reason = 'باركود Trendyol غير متوفر'
+  else if (!inventory || !Number.isInteger(quantity) || quantity < 0 || quantity > 20_000) reason = 'كمية المخزون غير متوفرة أو غير صالحة'
+  else if (!Number.isFinite(salePrice) || salePrice <= 0) reason = 'سعر البيع غير مكتمل'
+  else if (!Number.isFinite(listPrice) || listPrice < salePrice) reason = 'السعر قبل الخصم أقل من سعر البيع'
+
+  return {
+    ready: !reason,
+    linked,
+    pending,
+    reason,
+    item: reason ? null : { barcode, quantity, salePrice, listPrice },
+  }
+}
