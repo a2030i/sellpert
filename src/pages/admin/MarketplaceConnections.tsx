@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, MessageSquare, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ExternalLink, KeyRound, Loader2, MessageSquare, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Merchant } from '../../lib/supabase'
 import { S } from './adminShared'
@@ -30,6 +30,7 @@ type CredentialStatus = {
   configured: boolean
 }
 type OAuthAvailability = Record<'amazon' | 'noon', boolean>
+type OperationSummary = { completed: number; pending: number; failed: number; lastAt: string | null }
 
 const EMPTY_FORM: FormState = {
   seller_id: '', api_key: '', api_secret: '', refresh_token: '',
@@ -216,6 +217,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
     platform === 'trendyol' && !showAdvancedActions && new URLSearchParams(window.location.search).get('panel') === 'trendyol-questions',
   )
   const [waitingQuestions, setWaitingQuestions] = useState<number | null>(null)
+  const [operationSummary, setOperationSummary] = useState<OperationSummary | null>(null)
 
   const syncInProgress = ['pending', 'processing', 'running'].includes(syncJob?.status || '')
   const syncProcessing = syncJob?.status === 'processing' || syncJob?.status === 'running'
@@ -240,6 +242,29 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
     }
   }, [merchantCode, platform, status?.is_active])
 
+  const loadOperationSummary = useCallback(async () => {
+    if (platform !== 'trendyol' || !status?.is_active) {
+      setOperationSummary(null)
+      return
+    }
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabase.from('marketplace_action_logs')
+      .select('status,started_at,finished_at,risk_level')
+      .eq('merchant_code', merchantCode)
+      .eq('platform', 'trendyol')
+      .gte('started_at', since)
+      .order('started_at', { ascending:false })
+      .limit(100)
+    if (error) return
+    const merchantActions = (data || []).filter(row => row.risk_level !== 'read' || ['failed','partial'].includes(row.status))
+    setOperationSummary({
+      completed: merchantActions.filter(row => row.status === 'success').length,
+      pending: merchantActions.filter(row => ['running','accepted','processing'].includes(row.status)).length,
+      failed: merchantActions.filter(row => ['failed','partial'].includes(row.status)).length,
+      lastAt: merchantActions[0]?.finished_at || merchantActions[0]?.started_at || null,
+    })
+  }, [merchantCode, platform, status?.is_active])
+
   useEffect(() => {
     setEditing(!status)
     setVerified(false)
@@ -252,6 +277,13 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
     const timer = window.setInterval(() => void loadQuestionSummary(), 60_000)
     return () => window.clearInterval(timer)
   }, [loadQuestionSummary, platform, status?.is_active])
+
+  useEffect(() => {
+    void loadOperationSummary()
+    if (platform !== 'trendyol' || !status?.is_active) return
+    const timer = window.setInterval(() => void loadOperationSummary(), 30_000)
+    return () => window.clearInterval(timer)
+  }, [loadOperationSummary, platform, status?.is_active])
 
   useEffect(() => {
     if (!status?.is_active) { setSyncJob(null); setSyncDetails(null); return }
@@ -471,6 +503,35 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
             {status.is_active ? (
               <button
                 type="button"
+                onClick={() => {
+                  window.history.pushState(null, '', '/notifications?tab=operations')
+                  window.dispatchEvent(new PopStateEvent('popstate'))
+                }}
+                style={{
+                  width:'100%', marginBottom:12, padding:'12px', borderRadius:10,
+                  border:`1px solid ${operationSummary?.failed ? 'rgba(190,54,54,.35)' : 'var(--border)'}`,
+                  background:operationSummary?.failed ? 'var(--danger-bg)' : 'var(--surface)', color:'var(--text)',
+                  cursor:'pointer', fontFamily:'inherit', textAlign:'right',
+                }}
+              >
+                <span style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+                  <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    {operationSummary?.failed ? <AlertTriangle size={17} color="var(--danger-text)"/> : <Activity size={17} color={meta.color}/>}
+                    <strong style={{ fontSize:12 }}>عمليات Trendyol خلال 7 أيام</strong>
+                  </span>
+                  <ChevronLeft size={16}/>
+                </span>
+                {operationSummary ? <span style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginTop:10 }}>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--success-bg)', color:'var(--success-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.completed.toLocaleString('ar-SA')}</b>اكتملت</span>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--warning-bg)', color:'var(--warning-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.pending.toLocaleString('ar-SA')}</b>قيد التنفيذ</span>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--danger-bg)', color:'var(--danger-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.failed.toLocaleString('ar-SA')}</b>تحتاج مراجعة</span>
+                </span> : <span style={{ display:'block', marginTop:7, fontSize:10, color:'var(--text3)' }}>جارٍ قراءة سجل العمليات…</span>}
+                {operationSummary?.lastAt ? <span style={{ display:'block', marginTop:7, fontSize:9, color:'var(--text3)' }}>آخر عملية: {formatDate(operationSummary.lastAt)}</span> : null}
+              </button>
+            ) : null}
+            {status.is_active ? (
+              <button
+                type="button"
                 onClick={() => setShowActions(true)}
                 style={{
                   width: '100%', marginBottom: 12, padding: '11px 12px', borderRadius: 10,
@@ -526,7 +587,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
           </div>
         )}
       </div>
-      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => { setShowActions(false); void loadQuestionSummary() }} merchantMode={!showAdvancedActions} /> : null}
+      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => { setShowActions(false); void loadQuestionSummary(); void loadOperationSummary() }} merchantMode={!showAdvancedActions} /> : null}
     </article>
   )
 }

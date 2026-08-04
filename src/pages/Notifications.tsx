@@ -24,6 +24,11 @@ interface NotificationRow {
 type CenterData = AttentionCenterInput & { notifications: NotificationRow[] }
 type Tab = 'actions' | 'operations' | 'notifications'
 
+function requestedTab(): Tab {
+  const value = new URLSearchParams(window.location.search).get('tab')
+  return value === 'operations' || value === 'notifications' ? value : 'actions'
+}
+
 const EMPTY_DATA: CenterData = {
   orders: [], packages: [], questions: [], listings: [], actionLogs: [], products: [], notifications: [],
 }
@@ -66,7 +71,7 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [failedSources, setFailedSources] = useState<string[]>([])
-  const [tab, setTab] = useState<Tab>('actions')
+  const [tab, setTab] = useState<Tab>(requestedTab)
   const merchantCode = merchant?.merchant_code
 
   const load = useCallback(async (quiet = false) => {
@@ -105,6 +110,15 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   }, [merchantCode])
 
   useEffect(() => { void load() }, [load])
+
+  function selectTab(next: Tab) {
+    setTab(next)
+    const params = new URLSearchParams(window.location.search)
+    if (next === 'actions') params.delete('tab')
+    else params.set('tab', next)
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }
 
   const attentionItems = useMemo(() => buildAttentionItems(data), [data])
   const operations = useMemo(() => buildMarketplaceOperations(data), [data])
@@ -155,13 +169,13 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
       )}
 
       <div className="attention-tabs" role="tablist" aria-label="أقسام مركز المتابعة">
-        <button role="tab" aria-selected={tab === 'actions'} className={tab === 'actions' ? 'active' : ''} onClick={() => setTab('actions')}>
+        <button role="tab" aria-selected={tab === 'actions'} className={tab === 'actions' ? 'active' : ''} onClick={() => selectTab('actions')}>
           المطلوب الآن <span>{totals.total.toLocaleString('ar-SA-u-nu-latn')}</span>
         </button>
-        <button role="tab" aria-selected={tab === 'operations'} className={tab === 'operations' ? 'active' : ''} onClick={() => setTab('operations')}>
+        <button role="tab" aria-selected={tab === 'operations'} className={tab === 'operations' ? 'active' : ''} onClick={() => selectTab('operations')}>
           عمليات المنصات <span>{operations.length.toLocaleString('ar-SA-u-nu-latn')}</span>
         </button>
-        <button role="tab" aria-selected={tab === 'notifications'} className={tab === 'notifications' ? 'active' : ''} onClick={() => setTab('notifications')}>
+        <button role="tab" aria-selected={tab === 'notifications'} className={tab === 'notifications' ? 'active' : ''} onClick={() => selectTab('notifications')}>
           سجل الإشعارات <span>{unread.toLocaleString('ar-SA-u-nu-latn')}</span>
         </button>
       </div>

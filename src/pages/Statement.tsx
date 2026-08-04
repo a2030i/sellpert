@@ -49,11 +49,18 @@ function parseReturnReasonOptions(payload: any): ReturnReasonOption[] {
 
 function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 
+type StatementTab = 'month' | 'trends' | 'returns'
+
+function requestedStatementTab(): StatementTab {
+  const value = new URLSearchParams(window.location.search).get('tab')
+  return value === 'trends' || value === 'returns' ? value : 'month'
+}
+
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const now = new Date()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
-  const [stab, setStab]   = useState<'month' | 'trends' | 'returns'>('month')
+  const [stab, setStab]   = useState<StatementTab>(requestedStatementTab)
   const [perfData, setPerfData]     = useState<any[]>([])
   const [returns, setReturns]       = useState<any[]>([])
   const [targets, setTargets]       = useState<any[]>([])
@@ -69,6 +76,15 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [periodReady, setPeriodReady] = useState(false)
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
+
+  function selectStatementTab(next: StatementTab) {
+    setStab(next)
+    const params = new URLSearchParams(window.location.search)
+    if (next === 'month') params.delete('tab')
+    else params.set('tab', next)
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }
 
   // Open on the latest month that actually contains financial data. A new
   // calendar month should not make the first merchant view look empty.
@@ -291,7 +307,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       {/* القادم لحسابك: أول ما يبحث عنه التاجر — كم ومتى تصله مستحقاته */}
       <PayoutCalendar merchantCode={merchant?.merchant_code} />
 
-      {perfData.length === 0 ? (
+      {perfData.length === 0 && stab !== 'returns' ? (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text3)' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>لا توجد بيانات لهذا الشهر</div>
           <div style={{ fontSize: 13 }}>لم يتم إدخال مبيعات لـ {MONTHS[month-1]} {year}</div>
@@ -301,7 +317,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* تبويبات فرعية: بدل 14 قسماً مكدّساً بعمود واحد */}
           <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', padding: 4, borderRadius: 10, marginBottom: 20, width: 'fit-content', flexWrap: 'wrap' }}>
             {[{ k: 'month', l: 'كشف الشهر' }, { k: 'trends', l: 'تحليلات واتجاهات' }, { k: 'returns', l: 'المرتجعات' }].map(t => (
-              <button key={t.k} onClick={() => setStab(t.k as any)} style={{
+              <button key={t.k} onClick={() => selectStatementTab(t.k as StatementTab)} style={{
                 padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
                 background: stab === t.k ? 'var(--surface)' : 'transparent',
                 color: stab === t.k ? 'var(--accent)' : 'var(--text2)',

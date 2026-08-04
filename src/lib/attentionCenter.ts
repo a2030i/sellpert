@@ -114,10 +114,18 @@ function marketplaceActionLabel(action: string) {
   if (action.startsWith('products.')) return productActionLabel(action)
   if (action === 'packages.status') return 'تحديث حالة الشحنة'
   if (action === 'packages.tracking' || action === 'packages.cargo_provider') return 'تحديث بيانات الشحن والتتبع'
+  if (action === 'packages.cancel') return 'إلغاء بند من الطلب'
+  if (action === 'packages.split') return 'تقسيم شحنة الطلب'
+  if (action === 'packages.box_info') return 'تحديث بيانات صناديق الشحنة'
+  if (action === 'packages.alternative') return 'تحديث التسليم البديل'
   if (action.includes('common_label')) return 'تجهيز ملصق الشحن'
   if (action.startsWith('packages.')) return 'إجراء على الشحنة'
+  if (action === 'invoices.delete_link') return 'حذف رابط فاتورة الطلب'
   if (action.startsWith('invoices.')) return 'إرسال فاتورة الطلب'
-  if (action.startsWith('returns.')) return 'معالجة طلب مرتجع'
+  if (action === 'claims.approve') return 'قبول طلب مرتجع'
+  if (action === 'claims.reject') return 'رفض طلب مرتجع'
+  if (action === 'claims.create') return 'إنشاء طلب مرتجع'
+  if (action.startsWith('claims.') || action.startsWith('returns.')) return 'معالجة طلب مرتجع'
   if (action === 'questions.answer') return 'الرد على سؤال عميل'
   return 'عملية في Trendyol'
 }
@@ -156,6 +164,7 @@ function operationTarget(log: AttentionActionLog, input: AttentionCenterInput) {
     return { path:'/orders', actionLabel:'فتح الطلبات' }
   }
   if (action === 'questions.answer') return { path:'/integrations?panel=trendyol-questions', actionLabel:'فتح أسئلة العملاء' }
+  if (action.startsWith('claims.') || action.startsWith('returns.')) return { path:'/statement?tab=returns', actionLabel:'فتح المرتجعات' }
   return { path:'/integrations', actionLabel:'فتح الربط' }
 }
 

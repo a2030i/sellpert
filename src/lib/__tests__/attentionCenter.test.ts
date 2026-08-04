@@ -78,4 +78,17 @@ describe('attention center', () => {
 
     expect(operations).toEqual([])
   })
+
+  it('uses merchant-friendly labels and routes Trendyol returns to their workspace', () => {
+    const operations = buildMarketplaceOperations({
+      ...empty,
+      actionLogs: [
+        { id:'claim-1', risk_level:'write', status:'success', action:'claims.approve' },
+        { id:'cancel-1', risk_level:'destructive', status:'accepted', action:'packages.cancel' },
+      ],
+    })
+
+    expect(operations[0]).toMatchObject({ label:'قبول طلب مرتجع', path:'/statement?tab=returns', actionLabel:'فتح المرتجعات' })
+    expect(operations[1].label).toBe('إلغاء بند من الطلب')
+  })
 })

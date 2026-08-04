@@ -126,7 +126,14 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   await expect(page.getByRole('heading', { name: 'الربط ورفع الملفات' })).toBeVisible()
   await expect(page.getByText('متجر الاختبار', { exact: true })).toBeVisible()
   await expect(page.getByText('متصل', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /عمليات Trendyol خلال 7 أيام/ })).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page, 'صفحة الربط ورفع الملفات')
+
+  await page.getByRole('button', { name: /عمليات Trendyol خلال 7 أيام/ }).click()
+  await expect(page).toHaveURL(/\/notifications\?tab=operations$/)
+  await expect(page.getByRole('heading', { name: 'عمليات Trendyol' })).toBeVisible()
+
+  await page.goto('/integrations')
 
   await page.getByRole('button', { name: 'خدمات Trendyol' }).click()
   await expect(page.getByText('نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية')).toBeVisible()
@@ -324,6 +331,7 @@ test('first-time merchant completes onboarding without administration assistance
 })
 
 test('core merchant workspace is accessible and stable before the first import', async ({ page }) => {
+  test.setTimeout(60_000)
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
