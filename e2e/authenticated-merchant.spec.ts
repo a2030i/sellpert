@@ -192,7 +192,7 @@ test('store owner downloads a complete paged data archive without integration se
   await expect(page.getByText(/مفاتيح الربط والأسرار/)).toBeVisible()
 })
 
-test('merchant follows a synced Trendyol order into product management', async ({ page }) => {
+test('merchant follows a synced Trendyol order into product management', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
@@ -360,6 +360,20 @@ test('merchant follows a synced Trendyol order into product management', async (
   await expect(page.getByRole('progressbar', { name: 'تقدم تعديل المنتج في Trendyol' })).toHaveAttribute('aria-valuenow', '100')
   await expect(page.getByRole('button', { name: 'مراجعة تعديل المنتج' })).toBeEnabled()
   await expectNoSeriousAccessibilityViolations(page, 'تفاصيل وإدارة منتج Trendyol')
+
+  await page.goto('/notifications')
+  await expect(page.getByRole('heading', { name: 'مركز المتابعة' })).toBeVisible()
+  const operationsTab = page.getByRole('tab', { name: /^عمليات المنصات/ })
+  await expect(operationsTab.getByText('1', { exact:true })).toBeVisible()
+  await operationsTab.click()
+  await expect(page.getByRole('heading', { name: 'عمليات Trendyol' })).toBeVisible()
+  await expect(page.getByText('تعديل محتوى المنتج', { exact: true })).toBeVisible()
+  await expect(page.getByText('اكتملت بنجاح', { exact: true })).toBeVisible()
+  await expect(page.getByText('TY-20260804', { exact: true })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'سجل عمليات المنصات')
+  await page.screenshot({ path:testInfo.outputPath('marketplace-operations.png'), fullPage:true })
+  await page.getByRole('button', { name: 'فتح المنتج' }).click()
+  await expect(page).toHaveURL(new RegExp(`/product-detail\\?id=${product.id}`))
   expect(runtimeErrors).toEqual([])
 })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attentionTotals, buildAttentionItems, type AttentionCenterInput } from '../attentionCenter'
+import { attentionTotals, buildAttentionItems, buildMarketplaceOperations, type AttentionCenterInput } from '../attentionCenter'
 
 const empty: AttentionCenterInput = { orders: [], packages: [], questions: [], listings: [], actionLogs: [], products: [] }
 
@@ -39,5 +39,43 @@ describe('attention center', () => {
 
     expect(items.find(item => item.id === 'missing-product-costs')?.description).toContain('2 وحدة')
     expect(attentionTotals(items).total).toBeGreaterThanOrEqual(2)
+  })
+
+  it('routes marketplace operations to the affected product or order without exposing technical errors', () => {
+    const input: AttentionCenterInput = {
+      ...empty,
+      packages: [{ order_id:'T-20', shipment_package_id:'PKG-20', status:'processing', cargo_tracking_number:'TRK-20' }],
+      products: [{ id:'p20', sku:'SKU-20', barcode:'BAR-20', external_id:'20020', cost_price:20 }],
+      actionLogs: [
+        { id:'a1', status:'failed', action:'products.v2_update_content', error_message:'[object Object]', request:{ payload:{ items:[{ contentId:20020 }] } }, started_at:'2026-08-04T10:00:00Z' },
+        { id:'a2', status:'partial', action:'packages.tracking', request:{ path:{ packageId:'PKG-20' } }, started_at:'2026-08-04T11:00:00Z' },
+      ],
+    }
+
+    const operations = buildMarketplaceOperations(input)
+    expect(operations[0]).toMatchObject({ path:'/product-detail?id=p20', actionLabel:'فتح المنتج', tone:'failed' })
+    expect(operations[0].error).not.toContain('[object Object]')
+    expect(operations[1]).toMatchObject({ path:'/orders?order=T-20', actionLabel:'فتح الطلب', tone:'warning' })
+  })
+
+  it('does not count the same rejected product update twice', () => {
+    const items = buildAttentionItems({
+      ...empty,
+      listings: [{ product_id:'p30', delivery_status:'failed', delivery_error:'rejected' }],
+      products: [{ id:'p30', external_id:'30030', cost_price:10 }],
+      actionLogs: [{ status:'failed', action:'products.v2_update_content', request:{ payload:{ items:[{ contentId:30030 }] } } }],
+    })
+
+    expect(items.find(item => item.id === 'rejected-listings')?.count).toBe(1)
+    expect(items.some(item => item.id === 'failed-actions')).toBe(false)
+  })
+
+  it('keeps successful read-only polling out of the merchant operation history', () => {
+    const operations = buildMarketplaceOperations({
+      ...empty,
+      actionLogs: [{ id:'poll-1', risk_level:'read', status:'success', action:'products.batch_result' }],
+    })
+
+    expect(operations).toEqual([])
   })
 })

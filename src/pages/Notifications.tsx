@@ -5,8 +5,8 @@ import {
 } from 'lucide-react'
 import { supabase, type Merchant } from '../lib/supabase'
 import {
-  attentionTotals, buildAttentionItems, type AttentionCenterInput,
-  type AttentionItem, type AttentionSeverity,
+  attentionTotals, buildAttentionItems, buildMarketplaceOperations, type AttentionCenterInput,
+  type AttentionItem, type AttentionSeverity, type MarketplaceOperation,
 } from '../lib/attentionCenter'
 import { PageHeader } from '../components/UI'
 import './Notifications.css'
@@ -22,7 +22,7 @@ interface NotificationRow {
 }
 
 type CenterData = AttentionCenterInput & { notifications: NotificationRow[] }
-type Tab = 'actions' | 'notifications'
+type Tab = 'actions' | 'operations' | 'notifications'
 
 const EMPTY_DATA: CenterData = {
   orders: [], packages: [], questions: [], listings: [], actionLogs: [], products: [], notifications: [],
@@ -76,15 +76,15 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
     const results = await Promise.allSettled([
       supabase.from('orders').select('id,order_id,status,cargo_tracking_number,total_amount,platform_fee,unit_price,quantity,sku,order_date')
         .eq('merchant_code', merchantCode).order('order_date', { ascending: true }).limit(500),
-      supabase.from('order_packages').select('order_id,status,cargo_tracking_number,invoice_status,invoice_rejected_reasons,modified_at')
+      supabase.from('order_packages').select('order_id,shipment_package_id,status,cargo_tracking_number,invoice_status,invoice_rejected_reasons,modified_at')
         .eq('merchant_code', merchantCode).order('modified_at', { ascending: true }).limit(500),
       supabase.from('trendyol_customer_questions').select('status,asked_at')
         .eq('merchant_code', merchantCode).order('asked_at', { ascending: true }).limit(500),
       supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,updated_at')
         .eq('merchant_code', merchantCode).order('updated_at', { ascending: false }).limit(500),
-      supabase.from('marketplace_action_logs').select('status,action,error_message,started_at')
+      supabase.from('marketplace_action_logs').select('id,platform,risk_level,status,action,request,external_batch_id,error_message,started_at,finished_at')
         .eq('merchant_code', merchantCode).order('started_at', { ascending: false }).limit(100),
-      supabase.from('products').select('sku,cost_price')
+      supabase.from('products').select('id,sku,barcode,external_id,cost_price')
         .eq('merchant_code', merchantCode).limit(2000),
       supabase.from('notifications').select('id,type,title,body,is_read,action_path,created_at')
         .eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(200),
@@ -107,6 +107,7 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   useEffect(() => { void load() }, [load])
 
   const attentionItems = useMemo(() => buildAttentionItems(data), [data])
+  const operations = useMemo(() => buildMarketplaceOperations(data), [data])
   const totals = useMemo(() => attentionTotals(attentionItems), [attentionItems])
   const unread = data.notifications.filter(row => !row.is_read).length
 
@@ -157,6 +158,9 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
         <button role="tab" aria-selected={tab === 'actions'} className={tab === 'actions' ? 'active' : ''} onClick={() => setTab('actions')}>
           المطلوب الآن <span>{totals.total.toLocaleString('ar-SA-u-nu-latn')}</span>
         </button>
+        <button role="tab" aria-selected={tab === 'operations'} className={tab === 'operations' ? 'active' : ''} onClick={() => setTab('operations')}>
+          عمليات المنصات <span>{operations.length.toLocaleString('ar-SA-u-nu-latn')}</span>
+        </button>
         <button role="tab" aria-selected={tab === 'notifications'} className={tab === 'notifications' ? 'active' : ''} onClick={() => setTab('notifications')}>
           سجل الإشعارات <span>{unread.toLocaleString('ar-SA-u-nu-latn')}</span>
         </button>
@@ -168,6 +172,8 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
             {attentionItems.map(item => <ActionCard key={item.id} item={item} />)}
           </section>
         )
+      ) : tab === 'operations' ? (
+        <OperationsLog operations={operations} />
       ) : (
         <section className="notification-log">
           <div className="notification-log-head">
@@ -191,6 +197,27 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
       )}
     </main>
   )
+}
+
+function OperationsLog({ operations }: { operations: MarketplaceOperation[] }) {
+  return <section className="operation-log" aria-label="عمليات المنصات">
+    <div className="operation-log-head">
+      <div><h2>عمليات Trendyol</h2><p>الإرسال والتحديثات التي نفذتها من Sellpert، بحالة مفهومة ورابط مباشر لمكان المتابعة.</p></div>
+    </div>
+    {operations.length === 0 ? <div className="attention-empty compact"><PackageCheck size={28} /><strong>لم تُنفذ عمليات على المنصات بعد</strong></div> : (
+      <div className="operation-rows">
+        {operations.map(operation => <article key={operation.id} className={`operation-row ${operation.tone}`}>
+          <span className="operation-tone" aria-hidden="true" />
+          <div className="operation-copy">
+            <div><strong>{operation.label}</strong><span>{operation.statusLabel}</span>{operation.reference ? <b dir="ltr">{operation.reference}</b> : null}</div>
+            {operation.error ? <p>{operation.error}</p> : null}
+          </div>
+          <time>{timeAgo(operation.occurredAt)}</time>
+          <button onClick={() => navigate(operation.path)}>{operation.actionLabel}<ChevronLeft size={16} /></button>
+        </article>)}
+      </div>
+    )}
+  </section>
 }
 
 function SummaryCard({ label, value, Icon, tone }: { label: string; value: number; Icon: typeof AlertCircle; tone: string }) {

@@ -1,4 +1,5 @@
 import { orderFinancialIssue } from './orderQuality'
+import { friendlyDeliveryError, productActionLabel, shortDeliveryReference } from './productDelivery'
 
 export type AttentionSeverity = 'urgent' | 'attention' | 'info'
 export type AttentionCategory = 'orders' | 'customers' | 'catalog' | 'finance' | 'integration'
@@ -30,6 +31,7 @@ export interface AttentionOrder {
 
 export interface AttentionPackage {
   order_id: string
+  shipment_package_id?: string | null
   status: string
   cargo_tracking_number?: string | null
   invoice_status?: string | null
@@ -50,15 +52,38 @@ export interface AttentionListing {
 }
 
 export interface AttentionActionLog {
+  id?: string
+  platform?: string
+  risk_level?: string
   status: string
   action: string
+  request?: unknown
+  external_batch_id?: string | null
   error_message?: string | null
   started_at?: string | null
+  finished_at?: string | null
 }
 
 export interface AttentionProduct {
+  id?: string
   sku?: string | null
+  barcode?: string | null
+  external_id?: string | null
   cost_price?: number | null
+}
+
+export type MarketplaceOperationTone = 'pending' | 'success' | 'warning' | 'failed'
+
+export interface MarketplaceOperation {
+  id: string
+  label: string
+  statusLabel: string
+  tone: MarketplaceOperationTone
+  path: string
+  actionLabel: string
+  error: string
+  reference: string
+  occurredAt?: string | null
 }
 
 export interface AttentionCenterInput {
@@ -74,7 +99,6 @@ const TERMINAL_ORDER_STATUSES = new Set(['delivered', 'cancelled', 'returned'])
 const OPEN_PACKAGE_STATUSES = new Set(['created', 'picking', 'invoiced', 'pending', 'processing'])
 const WAITING_QUESTION_STATUSES = new Set(['waiting_for_answer', 'waiting', 'unanswered', 'pending'])
 const FAILED_DELIVERY_STATUSES = new Set(['failed', 'error', 'rejected', 'partial'])
-const FAILED_ACTION_STATUSES = new Set(['failed', 'partial'])
 
 function normalized(value: unknown) {
   return String(value || '').trim().toLowerCase()
@@ -84,6 +108,75 @@ function hasInvoiceRejection(row: AttentionPackage) {
   if (normalized(row.invoice_status).includes('reject')) return true
   if (Array.isArray(row.invoice_rejected_reasons)) return row.invoice_rejected_reasons.length > 0
   return Boolean(row.invoice_rejected_reasons && String(row.invoice_rejected_reasons) !== '{}')
+}
+
+function marketplaceActionLabel(action: string) {
+  if (action.startsWith('products.')) return productActionLabel(action)
+  if (action === 'packages.status') return 'تحديث حالة الشحنة'
+  if (action === 'packages.tracking' || action === 'packages.cargo_provider') return 'تحديث بيانات الشحن والتتبع'
+  if (action.includes('common_label')) return 'تجهيز ملصق الشحن'
+  if (action.startsWith('packages.')) return 'إجراء على الشحنة'
+  if (action.startsWith('invoices.')) return 'إرسال فاتورة الطلب'
+  if (action.startsWith('returns.')) return 'معالجة طلب مرتجع'
+  if (action === 'questions.answer') return 'الرد على سؤال عميل'
+  return 'عملية في Trendyol'
+}
+
+function marketplaceStatus(status: string): { label: string; tone: MarketplaceOperationTone } {
+  const value = normalized(status)
+  if (value === 'success') return { label:'اكتملت بنجاح', tone:'success' }
+  if (value === 'partial') return { label:'اكتملت جزئيًا وتحتاج مراجعة', tone:'warning' }
+  if (value === 'failed') return { label:'لم تكتمل', tone:'failed' }
+  if (value === 'processing') return { label:'قيد معالجة Trendyol', tone:'pending' }
+  if (value === 'accepted') return { label:'تم إرسالها إلى Trendyol', tone:'pending' }
+  return { label:'جارٍ التنفيذ', tone:'pending' }
+}
+
+function operationTarget(log: AttentionActionLog, input: AttentionCenterInput) {
+  const request = log.request as { path?: Record<string, unknown>; payload?: { items?: Array<Record<string, unknown>> } } | null
+  const action = String(log.action || '')
+  if (action.startsWith('products.')) {
+    const item = request?.payload?.items?.[0]
+    const contentId = normalized(item?.contentId)
+    const barcode = normalized(item?.barcode)
+    const product = input.products.find(row =>
+      (contentId && normalized(row.external_id) === contentId) || (barcode && normalized(row.barcode) === barcode),
+    )
+    if (product?.id) return { path:`/product-detail?id=${encodeURIComponent(product.id)}`, actionLabel:'فتح المنتج' }
+    return { path:'/products', actionLabel:'فتح المنتجات' }
+  }
+  if (action.startsWith('packages.') || action.startsWith('invoices.')) {
+    const packageId = normalized(request?.path?.packageId)
+    const trackingNumber = normalized(request?.path?.cargoTrackingNumber)
+    const shipment = input.packages.find(row =>
+      (packageId && normalized(row.shipment_package_id) === packageId) ||
+      (trackingNumber && normalized(row.cargo_tracking_number) === trackingNumber),
+    )
+    if (shipment?.order_id) return { path:`/orders?order=${encodeURIComponent(shipment.order_id)}`, actionLabel:'فتح الطلب' }
+    return { path:'/orders', actionLabel:'فتح الطلبات' }
+  }
+  if (action === 'questions.answer') return { path:'/integrations?panel=trendyol-questions', actionLabel:'فتح أسئلة العملاء' }
+  return { path:'/integrations', actionLabel:'فتح الربط' }
+}
+
+export function buildMarketplaceOperations(input: AttentionCenterInput): MarketplaceOperation[] {
+  return input.actionLogs
+    .filter(log => normalized(log.risk_level) !== 'read' || FAILED_DELIVERY_STATUSES.has(normalized(log.status)))
+    .map((log, index) => {
+    const status = marketplaceStatus(log.status)
+    const target = operationTarget(log, input)
+    return {
+      id: log.id || `marketplace-operation-${index}`,
+      label: marketplaceActionLabel(log.action),
+      statusLabel: status.label,
+      tone: status.tone,
+      path: target.path,
+      actionLabel: target.actionLabel,
+      error: friendlyDeliveryError(log.error_message),
+      reference: shortDeliveryReference(log.external_batch_id),
+      occurredAt: log.finished_at || log.started_at,
+    }
+    })
 }
 
 export function buildAttentionItems(input: AttentionCenterInput): AttentionItem[] {
@@ -98,7 +191,10 @@ export function buildAttentionItems(input: AttentionCenterInput): AttentionItem[
   )
   const waitingQuestions = input.questions.filter(row => WAITING_QUESTION_STATUSES.has(normalized(row.status)))
   const rejectedListings = input.listings.filter(row => FAILED_DELIVERY_STATUSES.has(normalized(row.delivery_status)))
-  const failedActions = input.actionLogs.filter(row => FAILED_ACTION_STATUSES.has(normalized(row.status)))
+  const rejectedListingPaths = new Set(rejectedListings.map(row => `/product-detail?id=${encodeURIComponent(row.product_id)}`))
+  const failedOperations = buildMarketplaceOperations(input).filter(operation =>
+    ['failed', 'warning'].includes(operation.tone) && !rejectedListingPaths.has(operation.path),
+  )
   const financialIssues = input.orders.filter(row => Boolean(orderFinancialIssue(row)))
 
   const productCosts = new Map<string, number>()
@@ -145,11 +241,11 @@ export function buildAttentionItems(input: AttentionCenterInput): AttentionItem[
     actionLabel: 'فتح أول منتج', path: `/product-detail?id=${encodeURIComponent(rejectedListings[0].product_id)}`,
     occurredAt: rejectedListings[0].updated_at,
   })
-  if (failedActions.length) items.push({
-    id: 'failed-actions', severity: 'attention', category: 'integration', count: failedActions.length,
-    title: 'عمليات ربط لم تكتمل',
-    description: `${failedActions.length} عملية حديثة فشلت أو اكتملت جزئيًا وتحتاج مراجعة السبب وإعادة المحاولة.`,
-    actionLabel: 'مراجعة الربط', path: '/integrations', occurredAt: failedActions[0].started_at,
+  if (failedOperations.length) items.push({
+    id: 'failed-actions', severity: 'attention', category: 'integration', count: failedOperations.length,
+    title: failedOperations.length === 1 ? `${failedOperations[0].label} لم تكتمل` : 'عمليات Trendyol لم تكتمل',
+    description: failedOperations[0].error || `${failedOperations.length} عملية حديثة لم تكتمل وتحتاج مراجعة قبل إعادة المحاولة.`,
+    actionLabel: failedOperations[0].actionLabel, path: failedOperations[0].path, occurredAt: failedOperations[0].occurredAt,
   })
   if (financialIssues.length) items.push({
     id: 'financial-quality', severity: 'attention', category: 'finance', count: financialIssues.length,
