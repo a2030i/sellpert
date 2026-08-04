@@ -1,0 +1,50 @@
+name: Supabase production release
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - 'scripts/deploy-supabase-release.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.SUPABASE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+      - name: Refuse an unconfigured production release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo 'Missing SUPABASE_ACCESS_TOKEN' >&2; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo 'Missing SUPABASE_DB_PASSWORD' >&2; exit 1; }
+      - name: Deploy functions, migrations, then final functions
+        shell: pwsh
+        run: ./scripts/deploy-supabase-release.ps1
+
+  configuration-notice:
+    if: ${{ vars.SUPABASE_DEPLOY_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the one-time infrastructure requirement
+        run: |
+          echo '::warning::Automatic Supabase deployment is prepared but disabled. Add SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD to the production environment, then set repository variable SUPABASE_DEPLOY_ENABLED=true.'
