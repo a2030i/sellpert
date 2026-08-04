@@ -34,6 +34,16 @@ VALUES (
 INSERT INTO public.products (merchant_code, name, sku, cost_price)
 VALUES ('LINK-QA-B', 'Linked Product', 'LINKED-SKU', 10);
 
+-- Seed server-calculated snapshots as the database owner; the trigger itself
+-- is covered by weekly_operating_cycle_isolation.test.sql.
+ALTER TABLE public.merchant_weekly_briefs DISABLE TRIGGER prepare_merchant_weekly_brief_trigger;
+INSERT INTO public.merchant_weekly_briefs (
+  merchant_code, week_start, week_end, source_data_as_of, brief
+) VALUES
+  ('LINK-QA-B', '2026-08-02', '2026-08-08', '2026-08-02', '{"workspace":"linked"}'::jsonb),
+  ('LINK-QA-C', '2026-08-02', '2026-08-08', '2026-08-02', '{"workspace":"unlinked"}'::jsonb);
+ALTER TABLE public.merchant_weekly_briefs ENABLE TRIGGER prepare_merchant_weekly_brief_trigger;
+
 SELECT set_config('request.jwt.claim.sub', 'a1300000-0000-4000-8000-000000000001', true);
 SELECT set_config(
   'request.jwt.claims',
@@ -68,6 +78,15 @@ BEGIN
   WHERE merchant_code IN ('LINK-QA-A', 'LINK-QA-B', 'LINK-QA-C');
   IF visible_count <> 2 THEN
     RAISE EXCEPTION 'merchant RLS isolation mismatch: %', visible_count;
+  END IF;
+
+  SELECT count(*) INTO visible_count
+  FROM public.merchant_weekly_briefs
+  WHERE merchant_code IN ('LINK-QA-B', 'LINK-QA-C');
+  IF visible_count <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.merchant_weekly_briefs WHERE merchant_code = 'LINK-QA-B'
+  ) THEN
+    RAISE EXCEPTION 'linked weekly brief isolation mismatch: %', visible_count;
   END IF;
 
   PERFORM public.update_my_store_profile(
