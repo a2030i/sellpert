@@ -153,6 +153,52 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant measures action effectiveness and opens the execution page', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const actions = [{
+    id:'action-e2e-1', title:'إعادة توريد المنتج الأعلى طلبًا', note:'نفد المنتج وله طلب مؤكد خلال آخر 30 يومًا.',
+    expected_impact:'استعادة توفر المنتج', category:'inventory', priority:'urgent', status:'pending',
+    due_date:'2026-08-03', source_key:'stockout-e2e', created_at:'2026-08-01T08:00:00Z',
+    details:{ destination:'/inventory?status=out_of_stock' }, completion_result:null,
+    completion_note:null, completion_recorded_at:null,
+  }]
+  const weeks = Array.from({ length:8 }, (_, index) => ({
+    week_start:`2026-0${index < 4 ? '6' : '7'}-${String(index < 4 ? 1 + index * 7 : 1 + (index - 4) * 7).padStart(2, '0')}`,
+    completed:index % 3, achieved:index % 2, partial:index % 3 === 2 ? 1 : 0, not_achieved:0,
+  }))
+  const effectiveness = {
+    period_days:90, generated_at:'2026-08-05T01:00:00Z',
+    open:{ total:1, in_progress:0, urgent:1, overdue:1, due_next_7_days:0 },
+    completed:{ total:6, achieved:4, partial:1, not_achieved:1, unmeasured:0, measured:6, achieved_rate_pct:66.7, positive_rate_pct:83.3, average_cycle_days:2.4 },
+    categories:[{ category:'inventory', completed:4, achieved:3, partial:1, not_achieved:0, achieved_rate_pct:75 }],
+    weeks,
+  }
+
+  await page.route('**/rest/v1/merchant_requests**', route => route.fulfill({
+    status:200, contentType:'application/json', headers:{ 'content-range':'0-0/1' }, body:JSON.stringify(actions),
+  }))
+  await page.route('**/rest/v1/rpc/my_action_effectiveness', route => route.fulfill({
+    status:200, contentType:'application/json', body:JSON.stringify(effectiveness),
+  }))
+
+  await page.goto('/actions')
+  await expect(page.getByRole('heading', { name:'خطة العمل' })).toBeVisible()
+  await expect(page.getByRole('heading', { name:'فعالية التنفيذ' })).toBeVisible()
+  await expect(page.getByText('66.7%', { exact:true })).toBeVisible()
+  await expect(page.getByText('83.3%', { exact:true })).toBeVisible()
+  await expect(page.getByText('2.4 يوم', { exact:true })).toBeVisible()
+  await expect(page.getByText('النتائج حسب القسم')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'خطة العمل وفعالية التنفيذ')
+
+  await page.getByRole('button', { name:'فتح صفحة التنفيذ' }).click()
+  await expect(page).toHaveURL(/\/inventory\?status=out_of_stock$/)
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant reviews and approves a Trendyol return without technical identifiers', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
