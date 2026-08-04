@@ -777,6 +777,8 @@ test('merchant sends a customer invoice link from the order without technical fi
     payload:{ shipmentPackageId:packageRow.shipment_package_id, invoiceLink:'https://billing.example/invoices/T-INVOICE-552.pdf' },
   })
   await expect(dialog.getByText('تم إرسال رابط الفاتورة إلى Trendyol وربطه بهذه الشحنة.')).toBeVisible()
+  await expect(dialog.getByText('تم إرسال الفاتورة', { exact:true })).toBeVisible()
+  await expect(dialog.getByText('sent', { exact:true })).toHaveCount(0)
   await expect(dialog.getByText(/JSON|shipmentPackageId|serviceSourceId/)).toHaveCount(0)
   await expectNoSeriousAccessibilityViolations(page, 'إرسال رابط الفاتورة من الطلب')
   await page.screenshot({ path:testInfo.outputPath('order-invoice-link.png'), fullPage:true })

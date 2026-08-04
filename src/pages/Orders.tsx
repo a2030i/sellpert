@@ -50,6 +50,7 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
   shipped: 'تم الشحن', atcollectionpoint: 'في نقطة التجميع', delivered: 'تم التسليم', cancelled: 'ملغاة',
   returned: 'مرتجعة', unsupplied: 'تعذر التوريد', unpacked: 'بانتظار التجهيز',
   notinvoiced: 'لم تصدر الفاتورة', invoiceapproved: 'الفاتورة معتمدة', invoicerejected: 'الفاتورة مرفوضة',
+  sent: 'تم إرسال الفاتورة', accepted: 'تم قبول الفاتورة', rejected: 'الفاتورة مرفوضة', failed: 'تعذر إرسال الفاتورة',
 }
 
 function packageStatusLabel(status?: string | null) {
