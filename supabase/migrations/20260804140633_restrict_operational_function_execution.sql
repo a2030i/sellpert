@@ -52,6 +52,19 @@ revoke execute on function public.prepare_merchant_weekly_brief()
 grant execute on function public.prepare_merchant_weekly_brief()
   to service_role;
 
+-- Keep the shared timestamp trigger helper available in clean restores. It is
+-- an implementation detail for database triggers, not a browser-facing RPC.
+create or replace function public.update_updated_at()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 revoke execute on function public.update_updated_at()
   from public, anon, authenticated;
 grant execute on function public.update_updated_at()
