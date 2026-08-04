@@ -82,3 +82,19 @@ test('legal pages are reachable and readable without an account', async ({ page 
 
   expect(failures).toEqual([])
 })
+
+test('expired Auth links show a merchant-friendly recovery path and remove provider details', async ({ page }, testInfo) => {
+  const failures = collectRuntimeFailures(page)
+  const providerDescription = encodeURIComponent('Email link is invalid or has expired')
+
+  await page.goto(`/auth/recovery#error=access_denied&error_code=otp_expired&error_description=${providerDescription}`)
+
+  await expect(page.getByRole('alert')).toContainText('انتهت صلاحية رابط التحقق أو الاستعادة')
+  await expect(page.getByText('Email link is invalid or has expired')).toHaveCount(0)
+  await expect.poll(() => page.url()).not.toContain('error_code')
+  await expect(page).toHaveURL(/\/$/)
+  await expectNoSeriousAccessibilityViolations(page, 'خطأ رابط التحقق المنتهي')
+  await page.screenshot({ path: testInfo.outputPath('expired-auth-link.png'), fullPage: true })
+
+  expect(failures).toEqual([])
+})

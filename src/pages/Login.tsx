@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
-import { registrationErrorMessage } from '../lib/authErrors'
+import { authRedirectErrorMessage, cleanAuthRedirectUrl, registrationErrorMessage } from '../lib/authErrors'
 import { authCooldownRemaining, startAuthCooldown } from '../lib/authCooldown'
 
 export default function Login() {
+  const [redirectError] = useState(() => authRedirectErrorMessage(window.location))
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -14,7 +15,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(redirectError)
   const [success, setSuccess] = useState(() => new URLSearchParams(window.location.search).get('mfa') === 'recovered'
     ? 'تم استرداد الوصول وإيقاف التحقق بخطوتين. سجّل الدخول ثم فعّله من جديد واحفظ الرموز الجديدة.'
     : '')
@@ -33,6 +34,11 @@ export default function Login() {
     const timer = window.setInterval(refresh, 1_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!redirectError) return
+    window.history.replaceState(null, '', cleanAuthRedirectUrl(window.location))
+  }, [redirectError])
 
   async function handleLogin() {
     setLoading(true)
@@ -220,8 +226,8 @@ export default function Login() {
           </button>
         )}
 
-        {error && <div style={styles.error}>{error}</div>}
-        {success && <div style={styles.success}>{success}</div>}
+        {error && <div role="alert" style={styles.error}>{error}</div>}
+        {success && <div role="status" style={styles.success}>{success}</div>}
         {mode === 'register' && verificationPending ? <button type="button" onClick={handleResendVerification} disabled={loading || resendCooldown > 0} style={{ ...styles.forgot, width:'100%', textAlign:'center', opacity: resendCooldown > 0 ? .55 : 1 }}>
           {resendCooldown > 0 ? `يمكن إعادة إرسال التحقق بعد ${resendCooldown} ث` : 'لم تصل الرسالة؟ إعادة إرسال التحقق'}
         </button> : null}

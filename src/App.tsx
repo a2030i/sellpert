@@ -24,7 +24,7 @@ import {
   Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck, Eye, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
-import type { Session } from '@supabase/supabase-js'
+import type { EmailOtpType, Session } from '@supabase/supabase-js'
 import type { Merchant } from './lib/supabase'
 import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
 import { requiresMfaChallenge } from './lib/accountSecurity'
@@ -273,7 +273,7 @@ export default function App() {
     // Handle magic link / token_hash in URL (e.g. impersonate from admin)
     const params = new URLSearchParams(window.location.search)
     const tokenHash = params.get('token_hash')
-    const type = params.get('type') as 'magiclink' | 'recovery' | null
+    const type = params.get('type') as EmailOtpType | null
 
     if (tokenHash && type) {
       // Clear URL params first, then exchange token
@@ -283,6 +283,7 @@ export default function App() {
           if (type === 'recovery') setShowPasswordRecovery(true)
           continueSessionRef.current(data.session, type === 'recovery')
         } else {
+          window.history.replaceState(null, '', '/?auth_error=verification_failed')
           setLoading(false)
         }
       })
