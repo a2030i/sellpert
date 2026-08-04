@@ -455,38 +455,30 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
   const financeHeaders = { ...headers, storeFrontCode: 'SA' }
   const transactions: Array<{ transaction: any; source: TrendyolFinancialSource }> = []
   const orderCommissionTransactions: Array<{ transaction: any; direction: 1 | -1 }> = []
-  // Trendyol permits transactionTypes to contain multiple comma-separated
-  // values. This retrieves the complete current-account statement with two
-  // paginated requests per safe date window. Sale and Return are also read
-  // separately so exact per-order commission remains independent of the
-  // localised transaction label returned by the provider.
+  // The Saudi storefront is served by Trendyol's international finance API,
+  // which requires exactly one transactionType per request. Reuse Sale and
+  // Return responses for exact per-order commission instead of requesting
+  // those records twice.
   for (const window of splitRange(from, to, 13)) {
     for (const source of ['settlements', 'otherfinancials'] as const) {
       const transactionTypes = source === 'settlements' ? TRENDYOL_SETTLEMENT_TYPES : TRENDYOL_OTHER_FINANCIAL_TYPES
-      const params = new URLSearchParams({
-        transactionTypes: transactionTypes.join(','),
-        startDate: String(window.from.getTime()),
-        endDate: String(window.to.getTime()),
-      })
-      const sourceTransactions = await pagedContent(
-        `${TRENDYOL_FINANCE_API}/${encodeURIComponent(sellerId)}/${source}?${params}`,
-        financeHeaders,
-        500,
-      )
-      transactions.push(...sourceTransactions.map((transaction: any) => ({ transaction, source })))
-    }
-    for (const [transactionType, direction] of [['Sale', 1], ['Return', -1]] as const) {
-      const params = new URLSearchParams({
-        transactionType,
-        startDate: String(window.from.getTime()),
-        endDate: String(window.to.getTime()),
-      })
-      const commissionTransactions = await pagedContent(
-        `${TRENDYOL_FINANCE_API}/${encodeURIComponent(sellerId)}/settlements?${params}`,
-        financeHeaders,
-        500,
-      )
-      orderCommissionTransactions.push(...commissionTransactions.map((transaction: any) => ({ transaction, direction })))
+      for (const transactionType of transactionTypes) {
+        const params = new URLSearchParams({
+          transactionType,
+          startDate: String(window.from.getTime()),
+          endDate: String(window.to.getTime()),
+        })
+        const sourceTransactions = await pagedContent(
+          `${TRENDYOL_FINANCE_API}/${encodeURIComponent(sellerId)}/${source}?${params}`,
+          financeHeaders,
+          500,
+        )
+        transactions.push(...sourceTransactions.map((transaction: any) => ({ transaction, source })))
+        if (source === 'settlements') {
+          const direction: 1 | -1 = transactionType === 'Return' ? -1 : 1
+          orderCommissionTransactions.push(...sourceTransactions.map((transaction: any) => ({ transaction, direction })))
+        }
+      }
     }
   }
   const uniqueTransactions = new Map<string, { transaction: any; source: TrendyolFinancialSource }>()

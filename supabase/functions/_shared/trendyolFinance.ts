@@ -1,38 +1,16 @@
+// The Saudi storefront uses Trendyol's international current-account API.
+// Unlike the domestic endpoint, it accepts exactly one `transactionType` per
+// request and exposes this smaller, international set of transaction types.
 export const TRENDYOL_SETTLEMENT_TYPES = [
   'Sale',
   'Return',
-  'Discount',
-  'DiscountCancel',
-  'Coupon',
-  'CouponCancel',
-  'ProvisionPositive',
-  'ProvisionNegative',
-  'ManuelRefund',
-  'ManualRefundCancel',
-  'TYDiscount',
-  'TYDiscountCancel',
-  'TYCoupon',
-  'TYCouponCancel',
-  'SellerRevenuePositive',
-  'SellerRevenueNegative',
-  'CommissionPositive',
-  'CommissionNegative',
-  'SellerRevenuePositiveCancel',
-  'SellerRevenueNegativeCancel',
-  'CommissionPositiveCancel',
-  'CommissionNegativeCancel',
 ] as const
 
 export const TRENDYOL_OTHER_FINANCIAL_TYPES = [
-  'Stoppage',
-  'CashAdvance',
-  'WireTransfer',
-  'IncomingTransfer',
-  'ReturnInvoice',
-  'CommissionAgreementInvoice',
   'PaymentOrder',
   'DeductionInvoices',
-  'FinancialItem',
+  'CreditNote',
+  'CommissionInvoice',
 ] as const
 
 export type TrendyolFinancialSource = 'settlements' | 'otherfinancials'
@@ -87,4 +65,3 @@ export function trendyolTransactionNumber(
 export function trendyolCommissionAmount(transaction: Record<string, unknown>) {
   return absoluteNumber(transaction.commissionAmount)
 }
-

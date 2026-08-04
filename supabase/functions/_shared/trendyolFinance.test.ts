@@ -7,11 +7,11 @@ import {
   trendyolTransactionNumber,
 } from './trendyolFinance.ts'
 
-Deno.test('covers every transaction type published by Trendyol finance APIs', () => {
-  assertEquals(TRENDYOL_SETTLEMENT_TYPES.length, 22)
-  assertEquals(TRENDYOL_OTHER_FINANCIAL_TYPES.length, 9)
-  assertEquals(TRENDYOL_SETTLEMENT_TYPES.includes('CommissionNegativeCancel'), true)
+Deno.test('covers the transaction types published for the international finance API', () => {
+  assertEquals(TRENDYOL_SETTLEMENT_TYPES, ['Sale', 'Return'])
+  assertEquals(TRENDYOL_OTHER_FINANCIAL_TYPES.length, 4)
   assertEquals(TRENDYOL_OTHER_FINANCIAL_TYPES.includes('DeductionInvoices'), true)
+  assertEquals(TRENDYOL_OTHER_FINANCIAL_TYPES.includes('CommissionInvoice'), true)
 })
 
 Deno.test('uses debit and credit direction even when the response type is localised', () => {
