@@ -5,6 +5,7 @@ import { useMobile } from '../lib/hooks'
 import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
 import SettlementReconciliationPanel from '../components/SettlementReconciliationPanel'
+import BankStatementReconciliationPanel from '../components/BankStatementReconciliationPanel'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Landmark, RefreshCw } from 'lucide-react'
@@ -506,6 +507,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {stab === 'settlements' && (<>
             {financeMessage ? <div role="status" style={{ marginBottom:10, padding:'10px 12px', borderRadius:9, background:financeMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:financeMessage.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)', fontSize:11, fontWeight:700 }}>{financeMessage.text}</div> : null}
             <SettlementReconciliationPanel transactions={financialTransactions} refreshing={refreshingFinance} onRefresh={() => void refreshTrendyolFinance()} />
+            {merchantCode ? <BankStatementReconciliationPanel merchantCode={merchantCode} transactions={financialTransactions} year={year} month={month} /> : null}
             <PayoutCalendar merchantCode={merchant?.merchant_code} />
             <TransactionsLedger merchant={merchant} month={month} year={year} />
           </>)}

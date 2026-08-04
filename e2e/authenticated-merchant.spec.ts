@@ -224,6 +224,11 @@ test('accountant reconciles Trendyol settlements and sees exact transfer differe
     { id:'tx-5', platform:'trendyol', settlement_id:'SET-3', transaction_date:'2026-08-02T11:00:00Z', posted_date:null, transaction_type:'Sale', debit:0, credit:50, net_amount:50, currency:'SAR', upload_id:null },
     { id:'tx-6', platform:'trendyol', settlement_id:'SET-3', transaction_date:'2026-08-04T10:00:00Z', posted_date:'2026-08-04T10:00:00Z', transaction_type:'PaymentOrder', debit:45, credit:0, net_amount:-45, currency:'SAR', upload_id:null },
   ]
+  const bankTransactions = [
+    { id:'bank-1', transaction_date:'2026-08-04', value_date:'2026-08-04', description:'Trendyol payout SET-1', reference:'SET-1', debit:0, credit:90, net_amount:90, currency:'SAR' },
+    { id:'bank-2', transaction_date:'2026-08-05', value_date:'2026-08-05', description:'Marketplace payout', reference:'TRANSFER-2', debit:0, credit:45, net_amount:45, currency:'SAR' },
+  ]
+  let bankMatches: any[] = []
   let refreshed = false
 
   await page.route('**/rest/v1/**', async route => {
@@ -236,6 +241,14 @@ test('accountant reconciles Trendyol settlements and sees exact transfer differe
     else if (table === 'orders') payload = [{ id:'finance-order-1', sku:'SKU-1', quantity:1, status:'delivered', platform:'trendyol', platform_fee:10, upload_id:null, last_synced_at:'2026-08-04T10:00:00Z' }]
     else if (table === 'products') payload = [{ id:'finance-product-1', sku:'SKU-1', cost_price:40 }]
     else if (table === 'account_transactions') payload = transactions
+    else if (table === 'bank_transactions') payload = bankTransactions
+    else if (table === 'settlement_bank_matches') {
+      if (route.request().method() === 'POST') {
+        const inserted = route.request().postDataJSON() as any
+        bankMatches = [{ id:'bank-match-1', bank_transaction_id:inserted.bank_transaction_id, platform:inserted.platform, settlement_id:inserted.settlement_id, expected_amount:inserted.expected_amount, confirmed_at:'2026-08-05T12:00:00Z' }]
+        payload = []
+      } else payload = bankMatches
+    }
     else if (table === 'rpc' && url.pathname.endsWith('/merchant_payouts')) payload = { scheduled:[], pending_sales:[] }
     await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':Array.isArray(payload) && payload.length ? `0-${payload.length - 1}/${payload.length}` : '*/0' }, body:JSON.stringify(object ? (payload[0] ?? null) : payload) })
   })
@@ -255,11 +268,65 @@ test('accountant reconciles Trendyol settlements and sees exact transfer differe
   await settlementWithVariance.getByText(/تسوية SET-3/).click()
   await expect(settlementWithVariance.getByText('الفرق').first().locator('..')).toContainText('5.00')
   await expect(panel.getByText(/JSON|transaction_type|net_amount/)).toHaveCount(0)
+  const bankPanel = page.getByRole('region', { name:'المطابقة مع كشف البنك' })
+  await expect(bankPanel).toBeVisible()
+  await expect(bankPanel.getByText('وصل ومطابق', { exact:true })).toBeVisible()
+  await expect(bankPanel.getByText('مطابقة محتملة', { exact:true })).toBeVisible()
+  await expect(bankPanel.getByText(/JSON|transaction_key|bank_transaction_id/)).toHaveCount(0)
+  await bankPanel.getByRole('button', { name:'تأكيد المطابقة' }).click()
+  await expect(bankPanel.getByText('مؤكد من فريقك', { exact:true })).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page, 'مطابقة تسويات Trendyol')
   await panel.getByRole('button', { name:'تحديث من Trendyol' }).click()
   await expect.poll(() => refreshed).toBe(true)
   await expect(page.getByText('تم تحديث معاملات وتسويات Trendyol وإعادة المطابقة.')).toBeVisible()
   await page.screenshot({ path:testInfo.outputPath('settlement-reconciliation.png'), fullPage:false })
+  await bankPanel.screenshot({ path:testInfo.outputPath('bank-reconciliation.png') })
+  expect(runtimeErrors).toEqual([])
+})
+
+test('accountant imports an Arabic bank statement without exposing the full account number', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  let committedRows: any[] = []
+  const uploadId = '10000000-0000-4000-8000-000000000001'
+
+  await page.route('**/rest/v1/platform_file_uploads**', async route => {
+    const method = route.request().method()
+    const object = (route.request().headers().accept || '').includes('application/vnd.pgrst.object')
+    const body = method === 'POST' ? (object ? { id:uploadId } : [{ id:uploadId }]) : []
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':'*/0' }, body:JSON.stringify(body) })
+  })
+  await page.route('**/rest/v1/bank_transactions**', route => route.fulfill({
+    status:200, contentType:'application/json', headers:{ 'content-range':committedRows.length ? `0-${committedRows.length - 1}/${committedRows.length}` : '*/0' },
+    body:JSON.stringify(committedRows.map((row, index) => ({ id:`bank-import-${index}`, ...row, net_amount:Number(row.credit || 0) - Number(row.debit || 0) }))),
+  }))
+  await page.route('**/rest/v1/settlement_bank_matches**', route => route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':'*/0' }, body:'[]' }))
+  await page.route('**/rest/v1/rpc/commit_my_bank_statement', async route => {
+    const body = route.request().postDataJSON() as any
+    committedRows = body.p_rows
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ inserted:committedRows.length, processed:committedRows.length }) })
+  })
+  await page.route('**/storage/v1/object/merchant-imports/**', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ Key:'private-source' }) }))
+
+  await page.goto('/statement?tab=settlements')
+  const bankPanel = page.getByRole('region', { name:'المطابقة مع كشف البنك' })
+  const csv = [
+    'تاريخ العملية,الوصف,الرقم المرجعي,مدين,دائن,الرصيد,رقم الحساب',
+    '03/08/2026,تحويل ترنديول SET-1,SET-1,,90.50,1500.50,SA0012345678',
+    '04/08/2026,رسوم بنكية,FEE-1,2.25,,1498.25,SA0012345678',
+  ].join('\n')
+  await bankPanel.locator('input[type=file]').setInputFiles({ name:'bank-august.csv', mimeType:'text/csv', buffer:Buffer.from(csv, 'utf8') })
+  await expect(bankPanel.getByText('bank-august.csv')).toBeVisible()
+  await expect(bankPanel.getByText(/2 حركة/)).toBeVisible()
+  await bankPanel.getByRole('button', { name:'استيراد ومطابقة' }).click()
+  await expect(bankPanel.getByText('تم استيراد 2 حركة وإعادة المطابقة.')).toBeVisible()
+  expect(committedRows).toHaveLength(2)
+  expect(committedRows[0]).toMatchObject({ credit:90.5, debit:0, account_hint:'5678' })
+  expect(JSON.stringify(committedRows)).not.toContain('SA0012345678')
+  await expect(bankPanel.getByText('SA0012345678')).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'استيراد كشف البنك')
   expect(runtimeErrors).toEqual([])
 })
 
