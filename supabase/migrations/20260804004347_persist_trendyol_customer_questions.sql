@@ -68,6 +68,16 @@ CREATE POLICY tenant_boundary ON public.trendyol_question_reply_attempts
   USING ((SELECT security.can_access_merchant(merchant_code)))
   WITH CHECK ((SELECT security.can_access_merchant(merchant_code)));
 
+CREATE POLICY sellpert_require_mfa_if_enrolled ON public.trendyol_customer_questions
+  AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT security.mfa_access_allowed()))
+  WITH CHECK ((SELECT security.mfa_access_allowed()));
+
+CREATE POLICY sellpert_require_mfa_if_enrolled ON public.trendyol_question_reply_attempts
+  AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT security.mfa_access_allowed()))
+  WITH CHECK ((SELECT security.mfa_access_allowed()));
+
 CREATE POLICY merchant_permission_read ON public.trendyol_customer_questions
   FOR SELECT TO authenticated
   USING (

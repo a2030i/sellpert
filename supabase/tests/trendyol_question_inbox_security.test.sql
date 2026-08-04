@@ -36,6 +36,21 @@ begin
       raise exception 'tenant boundary is missing from public.%', relation_name;
     end if;
 
+    if not exists (
+      select 1
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = relation_name
+        and policyname = 'sellpert_require_mfa_if_enrolled'
+        and permissive = 'RESTRICTIVE'
+        and cmd = 'ALL'
+        and 'authenticated' = any(roles)
+        and coalesce(qual, '') ilike '%mfa_access_allowed%'
+        and coalesce(with_check, '') ilike '%mfa_access_allowed%'
+    ) then
+      raise exception 'MFA boundary is missing from public.%', relation_name;
+    end if;
+
     if has_table_privilege('anon', format('public.%I', relation_name), 'SELECT')
       or has_table_privilege('anon', format('public.%I', relation_name), 'INSERT')
       or has_table_privilege('anon', format('public.%I', relation_name), 'UPDATE')
