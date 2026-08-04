@@ -52,8 +52,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version: v2.9.4
       - name: Type-check every Supabase Edge Function
-        run: deno check supabase/functions/*/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
       - name: Test shared Edge Function security utilities
-        run: deno test supabase/functions/_shared/*.test.ts
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/*.test.ts

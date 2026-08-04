@@ -50,6 +50,7 @@ describe('deployment browser security', () => {
 
   it('pins the Supabase client used by the app and every Edge Function', () => {
     const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'))
+    const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8')
     const pinnedVersion = packageManifest.dependencies['@supabase/supabase-js'] as string
     const edgeFunctionEntries = readdirSync('supabase/functions', { withFileTypes: true })
       .filter(entry => entry.isDirectory() && !entry.name.startsWith('_'))
@@ -60,6 +61,8 @@ describe('deployment browser security', () => {
       })
 
     expect(pinnedVersion).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(ciWorkflow).toMatch(/deno-version:\s+v\d+\.\d+\.\d+/)
+    expect(ciWorkflow).toContain('deno check --node-modules-dir=auto')
     expect(edgeFunctionEntries.length).toBeGreaterThan(0)
     for (const path of edgeFunctionEntries) {
       expect(readFileSync(path, 'utf8'), path).toContain(`@supabase/supabase-js@${pinnedVersion}`)
