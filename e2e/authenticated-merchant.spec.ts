@@ -562,6 +562,56 @@ test('merchant follows a synced Trendyol order into product management', async (
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant starts preparing ready Trendyol shipments from one reviewed operations queue', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const order = {
+    id:'00000000-0000-4000-8000-000000000551', merchant_code:merchant.merchant_code, platform:'trendyol', order_id:'T-READY-551', status:'pending',
+    product_name:'قهوة عربية', sku:'COFFEE-551', quantity:2, unit_price:50, total_amount:100, gross_amount:100, platform_fee:10, shipping_cost:0,
+    currency:'SAR', customer_city:'Riyadh', order_date:'2026-08-04T10:00:00Z', upload_id:null, shipment_package_id:'PKG-551', cargo_tracking_number:null,
+    cargo_provider:null, commission_rate:10, vat_rate:15, discount_amount:0, created_at:'2026-08-04T10:00:00Z',
+  }
+  const packageRow = { id:'package-551', order_id:order.order_id, shipment_package_id:'PKG-551', status:'pending', provider_status:'Created', cargo_tracking_number:null, invoice_number:null, invoice_status:null, modified_at:'2026-08-04T10:00:00Z', raw:{} }
+  let submitted: any = null
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    let rows: any[] = []
+    if (table === 'merchants') rows = [merchant]
+    else if (table === 'orders') rows = [order]
+    else if (table === 'product_performance_snapshots') rows = []
+    else if (table === 'order_packages') rows = [packageRow]
+    else if (table === 'order_items') rows = [{ order_id:order.order_id, shipment_package_id:packageRow.shipment_package_id, line_id:77551, quantity:2 }]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    submitted = route.request().postDataJSON()
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, status:'success' }) })
+  })
+
+  await page.goto('/orders')
+  const operations = page.getByRole('region', { name:'مركز تشغيل الطلبات' })
+  await expect(operations).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'مركز تشغيل الطلبات')
+  await expect(operations.getByRole('button', { name:/بانتظار التجهيز.*1/ })).toBeVisible()
+  await operations.getByRole('button', { name:'بدء تجهيز الشحنات الجاهزة' }).click()
+  const dialog = page.getByRole('dialog', { name:'مراجعة بدء تجهيز الشحنات' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText(order.order_id, { exact:true })).toBeVisible()
+  await expect(dialog.getByText(/PKG-551|JSON/)).toHaveCount(0)
+  await page.screenshot({ path:testInfo.outputPath('order-operations-bulk-picking.png'), fullPage:true })
+  await dialog.getByRole('button', { name:'تأكيد بدء تجهيز 1 شحنة' }).click()
+  await expect.poll(() => submitted).toMatchObject({
+    merchant_code:merchant.merchant_code, action:'packages.status', confirm:true, storefront:'SA',
+    path:{ packageId:packageRow.shipment_package_id }, payload:{ status:'Picking', lines:[{ lineId:77551, quantity:2 }], params:{} },
+  })
+  await expect(operations.getByText('تم بدء تجهيز 1 شحنة في Trendyol بنجاح.')).toBeVisible()
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant prepares a local product for Trendyol without technical identifiers', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

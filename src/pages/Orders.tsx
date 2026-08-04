@@ -11,6 +11,7 @@ import { userErrorMessage } from '../lib/userError'
 import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
 import OrderExceptionPanel from '../components/OrderExceptionPanel'
 import { calculateOrderProfit } from '../lib/orderProfit'
+import { buildOrderOperationQueue, type OperationalPackage } from '../lib/orderOperations'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -72,6 +73,8 @@ function orderSource(o: Order) {
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
+  const [operationalPackages, setOperationalPackages] = useState<OperationalPackage[]>([])
+  const [pendingReturnCount, setPendingReturnCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [loadVersion, setLoadVersion] = useState(0)
@@ -95,6 +98,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [packageForm, setPackageForm] = useState({ invoiceNumber:'', trackingNumber:'', providerCode:'STARLINKS' })
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
+  const [bulkPickingRows, setBulkPickingRows] = useState<Array<{ orderId:string; packageId:string; lines:Array<{ lineId:number; quantity:number }> }>>([])
+  const [bulkPickingOpen, setBulkPickingOpen] = useState(false)
+  const [bulkPickingLoading, setBulkPickingLoading] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
 
@@ -114,9 +121,16 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
-    ]).then(([o, t]) => {
+      fetchAll<any>((f, t) =>
+        supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,modified_at,raw')
+          .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
+      supabase.from('returns').select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('status','pending'),
+    ]).then(([o, t, packageRows, returnResult]) => {
+      if (returnResult.error) throw returnResult.error
       setOrders(o)
       setTrendyolSnaps(t)
+      setOperationalPackages(packageRows)
+      setPendingReturnCount(returnResult.count || 0)
       const orderRef = new URLSearchParams(window.location.search).get('order')
       const linkedOrder = orderRef ? o.find(order => order.id === orderRef || order.order_id === orderRef) : null
       if (linkedOrder) void openOrder(linkedOrder)
@@ -166,6 +180,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const aov           = totalOrders > 0 ? totalRevenue / totalOrders : 0
   const needsActionCount = orders.filter(orderNeedsAction).length
   const financialReviewCount = orders.filter(o => Boolean(orderFinancialIssue(o))).length
+  const operationQueue = useMemo(() => buildOrderOperationQueue(orders, operationalPackages), [orders, operationalPackages])
 
   // Chart: orders per day
   const dailyData = useMemo(() => {
@@ -239,6 +254,69 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn'),
       })), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
     })
+  }
+
+  async function prepareBulkPicking() {
+    if (!merchant || bulkPickingLoading) return
+    const candidates = operationQueue.picking.slice(0, 20)
+    if (!candidates.length) {
+      setBulkMessage({ type:'err', text:'لا توجد شحنات جاهزة لبدء التجهيز الآن.' }); return
+    }
+    setBulkPickingLoading(true); setBulkMessage(null)
+    try {
+      const orderIds = [...new Set(candidates.map(row => row.order.order_id))]
+      const { data:items,error } = await supabase.from('order_items').select('order_id,shipment_package_id,line_id,quantity')
+        .eq('merchant_code',merchant.merchant_code).eq('platform','trendyol').in('order_id',orderIds)
+      if (error) throw error
+      const packageCountByOrder = new Map<string,number>()
+      for (const row of operationQueue.rows) packageCountByOrder.set(row.order.order_id,(packageCountByOrder.get(row.order.order_id) || 0) + 1)
+      const prepared = candidates.map(row => {
+        const packageId = String(row.package.shipment_package_id)
+        const lines = (items || []).filter(item => item.order_id === row.order.order_id &&
+          (String(item.shipment_package_id || '') === packageId || (!item.shipment_package_id && packageCountByOrder.get(row.order.order_id) === 1)))
+          .map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) }))
+          .filter(line => Number.isFinite(line.lineId) && Number.isInteger(line.quantity) && line.quantity > 0)
+        return { orderId:row.order.order_id, packageId, lines }
+      }).filter(row => row.lines.length)
+      if (!prepared.length) throw new Error('تفاصيل بنود الشحنات غير مكتملة. حدّث الطلبات من Trendyol ثم حاول مجددًا.')
+      setBulkPickingRows(prepared)
+      setBulkPickingOpen(true)
+      if (prepared.length < candidates.length) setBulkMessage({ type:'err', text:`تم استبعاد ${(candidates.length - prepared.length).toLocaleString('ar-SA-u-nu-latn')} شحنة لأن تفاصيل بنودها غير مكتملة.` })
+    } catch (error) {
+      setBulkMessage({ type:'err', text:userErrorMessage(error,'تعذر تجهيز قائمة الشحنات.') })
+    } finally { setBulkPickingLoading(false) }
+  }
+
+  async function submitBulkPicking() {
+    if (!merchant || !bulkPickingRows.length || bulkPickingLoading) return
+    setBulkPickingLoading(true); setBulkMessage(null)
+    const succeeded:string[] = []
+    const failed:Array<{ orderId:string; reason:string }> = []
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      for (const row of bulkPickingRows) {
+        try {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+            method:'POST',
+            headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+            body:JSON.stringify({ merchant_code:merchant.merchant_code, action:'packages.status', confirm:true, storefront:'SA', path:{ packageId:row.packageId }, payload:{ status:'Picking', lines:row.lines, params:{} } }),
+          })
+          const result = await response.json().catch(() => ({}))
+          if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol بدء التجهيز')
+          succeeded.push(row.packageId)
+        } catch (error) {
+          failed.push({ orderId:row.orderId, reason:userErrorMessage(error,'تعذر بدء التجهيز') })
+        }
+      }
+      if (succeeded.length) setOperationalPackages(current => current.map(row => succeeded.includes(String(row.shipment_package_id)) ? { ...row, provider_status:'Picking', status:'processing' } : row))
+      setBulkPickingOpen(false); setBulkPickingRows([])
+      setBulkMessage(failed.length
+        ? { type:'err', text:`بدأ تجهيز ${succeeded.length.toLocaleString('ar-SA-u-nu-latn')} شحنة، وتعذر ${failed.length.toLocaleString('ar-SA-u-nu-latn')}. افتح الطلبات المتعثرة لمراجعة السبب.` }
+        : { type:'ok', text:`تم بدء تجهيز ${succeeded.length.toLocaleString('ar-SA-u-nu-latn')} شحنة في Trendyol بنجاح.` })
+    } catch (error) {
+      setBulkMessage({ type:'err', text:userErrorMessage(error,'تعذر بدء التجهيز الجماعي.') })
+    } finally { setBulkPickingLoading(false) }
   }
 
   async function openOrder(order: Order) {
@@ -531,6 +609,22 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         <button style={S.exportBtn} onClick={exportCSV}>تصدير CSV</button>
       </div>
 
+      <section aria-label="مركز تشغيل الطلبات" style={{ ...S.card, padding:18, marginBottom:18 }}>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:14, flexWrap:'wrap' }}>
+          <div><div style={{ fontSize:14, fontWeight:850 }}>مركز تشغيل الطلبات</div><div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.7, marginTop:4 }}>طوابير العمل المستخرجة من حالة شحنات Trendyol الفعلية. ابدأ التجهيز جماعيًا، ثم أكمل الفاتورة والشحن من الطلب.</div></div>
+          <button disabled={!operationQueue.picking.length || bulkPickingLoading} onClick={() => void prepareBulkPicking()} style={{ ...S.primaryBtn, opacity:operationQueue.picking.length && !bulkPickingLoading ? 1 : .5 }}>{bulkPickingLoading && !bulkPickingOpen ? 'جارٍ تجهيز القائمة…' : 'بدء تجهيز الشحنات الجاهزة'}</button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(4,minmax(130px,1fr))', gap:8, marginTop:14 }}>
+          {[
+            ['بانتظار التجهيز',operationQueue.picking.length,'يبدأ من هنا'],
+            ['بانتظار الفاتورة',operationQueue.invoicing.length,'افتح الطلب'],
+            ['ينقصها بيانات الشحن',operationQueue.tracking.length,'افتح الطلب'],
+            ['مرتجعات تحتاج قرار',pendingReturnCount,'راجع المرتجعات'],
+          ].map(([label,value,hint]) => <button key={String(label)} onClick={() => { if (label === 'مرتجعات تحتاج قرار') { window.history.pushState(null,'','/statement?tab=returns'); window.dispatchEvent(new PopStateEvent('popstate')); return } setTab('list'); setPlatform('trendyol'); setStatus(label === 'بانتظار التجهيز' ? 'pending' : 'processing') }} style={{ textAlign:'right', padding:'11px 12px', border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)', color:'var(--text)', cursor:'pointer', fontFamily:'inherit' }}><span style={{ display:'block', color:'var(--text3)', fontSize:10 }}>{label}</span><strong style={{ display:'block', fontSize:19, marginTop:2 }}>{Number(value).toLocaleString('ar-SA-u-nu-latn')}</strong><small style={{ color:'var(--accent)', fontSize:9 }}>{hint}</small></button>)}
+        </div>
+        {bulkMessage ? <div role="status" style={{ marginTop:12, padding:'10px 12px', borderRadius:9, background:bulkMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:bulkMessage.type === 'ok' ? 'var(--accent2)' : 'var(--danger-text)', fontSize:11, lineHeight:1.7 }}>{bulkMessage.text}</div> : null}
+      </section>
+
       {/* FILTERS */}
       <div style={S.filtersRow}>
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -772,6 +866,20 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
+      {bulkPickingOpen && (
+        <div style={S.modalBackdrop} onClick={() => !bulkPickingLoading && setBulkPickingOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="مراجعة بدء تجهيز الشحنات" style={{ ...S.modal, maxWidth:620 }} onClick={event => event.stopPropagation()}>
+            <div style={S.modalHeader}><div><div style={{ fontSize:12, color:'var(--text3)', marginBottom:4 }}>إجراء جماعي</div><div style={{ fontSize:18, fontWeight:800 }}>مراجعة بدء تجهيز الشحنات</div></div><button disabled={bulkPickingLoading} onClick={() => setBulkPickingOpen(false)} style={S.closeBtn} aria-label="إغلاق">×</button></div>
+            <p style={{ fontSize:12, color:'var(--text2)', lineHeight:1.8, margin:'0 0 12px' }}>سيُرسل طلب مستقل وآمن لكل شحنة. نجاح شحنة لا يعتمد على بقية الدفعة، ولن نكرر الشحنات التي نجحت إذا تعثرت أخرى.</p>
+            <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', maxHeight:300, overflowY:'auto' }}>
+              {bulkPickingRows.map((row,index) => <div key={row.packageId} style={{ display:'grid', gridTemplateColumns:'36px minmax(0,1fr) 100px', gap:8, alignItems:'center', padding:'10px 12px', borderBottom:index < bulkPickingRows.length - 1 ? '1px solid var(--border)' : 'none', fontSize:11 }}><span style={{ color:'var(--text3)' }}>{index + 1}</span><strong style={{ fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis' }}>{row.orderId}</strong><span>{row.lines.length.toLocaleString('ar-SA-u-nu-latn')} بند</span></div>)}
+            </div>
+            <div style={{ padding:'10px 12px', borderRadius:9, background:'var(--warning-bg)', color:'var(--warning-text)', fontSize:11, lineHeight:1.7 }}>سيتم تغيير حالة هذه الشحنات إلى «قيد التجهيز» مباشرة في Trendyol. الحد الأقصى في الدفعة الواحدة 20 شحنة.</div>
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}><button disabled={bulkPickingLoading} onClick={() => setBulkPickingOpen(false)} style={S.actionBtn}>العودة</button><button disabled={bulkPickingLoading} onClick={() => void submitBulkPicking()} style={S.primaryBtn}>{bulkPickingLoading ? 'جارٍ تنفيذ الدفعة…' : `تأكيد بدء تجهيز ${bulkPickingRows.length.toLocaleString('ar-SA-u-nu-latn')} شحنة`}</button></div>
+          </div>
+        </div>
+      )}
+
       {selectedOrder && (
         <div style={S.modalBackdrop} onClick={closeOrder}>
           <div role="dialog" aria-modal="true" aria-label={`تفاصيل الطلب ${selectedOrder.order_id}`} style={S.modal} onClick={e => e.stopPropagation()}>
@@ -942,6 +1050,7 @@ const S: Record<string, React.CSSProperties> = {
   pageTitle:  { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
   pageSub:    { fontSize:13, color:'var(--text2)', marginTop:3 },
   exportBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' },
+  primaryBtn: { background:'var(--accent-strong)', border:'1px solid var(--accent-strong)', color:'#fff', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:750, cursor:'pointer', fontFamily:'inherit' },
   actionBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text2)', padding:'7px 11px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
   filtersRow: { display:'flex', flexDirection:'column', gap:10, marginBottom:20 },
   pill:       { padding:'7px 16px', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text2)', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer' },
