@@ -5,6 +5,59 @@ export type TrendyolProductSyncRows = {
   unapprovedVariants: number
 }
 
+export type TrendyolProductReviewState = {
+  status: 'processing' | 'success' | 'failed'
+  error: string | null
+  approvedContent: any[]
+  unapprovedContent: any[]
+}
+
+export function trendyolV2PageContent(value: unknown): any[] {
+  if (Array.isArray(value)) return value
+  const source = value as { content?: unknown; items?: unknown; data?: unknown } | null
+  if (Array.isArray(source?.content)) return source.content
+  if (Array.isArray(source?.items)) return source.items
+  if (Array.isArray(source?.data)) return source.data
+  return []
+}
+
+function productContainsBarcode(item: any, barcode: string) {
+  if (String(item?.barcode || '').trim() === barcode) return true
+  return Array.isArray(item?.variants) && item.variants.some((variant: any) => String(variant?.barcode || '').trim() === barcode)
+}
+
+/** Separates queue completion from Trendyol's later catalogue approval. */
+export function trendyolProductReviewState(approved: unknown, unapproved: unknown, barcodeValue: unknown): TrendyolProductReviewState {
+  const barcode = String(barcodeValue || '').trim()
+  if (!barcode) throw new Error('باركود المنتج مطلوب لمتابعة المراجعة')
+  const approvedContent = trendyolV2PageContent(approved).filter(item => productContainsBarcode(item, barcode))
+  const unapprovedContent = trendyolV2PageContent(unapproved).filter(item => productContainsBarcode(item, barcode))
+  if (approvedContent.length) return { status:'success', error:null, approvedContent, unapprovedContent:[] }
+  if (!unapprovedContent.length) return { status:'processing', error:null, approvedContent:[], unapprovedContent:[] }
+
+  const rejected = unapprovedContent.find(item => {
+    const status = String(item?.status || '').toLowerCase()
+    return status.includes('reject') || status.includes('fail') || rejectionText(item)
+  })
+  if (rejected) return {
+    status:'failed',
+    error:rejectionText(rejected) || 'رفض Trendyol المنتج. راجع البيانات المطلوبة ثم أعد إرساله للمراجعة.',
+    approvedContent:[],
+    unapprovedContent,
+  }
+  return { status:'processing', error:null, approvedContent:[], unapprovedContent }
+}
+
+export function storedTrendyolProductReviewState(product: any): { status:'processing'|'success'|'failed'; error:string|null } {
+  const approvalStatus = String(product?.raw?.approvalStatus || '').toLowerCase()
+  const rejection = String(product?.raw?.rejection || '').trim()
+  if (rejection || approvalStatus.includes('reject') || approvalStatus.includes('fail')) {
+    return { status:'failed', error:rejection || 'رفض Trendyol المنتج. راجع بياناته ثم أعد إرساله للمراجعة.' }
+  }
+  if (approvalStatus.includes('pending') || !String(product?.external_id || '').trim()) return { status:'processing', error:null }
+  return { status:'success', error:null }
+}
+
 type TrendyolCreateAttribute = {
   attributeId?: unknown
   attributeValueIds?: unknown
@@ -121,6 +174,25 @@ export function normalizeTrendyolProductCreateV2(payload: unknown) {
         normalized.deliveryOption = { deliveryDuration:duration, ...(fastDeliveryType ? { fastDeliveryType } : {}) }
       }
       return normalized
+    }),
+  }
+}
+
+export function normalizeTrendyolUnapprovedProductUpdateV2(payload: unknown) {
+  const sourceItems = (payload as { items?: unknown } | null)?.items
+  if (!Array.isArray(sourceItems)) throw new Error('بيانات تصحيح المنتج مطلوبة')
+  const normalized = normalizeTrendyolProductCreateV2({
+    items:sourceItems.map((item:any) => ({ ...item, quantity:0, listPrice:0, salePrice:0 })),
+  })
+  return {
+    items:normalized.items.map((item:any) => {
+      const { quantity: _quantity, listPrice: _listPrice, salePrice: _salePrice, attributes, ...product } = item
+      return {
+        ...product,
+        attributes:attributes.flatMap((attribute:any) => Array.isArray(attribute.attributeValueIds)
+          ? attribute.attributeValueIds.map((attributeValueId:number) => ({ attributeId:attribute.attributeId, attributeValueId }))
+          : [{ attributeId:attribute.attributeId, customAttributeValue:attribute.attributeValue }]),
+      }
     }),
   }
 }

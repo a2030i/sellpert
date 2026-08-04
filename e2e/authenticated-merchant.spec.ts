@@ -621,6 +621,76 @@ test('merchant prepares a local product for Trendyol without technical identifie
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant corrects a rejected Trendyol product and returns it to review', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+  const productId = '00000000-0000-4000-8000-000000000333'
+  const product = {
+    id:productId, merchant_code:merchant.merchant_code, name:'قهوة عربية فاخرة', sku:'COFFEE-REJECTED', barcode:'628100000002',
+    category:'القهوة', brand:'علامة تجريبية', description:'قهوة عربية محمصة بعناية.', target_net_price:54, sale_price:54, msrp:60,
+    vat_rate:20, model_code:'MODEL-2', platform_source:'trendyol_api_v2', images:[{ url:'https://cdn.example.test/coffee.jpg' }],
+    raw:{ approvalStatus:'rejected', rejection:'الصورة لا تطابق المنتج' },
+  }
+  const listing = {
+    id:'listing-rejected', merchant_code:merchant.merchant_code, product_id:productId, platform:'trendyol', title:product.name,
+    description:product.description, images:['https://cdn.example.test/coffee.jpg'], notes:'trendyol_product_create',
+    delivery_status:'failed', delivery_error:'الصورة لا تطابق المنتج', external_batch_id:'batch-rejected',
+  }
+  let submitted: any = null
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    const accept = route.request().headers().accept || ''
+    const object = accept.includes('application/vnd.pgrst.object')
+    let rows: any[] = []
+    if (table === 'merchants') rows = [merchant]
+    else if (table === 'products') rows = [product]
+    else if (table === 'product_platform_listings') rows = [listing]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(object ? (rows[0] ?? null) : rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    const body = route.request().postDataJSON() as any
+    if (body.action === 'products.v2_update_unapproved') {
+      submitted = body
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, status:'accepted', batchRequestId:'batch-correction' }) })
+      return
+    }
+    const data = body.action === 'categories.list'
+      ? { categories:[{ id:1, name:'الأغذية', subCategories:[{ id:2, name:'القهوة', subCategories:[] }] }] }
+      : body.action === 'seller.addresses'
+        ? { shipmentAddresses:[{ id:3, addressName:'مستودع الرياض' }] }
+        : body.action === 'brands.search'
+          ? { brands:[{ id:5, name:'علامة تجريبية' }] }
+          : body.action === 'categories.v2_attributes'
+            ? { categoryAttributes:[{ attribute:{ id:6, name:'نوع التحميص' }, required:true, allowCustom:false, attributeValues:[{ id:7, name:'متوسط' }] }] }
+            : {}
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ ok:true, data }) })
+  })
+
+  await page.goto(`/product-detail?id=${productId}`)
+  await expect(page.getByText('رفض Trendyol المنتج')).toBeVisible()
+  await expect(page.getByText('الصورة لا تطابق المنتج')).toBeVisible()
+  await page.getByRole('button', { name:'بدء تصحيح المنتج' }).click()
+
+  const brandField = page.locator('label').filter({ hasText:'العلامة التجارية' })
+  await brandField.getByRole('button', { name:'بحث' }).click()
+  await brandField.getByRole('button', { name:'علامة تجريبية' }).click()
+  const categoryField = page.locator('label').filter({ hasText:'فئة Trendyol النهائية' })
+  await categoryField.getByRole('textbox').fill('القهوة')
+  await categoryField.getByRole('button', { name:/الأغذية.*القهوة/ }).click()
+  await page.getByLabel('نوع التحميص — إلزامي').selectOption('7')
+  await page.getByRole('button', { name:'مراجعة المنتج قبل النشر' }).click()
+  await page.getByRole('button', { name:'تأكيد وإعادة المراجعة' }).click()
+
+  await expect.poll(() => submitted).toMatchObject({
+    action:'products.v2_update_unapproved', product_id:productId, confirm:true,
+    payload:{ items:[{ barcode:product.barcode, title:product.name, stockCode:product.sku }] },
+  })
+  expect(submitted.payload.items[0]).not.toHaveProperty('quantity')
+  expect(submitted.payload.items[0]).not.toHaveProperty('salePrice')
+  await expect(page.getByText('تم إرسال المنتج إلى Trendyol')).toBeVisible()
+})
+
 test('decision center explains evidence, value and action without misleading estimates', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

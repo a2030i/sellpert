@@ -1,5 +1,21 @@
 import { assertEquals, assertThrows } from 'jsr:@std/assert'
-import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2, normalizeTrendyolV2Products } from './trendyolProducts.ts'
+import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2, normalizeTrendyolUnapprovedProductUpdateV2, normalizeTrendyolV2Products, storedTrendyolProductReviewState, trendyolProductReviewState } from './trendyolProducts.ts'
+
+Deno.test('Product V2 review distinguishes queue completion from approval and rejection', () => {
+  assertEquals(trendyolProductReviewState({ content:[] }, { content:[{ barcode:'BAR-1', status:'pendingApproval' }] }, 'BAR-1').status, 'processing')
+  assertEquals(trendyolProductReviewState({ content:[{ contentId:10, variants:[{ barcode:'BAR-1' }] }] }, { content:[] }, 'BAR-1').status, 'success')
+  const rejected = trendyolProductReviewState({ content:[] }, { content:[{
+    barcode:'BAR-1', status:'rejected', rejectReasonDetails:[{ rejectReason:'الصورة غير مطابقة' }],
+  }] }, 'BAR-1')
+  assertEquals(rejected.status, 'failed')
+  assertEquals(rejected.error, 'الصورة غير مطابقة')
+})
+
+Deno.test('stored Product V2 rows drive background publication status', () => {
+  assertEquals(storedTrendyolProductReviewState({ external_id:null, raw:{ approvalStatus:'pendingApproval' } }), { status:'processing', error:null })
+  assertEquals(storedTrendyolProductReviewState({ external_id:'42', raw:{ approvalStatus:'onSale' } }), { status:'success', error:null })
+  assertEquals(storedTrendyolProductReviewState({ external_id:null, raw:{ approvalStatus:'rejected', rejection:'بيانات ناقصة' } }), { status:'failed', error:'بيانات ناقصة' })
+})
 
 Deno.test('Product Create V2 keeps only the supported normalized merchant fields', () => {
   const result = normalizeTrendyolProductCreateV2({ items:[{
@@ -38,6 +54,21 @@ Deno.test('Product Create V2 rejects unsafe or commercially invalid payloads', (
   assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, images:[{ url:'http://cdn.example.com/1.jpg' }] }] }), Error, 'HTTPS')
   assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, listPrice:50 }] }), Error, 'سعر البيع')
   assertThrows(() => normalizeTrendyolProductCreateV2({ items:[{ ...base, attributes:[{ attributeId:1 }] }] }), Error, 'اختر قيمة')
+})
+
+Deno.test('unapproved Product V2 correction uses the documented attribute contract and omits prices', () => {
+  const result = normalizeTrendyolUnapprovedProductUpdateV2({ items:[{
+    barcode:'BAR-1', title:'Corrected', productMainId:'MODEL-1', brandId:1, categoryId:2,
+    stockCode:'SKU-1', description:'Corrected description', vatRate:20,
+    images:[{ url:'https://cdn.example.com/1.jpg' }],
+    attributes:[{ attributeId:3, attributeValueIds:[4] }, { attributeId:5, attributeValue:'Custom' }],
+  }] }) as any
+  assertEquals(result.items[0].quantity, undefined)
+  assertEquals(result.items[0].salePrice, undefined)
+  assertEquals(result.items[0].attributes, [
+    { attributeId:3, attributeValueId:4 },
+    { attributeId:5, customAttributeValue:'Custom' },
+  ])
 })
 
 Deno.test('Product V2 normalization preserves Arabic content and variant financials', () => {

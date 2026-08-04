@@ -5,7 +5,7 @@ import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '.
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
-import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2 } from '../_shared/trendyolProducts.ts'
+import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2, normalizeTrendyolUnapprovedProductUpdateV2, normalizeTrendyolV2Products, trendyolProductReviewState } from '../_shared/trendyolProducts.ts'
 import { normalizeTrendyolCancelPayload, normalizeTrendyolSplitPayload, requestedTrendyolPackageLines, trendyolPackageLinesAreAvailable } from '../_shared/trendyolPackageMutations.ts'
 import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
 
@@ -202,6 +202,7 @@ Deno.serve(async req => {
         title:item.title,
         description:item.description,
         images:item.images.map((image:any) => image.url),
+        notes:'trendyol_product_create',
         delivery_status:'draft',
         delivery_error:null,
         updated_at:new Date().toISOString(),
@@ -281,24 +282,27 @@ Deno.serve(async req => {
     if (action === 'products.batch_result') {
       const batchId = clean(input?.path?.batchRequestId)
       const batchState = normalizeBatchState(result)
+      const effectiveState = batchState.status === 'success'
+        ? await reconcileCreatedProduct(admin, merchantCode, credentials.sellerId, headers, batchId, batchState)
+        : batchState
       const now = new Date().toISOString()
       await admin.from('marketplace_action_logs').update({
-        status:batchState.status, response:sanitize(result), error_message:batchState.error,
-        finished_at:['success','partial','failed'].includes(batchState.status) ? now : null,
+        status:effectiveState.status, response:sanitize(result), error_message:effectiveState.error,
+        finished_at:['success','partial','failed'].includes(effectiveState.status) ? now : null,
       }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('external_batch_id',batchId)
         .neq('action','products.batch_result')
       await admin.from('product_platform_listings').update({
-        delivery_status:batchState.status, delivery_error:batchState.error,
+        delivery_status:effectiveState.status, delivery_error:effectiveState.error,
         last_verified_at:now,
       }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('external_batch_id',batchId)
       await admin.from('marketplace_action_logs').update({
         status:'success', response:sanitize(result), finished_at:now,
       }).eq('id',logId)
-      return json({ ok:true, status:batchState.status, pendingApproval:['accepted','processing'].includes(batchState.status), error:batchState.error, data:result }, 200, cors)
+      return json({ ok:true, status:effectiveState.status, pendingApproval:['accepted','processing'].includes(effectiveState.status), error:effectiveState.error, data:result }, 200, cors)
     }
     const batchId = String(result?.batchRequestId || result?.batch_request_id || '') || null
     const finalStatus = batchId ? 'accepted' : 'success'
-    if (action === 'products.v2_create') {
+    if (action === 'products.v2_create' || action === 'products.v2_update_unapproved') {
       const now = new Date().toISOString()
       const { error: listingError } = await admin.from('product_platform_listings').update({
         delivery_status:finalStatus,
@@ -390,13 +394,13 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   }
 }
 async function validateProductContext(admin:any,merchantCode:string,action:string,input:any) {
-  if (action !== 'products.v2_create') return
+  if (action !== 'products.v2_create' && action !== 'products.v2_update_unapproved') return
   const productId = clean(input?.product_id)
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(productId)) {
     throw new HttpError(400, 'المنتج المحلي غير صالح')
   }
   const [productResult, listingResult] = await Promise.all([
-    admin.from('products').select('id,platform_source').eq('merchant_code',merchantCode).eq('id',productId).maybeSingle(),
+    admin.from('products').select('id,platform_source,raw').eq('merchant_code',merchantCode).eq('id',productId).maybeSingle(),
     admin.from('product_platform_listings').select('delivery_status').eq('merchant_code',merchantCode).eq('product_id',productId).eq('platform','trendyol').maybeSingle(),
   ])
   if (productResult.error) throw productResult.error
@@ -404,7 +408,67 @@ async function validateProductContext(admin:any,merchantCode:string,action:strin
   if (!productResult.data) throw new HttpError(404, 'المنتج غير موجود ضمن هذا المتجر')
   const alreadyPublished = String(productResult.data.platform_source || '').startsWith('trendyol') ||
     ['accepted','processing','success','partial'].includes(String(listingResult.data?.delivery_status || ''))
-  if (alreadyPublished) throw new HttpError(409, 'المنتج مرتبط بـ Trendyol بالفعل؛ استخدم تعديل المنتج بدل نشر نسخة جديدة')
+  if (action === 'products.v2_create' && alreadyPublished) throw new HttpError(409, 'المنتج مرتبط بـ Trendyol بالفعل؛ استخدم تعديل المنتج بدل نشر نسخة جديدة')
+  if (action === 'products.v2_update_unapproved') {
+    const providerStatus = String((productResult.data.raw as any)?.approvalStatus || '').toLowerCase()
+    const deliveryStatus = String(listingResult.data?.delivery_status || '')
+    if (['accepted','processing'].includes(deliveryStatus)) throw new HttpError(409, 'تصحيح المنتج قيد مراجعة Trendyol بالفعل')
+    const canCorrect = String(productResult.data.platform_source || '').startsWith('trendyol') &&
+      (deliveryStatus === 'failed' || providerStatus.includes('reject') || providerStatus.includes('pending'))
+    if (!canCorrect) throw new HttpError(409, 'هذا المنتج ليس ضمن المنتجات غير المقبولة التي يمكن تصحيحها')
+  }
+}
+
+async function fetchTrendyolProductPage(url:string,headers:Record<string,string>) {
+  const response = await fetch(url,{ headers })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new HttpError(response.status,trendyolError(data,response.status))
+  return data
+}
+
+async function reconcileCreatedProduct(
+  admin:any,
+  merchantCode:string,
+  sellerId:string,
+  headers:Record<string,string>,
+  batchId:string,
+  fallback:{status:'processing'|'success'|'partial'|'failed';error:string|null},
+) {
+  const [actionResult, listingResult] = await Promise.all([
+    admin.from('marketplace_action_logs').select('request').eq('merchant_code',merchantCode).eq('platform','trendyol')
+      .in('action',['products.v2_create','products.v2_update_unapproved']).eq('external_batch_id',batchId).maybeSingle(),
+    admin.from('product_platform_listings').select('product_id').eq('merchant_code',merchantCode).eq('platform','trendyol')
+      .eq('external_batch_id',batchId).maybeSingle(),
+  ])
+  if (actionResult.error) throw actionResult.error
+  if (listingResult.error) throw listingResult.error
+  if (!actionResult.data || !listingResult.data) return fallback
+  const request = actionResult.data.request as { payload?: { items?: Array<{ barcode?:unknown }> } } | null
+  const barcode = clean(request?.payload?.items?.[0]?.barcode)
+  if (!barcode) return fallback
+
+  const base = `${API}/integration/product/sellers/${encodeURIComponent(sellerId)}/products`
+  const query = `barcode=${encodeURIComponent(barcode)}&page=0&size=10`
+  const [approvedResult, unapprovedResult] = await Promise.all([
+    fetchTrendyolProductPage(`${base}/approved?${query}`,headers),
+    fetchTrendyolProductPage(`${base}/unapproved?${query}`,headers),
+  ])
+  const review = trendyolProductReviewState(approvedResult,unapprovedResult,barcode)
+  if (review.approvedContent.length || review.unapprovedContent.length) {
+    const now = new Date().toISOString()
+    const normalized = normalizeTrendyolV2Products(merchantCode,review.approvedContent,review.unapprovedContent,now)
+    const productRows = normalized.products.filter(row => String(row.barcode || '') === barcode)
+    const inventoryRows = normalized.inventory.filter(row => String((row.raw as any)?.variant?.barcode || '') === barcode || String(row.sku || '') === String(productRows[0]?.sku || ''))
+    if (productRows.length) {
+      const { error } = await admin.from('products').upsert(productRows,{ onConflict:'merchant_code,sku' })
+      if (error) throw error
+    }
+    if (inventoryRows.length) {
+      const { error } = await admin.from('inventory').upsert(inventoryRows,{ onConflict:'merchant_code,sku,platform' })
+      if (error) throw error
+    }
+  }
+  return { status:review.status, error:review.error }
 }
 function validateActionInput(action:string,input:any) {
   if (action === 'questions.list') {
@@ -449,6 +513,10 @@ function validateActionInput(action:string,input:any) {
   if (action === 'products.v2_create') {
     try { input.payload = normalizeTrendyolProductCreateV2(input?.payload) }
     catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'بيانات نشر المنتج غير مكتملة') }
+  }
+  if (action === 'products.v2_update_unapproved') {
+    try { input.payload = normalizeTrendyolUnapprovedProductUpdateV2(input?.payload) }
+    catch (error) { throw new HttpError(400,error instanceof Error ? error.message : 'بيانات تصحيح المنتج غير مكتملة') }
   }
   if (action === 'products.price_inventory') {
     const items = input?.payload?.items

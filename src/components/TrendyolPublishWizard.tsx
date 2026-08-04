@@ -17,6 +17,7 @@ type Props = {
   product: any
   merchantCode: string
   onSubmitted: (listing: any) => void
+  mode?: 'create' | 'repair'
 }
 
 const fieldStyle: React.CSSProperties = { width:'100%', boxSizing:'border-box', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', borderRadius:8, padding:'9px 11px', fontFamily:'inherit', fontSize:12, outline:'none' }
@@ -32,7 +33,8 @@ function resultData(result: any) {
   return result?.data ?? result
 }
 
-export default function TrendyolPublishWizard({ product, merchantCode, onSubmitted }: Props) {
+export default function TrendyolPublishWizard({ product, merchantCode, onSubmitted, mode = 'create' }: Props) {
+  const repairing = mode === 'repair'
   const [opened, setOpened] = useState(false)
   const [loadingReferences, setLoadingReferences] = useState(false)
   const [categories, setCategories] = useState<TrendyolCategoryOption[]>([])
@@ -161,8 +163,10 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
     if (!form.title.trim() || !form.description.trim() || !form.barcode.trim() || !form.stockCode.trim() || !form.productMainId.trim()) return 'أكمل اسم المنتج والوصف والباركود ورمز المخزون والموديل.'
     if (!imageUrls.length) return 'أضف صورة واحدة على الأقل للمنتج.'
     if (attributes.some(attribute => attribute.required && !(selectedAttributes[attribute.id]?.length || customAttributes[attribute.id]?.trim()))) return 'أكمل جميع خصائص الفئة الإلزامية.'
-    const quantity = Number(form.quantity), salePrice = Number(form.salePrice), listPrice = Number(form.listPrice)
-    if (!Number.isInteger(quantity) || quantity < 0 || !Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) return 'تحقق من المخزون والأسعار؛ السعر قبل الخصم لا يقل عن سعر البيع.'
+    if (!repairing) {
+      const quantity = Number(form.quantity), salePrice = Number(form.salePrice), listPrice = Number(form.listPrice)
+      if (!Number.isInteger(quantity) || quantity < 0 || !Number.isFinite(salePrice) || salePrice < 0 || !Number.isFinite(listPrice) || listPrice < salePrice) return 'تحقق من المخزون والأسعار؛ السعر قبل الخصم لا يقل عن سعر البيع.'
+    }
     return ''
   }
 
@@ -180,8 +184,7 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
     try {
       const payload: Record<string, any> = {
         barcode:form.barcode, title:form.title, productMainId:form.productMainId, brandId:brand.id, categoryId:category.id,
-        quantity:Number(form.quantity), stockCode:form.stockCode, description:form.description,
-        listPrice:Number(form.listPrice), salePrice:Number(form.salePrice), vatRate:Number(form.vatRate), origin:form.origin,
+        stockCode:form.stockCode, description:form.description, vatRate:Number(form.vatRate), origin:form.origin,
         images:imageUrls.map(url => ({ url })),
         attributes:attributes.flatMap<Record<string, unknown>>(attribute => {
           const ids = selectedAttributes[attribute.id] || []
@@ -189,33 +192,35 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
           return ids.length ? [{ attributeId:attribute.id, attributeValueIds:ids.map(Number) }] : custom ? [{ attributeId:attribute.id, attributeValue:custom }] : []
         }),
       }
+      if (!repairing) Object.assign(payload, { quantity:Number(form.quantity), listPrice:Number(form.listPrice), salePrice:Number(form.salePrice) })
       if (form.dimensionalWeight) payload.dimensionalWeight = Number(form.dimensionalWeight)
       if (form.shipmentAddressId) payload.shipmentAddressId = Number(form.shipmentAddressId)
       if (form.returningAddressId) payload.returningAddressId = Number(form.returningAddressId)
       if (form.deliveryDuration !== '') payload.deliveryOption = { deliveryDuration:Number(form.deliveryDuration), ...(form.fastDeliveryType ? { fastDeliveryType:form.fastDeliveryType } : {}) }
-      const result = await callTrendyol('products.v2_create', { product_id:product.id, payload:{ items:[payload] } }, true)
+      const result = await callTrendyol(repairing ? 'products.v2_update_unapproved' : 'products.v2_create', { product_id:product.id, payload:{ items:[payload] } }, true)
       const now = new Date().toISOString()
       const listing = {
         merchant_code:merchantCode, product_id:product.id, platform:'trendyol', title:form.title.trim(), description:form.description.trim(),
         images:imageUrls, delivery_status:result.status || (result.batchRequestId ? 'accepted' : 'success'), external_batch_id:result.batchRequestId || null,
+        notes:'trendyol_product_create',
         last_submitted_at:now, last_verified_at:now, delivery_error:null, updated_at:now,
       }
       onSubmitted(listing)
       setReviewing(false)
-      setMessage({ type:'ok', text:'تم إرسال المنتج إلى Trendyol. بدأت المنصة المراجعة وسنحدّث النتيجة تلقائيًا هنا.' })
-    } catch (error) { setMessage({ type:'err', text:userErrorMessage(error, 'تعذر إرسال المنتج إلى Trendyol.') }) }
+      setMessage({ type:'ok', text:repairing ? 'تم إرسال التصحيحات إلى Trendyol وإعادة المنتج للمراجعة.' : 'تم إرسال المنتج إلى Trendyol. بدأت المنصة المراجعة وسنحدّث النتيجة تلقائيًا هنا.' })
+    } catch (error) { setMessage({ type:'err', text:userErrorMessage(error, repairing ? 'تعذر إرسال تصحيح المنتج إلى Trendyol.' : 'تعذر إرسال المنتج إلى Trendyol.') }) }
     finally { setSubmitting(false) }
   }
 
   if (!opened) return <div style={{ padding:18, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
-    <div style={{ fontSize:15, fontWeight:750 }}>نشر المنتج في Trendyol</div>
-    <p style={{ margin:'6px 0 14px', color:'var(--text3)', fontSize:12, lineHeight:1.7 }}>هذا المنتج غير منشور في Trendyol بعد. سنستخدم بياناته الحالية ونطلب منك فقط اختيار معلومات المنصة اللازمة.</p>
-    <button onClick={() => void openWizard()} style={{ border:'none', borderRadius:8, background:'#9a3f00', color:'#fff', padding:'9px 16px', fontFamily:'inherit', fontWeight:700, cursor:'pointer' }}>بدء تجهيز المنتج</button>
+    <div style={{ fontSize:15, fontWeight:750 }}>{repairing ? 'تصحيح المنتج وإعادة المراجعة' : 'نشر المنتج في Trendyol'}</div>
+    <p style={{ margin:'6px 0 14px', color:'var(--text3)', fontSize:12, lineHeight:1.7 }}>{repairing ? 'راجع سبب الرفض أعلاه، ثم صحح بيانات المنتج كاملة. سنعيد إرساله مباشرة إلى مراجعة Trendyol.' : 'هذا المنتج غير منشور في Trendyol بعد. سنستخدم بياناته الحالية ونطلب منك فقط اختيار معلومات المنصة اللازمة.'}</p>
+    <button onClick={() => void openWizard()} style={{ border:'none', borderRadius:8, background:'#9a3f00', color:'#fff', padding:'9px 16px', fontFamily:'inherit', fontWeight:700, cursor:'pointer' }}>{repairing ? 'بدء تصحيح المنتج' : 'بدء تجهيز المنتج'}</button>
   </div>
 
   return <div style={{ padding:16, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
     <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'start', marginBottom:14 }}>
-      <div><div style={{ fontSize:15, fontWeight:750 }}>تجهيز المنتج للنشر في Trendyol</div><div style={{ color:'var(--text3)', fontSize:11, marginTop:4 }}>لن تظهر المعرفات التقنية للتاجر؛ الاختيارات تُرسل داخليًا إلى المنصة.</div></div>
+      <div><div style={{ fontSize:15, fontWeight:750 }}>{repairing ? 'تصحيح بيانات المنتج المرفوض' : 'تجهيز المنتج للنشر في Trendyol'}</div><div style={{ color:'var(--text3)', fontSize:11, marginTop:4 }}>لن تظهر المعرفات التقنية للتاجر؛ الاختيارات تُرسل داخليًا إلى المنصة.</div></div>
       <button onClick={() => setOpened(false)} style={{ border:'1px solid var(--border)', background:'var(--surface)', borderRadius:7, padding:'6px 9px', fontFamily:'inherit', cursor:'pointer' }}>إغلاق</button>
     </div>
     {loadingReferences ? <div role="status" style={{ padding:16, color:'var(--text3)', fontSize:12 }}>جارٍ تجهيز الفئات والعناوين من Trendyol…</div> : null}
@@ -227,12 +232,12 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
         <Field label="رمز الموديل"><input value={form.productMainId} maxLength={40} onChange={event => setForm(current => ({ ...current, productMainId:event.target.value }))} style={fieldStyle}/></Field>
       </div>
       <Field label="وصف المنتج"><textarea value={form.description} maxLength={30000} rows={4} onChange={event => setForm(current => ({ ...current, description:event.target.value }))} style={{ ...fieldStyle, resize:'vertical' }}/></Field>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
+      {!repairing ? <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
         <Field label="المخزون"><input type="number" min="0" max="20000" value={form.quantity} onChange={event => setForm(current => ({ ...current, quantity:event.target.value }))} style={fieldStyle}/></Field>
         <Field label="سعر البيع (ر.س)"><input type="number" min="0" step="0.01" value={form.salePrice} onChange={event => setForm(current => ({ ...current, salePrice:event.target.value }))} style={fieldStyle}/></Field>
         <Field label="السعر قبل الخصم (ر.س)"><input type="number" min="0" step="0.01" value={form.listPrice} onChange={event => setForm(current => ({ ...current, listPrice:event.target.value }))} style={fieldStyle}/></Field>
         <Field label="ضريبة القيمة المضافة"><select value={form.vatRate} onChange={event => setForm(current => ({ ...current, vatRate:event.target.value }))} style={fieldStyle}>{[0,1,10,20].map(value => <option key={value} value={value}>{value}%</option>)}</select></Field>
-      </div>
+      </div> : <Field label="ضريبة القيمة المضافة"><select value={form.vatRate} onChange={event => setForm(current => ({ ...current, vatRate:event.target.value }))} style={fieldStyle}>{[0,1,10,20].map(value => <option key={value} value={value}>{value}%</option>)}</select></Field>}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:10 }}>
         <Field label="العلامة التجارية">
           <div style={{ display:'flex', gap:6 }}><input value={brandQuery} onChange={event => { setBrandQuery(event.target.value); setBrand(null) }} style={fieldStyle}/><button onClick={() => void searchBrands()} style={secondaryButton}>بحث</button></div>
@@ -267,9 +272,9 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
     </> : <div>
       <div style={{ fontSize:14, fontWeight:750, marginBottom:10 }}>راجع المنتج قبل إرساله</div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8 }}>
-        {[['المنتج',form.title],['العلامة',brand?.name],['الفئة',category?.path],['المخزون',form.quantity],['سعر البيع',`${Number(form.salePrice).toFixed(2)} ر.س`],['الصور',`${imageUrls.length} صورة`],['الخصائص',`${attributes.filter(value => selectedAttributes[value.id]?.length || customAttributes[value.id]?.trim()).length} خاصية`]].map(([label,value]) => <div key={label} style={{ padding:10, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8 }}><div style={{ fontSize:10, color:'var(--text3)' }}>{label}</div><div style={{ fontSize:12, fontWeight:650, marginTop:4 }}>{value}</div></div>)}
+        {([['المنتج',form.title],['العلامة',brand?.name],['الفئة',category?.path],...(!repairing ? [['المخزون',form.quantity],['سعر البيع',`${Number(form.salePrice).toFixed(2)} ر.س`]] : []),['الصور',`${imageUrls.length} صورة`],['الخصائص',`${attributes.filter(value => selectedAttributes[value.id]?.length || customAttributes[value.id]?.trim()).length} خاصية`]] as Array<[string,any]>).map(([label,value]) => <div key={label} style={{ padding:10, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8 }}><div style={{ fontSize:10, color:'var(--text3)' }}>{label}</div><div style={{ fontSize:12, fontWeight:650, marginTop:4 }}>{value}</div></div>)}
       </div>
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:14 }}><button disabled={submitting} onClick={() => setReviewing(false)} style={secondaryButton}>العودة للتعديل</button><button disabled={submitting} onClick={() => void submit()} style={primaryButton}>{submitting ? 'جارٍ الإرسال…' : 'تأكيد ونشر في Trendyol'}</button></div>
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:14 }}><button disabled={submitting} onClick={() => setReviewing(false)} style={secondaryButton}>العودة للتعديل</button><button disabled={submitting} onClick={() => void submit()} style={primaryButton}>{submitting ? 'جارٍ الإرسال…' : repairing ? 'تأكيد وإعادة المراجعة' : 'تأكيد ونشر في Trendyol'}</button></div>
     </div>}
     {message ? <div role={message.type === 'err' ? 'alert' : 'status'} style={{ marginTop:12, padding:'10px 12px', borderRadius:8, background:message.type === 'err' ? 'var(--danger-bg)' : 'var(--success-bg)', color:message.type === 'err' ? 'var(--danger-text)' : 'var(--success-text)', fontSize:12, lineHeight:1.7 }}>{message.text}</div> : null}
   </div>

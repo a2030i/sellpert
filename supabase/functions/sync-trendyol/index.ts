@@ -16,7 +16,7 @@ import {
   trendyolLineFinancials,
   trendyolPackageId,
 } from '../_shared/trendyolOrders.ts'
-import { normalizeTrendyolV2Products } from '../_shared/trendyolProducts.ts'
+import { normalizeTrendyolV2Products, storedTrendyolProductReviewState } from '../_shared/trendyolProducts.ts'
 import {
   TRENDYOL_OTHER_FINANCIAL_TYPES,
   TRENDYOL_SETTLEMENT_TYPES,
@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
     details.product_transport = typeof productResult === 'object' && productResult ? (productResult as any).transport : null
     details.approved_products = typeof productResult === 'object' && productResult ? (productResult as any).approved_products : 0
     details.unapproved_products = typeof productResult === 'object' && productResult ? (productResult as any).unapproved_products : 0
+    details.product_publication_updates = typeof productResult === 'object' && productResult ? (productResult as any).publication_updates : 0
     details.customer_questions = await optionalResource('customer_questions', warnings, () =>
       syncCustomerQuestions(admin, merchantCode, credentials.sellerId, headers))
     // Settlement synchronization may refine order commissions. Rebuild the
@@ -565,13 +566,52 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
     const { error } = await admin.from('inventory').upsert(inventory.slice(index, index + 100), { onConflict: 'merchant_code,sku,platform' })
     if (error) throw error
   }
+  const publicationUpdates = await reconcilePendingProductPublications(admin,merchantCode)
   return {
     products: products.length,
     inventory: inventory.length,
     approved_products: normalized.approvedVariants,
     unapproved_products: normalized.unapprovedVariants,
+    publication_updates:publicationUpdates,
     transport: 'v2',
   }
+}
+
+async function reconcilePendingProductPublications(admin:any,merchantCode:string) {
+  const { data:listings,error:listingsError } = await admin.from('product_platform_listings')
+    .select('product_id,external_batch_id').eq('merchant_code',merchantCode).eq('platform','trendyol')
+    .eq('notes','trendyol_product_create').in('delivery_status',['accepted','processing'])
+  if (listingsError) throw listingsError
+  if (!listings?.length) return 0
+  const productIds = [...new Set(listings.map((listing:any) => listing.product_id).filter(Boolean))]
+  const { data:products,error:productsError } = await admin.from('products').select('id,external_id,raw')
+    .eq('merchant_code',merchantCode).in('id',productIds)
+  if (productsError) throw productsError
+  const productById = new Map((products || []).map((product:any) => [product.id,product]))
+  const now = new Date().toISOString()
+  let updated = 0
+  for (let index=0; index<listings.length; index+=20) {
+    const chunk = listings.slice(index,index+20)
+    await Promise.all(chunk.map(async (listing:any) => {
+      const product = productById.get(listing.product_id)
+      if (!product) return
+      const review = storedTrendyolProductReviewState(product)
+      const [listingUpdate,actionUpdate] = await Promise.all([
+        admin.from('product_platform_listings').update({
+          delivery_status:review.status, delivery_error:review.error, last_verified_at:now, updated_at:now,
+        }).eq('merchant_code',merchantCode).eq('product_id',listing.product_id).eq('platform','trendyol'),
+        listing.external_batch_id ? admin.from('marketplace_action_logs').update({
+          status:review.status, error_message:review.error,
+          finished_at:['success','failed'].includes(review.status) ? now : null,
+        }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('external_batch_id',listing.external_batch_id)
+          .in('action',['products.v2_create','products.v2_update_unapproved']) : Promise.resolve({ error:null }),
+      ])
+      if (listingUpdate.error) throw listingUpdate.error
+      if ((actionUpdate as any).error) throw (actionUpdate as any).error
+      updated++
+    }))
+  }
+  return updated
 }
 
 async function syncCustomerQuestions(

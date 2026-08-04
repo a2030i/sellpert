@@ -2,13 +2,25 @@ import { describe, expect, it } from 'vitest'
 import {
   deliveryStatusLabel,
   friendlyDeliveryError,
+  friendlyProductPublicationError,
   getProductContentChanges,
   productActionLabel,
   productActionMatches,
+  productPublicationStatusLabel,
   shortDeliveryReference,
 } from '../productDelivery'
 
 describe('product delivery lifecycle', () => {
+  it('does not confuse queue processing with product approval', () => {
+    expect(productPublicationStatusLabel('processing')).toBe('المنتج قيد مراجعة Trendyol')
+    expect(productPublicationStatusLabel('success')).toBe('تم اعتماد المنتج في Trendyol')
+    expect(productPublicationStatusLabel('failed')).toBe('رفض Trendyol المنتج')
+  })
+
+  it('keeps the exact marketplace rejection reason without exposing technical errors', () => {
+    expect(friendlyProductPublicationError('Image does not match the product')).toBe('Image does not match the product')
+    expect(friendlyProductPublicationError('new row violates row-level security policy for table products')).toContain('تعذر إكمال')
+  })
   it('does not report unchanged normalized content', () => {
     expect(getProductContentChanges(
       { title: 'قهوة عربية', description: 'وصف المنتج', images: ['https://img/1.jpg'] },

@@ -6,10 +6,12 @@ import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
 import {
   deliveryStatusLabel,
   friendlyDeliveryError,
+  friendlyProductPublicationError,
   getProductContentChanges,
   normalizeProductImages,
   productActionLabel,
   productActionMatches,
+  productPublicationStatusLabel,
   shortDeliveryReference,
 } from '../lib/productDelivery'
 import { userErrorMessage } from '../lib/userError'
@@ -144,7 +146,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       )}
 
       {/* Per-platform listings */}
-      <PerPlatformListings product={product} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={(product.images || []).map((image: any) => typeof image === 'string' ? image : image?.url).filter(Boolean)} />
+      <PerPlatformListings product={product} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={(product.images || []).map((image: any) => typeof image === 'string' ? image : image?.url).filter(Boolean)} onProductRefresh={setProduct} />
 
       {/* Inventory by platform */}
       {inventory.length > 0 && (
@@ -348,7 +350,7 @@ function SimBox({ label, value, sub, color }: { label: string; value: string; su
 }
 
 // ─── Per-Platform Listings ────────────────────────────────────────────────────
-function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescription, defaultImages }: { product: any; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[] }) {
+function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescription, defaultImages, onProductRefresh }: { product: any; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[]; onProductRefresh?: (product:any) => void }) {
   const productId = product.id
   const PLATFORMS = ['trendyol']
   const [listings, setListings] = useState<Record<string, any>>({})
@@ -409,7 +411,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       .select('id,action,status,error_message,external_batch_id,started_at,finished_at,request')
       .eq('merchant_code', merchantCode)
       .eq('platform', 'trendyol')
-      .in('action', ['products.v2_create', 'products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
+      .in('action', ['products.v2_create', 'products.v2_update_unapproved', 'products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
       .order('started_at', { ascending: false })
       .limit(100)
     if (error) setHistoryError('تعذر تحميل سجل تحديثات المنتج الآن.')
@@ -581,6 +583,10 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'تعذر تحديث حالة التعديل')
       setListings(previous => ({ ...previous, trendyol: { ...previous.trendyol, delivery_status: result.status, delivery_error: result.error || null, last_verified_at: new Date().toISOString() } }))
+      if (['success','failed','partial'].includes(String(result.status || ''))) {
+        const { data: refreshedProduct } = await supabase.from('products').select('*').eq('merchant_code',merchantCode).eq('id',productId).maybeSingle()
+        if (refreshedProduct) onProductRefresh?.(refreshedProduct)
+      }
       await loadActionHistory()
     } catch (error: any) {
       if (!quiet) setSaveMessage({ type: 'err', text: userErrorMessage(error, 'تعذّر تحديث حالة التعديل.') })
@@ -779,6 +785,32 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     product.raw?.contentId ||
     product.raw?.selectedVariant?.variantId,
   )
+  const isPublicationFlow = listings.trendyol?.notes === 'trendyol_product_create'
+  const isRejectedPublication = isPublicationFlow && listings.trendyol?.delivery_status === 'failed'
+
+  if (listingsLoaded && isRejectedPublication) return (
+    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18, marginBottom:16 }}>
+      <div style={{ fontSize:16, fontWeight:700, marginBottom:5 }}>إدارة المنتج في Trendyol</div>
+      <div role="status" style={{ marginTop:12, padding:14, borderRadius:9, background:'var(--danger-bg)', color:'var(--danger-text)' }}>
+        <div style={{ fontSize:13, fontWeight:750 }}>{productPublicationStatusLabel('failed')}</div>
+        <div style={{ marginTop:6, fontSize:12, lineHeight:1.7 }}>{friendlyProductPublicationError(listings.trendyol.delivery_error) || 'راجع بيانات المنتج ثم أعد إرساله للمراجعة.'}</div>
+        <ProductDeliveryProgress status="failed" publication />
+      </div>
+      <div style={{ marginTop:14 }}>
+        <Suspense fallback={<div role="status" style={{ padding:18, color:'var(--text3)', fontSize:12 }}>جارٍ تجهيز نموذج التصحيح…</div>}>
+          <TrendyolPublishWizard
+            mode="repair"
+            product={product}
+            merchantCode={merchantCode || ''}
+            onSubmitted={listing => {
+              setListings(current => ({ ...current, trendyol:listing }))
+              void loadActionHistory()
+            }}
+          />
+        </Suspense>
+      </div>
+    </div>
+  )
 
   if (listingsLoaded && !existsInTrendyol) return (
     <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18, marginBottom:16 }}>
@@ -817,10 +849,10 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         <div style={{ marginBottom:14, padding:'13px 14px', borderRadius:9, border:'1px solid var(--border)', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
           <div>
             <div role="status" aria-live="polite" style={{ fontSize:13, fontWeight:700, color: deliveryStatusColor(listings.trendyol.delivery_status) }}>
-              {deliveryStatusLabel(listings.trendyol.delivery_status)}
+              {isPublicationFlow ? productPublicationStatusLabel(listings.trendyol.delivery_status) : deliveryStatusLabel(listings.trendyol.delivery_status)}
             </div>
-            {listings.trendyol.delivery_error ? <div style={{ fontSize:12, color:'var(--danger-text)', marginTop:5 }}>{friendlyDeliveryError(listings.trendyol.delivery_error)}</div> : <div style={{ fontSize:12, color:'var(--text3)', marginTop:5 }}>تتحدث الحالة تلقائيًا؛ لا تعِد الإرسال أثناء المعالجة.</div>}
-            <ProductDeliveryProgress status={listings.trendyol.delivery_status} />
+            {listings.trendyol.delivery_error ? <div style={{ fontSize:12, color:'var(--danger-text)', marginTop:5 }}>{isPublicationFlow ? friendlyProductPublicationError(listings.trendyol.delivery_error) : friendlyDeliveryError(listings.trendyol.delivery_error)}</div> : <div style={{ fontSize:12, color:'var(--text3)', marginTop:5 }}>تتحدث الحالة تلقائيًا؛ لا تعِد الإرسال أثناء المعالجة.</div>}
+            <ProductDeliveryProgress status={listings.trendyol.delivery_status} publication={isPublicationFlow} />
             <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:6, fontSize:11, color:'var(--text3)' }}>
               {listings.trendyol.last_submitted_at ? <span>آخر إرسال: {formatDeliveryDate(listings.trendyol.last_submitted_at)}</span> : null}
               {listings.trendyol.external_batch_id ? <span>مرجع المتابعة: {shortDeliveryReference(listings.trendyol.external_batch_id)}</span> : null}
@@ -899,14 +931,14 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   )
 }
 
-function ProductDeliveryProgress({ status }: { status: unknown }) {
+function ProductDeliveryProgress({ status, publication = false }: { status: unknown; publication?: boolean }) {
   const normalized = String(status || '').toLowerCase()
   const terminal = ['success', 'partial', 'failed'].includes(normalized)
   const progress = terminal ? 100 : normalized === 'processing' ? 66 : normalized === 'accepted' ? 33 : 0
-  const lastLabel = normalized === 'failed' ? 'يحتاج تصحيحًا' : normalized === 'partial' ? 'اعتماد جزئي' : 'اعتماد التعديل'
+  const lastLabel = normalized === 'failed' ? 'يحتاج تصحيحًا' : normalized === 'partial' ? 'اعتماد جزئي' : publication ? 'اعتماد المنتج' : 'اعتماد التعديل'
   const steps = [
-    { label:'أُرسل إلى Trendyol', reached:progress >= 33 },
-    { label:'مراجعة المنصة', reached:progress >= 66 },
+    { label:publication ? 'أُرسل المنتج' : 'أُرسل إلى Trendyol', reached:progress >= 33 },
+    { label:publication ? 'مراجعة المنتج' : 'مراجعة المنصة', reached:progress >= 66 },
     { label:lastLabel, reached:terminal },
   ]
 
@@ -916,7 +948,7 @@ function ProductDeliveryProgress({ status }: { status: unknown }) {
     aria-valuemin={0}
     aria-valuemax={100}
     aria-valuenow={progress}
-    aria-valuetext={deliveryStatusLabel(status)}
+    aria-valuetext={publication ? productPublicationStatusLabel(status) : deliveryStatusLabel(status)}
     style={{ marginTop:11 }}
   >
     <div aria-hidden="true" style={{ height:4, borderRadius:999, background:'var(--border)', overflow:'hidden' }}>

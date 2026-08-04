@@ -30,6 +30,7 @@ const STATUS_LABELS: Record<ProductDeliveryStatus, string> = {
 
 const ACTION_LABELS: Record<string, string> = {
   'products.v2_create': 'نشر المنتج في Trendyol',
+  'products.v2_update_unapproved': 'تصحيح منتج غير مقبول',
   'products.v2_update_content': 'تعديل محتوى المنتج',
   'products.price_inventory': 'تحديث السعر والمخزون',
   'products.v2_update_delivery': 'تحديث مدة التجهيز والتوصيل',
@@ -87,6 +88,16 @@ export function deliveryStatusLabel(status: unknown) {
   return STATUS_LABELS[normalized] || 'حالة التعديل غير معروفة'
 }
 
+export function productPublicationStatusLabel(status: unknown) {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'accepted') return 'تم إرسال المنتج إلى Trendyol'
+  if (normalized === 'processing') return 'المنتج قيد مراجعة Trendyol'
+  if (normalized === 'success') return 'تم اعتماد المنتج في Trendyol'
+  if (normalized === 'partial') return 'تحتاج بعض بيانات المنتج إلى تصحيح'
+  if (normalized === 'failed') return 'رفض Trendyol المنتج'
+  return 'لم يبدأ نشر المنتج بعد'
+}
+
 export function productActionLabel(action: unknown) {
   return ACTION_LABELS[String(action || '')] || 'تحديث المنتج'
 }
@@ -107,6 +118,15 @@ export function friendlyDeliveryError(value: unknown) {
   if (/row-level security|postgres|postgrest|sqlstate|function\s|table\s|http\s*\d/i.test(message)) return 'تعذّر تسجيل طلب التعديل بأمان. أعد تحميل الصفحة ثم حاول مرة أخرى.'
   if (/[\u0600-\u06ff]/.test(message)) return message.length > 320 ? `${message.slice(0, 317)}…` : message
   return 'رفض Trendyol التعديل. راجع بيانات المنتج ثم أعد المحاولة.'
+}
+
+export function friendlyProductPublicationError(value: unknown) {
+  const message = cleanText(value)
+  if (!message) return ''
+  if (/\[object Object\]|^\{|^\[|row-level security|postgres|postgrest|sqlstate|function\s|table\s|http\s*\d/i.test(message)) {
+    return 'تعذر إكمال مراجعة المنتج. راجع بيانات المنتج والصور والخصائص ثم أعد إرساله.'
+  }
+  return message.length > 500 ? `${message.slice(0, 497)}…` : message
 }
 
 export function productActionMatches(action: MarketplaceProductAction, product: { external_id?: unknown; barcode?: unknown; raw?: Record<string, unknown> | null }) {
