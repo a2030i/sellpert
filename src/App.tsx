@@ -71,6 +71,7 @@ type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary
 const NAV_GROUPS: NavGroup[] = [
   { key: 'main', label: 'الرئيسية', items: [
     { Icon: LayoutDashboard, label: 'مركز القرارات', key: 'dashboard', permission: 'dashboard' },
+    { Icon: Bell, label: 'مركز المتابعة', key: 'notifications', permission: 'dashboard' },
   ]},
   { key: 'store', label: 'إدارة المتجر', items: [
     { Icon: ListChecks, label: 'خطة العمل', key: 'actions', permission: 'dashboard' },

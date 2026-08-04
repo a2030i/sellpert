@@ -212,7 +212,9 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
   const [verified, setVerified] = useState(false)
   const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null; created_at?: string | null; started_at?: string | null } | null>(null)
   const [syncDetails, setSyncDetails] = useState<any>(null)
-  const [showActions, setShowActions] = useState(false)
+  const [showActions, setShowActions] = useState(() =>
+    platform === 'trendyol' && !showAdvancedActions && new URLSearchParams(window.location.search).get('panel') === 'trendyol-questions',
+  )
   const [waitingQuestions, setWaitingQuestions] = useState<number | null>(null)
 
   const syncInProgress = ['pending', 'processing', 'running'].includes(syncJob?.status || '')

@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import type { Merchant } from '../lib/supabase'
-import { Bell, Check, AlertTriangle, Info, AlertCircle, RefreshCw, CheckCheck } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle, Bell, Check, CheckCheck, ChevronLeft, CircleDollarSign,
+  ClipboardCheck, PackageCheck, RefreshCw, Store, TriangleAlert,
+} from 'lucide-react'
+import { supabase, type Merchant } from '../lib/supabase'
+import {
+  attentionTotals, buildAttentionItems, type AttentionCenterInput,
+  type AttentionItem, type AttentionSeverity,
+} from '../lib/attentionCenter'
 import { PageHeader } from '../components/UI'
+import './Notifications.css'
 
-interface Notif {
+interface NotificationRow {
   id: string
   type: string
   title: string
@@ -14,131 +21,201 @@ interface Notif {
   created_at: string
 }
 
-const TYPE_META: Record<string, { color: string; bg: string; Icon: any }> = {
-  warning: { color: '#ff9900', bg: 'var(--warning-bg)', Icon: AlertTriangle },
-  error:   { color: '#e84040', bg: 'var(--danger-bg)', Icon: AlertCircle },
-  info:    { color: '#0f958c', bg: 'rgba(15,149,140,0.08)', Icon: Info },
-  success: { color: '#00b894', bg: 'var(--success-bg)', Icon: Check },
+type CenterData = AttentionCenterInput & { notifications: NotificationRow[] }
+type Tab = 'actions' | 'notifications'
+
+const EMPTY_DATA: CenterData = {
+  orders: [], packages: [], questions: [], listings: [], actionLogs: [], products: [], notifications: [],
 }
 
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'الآن'
-  if (m < 60) return `قبل ${m} دقيقة`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `قبل ${h} ساعة`
-  return `قبل ${Math.floor(h / 24)} يوم`
+const SEVERITY_META: Record<AttentionSeverity, { label: string; Icon: typeof AlertCircle }> = {
+  urgent: { label: 'عاجل', Icon: TriangleAlert },
+  attention: { label: 'يحتاج متابعة', Icon: AlertCircle },
+  info: { label: 'استكمال بيانات', Icon: CircleDollarSign },
+}
+
+const CATEGORY_LABEL: Record<AttentionItem['category'], string> = {
+  orders: 'الطلبات والشحن', customers: 'خدمة العملاء', catalog: 'المنتجات', finance: 'الربحية', integration: 'الربط',
+}
+
+function navigate(path: string) {
+  window.history.pushState(null, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+function timeAgo(iso?: string | null) {
+  if (!iso) return ''
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000))
+  if (minutes < 1) return 'الآن'
+  if (minutes < 60) return `قبل ${minutes.toLocaleString('ar-SA-u-nu-latn')} دقيقة`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `قبل ${hours.toLocaleString('ar-SA-u-nu-latn')} ساعة`
+  return `قبل ${Math.floor(hours / 24).toLocaleString('ar-SA-u-nu-latn')} يوم`
+}
+
+function resultData<T>(result: PromiseSettledResult<{ data: T[] | null; error: unknown }>, failedSources: string[], source: string): T[] {
+  if (result.status === 'rejected' || result.value.error) {
+    failedSources.push(source)
+    return []
+  }
+  return result.value.data || []
 }
 
 export default function Notifications({ merchant }: { merchant: Merchant | null }) {
-  const [notifs, setNotifs] = useState<Notif[]>([])
+  const [data, setData] = useState<CenterData>(EMPTY_DATA)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'unread' | 'warning'>('all')
+  const [refreshing, setRefreshing] = useState(false)
+  const [failedSources, setFailedSources] = useState<string[]>([])
+  const [tab, setTab] = useState<Tab>('actions')
+  const merchantCode = merchant?.merchant_code
 
-  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
-
-  async function load() {
-    if (!merchant) return
-    setLoading(true)
-    const { data } = await supabase.from('notifications').select('*').eq('merchant_code', merchant.merchant_code)
-      .order('created_at', { ascending: false }).limit(200)
-    setNotifs((data as Notif[]) || [])
+  const load = useCallback(async (quiet = false) => {
+    if (!merchantCode) return
+    if (quiet) setRefreshing(true)
+    else setLoading(true)
+    const results = await Promise.allSettled([
+      supabase.from('orders').select('id,order_id,status,cargo_tracking_number,total_amount,platform_fee,unit_price,quantity,sku,order_date')
+        .eq('merchant_code', merchantCode).order('order_date', { ascending: true }).limit(500),
+      supabase.from('order_packages').select('order_id,status,cargo_tracking_number,invoice_status,invoice_rejected_reasons,modified_at')
+        .eq('merchant_code', merchantCode).order('modified_at', { ascending: true }).limit(500),
+      supabase.from('trendyol_customer_questions').select('status,asked_at')
+        .eq('merchant_code', merchantCode).order('asked_at', { ascending: true }).limit(500),
+      supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,updated_at')
+        .eq('merchant_code', merchantCode).order('updated_at', { ascending: false }).limit(500),
+      supabase.from('marketplace_action_logs').select('status,action,error_message,started_at')
+        .eq('merchant_code', merchantCode).order('started_at', { ascending: false }).limit(100),
+      supabase.from('products').select('sku,cost_price')
+        .eq('merchant_code', merchantCode).limit(2000),
+      supabase.from('notifications').select('id,type,title,body,is_read,action_path,created_at')
+        .eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(200),
+    ])
+    const failures: string[] = []
+    setData({
+      orders: resultData(results[0] as any, failures, 'الطلبات'),
+      packages: resultData(results[1] as any, failures, 'الشحنات'),
+      questions: resultData(results[2] as any, failures, 'أسئلة العملاء'),
+      listings: resultData(results[3] as any, failures, 'تحديثات المنتجات'),
+      actionLogs: resultData(results[4] as any, failures, 'عمليات الربط'),
+      products: resultData(results[5] as any, failures, 'تكاليف المنتجات'),
+      notifications: resultData(results[6] as any, failures, 'الإشعارات'),
+    })
+    setFailedSources(failures)
     setLoading(false)
+    setRefreshing(false)
+  }, [merchantCode])
+
+  useEffect(() => { void load() }, [load])
+
+  const attentionItems = useMemo(() => buildAttentionItems(data), [data])
+  const totals = useMemo(() => attentionTotals(attentionItems), [attentionItems])
+  const unread = data.notifications.filter(row => !row.is_read).length
+
+  async function generateNew() {
+    if (!merchantCode) return
+    setRefreshing(true)
+    await supabase.rpc('generate_proactive_alerts', { p_merchant_code: merchantCode })
+    await load(true)
   }
 
   async function markRead(id: string) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
-    setNotifs(p => p.map(n => n.id === id ? { ...n, is_read: true } : n))
-  }
-  async function markAllRead() {
-    if (!merchant) return
-    await supabase.from('notifications').update({ is_read: true }).eq('merchant_code', merchant.merchant_code).eq('is_read', false)
-    setNotifs(p => p.map(n => ({ ...n, is_read: true })))
-  }
-  async function generateNew() {
-    if (!merchant) return
-    setLoading(true)
-    await supabase.rpc('generate_proactive_alerts', { p_merchant_code: merchant.merchant_code })
-    await load()
+    if (!merchantCode) return
+    await supabase.from('notifications').update({ is_read: true }).eq('merchant_code', merchantCode).eq('id', id)
+    setData(current => ({ ...current, notifications: current.notifications.map(row => row.id === id ? { ...row, is_read: true } : row) }))
   }
 
-  const filtered = notifs.filter(n =>
-    filter === 'all' ? true :
-    filter === 'unread' ? !n.is_read :
-    n.type === 'warning' || n.type === 'error'
-  )
-  const unread = notifs.filter(n => !n.is_read).length
+  async function markAllRead() {
+    if (!merchantCode) return
+    await supabase.from('notifications').update({ is_read: true }).eq('merchant_code', merchantCode).eq('is_read', false)
+    setData(current => ({ ...current, notifications: current.notifications.map(row => ({ ...row, is_read: true })) }))
+  }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 800, margin: '0 auto' }}>
-      <PageHeader title="التنبيهات" description={unread > 0 ? `${unread} تنبيه غير مقروء يحتاج مراجعتك.` : 'لا توجد تنبيهات جديدة.'} icon={Bell} action={<>
-        <button onClick={generateNew} disabled={loading} style={btn('var(--accent)')}><RefreshCw size={14} className={loading ? 'spin' : ''} /> فحص الآن</button>
-        {unread > 0 && <button onClick={markAllRead} style={btn('var(--surface2)', 'var(--text2)')}><CheckCheck size={14} /> تعليم الكل كمقروء</button>}
-      </>} />
+    <main className="attention-page">
+      <PageHeader
+        title="مركز المتابعة"
+        description="كل ما يحتاج تدخلك الآن، مرتب حسب الأولوية مع انتقال مباشر إلى مكان الحل."
+        icon={ClipboardCheck}
+        action={<button className="attention-refresh" onClick={generateNew} disabled={refreshing}>
+          <RefreshCw size={15} className={refreshing ? 'spin' : ''} /> تحديث المتابعة
+        </button>}
+      />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
-        {[
-          { k: 'all', label: 'الكل', count: notifs.length },
-          { k: 'unread', label: 'غير مقروء', count: unread },
-          { k: 'warning', label: 'تحذيرات', count: notifs.filter(n => n.type === 'warning' || n.type === 'error').length },
-        ].map(f => (
-          <button key={f.k} onClick={() => setFilter(f.k as any)} style={{
-            padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit',
-            background: filter === f.k ? 'var(--accent)' : 'var(--surface2)',
-            color: filter === f.k ? '#fff' : 'var(--text2)',
-          }}>{f.label} ({f.count})</button>
-        ))}
-      </div>
+      <section className="attention-summary" aria-label="ملخص المتابعة">
+        <SummaryCard label="إجمالي البنود" value={totals.total} Icon={ClipboardCheck} tone="neutral" />
+        <SummaryCard label="عاجل" value={totals.urgent} Icon={TriangleAlert} tone="urgent" />
+        <SummaryCard label="يحتاج متابعة" value={totals.attention} Icon={AlertCircle} tone="attention" />
+        <SummaryCard label="استكمال بيانات" value={totals.info} Icon={CircleDollarSign} tone="info" />
+      </section>
 
-      {loading ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>جارٍ التحميل…</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ padding: 60, textAlign: 'center' }}>
-          <Bell size={48} color="var(--text3)" style={{ marginBottom: 12 }} />
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text2)' }}>لا توجد تنبيهات</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map(n => {
-            const meta = TYPE_META[n.type] || TYPE_META.info
-            return (
-              <div key={n.id} style={{
-                background: n.is_read ? 'var(--surface)' : meta.bg,
-                border: `1px solid ${n.is_read ? 'var(--border)' : meta.color + '40'}`,
-                borderRadius: 12, padding: '14px 16px',
-                display: 'flex', gap: 12,
-                cursor: n.action_path ? 'pointer' : 'default',
-              }}
-                onClick={() => {
-                  if (!n.is_read) markRead(n.id)
-                  if (n.action_path) {
-                    window.history.pushState(null, '', n.action_path)
-                    window.dispatchEvent(new PopStateEvent('popstate'))
-                  }
-                }}>
-                <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: meta.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <meta.Icon size={18} color={meta.color} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{n.title}</div>
-                    {!n.is_read && <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />}
-                  </div>
-                  {n.body && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{n.body}</div>}
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{timeAgo(n.created_at)}</div>
-                </div>
-              </div>
-            )
-          })}
+      {failedSources.length > 0 && (
+        <div className="attention-partial" role="status">
+          بعض البيانات لم تُحمّل الآن: {failedSources.join('، ')}. بقية النتائج المعروضة ما زالت صالحة ويمكن تحديثها لاحقًا.
         </div>
       )}
-    </div>
+
+      <div className="attention-tabs" role="tablist" aria-label="أقسام مركز المتابعة">
+        <button role="tab" aria-selected={tab === 'actions'} className={tab === 'actions' ? 'active' : ''} onClick={() => setTab('actions')}>
+          المطلوب الآن <span>{totals.total.toLocaleString('ar-SA-u-nu-latn')}</span>
+        </button>
+        <button role="tab" aria-selected={tab === 'notifications'} className={tab === 'notifications' ? 'active' : ''} onClick={() => setTab('notifications')}>
+          سجل الإشعارات <span>{unread.toLocaleString('ar-SA-u-nu-latn')}</span>
+        </button>
+      </div>
+
+      {loading ? <CenterLoading /> : tab === 'actions' ? (
+        attentionItems.length === 0 ? <AllClear /> : (
+          <section className="attention-list" aria-label="الإجراءات المطلوبة">
+            {attentionItems.map(item => <ActionCard key={item.id} item={item} />)}
+          </section>
+        )
+      ) : (
+        <section className="notification-log">
+          <div className="notification-log-head">
+            <div><h2>سجل الإشعارات</h2><p>التحديثات السابقة والتنبيهات التي أنشأها النظام.</p></div>
+            {unread > 0 ? <button onClick={markAllRead}><CheckCheck size={15} /> تعليم الكل كمقروء</button> : null}
+          </div>
+          {data.notifications.length === 0 ? (
+            <div className="attention-empty compact"><Bell size={28} /><strong>لا توجد إشعارات مسجلة</strong></div>
+          ) : data.notifications.map(row => (
+            <button key={row.id} className={`notification-row ${row.is_read ? '' : 'unread'}`} onClick={() => {
+              if (!row.is_read) void markRead(row.id)
+              if (row.action_path) navigate(row.action_path)
+            }}>
+              <span className="notification-state">{row.is_read ? <Check size={15} /> : <span />}</span>
+              <span className="notification-copy"><strong>{row.title}</strong>{row.body ? <small>{row.body}</small> : null}</span>
+              <time>{timeAgo(row.created_at)}</time>
+              {row.action_path ? <ChevronLeft size={17} /> : null}
+            </button>
+          ))}
+        </section>
+      )}
+    </main>
   )
 }
 
-function btn(bg: string, color: string = '#fff'): React.CSSProperties {
-  return { background: bg, border: '1px solid var(--border)', color, padding: '8px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }
+function SummaryCard({ label, value, Icon, tone }: { label: string; value: number; Icon: typeof AlertCircle; tone: string }) {
+  return <article className={`attention-kpi ${tone}`}><span><Icon size={18} /></span><div><strong>{value.toLocaleString('ar-SA-u-nu-latn')}</strong><small>{label}</small></div></article>
+}
+
+function ActionCard({ item }: { item: AttentionItem }) {
+  const { Icon, label } = SEVERITY_META[item.severity]
+  return (
+    <article className={`attention-action ${item.severity}`}>
+      <div className="attention-action-icon"><Icon size={19} /></div>
+      <div className="attention-action-copy">
+        <div className="attention-action-meta"><span>{label}</span><span>{CATEGORY_LABEL[item.category]}</span>{item.occurredAt ? <time>{timeAgo(item.occurredAt)}</time> : null}</div>
+        <h2>{item.title}<b>{item.count.toLocaleString('ar-SA-u-nu-latn')}</b></h2>
+        <p>{item.description}</p>
+      </div>
+      <button onClick={() => navigate(item.path)}>{item.actionLabel}<ChevronLeft size={16} /></button>
+    </article>
+  )
+}
+
+function CenterLoading() {
+  return <div className="attention-loading"><RefreshCw size={22} className="spin" /><span>جاري فحص بيانات المتجر…</span></div>
+}
+
+function AllClear() {
+  return <div className="attention-empty"><div><PackageCheck size={30} /></div><h2>لا توجد أعمال عاجلة الآن</h2><p>الطلبات والربط والمنتجات لا تعرض استثناءات تحتاج تدخلك في الوقت الحالي.</p><span><Store size={14} /> آخر فحص تم من بيانات متجرك فقط</span></div>
 }

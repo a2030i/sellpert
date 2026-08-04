@@ -139,6 +139,7 @@ export interface Order {
   quantity: number
   unit_price: number
   total_amount: number
+  gross_amount?: number | null
   platform_fee?: number
   shipping_cost?: number
   currency: string

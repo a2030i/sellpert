@@ -1,6 +1,6 @@
 import type { Order } from './supabase'
 
-type FinancialOrder = Pick<Order, 'total_amount' | 'platform_fee' | 'unit_price' | 'quantity'>
+type FinancialOrder = Pick<Order, 'total_amount' | 'unit_price' | 'quantity'> & { platform_fee?: number | null }
 type ActionableOrder = Pick<Order, 'status' | 'cargo_tracking_number'>
 
 export function orderFinancialIssue(order: FinancialOrder): string | null {

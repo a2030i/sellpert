@@ -10,6 +10,7 @@ import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
 import { userErrorMessage } from '../lib/userError'
 import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
 import OrderExceptionPanel from '../components/OrderExceptionPanel'
+import { calculateOrderProfit } from '../lib/orderProfit'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -88,6 +89,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [selectedPackages, setSelectedPackages] = useState<any[]>([])
   const [activePackageId, setActivePackageId] = useState('')
   const [selectedActions, setSelectedActions] = useState<any[]>([])
+  const [selectedProductCosts, setSelectedProductCosts] = useState<Map<string, number>>(() => new Map())
   const [detailLoading, setDetailLoading] = useState(false)
   const [orderActionLoading, setOrderActionLoading] = useState(false)
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
@@ -107,7 +109,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
@@ -240,9 +242,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function openOrder(order: Order) {
-    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setInvoiceFile(null); setDetailLoading(true); setOrderActionMessage(null)
+    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setSelectedProductCosts(new Map()); setInvoiceFile(null); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
-      supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
+      supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at,gross_amount').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
       supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('modified_at', { ascending:false }),
       order.platform === 'trendyol'
@@ -257,6 +259,21 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setSelectedPackages(packageRows)
     setActivePackageId(initialPackageId)
     setSelectedActions((actions.data || []).filter(log => String(log.request?.path?.packageId || '') === initialPackageId && packageIds.has(initialPackageId)).slice(0,8))
+    const detailItems = items.data || []
+    const skus = [...new Set([order.sku, ...detailItems.map(item => item.sku)].filter(Boolean).map(String))]
+    const barcodes = [...new Set(detailItems.map(item => item.barcode).filter(Boolean).map(String))]
+    const [skuCosts, barcodeCosts] = await Promise.all([
+      skus.length ? supabase.from('products').select('sku,barcode,cost_price').eq('merchant_code', order.merchant_code).in('sku', skus) : Promise.resolve({ data: [] }),
+      barcodes.length ? supabase.from('products').select('sku,barcode,cost_price').eq('merchant_code', order.merchant_code).in('barcode', barcodes) : Promise.resolve({ data: [] }),
+    ])
+    const costs = new Map<string, number>()
+    for (const product of [...(skuCosts.data || []), ...(barcodeCosts.data || [])]) {
+      const cost = Number(product.cost_price || 0)
+      if (cost <= 0) continue
+      if (product.sku) costs.set(`sku:${String(product.sku).trim().toLowerCase()}`, cost)
+      if (product.barcode) costs.set(`barcode:${String(product.barcode).trim().toLowerCase()}`, cost)
+    }
+    setSelectedProductCosts(costs)
     setDetailLoading(false)
   }
 
@@ -456,6 +473,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const activePackage = selectedPackages.find(item => String(item.shipment_package_id) === activePackageId) || null
   const activePackageItems = selectedItems.filter(item => !item.shipment_package_id || String(item.shipment_package_id) === activePackageId)
   const packageWorkflow = trendyolPackageWorkflow(activePackage, selectedOrder?.status)
+  const selectedOrderFees = selectedOrder?.platform === 'trendyol'
+    ? (selectedItems.length
+      ? selectedItems.reduce((sum, item) => sum + Number(item.line_total || Number(item.unit_price || 0) * Number(item.quantity || 1)) * Number(item.commission_rate || 0) / 100 * 1.15, 0)
+      : selectedOrder ? trendyolCommission(selectedOrder) : 0)
+    : Number(selectedOrder?.platform_fee || 0)
+  const selectedOrderProfit = selectedOrder
+    ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees)
+    : null
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
@@ -768,6 +793,30 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               <div style={{ fontSize:11, fontWeight:800, color:'var(--warning-text)' }}>القيم المالية تحتاج مراجعة</div>
               <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{orderFinancialIssue(selectedOrder)} راجع تعريف أعمدة الملف قبل الاعتماد على ربحية هذا الطلب.</div>
             </div> : null}
+            {selectedOrderProfit ? <section style={{ marginBottom:16, padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'flex-start', marginBottom:11 }}>
+                <div><div style={{ fontSize:12, fontWeight:850 }}>صافي الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3, lineHeight:1.6 }}>الإجمالي ناقص عمولة المنصة والشحن والخصومات وتكلفة المنتجات المسجلة.</div></div>
+                <div style={{ textAlign:'left' }}>
+                  <strong style={{ display:'block', fontSize:18, color:selectedOrderProfit.netProfit === null ? 'var(--warning-text)' : selectedOrderProfit.netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
+                    {selectedOrderProfit.netProfit === null ? 'غير مكتمل' : fmtExact(selectedOrderProfit.netProfit)}
+                  </strong>
+                  <small style={{ color:'var(--text3)', fontSize:9 }}>{selectedOrderProfit.costComplete ? 'محسوب من البيانات المتاحة' : `ينقص تكلفة ${selectedOrderProfit.missingCostUnits.toLocaleString('ar-SA-u-nu-latn')} وحدة`}</small>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(105px,1fr))', gap:7 }}>
+                {[
+                  [selectedOrderProfit.usesGrossAmount ? 'قبل الخصم' : 'إجمالي الطلب', selectedOrderProfit.revenue],
+                  ['عمولة المنصة', -selectedOrderProfit.fees],
+                  ['الشحن', -selectedOrderProfit.shipping],
+                  ['الخصومات', -selectedOrderProfit.discounts],
+                  ['تكلفة المنتجات', selectedOrderProfit.costComplete ? -selectedOrderProfit.productCost : null],
+                ].map(([label,value]) => <div key={String(label)} style={{ padding:'8px 9px', border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)' }}>
+                  <div style={{ fontSize:9, color:'var(--text3)', marginBottom:4 }}>{label}</div>
+                  <div style={{ fontSize:11, fontWeight:800, color:Number(value) < 0 ? 'var(--danger-text)' : 'var(--text)' }}>{value === null ? 'غير متاح' : fmtExact(Number(value))}</div>
+                </div>)}
+              </div>
+              {!selectedOrderProfit.costComplete ? <button onClick={() => { closeOrder(); window.history.pushState(null,'','/products?costs=import'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ ...S.actionBtn, marginTop:10, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)' }}>استكمال تكاليف المنتجات</button> : null}
+            </section> : null}
             {selectedPackages.length ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
                 <div><div style={{ fontSize:12, fontWeight:800 }}>شحنات الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>اختر الشحنة لعرض حالتها وشركة الشحن ورقم التتبع. إجراءات التنفيذ المباشر تظهر فقط عندما تدعمها المنصة.</div></div>
@@ -840,11 +889,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ['الكمية', selectedOrder.quantity.toLocaleString('ar-SA')],
                 ['سعر الوحدة', fmt(selectedOrder.unit_price || 0)],
                 ['إجمالي الطلب', fmt(selectedOrder.total_amount)],
-                [selectedOrder.platform === 'trendyol' ? 'العمولة (شاملة ضريبة القيمة المضافة)' : 'رسوم المنصة', fmtExact(selectedOrder.platform === 'trendyol'
-                  ? (selectedItems.length
-                    ? selectedItems.reduce((sum, item) => sum + Number(item.line_total || Number(item.unit_price || 0) * Number(item.quantity || 1)) * Number(item.commission_rate || 0) / 100 * 1.15, 0)
-                    : trendyolCommission(selectedOrder))
-                  : Number(selectedOrder.platform_fee || 0))],
+                [selectedOrder.platform === 'trendyol' ? 'العمولة (شاملة ضريبة القيمة المضافة)' : 'رسوم المنصة', fmtExact(selectedOrderFees)],
                 ['نسبة العمولة', selectedOrder.commission_rate ? `${Number(selectedOrder.commission_rate).toLocaleString('ar-SA', { maximumFractionDigits: 2 })}%` : '—'],
                 ['الخصومات', fmt(selectedOrder.discount_amount || 0)],
                 ['تكلفة الشحن', fmt(selectedOrder.shipping_cost || 0)],

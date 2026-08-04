@@ -1,0 +1,66 @@
+.attention-page { max-width: 1080px; margin: 0 auto; padding: 28px 32px 56px; }
+.attention-refresh { border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 8px; padding: 9px 14px; display: inline-flex; align-items: center; gap: 7px; font: 700 12px inherit; cursor: pointer; }
+.attention-refresh:disabled { opacity: .65; cursor: wait; }
+.attention-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+.attention-kpi { min-height: 86px; display: flex; align-items: center; gap: 13px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.attention-kpi > span { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: var(--surface2); color: var(--text2); }
+.attention-kpi div { display: flex; flex-direction: column; gap: 1px; }
+.attention-kpi strong { font-size: 22px; line-height: 1.25; color: var(--text); font-variant-numeric: tabular-nums; }
+.attention-kpi small { color: var(--text2); font-size: 11px; font-weight: 650; }
+.attention-kpi.urgent > span { background: var(--danger-bg); color: var(--danger-text); }
+.attention-kpi.attention > span { background: var(--warning-bg); color: var(--warning-text); }
+.attention-kpi.info > span { background: rgba(15,149,140,.1); color: var(--accent); }
+.attention-partial { padding: 11px 14px; margin: -8px 0 18px; border: 1px solid var(--warning-bg); border-radius: 9px; background: var(--warning-bg); color: var(--warning-text); font-size: 12px; line-height: 1.7; }
+.attention-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.attention-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text2); padding: 10px 12px; font: 700 13px inherit; cursor: pointer; }
+.attention-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.attention-tabs button span { margin-right: 5px; padding: 1px 7px; border-radius: 10px; background: var(--surface2); font-size: 10px; }
+.attention-tabs button.active span { background: rgba(15,149,140,.1); }
+.attention-list { display: flex; flex-direction: column; gap: 10px; }
+.attention-action { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 16px; border: 1px solid var(--border); border-right-width: 3px; border-radius: 11px; background: var(--surface); }
+.attention-action.urgent { border-right-color: var(--danger-text); }
+.attention-action.attention { border-right-color: var(--warning-text); }
+.attention-action.info { border-right-color: var(--accent); }
+.attention-action-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px; background: var(--surface2); color: var(--text2); }
+.attention-action.urgent .attention-action-icon { background: var(--danger-bg); color: var(--danger-text); }
+.attention-action.attention .attention-action-icon { background: var(--warning-bg); color: var(--warning-text); }
+.attention-action.info .attention-action-icon { background: rgba(15,149,140,.1); color: var(--accent); }
+.attention-action-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.attention-action-meta span, .attention-action-meta time { font-size: 10px; color: var(--text3); }
+.attention-action-meta span:first-child { color: var(--text2); font-weight: 750; }
+.attention-action-meta > * + *::before { content: '·'; margin-left: 7px; color: var(--text3); }
+.attention-action h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; color: var(--text); }
+.attention-action h2 b { min-width: 24px; padding: 1px 7px; border-radius: 10px; background: var(--surface2); color: var(--text2); font-size: 10px; text-align: center; }
+.attention-action p { margin: 4px 0 0; color: var(--text2); font-size: 12px; line-height: 1.65; }
+.attention-action > button { border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); padding: 8px 11px; display: inline-flex; align-items: center; gap: 5px; font: 700 11px inherit; cursor: pointer; white-space: nowrap; }
+.attention-action > button:hover { border-color: var(--accent); color: var(--accent); }
+.attention-loading { min-height: 220px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text2); font-size: 13px; }
+.attention-empty { min-height: 270px; border: 1px dashed var(--border2); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; background: var(--surface); }
+.attention-empty > div { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: var(--success-bg); color: var(--success-text); }
+.attention-empty h2 { font-size: 16px; margin: 13px 0 4px; }
+.attention-empty p { max-width: 470px; margin: 0; font-size: 12px; line-height: 1.7; color: var(--text2); }
+.attention-empty > span { margin-top: 14px; display: flex; align-items: center; gap: 5px; color: var(--text3); font-size: 10px; }
+.attention-empty.compact { min-height: 180px; gap: 10px; color: var(--text3); }
+.notification-log { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.notification-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); }
+.notification-log-head h2 { margin: 0; font-size: 14px; }
+.notification-log-head p { margin: 3px 0 0; color: var(--text3); font-size: 11px; }
+.notification-log-head button { border: 0; background: transparent; color: var(--accent); display: inline-flex; align-items: center; gap: 5px; font: 700 11px inherit; cursor: pointer; }
+.notification-row { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 18px; align-items: center; gap: 10px; padding: 13px 16px; text-align: right; font-family: inherit; cursor: pointer; }
+.notification-row:last-child { border-bottom: 0; }
+.notification-row.unread { background: rgba(15,149,140,.045); }
+.notification-state { color: var(--text3); display: grid; place-items: center; }
+.notification-state > span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.notification-copy { display: flex; flex-direction: column; gap: 3px; }
+.notification-copy strong { font-size: 12px; }
+.notification-copy small { color: var(--text2); font-size: 11px; line-height: 1.55; }
+.notification-row time { color: var(--text3); font-size: 10px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .attention-page { padding: 16px 14px 88px; }
+  .attention-summary { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .attention-kpi { min-height: 72px; padding: 12px; }
+  .attention-action { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
+  .attention-action > button { grid-column: 2; justify-self: start; }
+  .notification-row { grid-template-columns: 20px minmax(0, 1fr) 14px; }
+  .notification-row time { display: none; }
+}
