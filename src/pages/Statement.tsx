@@ -7,6 +7,7 @@ import PayoutCalendar from '../components/PayoutCalendar'
 import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Landmark } from 'lucide-react'
+import { financialTransactionMeta } from '../lib/trendyolFinance'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -572,12 +573,12 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ ...S.td, fontSize: 11, whiteSpace: 'nowrap' }}>{d}</td>
                   <td style={{ ...S.td, fontSize: 11, color: meta?.color, fontWeight: 700 }}>{meta?.label || r.platform}</td>
-                  <td style={{ ...S.td, fontSize: 11 }}>{r.transaction_type || '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11 }}>{financialTransactionMeta(r.transaction_type).label}</td>
                   <td style={{ ...S.td, fontSize: 11, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text2)' }} title={r.description || ''}>{r.description || r.amount_description || '—'}</td>
                   <td style={{ ...S.td, fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{r.order_id || '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{r.debit > 0 ? r.debit.toLocaleString() : '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.credit > 0 ? r.credit.toLocaleString() : '—'}</td>
-                  <td style={{ ...S.td, fontSize: 11, fontWeight: 700, color: r.net_amount >= 0 ? 'var(--text)' : 'var(--danger-text)', fontFamily: 'monospace' }}>{Number(r.net_amount || 0).toLocaleString()}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'var(--font-data)' }}>{Number(r.debit) > 0 ? Number(r.debit).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, color: 'var(--success-text)', fontFamily: 'var(--font-data)' }}>{Number(r.credit) > 0 ? Number(r.credit).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                  <td style={{ ...S.td, fontSize: 11, fontWeight: 700, color: r.net_amount >= 0 ? 'var(--text)' : 'var(--danger-text)', fontFamily: 'var(--font-data)' }}>{Number(r.net_amount || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               )
             })}

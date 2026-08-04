@@ -17,6 +17,14 @@ import {
   trendyolPackageId,
 } from '../_shared/trendyolOrders.ts'
 import { normalizeTrendyolV2Products } from '../_shared/trendyolProducts.ts'
+import {
+  TRENDYOL_OTHER_FINANCIAL_TYPES,
+  TRENDYOL_SETTLEMENT_TYPES,
+  trendyolCommissionAmount,
+  trendyolFinancialAmounts,
+  trendyolTransactionNumber,
+  type TrendyolFinancialSource,
+} from '../_shared/trendyolFinance.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
 
 const corsHeaders = {
@@ -100,8 +108,11 @@ Deno.serve(async (req) => {
       syncOrderItems(admin, merchantCode, credentials.sellerId, shipments, headers))
     details.returns = await optionalResource('returns', warnings, () =>
       syncReturns(admin, merchantCode, credentials.sellerId, from, to, headers))
-    details.settlements = await optionalResource('settlements', warnings, () =>
+    const financeResult = await optionalResource('finance', warnings, () =>
       syncSettlements(admin, merchantCode, credentials.sellerId, from, to, headers))
+    details.settlements = typeof financeResult === 'object' && financeResult ? (financeResult as any).settlements : financeResult
+    details.other_financials = typeof financeResult === 'object' && financeResult ? (financeResult as any).other_financials : 0
+    details.financial_transactions = typeof financeResult === 'object' && financeResult ? (financeResult as any).total : financeResult
     const productResult = await optionalResource('products', warnings, () =>
       syncProducts(admin, merchantCode, credentials.sellerId, headers))
     details.products = typeof productResult === 'object' && productResult ? (productResult as any).products : productResult
@@ -438,27 +449,54 @@ async function syncReturns(admin: any, merchantCode: string, sellerId: string, f
 
 async function syncSettlements(admin: any, merchantCode: string, sellerId: string, from: Date, to: Date, headers: Record<string, string>) {
   const financeHeaders = { ...headers, storeFrontCode: 'SA' }
-  const transactions: any[] = []
-  // Finance API enforces a short date interval as well; use the same safe
-  // 13-day windows as orders and retrieve Sale/Return independently.
+  const transactions: Array<{ transaction: any; source: TrendyolFinancialSource }> = []
+  const orderCommissionTransactions: Array<{ transaction: any; direction: 1 | -1 }> = []
+  // Trendyol permits transactionTypes to contain multiple comma-separated
+  // values. This retrieves the complete current-account statement with two
+  // paginated requests per safe date window. Sale and Return are also read
+  // separately so exact per-order commission remains independent of the
+  // localised transaction label returned by the provider.
   for (const window of splitRange(from, to, 13)) {
-    for (const transactionType of ['Sale', 'Return']) {
+    for (const source of ['settlements', 'otherfinancials'] as const) {
+      const transactionTypes = source === 'settlements' ? TRENDYOL_SETTLEMENT_TYPES : TRENDYOL_OTHER_FINANCIAL_TYPES
       const params = new URLSearchParams({
-        transactionType, startDate: String(window.from.getTime()), endDate: String(window.to.getTime()),
+        transactionTypes: transactionTypes.join(','),
+        startDate: String(window.from.getTime()),
+        endDate: String(window.to.getTime()),
       })
-      transactions.push(...await pagedContent(
+      const sourceTransactions = await pagedContent(
+        `${TRENDYOL_FINANCE_API}/${encodeURIComponent(sellerId)}/${source}?${params}`,
+        financeHeaders,
+        500,
+      )
+      transactions.push(...sourceTransactions.map((transaction: any) => ({ transaction, source })))
+    }
+    for (const [transactionType, direction] of [['Sale', 1], ['Return', -1]] as const) {
+      const params = new URLSearchParams({
+        transactionType,
+        startDate: String(window.from.getTime()),
+        endDate: String(window.to.getTime()),
+      })
+      const commissionTransactions = await pagedContent(
         `${TRENDYOL_FINANCE_API}/${encodeURIComponent(sellerId)}/settlements?${params}`,
         financeHeaders,
         500,
-      ))
+      )
+      orderCommissionTransactions.push(...commissionTransactions.map((transaction: any) => ({ transaction, direction })))
     }
   }
-  const rows = transactions.map((tx: any, index: number) => {
-    const transactionNo = String(tx.id || tx.transactionId || tx.transactionNumber || `${tx.orderNumber || 'tx'}-${tx.transactionDate || index}-${tx.transactionType || ''}`)
+  const uniqueTransactions = new Map<string, { transaction: any; source: TrendyolFinancialSource }>()
+  transactions.forEach((item, index) => {
+    const key = trendyolTransactionNumber(item.transaction, item.source, index)
+    // transaction_no is the database conflict key. De-duplicate on the exact
+    // same value before sending a bulk upsert, including the unlikely case in
+    // which Trendyol repeats an id across the two finance resources.
+    uniqueTransactions.set(key, item)
+  })
+  const rows = [...uniqueTransactions.values()].map(({ transaction: tx, source }, index) => {
+    const transactionNo = trendyolTransactionNumber(tx, source, index)
     const type = String(tx.transactionType || tx.type || 'settlement')
-    const isDebit = /return|deduction|debit/i.test(type)
-    const gross = numberValue(tx.credit || tx.debt || tx.amount || tx.totalPrice || tx.paymentPrice)
-    const sellerRevenue = numberValue(tx.sellerRevenue || tx.netAmount || gross - numberValue(tx.commissionAmount))
+    const amounts = trendyolFinancialAmounts(tx, source)
     return {
       merchant_code: merchantCode, platform: 'trendyol', transaction_no: transactionNo,
       transaction_date: new Date(tx.transactionDate || tx.createdDate || Date.now()).toISOString(),
@@ -468,13 +506,14 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
       product_name: tx.productName || null, product_sku: tx.merchantSku || tx.stockCode || null,
       product_barcode: tx.barcode || null, amount_type: tx.amountType || type,
       amount_description: tx.amountDescription || tx.description || null,
-      debit: isDebit ? Math.abs(gross) : numberValue(tx.debt),
-      credit: isDebit ? numberValue(tx.credit) : Math.abs(gross),
-      net_amount: isDebit ? -Math.abs(sellerRevenue) : sellerRevenue,
+      debit: amounts.debit,
+      credit: amounts.credit,
+      net_amount: amounts.netAmount,
       // This integration is explicitly scoped to the Saudi storefront.
       // Never label a missing currency as TRY in a Saudi merchant ledger.
       currency: tx.currencyCode || tx.currency || 'SAR', marketplace: 'Trendyol',
-      settlement_id: String(tx.settlementId || tx.paymentOrderId || '') || null, raw: tx,
+      settlement_id: String(tx.settlementId || tx.paymentOrderId || '') || null,
+      raw: { ...tx, sellpertFinancialSource: source },
     }
   })
   for (let index = 0; index < rows.length; index += 100) {
@@ -484,12 +523,16 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
     if (error) throw error
   }
   const orderFinancials = new Map<string, { fee: number; rate: number }>()
-  for (const tx of transactions) {
+  const uniqueCommissionTransactions = new Map<string, { transaction: any; direction: 1 | -1 }>()
+  orderCommissionTransactions.forEach((item, index) => {
+    const key = trendyolTransactionNumber(item.transaction, 'settlements', index)
+    uniqueCommissionTransactions.set(`${item.direction}:${key}`, item)
+  })
+  for (const { transaction: tx, direction } of uniqueCommissionTransactions.values()) {
     const orderId = String(tx.orderNumber || tx.orderId || '')
     if (!orderId) continue
     const current = orderFinancials.get(orderId) || { fee: 0, rate: 0 }
-    const sign = /return/i.test(String(tx.transactionType || tx.type || '')) ? -1 : 1
-    current.fee += sign * numberValue(tx.commissionAmount)
+    current.fee += direction * trendyolCommissionAmount(tx)
     current.rate = Math.max(current.rate, numberValue(tx.commissionRate))
     orderFinancials.set(orderId, current)
   }
@@ -499,7 +542,9 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
     }).eq('merchant_code', merchantCode).eq('platform', 'trendyol').eq('order_id', orderId)
     if (error) throw error
   }
-  return rows.length
+  const settlementCount = [...uniqueTransactions.values()].filter(item => item.source === 'settlements').length
+  const otherFinancialCount = rows.length - settlementCount
+  return { settlements: settlementCount, other_financials: otherFinancialCount, total: rows.length }
 }
 
 async function syncProducts(admin: any, merchantCode: string, sellerId: string, headers: Record<string, string>) {
