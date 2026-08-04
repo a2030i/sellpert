@@ -102,3 +102,55 @@ export function normalizeTrendyolQuestionPage(
     .map(question => normalizeTrendyolQuestion(merchantCode, question, now))
     .filter((row): row is TrendyolQuestionRow => row !== null)
 }
+
+export function missingWaitingQuestionIds(
+  cachedQuestionIds: unknown[],
+  currentRows: Array<Pick<TrendyolQuestionRow, 'question_id'>>,
+) {
+  const currentIds = new Set(currentRows.map(row => row.question_id))
+  return cachedQuestionIds
+    .map(value => text(value))
+    .filter(questionId => questionId && !currentIds.has(questionId))
+}
+
+export async function persistTrendyolQuestions(
+  admin: any,
+  merchantCode: string,
+  result: unknown,
+  requestedStatus = '',
+) {
+  const rows = normalizeTrendyolQuestionPage(merchantCode, result)
+  if (rows.length) {
+    const { error } = await admin.from('trendyol_customer_questions').upsert(rows, {
+      onConflict: 'merchant_code,question_id',
+      ignoreDuplicates: false,
+    })
+    if (error) throw error
+  }
+
+  const resultRecord = result && typeof result === 'object' ? result as Record<string, any> : {}
+  const totalElements = Number(resultRecord.totalElements ?? resultRecord.data?.totalElements)
+  if (requestedStatus !== 'WAITING_FOR_ANSWER' || !Number.isFinite(totalElements) || totalElements > rows.length) {
+    return rows.length
+  }
+
+  const { data: cached, error: cachedError } = await admin.from('trendyol_customer_questions')
+    .select('question_id')
+    .eq('merchant_code', merchantCode)
+    .eq('status', 'WAITING_FOR_ANSWER')
+  if (cachedError) throw cachedError
+  const resolvedIds = missingWaitingQuestionIds(
+    (cached || []).map((row: Record<string, unknown>) => row.question_id),
+    rows,
+  )
+  if (!resolvedIds.length) return rows.length
+
+  const now = new Date().toISOString()
+  const { error: reconcileError } = await admin.from('trendyol_customer_questions').update({
+    status: 'NO_LONGER_WAITING',
+    last_synced_at: now,
+    updated_at: now,
+  }).eq('merchant_code', merchantCode).in('question_id', resolvedIds)
+  if (reconcileError) throw reconcileError
+  return rows.length
+}

@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1'
-import { normalizeTrendyolQuestion, normalizeTrendyolQuestionPage, trendyolQuestionContent } from './trendyolQuestionInbox.ts'
+import { missingWaitingQuestionIds, normalizeTrendyolQuestion, normalizeTrendyolQuestionPage, trendyolQuestionContent } from './trendyolQuestionInbox.ts'
 
 Deno.test('normalizes a Trendyol question without retaining the provider payload', () => {
   const row = normalizeTrendyolQuestion('merchant-1', {
@@ -49,4 +49,11 @@ Deno.test('drops malformed questions instead of creating ambiguous tenant rows',
   assertEquals(normalizeTrendyolQuestion('m', { id:'', text:'question' }), null)
   assertEquals(normalizeTrendyolQuestion('m', { id:'1', text:'  ' }), null)
   assertEquals(normalizeTrendyolQuestion('', { id:'1', text:'question' }), null)
+})
+
+Deno.test('finds cached waiting questions missing from a complete provider page', () => {
+  assertEquals(
+    missingWaitingQuestionIds(['10', '20', '30'], [{ question_id:'20' }, { question_id:'30' }] as any),
+    ['10'],
+  )
 })

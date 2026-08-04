@@ -4,7 +4,7 @@ import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
-import { normalizeTrendyolQuestionPage } from '../_shared/trendyolQuestionInbox.ts'
+import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -281,29 +281,6 @@ Deno.serve(async req => {
     return json({ error:error?.message || 'Trendyol operation failed' }, error instanceof HttpError ? error.status : 500, cors)
   }
 })
-
-async function persistTrendyolQuestions(admin:any, merchantCode:string, result:any, requestedStatus='') {
-  const rows = normalizeTrendyolQuestionPage(merchantCode, result)
-  if (rows.length) {
-    const { error } = await admin.from('trendyol_customer_questions').upsert(rows, {
-      onConflict:'merchant_code,question_id', ignoreDuplicates:false,
-    })
-    if (error) throw error
-  }
-  const totalElements = Number(result?.totalElements ?? result?.data?.totalElements)
-  if (requestedStatus !== 'WAITING_FOR_ANSWER' || !Number.isFinite(totalElements) || totalElements > rows.length) return
-  const { data: cached, error: cachedError } = await admin.from('trendyol_customer_questions')
-    .select('question_id').eq('merchant_code', merchantCode).eq('status', 'WAITING_FOR_ANSWER')
-  if (cachedError) throw cachedError
-  const currentIds = new Set(rows.map(row => row.question_id))
-  const resolvedIds = (cached || []).map((row:any) => String(row.question_id)).filter((id:string) => !currentIds.has(id))
-  if (!resolvedIds.length) return
-  const now = new Date().toISOString()
-  const { error: reconcileError } = await admin.from('trendyol_customer_questions').update({
-    status:'NO_LONGER_WAITING', last_synced_at:now, updated_at:now,
-  }).eq('merchant_code', merchantCode).in('question_id', resolvedIds)
-  if (reconcileError) throw reconcileError
-}
 
 async function resolveCredentials(admin:any, merchantCode:string) {
   const { data } = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')

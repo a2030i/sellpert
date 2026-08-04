@@ -17,6 +17,7 @@ import {
   trendyolPackageId,
 } from '../_shared/trendyolOrders.ts'
 import { normalizeTrendyolV2Products } from '../_shared/trendyolProducts.ts'
+import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +29,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const TRENDYOL_API = 'https://apigw.trendyol.com/integration/order/sellers'
 const TRENDYOL_PRODUCT_API = 'https://apigw.trendyol.com/integration/product/sellers'
 const TRENDYOL_FINANCE_API = 'https://apigw.trendyol.com/integration/finance/che/sellers'
+const TRENDYOL_QUESTION_API = 'https://apigw.trendyol.com/integration/sellers'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -107,6 +109,8 @@ Deno.serve(async (req) => {
     details.product_transport = typeof productResult === 'object' && productResult ? (productResult as any).transport : null
     details.approved_products = typeof productResult === 'object' && productResult ? (productResult as any).approved_products : 0
     details.unapproved_products = typeof productResult === 'object' && productResult ? (productResult as any).unapproved_products : 0
+    details.customer_questions = await optionalResource('customer_questions', warnings, () =>
+      syncCustomerQuestions(admin, merchantCode, credentials.sellerId, headers))
     // Settlement synchronization may refine order commissions. Rebuild the
     // financial layer only after every order and finance write has finished,
     // using the database's canonical source-precedence rules.
@@ -523,6 +527,31 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
     unapproved_products: normalized.unapprovedVariants,
     transport: 'v2',
   }
+}
+
+async function syncCustomerQuestions(
+  admin: any,
+  merchantCode: string,
+  sellerId: string,
+  headers: Record<string, string>,
+) {
+  const params = new URLSearchParams({
+    status: 'WAITING_FOR_ANSWER',
+    orderByField: 'CreatedDate',
+    orderByDirection: 'DESC',
+  })
+  const questions = await pagedContent(
+    `${TRENDYOL_QUESTION_API}/${encodeURIComponent(sellerId)}/questions/filter?${params}`,
+    headers,
+    50,
+  )
+  await persistTrendyolQuestions(
+    admin,
+    merchantCode,
+    { content: questions, totalElements: questions.length },
+    'WAITING_FOR_ANSWER',
+  )
+  return questions.length
 }
 
 async function pagedProductV2(url: string, headers: Record<string, string>, size: number) {
