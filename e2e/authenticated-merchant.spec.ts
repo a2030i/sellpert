@@ -736,6 +736,53 @@ test('merchant starts preparing ready Trendyol shipments from one reviewed opera
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant sends a customer invoice link from the order without technical fields', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const order = {
+    id:'00000000-0000-4000-8000-000000000552', merchant_code:merchant.merchant_code, platform:'trendyol', order_id:'T-INVOICE-552', status:'processing',
+    product_name:'قهوة تركية', sku:'COFFEE-552', quantity:1, unit_price:54, total_amount:54, gross_amount:54, platform_fee:6.21, shipping_cost:0,
+    currency:'SAR', customer_city:'Riyadh', order_date:'2026-08-04T10:00:00Z', upload_id:null, shipment_package_id:'552001', cargo_tracking_number:null,
+    cargo_provider:null, commission_rate:10, vat_rate:15, discount_amount:0, created_at:'2026-08-04T10:00:00Z', raw:{}, shipment_address:{ city:'Riyadh' }, invoice_address:{ city:'Riyadh' },
+  }
+  const packageRow = { id:'package-552', order_id:order.order_id, shipment_package_id:'552001', status:'processing', provider_status:'Picking', cargo_tracking_number:null, invoice_number:null, invoice_status:null, invoice_rejected_reasons:null, modified_at:'2026-08-04T10:00:00Z', raw:{} }
+  let submitted: any = null
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    const object = (route.request().headers().accept || '').includes('application/vnd.pgrst.object')
+    let rows: any[] = []
+    if (table === 'merchants') rows = [merchant]
+    else if (table === 'orders') rows = [order]
+    else if (table === 'order_packages') rows = [packageRow]
+    else if (table === 'order_items') rows = [{ id:'item-552', order_id:order.order_id, shipment_package_id:packageRow.shipment_package_id, line_id:77552, quantity:1, unit_price:54, line_total:54, commission_rate:10 }]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(object ? (rows[0] ?? null) : rows) })
+  })
+  await page.route('**/functions/v1/trendyol-actions', async route => {
+    submitted = route.request().postDataJSON()
+    await route.fulfill({ status:201, contentType:'application/json', body:JSON.stringify({ ok:true, status:'success' }) })
+  })
+  page.on('dialog', dialog => dialog.accept())
+
+  await page.goto(`/orders?order=${order.order_id}`)
+  const dialog = page.getByRole('dialog', { name:`تفاصيل الطلب ${order.order_id}` })
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('رابط الفاتورة الإلكتروني').fill('https://billing.example/invoices/T-INVOICE-552.pdf')
+  await dialog.getByRole('button', { name:'إرسال رابط الفاتورة' }).click()
+  await expect.poll(() => submitted).toMatchObject({
+    merchant_code:merchant.merchant_code, action:'invoices.send_link', confirm:true,
+    payload:{ shipmentPackageId:packageRow.shipment_package_id, invoiceLink:'https://billing.example/invoices/T-INVOICE-552.pdf' },
+  })
+  await expect(dialog.getByText('تم إرسال رابط الفاتورة إلى Trendyol وربطه بهذه الشحنة.')).toBeVisible()
+  await expect(dialog.getByText(/JSON|shipmentPackageId|serviceSourceId/)).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'إرسال رابط الفاتورة من الطلب')
+  await page.screenshot({ path:testInfo.outputPath('order-invoice-link.png'), fullPage:true })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant prepares a local product for Trendyol without technical identifiers', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

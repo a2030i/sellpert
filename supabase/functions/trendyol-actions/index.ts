@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
-import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
+import { decodeTrendyolInvoiceFile, normalizeTrendyolInvoiceLink } from '../_shared/trendyolInvoice.ts'
 import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 import { persistTrendyolQuestions } from '../_shared/trendyolQuestionInbox.ts'
 import { normalizeTrendyolDeliveryUpdate, normalizeTrendyolProductCreateV2, normalizeTrendyolUnapprovedProductUpdateV2, normalizeTrendyolV2Products, trendyolProductReviewState } from '../_shared/trendyolProducts.ts'
@@ -96,7 +96,7 @@ const ACTIONS: Record<string, Definition> = {
   // Invoices and finance
   'invoices.send_link':       { method:'POST',   path:'/integration/sellers/{sellerId}/seller-invoice-links', risk:'write' },
   'invoices.send_file':       { method:'POST',   path:'/integration/sellers/{sellerId}/seller-invoice-file', risk:'write', storefront:true, multipart:true },
-  'invoices.delete_link':     { method:'DELETE', path:'/integration/sellers/{sellerId}/seller-invoice-links/delete', risk:'destructive' },
+  'invoices.delete_link':     { method:'POST', path:'/integration/sellers/{sellerId}/seller-invoice-links/delete', risk:'destructive' },
   'finance.settlements':      { method:'GET', path:'/integration/finance/che/sellers/{sellerId}/settlements', risk:'read', storefront:true },
   'finance.other':            { method:'GET', path:'/integration/finance/che/sellers/{sellerId}/other-financials', risk:'read', storefront:true },
 }
@@ -122,7 +122,7 @@ Deno.serve(async req => {
       admin,
       SERVICE_KEY,
       merchantCode,
-      action.startsWith('questions.') ? ['customers','integrations'] : ['integrations'],
+      requiredEmployeePermissions(action),
     )
     if (DEPRECATED_ACTIONS[action]) {
       throw new HttpError(410, `أوقف Trendyol هذه العملية ضمن Product V1 اعتبارًا من 10 أغسطس 2026. ${DEPRECATED_ACTIONS[action]}`)
@@ -300,6 +300,20 @@ Deno.serve(async req => {
         console.error('Trendyol claim decision persistence failed',returnUpdateError)
       }
     }
+    if (action === 'invoices.send_file' || action === 'invoices.send_link') {
+      const invoicePayload = input.payload || {}
+      const now = new Date().toISOString()
+      const invoiceState: Record<string,unknown> = {
+        invoice_status:'sent',
+        invoice_rejected_reasons:null,
+        modified_at:now,
+      }
+      if (clean(invoicePayload.invoiceNumber)) invoiceState.invoice_number = clean(invoicePayload.invoiceNumber)
+      const { error: invoiceUpdateError } = await admin.from('order_packages').update(invoiceState)
+        .eq('merchant_code',merchantCode).eq('platform','trendyol')
+        .eq('shipment_package_id',clean(String(invoicePayload.shipmentPackageId || '')))
+      if (invoiceUpdateError) console.error('Trendyol invoice state persistence failed',invoiceUpdateError)
+    }
     if (action === 'products.batch_result') {
       const batchId = clean(input?.path?.batchRequestId)
       const batchState = normalizeBatchState(result)
@@ -388,8 +402,15 @@ function buildPath(template:string, values:Record<string,unknown>) {
   })
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
+function requiredEmployeePermissions(action:string) {
+  if (action.startsWith('questions.')) return ['customers','integrations']
+  if (action.startsWith('orders.') || action.startsWith('packages.') || action.startsWith('invoices.') || action.startsWith('claims.')) return ['orders','integrations']
+  if (action.startsWith('products.') || action.startsWith('brands.') || action.startsWith('categories.') || action.startsWith('videos.')) return ['products','integrations']
+  if (action.startsWith('finance.')) return ['statement','integrations']
+  return ['integrations']
+}
 async function validatePackageContext(admin:any,merchantCode:string,action:string,input:any) {
-  if (!action.startsWith('packages.') && action !== 'invoices.send_file') return
+  if (!action.startsWith('packages.') && !action.startsWith('invoices.')) return
   if (['packages.common_label','packages.common_label_create','packages.common_label_get'].includes(action)) {
     const trackingNumber = clean(String(input?.path?.cargoTrackingNumber || ''))
     if (!/^[a-zA-Z0-9_-]{3,80}$/.test(trackingNumber)) throw new HttpError(400, 'رقم تتبع الشحنة غير صالح')
@@ -406,7 +427,7 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
     }
     return
   }
-  const packageId = clean(String(input?.path?.packageId || input?.payload?.shipmentPackageId || ''))
+  const packageId = clean(String(input?.path?.packageId || input?.payload?.shipmentPackageId || input?.payload?.serviceSourceId || ''))
   if (!/^\d+$/.test(packageId)) throw new HttpError(400, 'رقم شحنة Trendyol غير صالح')
 
   const { data: packageRow, error } = await admin.from('order_packages')
@@ -416,7 +437,7 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   if (error) throw error
   if (!packageRow) throw new HttpError(404, 'الشحنة غير موجودة في هذا المتجر؛ حدّث الطلبات ثم حاول مجددًا')
 
-  if (action === 'invoices.send_file') return
+  if (action.startsWith('invoices.')) return
 
   const transitionError = trendyolPackageTransitionError(packageRow,action,String(input?.payload?.status || ''))
   if (transitionError) throw new HttpError(409,transitionError)
@@ -594,6 +615,10 @@ function validateActionInput(action:string,input:any) {
   if (action === 'invoices.send_file') {
     try { decodeTrendyolInvoiceFile(input?.payload) }
     catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'ملف الفاتورة غير صالح') }
+  }
+  if (action === 'invoices.send_link') {
+    try { input.payload = normalizeTrendyolInvoiceLink(input?.payload) }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'رابط الفاتورة غير صالح') }
   }
   if (action === 'products.v2_update_content') {
     const items = input?.payload?.items

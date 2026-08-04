@@ -1,5 +1,5 @@
 import { assertEquals, assertThrows } from 'jsr:@std/assert'
-import { decodeTrendyolInvoiceFile } from './trendyolInvoice.ts'
+import { decodeTrendyolInvoiceFile, normalizeTrendyolInvoiceLink } from './trendyolInvoice.ts'
 
 function base64(bytes: number[]) {
   return btoa(String.fromCharCode(...bytes))
@@ -38,4 +38,15 @@ Deno.test('invoice upload rejects invalid micro-export invoice metadata', () => 
     shipmentPackageId: '123', fileName: 'invoice.pdf', contentType: 'application/pdf',
     dataBase64: base64([0x25,0x50,0x44,0x46]), invoiceNumber: 'SHORT',
   }), Error, '16 خانة')
+})
+
+Deno.test('invoice link accepts HTTPS and normalizes its package context', () => {
+  const invoice = normalizeTrendyolInvoiceLink({ shipmentPackageId:'123', invoiceLink:'https://billing.example/invoice/123.pdf' })
+  assertEquals(invoice.shipmentPackageId, '123')
+  assertEquals(invoice.invoiceLink, 'https://billing.example/invoice/123.pdf')
+})
+
+Deno.test('invoice link rejects unsafe protocols and embedded credentials', () => {
+  assertThrows(() => normalizeTrendyolInvoiceLink({ shipmentPackageId:'123', invoiceLink:'http://billing.example/invoice.pdf' }))
+  assertThrows(() => normalizeTrendyolInvoiceLink({ shipmentPackageId:'123', invoiceLink:'https://user:pass@billing.example/invoice.pdf' }))
 })

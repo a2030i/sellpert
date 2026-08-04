@@ -11,6 +11,39 @@ export type TrendyolInvoiceFile = {
   invoiceDateTime?: string
 }
 
+export type TrendyolInvoiceLink = {
+  shipmentPackageId: string
+  invoiceLink: string
+  invoiceNumber?: string
+  invoiceDateTime?: string
+}
+
+export function normalizeTrendyolInvoiceLink(payload: any): TrendyolInvoiceLink {
+  const shipmentPackageId = String(payload?.shipmentPackageId || '').trim()
+  if (!/^\d+$/.test(shipmentPackageId)) throw new Error('رقم شحنة Trendyol غير صالح')
+
+  const invoiceLink = String(payload?.invoiceLink || '').trim()
+  let parsed: URL
+  try { parsed = new URL(invoiceLink) } catch { throw new Error('رابط الفاتورة غير صالح') }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    throw new Error('رابط الفاتورة يجب أن يكون آمنًا ويبدأ بـ https')
+  }
+
+  const invoiceNumber = String(payload?.invoiceNumber || '').trim()
+  if (invoiceNumber && !/^[A-Za-z0-9]{3}\d{13}$/.test(invoiceNumber)) {
+    throw new Error('رقم فاتورة التصدير يجب أن يكون 16 خانة: 3 أحرف أو أرقام ثم 13 رقمًا')
+  }
+  const invoiceDateTime = String(payload?.invoiceDateTime || '').trim()
+  if (invoiceDateTime) validateInvoiceDateTime(invoiceDateTime)
+
+  return {
+    shipmentPackageId,
+    invoiceLink:parsed.toString(),
+    ...(invoiceNumber ? { invoiceNumber } : {}),
+    ...(invoiceDateTime ? { invoiceDateTime } : {}),
+  }
+}
+
 export function decodeTrendyolInvoiceFile(payload: any, maxBytes = TRENDYOL_INVOICE_MAX_BYTES): TrendyolInvoiceFile {
   const shipmentPackageId = String(payload?.shipmentPackageId || '').trim()
   if (!/^\d+$/.test(shipmentPackageId)) throw new Error('رقم شحنة Trendyol غير صالح')
@@ -39,13 +72,7 @@ export function decodeTrendyolInvoiceFile(payload: any, maxBytes = TRENDYOL_INVO
   }
 
   const invoiceDateTime = String(payload?.invoiceDateTime || '').trim()
-  if (invoiceDateTime) {
-    if (!/^(\d{10}|\d{13})$/.test(invoiceDateTime) || Number(invoiceDateTime) <= 0) {
-      throw new Error('تاريخ فاتورة التصدير غير صالح')
-    }
-    const milliseconds = invoiceDateTime.length === 10 ? Number(invoiceDateTime) * 1000 : Number(invoiceDateTime)
-    if (milliseconds > Date.now() + 5 * 60_000) throw new Error('لا يمكن أن يكون تاريخ الفاتورة في المستقبل')
-  }
+  if (invoiceDateTime) validateInvoiceDateTime(invoiceDateTime)
 
   return {
     shipmentPackageId,
@@ -55,6 +82,14 @@ export function decodeTrendyolInvoiceFile(payload: any, maxBytes = TRENDYOL_INVO
     ...(invoiceNumber ? { invoiceNumber } : {}),
     ...(invoiceDateTime ? { invoiceDateTime } : {}),
   }
+}
+
+function validateInvoiceDateTime(invoiceDateTime: string) {
+  if (!/^(\d{10}|\d{13})$/.test(invoiceDateTime) || Number(invoiceDateTime) <= 0) {
+    throw new Error('تاريخ فاتورة التصدير غير صالح')
+  }
+  const milliseconds = invoiceDateTime.length === 10 ? Number(invoiceDateTime) * 1000 : Number(invoiceDateTime)
+  if (milliseconds > Date.now() + 5 * 60_000) throw new Error('لا يمكن أن يكون تاريخ الفاتورة في المستقبل')
 }
 
 function matchesSignature(bytes: Uint8Array, contentType: string) {

@@ -50,6 +50,20 @@ describe('Trendyol fulfillment action contract', () => {
     expect(gateway).toContain('رقم التتبع غير موجود ضمن شحنات هذا المتجر')
   })
 
+  it('separates operational permissions from credential administration', () => {
+    expect(gateway).toContain("return ['orders','integrations']")
+    expect(gateway).toContain("return ['products','integrations']")
+    expect(gateway).toContain("return ['statement','integrations']")
+  })
+
+  it('binds invoice links and files to a package owned by the merchant', () => {
+    expect(gateway).toContain("!action.startsWith('invoices.')")
+    expect(gateway).toContain("input?.payload?.serviceSourceId")
+    expect(gateway).toContain('normalizeTrendyolInvoiceLink(input?.payload)')
+    expect(orders).toContain("action:'invoices.send_link'")
+    expect(orders).toContain('إرسال رابط الفاتورة')
+  })
+
   it('offers label creation and download as merchant-facing order actions', () => {
     expect(orders).toContain("runPackageLabelAction('packages.common_label_create')")
     expect(orders).toContain("runPackageLabelAction('packages.common_label_get')")
@@ -106,7 +120,7 @@ describe('Trendyol fulfillment action contract', () => {
 
   it('separates customer-service permission from marketplace credential administration', () => {
     expect(syncBoundary).toContain("employeePermissions: string[] = ['integrations']")
-    expect(gateway).toContain("action.startsWith('questions.') ? ['customers','integrations'] : ['integrations']")
+    expect(gateway).toContain("if (action.startsWith('questions.')) return ['customers','integrations']")
     expect(customerPermissionMigration).toContain("ARRAY['customers', 'integrations']::text[]")
     expect(app).toContain("label: 'خدمة العملاء', key: 'customers', permission: 'customers'")
   })

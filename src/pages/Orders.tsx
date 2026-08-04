@@ -96,7 +96,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [detailLoading, setDetailLoading] = useState(false)
   const [orderActionLoading, setOrderActionLoading] = useState(false)
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
-  const [packageForm, setPackageForm] = useState({ invoiceNumber:'', trackingNumber:'', providerCode:'STARLINKS' })
+  const [packageForm, setPackageForm] = useState({ invoiceNumber:'', invoiceLink:'', trackingNumber:'', providerCode:'STARLINKS' })
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
   const [bulkPickingRows, setBulkPickingRows] = useState<Array<{ orderId:string; packageId:string; lines:Array<{ lineId:number; quantity:number }> }>>([])
   const [bulkPickingOpen, setBulkPickingOpen] = useState(false)
@@ -320,7 +320,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function openOrder(order: Order) {
-    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setSelectedProductCosts(new Map()); setInvoiceFile(null); setDetailLoading(true); setOrderActionMessage(null)
+    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setSelectedProductCosts(new Map()); setInvoiceFile(null); setPackageForm(current => ({ ...current, invoiceNumber:'', invoiceLink:'' })); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at,gross_amount').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
@@ -336,6 +336,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setSelectedItems(items.data || [])
     setSelectedPackages(packageRows)
     setActivePackageId(initialPackageId)
+    setPackageForm(current => ({ ...current, invoiceNumber:String(packageRows[0]?.invoice_number || ''), invoiceLink:'' }))
     setSelectedActions((actions.data || []).filter(log => String(log.request?.path?.packageId || '') === initialPackageId && packageIds.has(initialPackageId)).slice(0,8))
     const detailItems = items.data || []
     const skus = [...new Set([order.sku, ...detailItems.map(item => item.sku)].filter(Boolean).map(String))]
@@ -372,6 +373,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   async function selectOrderPackage(packageId: string) {
     if (!selectedOrder) return
     setActivePackageId(packageId); setSelectedActions([]); setInvoiceFile(null); setOrderActionMessage(null)
+    const packageRow = selectedPackages.find(item => String(item.shipment_package_id) === packageId)
+    setPackageForm(current => ({ ...current, invoiceNumber:String(packageRow?.invoice_number || ''), invoiceLink:'' }))
     const { data } = await supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at,request')
       .eq('merchant_code', selectedOrder.merchant_code).eq('platform', 'trendyol')
       .contains('request', { path:{ packageId } }).order('started_at', { ascending:false }).limit(8)
@@ -545,6 +548,44 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     } catch (error:any) {
       console.error('Trendyol invoice upload', error)
       setOrderActionMessage({ type:'err', text:userErrorMessage(error, 'تعذّر رفع ملف الفاتورة إلى Trendyol.') })
+    } finally { setOrderActionLoading(false) }
+  }
+
+  async function sendInvoiceLink() {
+    if (!merchant || !activePackageId) return
+    const invoiceLink = packageForm.invoiceLink.trim()
+    try {
+      const parsed = new URL(invoiceLink)
+      if (parsed.protocol !== 'https:') throw new Error('invalid')
+    } catch {
+      setOrderActionMessage({ type:'err', text:'أدخل رابط فاتورة آمنًا يبدأ بـ https.' }); return
+    }
+    if (!window.confirm('تأكيد إرسال رابط الفاتورة إلى عميل Trendyol؟ يجب أن يبقى الرابط متاحًا حسب المتطلبات النظامية.')) return
+    setOrderActionLoading(true); setOrderActionMessage(null)
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const invoiceNumber = packageForm.invoiceNumber.trim()
+      const microExportNumber = /^[A-Za-z0-9]{3}\d{13}$/.test(invoiceNumber) ? invoiceNumber : undefined
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({
+          merchant_code:merchant.merchant_code, action:'invoices.send_link', confirm:true,
+          payload:{ shipmentPackageId:activePackageId, invoiceLink, ...(microExportNumber ? { invoiceNumber:microExportNumber, invoiceDateTime:String(Date.now()) } : {}) },
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol رابط الفاتورة')
+      setSelectedPackages(current => current.map(packageRow => String(packageRow.shipment_package_id) === activePackageId
+        ? { ...packageRow, invoice_status:'sent', invoice_number:invoiceNumber || packageRow.invoice_number, invoice_rejected_reasons:null }
+        : packageRow))
+      setSelectedActions(current => [{ id:crypto.randomUUID(), action:'invoices.send_link', status:'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
+      setPackageForm(current => ({ ...current, invoiceLink:'' }))
+      setOrderActionMessage({ type:'ok', text:'تم إرسال رابط الفاتورة إلى Trendyol وربطه بهذه الشحنة.' })
+    } catch (error:any) {
+      console.error('Trendyol invoice link', error)
+      setOrderActionMessage({ type:'err', text:userErrorMessage(error, 'تعذّر إرسال رابط الفاتورة إلى Trendyol.') })
     } finally { setOrderActionLoading(false) }
   }
 
@@ -946,6 +987,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   ['حالة الفاتورة', activePackage.invoice_status ? packageStatusLabel(activePackage.invoice_status) : activePackage.invoice_number ? 'مسجلة' : 'غير مسجلة'],
                 ].map(([label,value]) => <div key={label} style={S.detailItem}><div style={S.detailLabel}>{label}</div><div style={S.detailValue}>{value}</div></div>)}
               </div> : null}
+              {activePackage?.invoice_rejected_reasons ? <div role="alert" style={{ marginTop:8, padding:'9px 11px', borderRadius:8, background:'var(--danger-bg)', color:'var(--danger-text)', fontSize:11, lineHeight:1.7 }}>
+                <strong>تحتاج الفاتورة إلى تصحيح:</strong> {Array.isArray(activePackage.invoice_rejected_reasons) ? activePackage.invoice_rejected_reasons.join('، ') : String(activePackage.invoice_rejected_reasons)}
+              </div> : null}
             </div> : null}
             {selectedOrder.platform === 'trendyol' && activePackageId ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
               <div style={{ fontSize:12, fontWeight:800, marginBottom:4 }}>إجراءات تنفيذ الطلب</div>
@@ -966,6 +1010,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <span style={{ fontSize:10, color:invoiceFile ? 'var(--text2)' : 'var(--text3)' }}>{invoiceFile ? `${invoiceFile.name} · ${(invoiceFile.size / 1024 / 1024).toLocaleString('ar-SA', { maximumFractionDigits:2 })} م.ب` : 'لم يتم اختيار ملف'}</span>
                   <button disabled={orderActionLoading || !invoiceFile} onClick={() => void uploadInvoiceFile()} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:invoiceFile && !orderActionLoading ? 1 : .5 }}>{orderActionLoading && invoiceFile ? 'جارٍ الرفع...' : 'رفع الفاتورة إلى Trendyol'}</button>
                 </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:9, paddingTop:9, borderTop:'1px solid var(--border)' }}>
+                  <input aria-label="رابط الفاتورة الإلكتروني" value={packageForm.invoiceLink} onChange={event => setPackageForm({...packageForm,invoiceLink:event.target.value})} placeholder="https:// رابط الفاتورة الإلكترونية" style={{ ...S.select, flex:'1 1 260px' }}/>
+                  <button disabled={orderActionLoading || !packageForm.invoiceLink.trim()} onClick={() => void sendInvoiceLink()} style={{ ...S.actionBtn, opacity:packageForm.invoiceLink.trim() && !orderActionLoading ? 1 : .5 }}>إرسال رابط الفاتورة</button>
+                </div>
+                <div style={{ fontSize:9, color:'var(--text3)', lineHeight:1.6, marginTop:5 }}>استخدم الرابط فقط إذا كانت الفاتورة مستضافة في نظام فوترة آمن وسيظل الرابط متاحًا للمدة النظامية.</div>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) minmax(150px,1fr) auto', gap:8 }}>
                 <input disabled={!packageWorkflow.canUpdateTracking} value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}/>
@@ -980,7 +1029,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>
                 <div style={{ display:'grid', gap:5 }}>{selectedActions.map(log => <div key={log.id} style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10 }}>
-                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق', 'packages.common_label_create':'طلب الملصق', 'packages.common_label_get':'تنزيل الملصق', 'invoices.send_file':'رفع ملف الفاتورة' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
+                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق', 'packages.common_label_create':'طلب الملصق', 'packages.common_label_get':'تنزيل الملصق', 'invoices.send_file':'رفع ملف الفاتورة', 'invoices.send_link':'إرسال رابط الفاتورة' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
                   <span style={{ color:['success','accepted'].includes(log.status) ? 'var(--success-text)' : ['failed','partial'].includes(log.status) ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight:700 }}>{log.status === 'success' ? 'تم' : log.status === 'accepted' ? 'تم الإرسال' : log.status === 'failed' ? 'فشل' : log.status === 'partial' ? 'جزئي' : 'قيد التنفيذ'}</span>
                 </div>)}</div>
               </div> : null}
