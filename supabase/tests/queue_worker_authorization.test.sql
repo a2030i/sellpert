@@ -24,6 +24,9 @@ BEGIN
      OR position('Bearer ' IN trigger_definition) > 0 THEN
     RAISE EXCEPTION 'cron trigger still treats a bearer/anon token as worker authorization';
   END IF;
+  IF position('timeout_milliseconds := 60000' IN trigger_definition) = 0 THEN
+    RAISE EXCEPTION 'cron trigger timeout is shorter than the worker batch timeout';
+  END IF;
 
   IF has_function_privilege('anon', 'security.trigger_queue_worker()', 'execute')
      OR has_function_privilege('authenticated', 'security.trigger_queue_worker()', 'execute') THEN
@@ -36,4 +39,3 @@ END
 $$;
 
 ROLLBACK;
-
