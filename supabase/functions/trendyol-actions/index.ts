@@ -3,6 +3,7 @@ import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
 import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
+import { validateTrendyolAnswerText, validateTrendyolQuestionQuery } from '../_shared/trendyolQuestions.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -63,6 +64,11 @@ const ACTIONS: Record<string, Definition> = {
   // Compatibility alias for callers created before the explicit create/get flow.
   'packages.common_label':        { method:'GET',  path:'/integration/sellers/{sellerId}/common-label/{cargoTrackingNumber}', risk:'read', binary:true, storefront:true },
   'seller.addresses':         { method:'GET', path:'/integration/sellers/{sellerId}/addresses', risk:'read' },
+
+  // Customer questions
+  'questions.list':           { method:'GET',  path:'/integration/qna/sellers/{sellerId}/questions/filter', risk:'read' },
+  'questions.detail':         { method:'GET',  path:'/integration/qna/sellers/{sellerId}/questions/{questionId}', risk:'read' },
+  'questions.answer':         { method:'POST', path:'/integration/qna/sellers/{sellerId}/questions/{questionId}/answers', risk:'write' },
 
   // Webhooks
   'webhooks.list':            { method:'GET',    path:'/integration/webhook/sellers/{sellerId}/webhooks', risk:'read' },
@@ -260,6 +266,17 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   if (transitionError) throw new HttpError(409,transitionError)
 }
 function validateActionInput(action:string,input:any) {
+  if (action === 'questions.list') {
+    try { validateTrendyolQuestionQuery(input?.query) }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'مرشح الأسئلة غير صالح') }
+  }
+  if (action === 'questions.detail' || action === 'questions.answer') {
+    if (!/^\d+$/.test(clean(String(input?.path?.questionId || '')))) throw new HttpError(400, 'رقم سؤال Trendyol غير صالح')
+  }
+  if (action === 'questions.answer') {
+    try { input.payload = { text:validateTrendyolAnswerText(input?.payload?.text) } }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'نص الرد غير صالح') }
+  }
   if (action === 'invoices.send_file') {
     try { decodeTrendyolInvoiceFile(input?.payload) }
     catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'ملف الفاتورة غير صالح') }
