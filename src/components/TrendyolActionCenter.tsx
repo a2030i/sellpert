@@ -25,6 +25,7 @@ const CAPABILITIES: Capability[] = [
   { action:'products.v2_update_unapproved',label:'تحديث غير المقبول V2',group:'المنتجات V2',risk:'write',payloadHint:'{"items":[...]}' },
   { action:'products.v2_update_content',label:'تحديث محتوى المقبول V2',group:'المنتجات V2',risk:'write',payloadHint:'{"items":[...]}' },
   { action:'products.v2_update_variant',label:'تحديث متغيرات المنتج V2',group:'المنتجات V2',risk:'write',payloadHint:'{"items":[...]}' },
+  { action:'products.v2_update_delivery',label:'تحديث خيارات التوصيل V2',group:'المنتجات V2',risk:'write',payloadHint:'{"items":[{"barcode":"...","deliveryOptions":{"deliveryDuration":1,"fastDeliveryType":"FAST_DELIVERY"}}]}' },
   { action:'brands.list',label:'قائمة العلامات',group:'المراجع',risk:'read',queryHint:'{"page":0,"size":50}' },
   { action:'brands.search',label:'البحث عن علامة',group:'المراجع',risk:'read',queryHint:'{"name":"..."}' },
   { action:'brands.create',label:'طلب إنشاء علامة',group:'المراجع',risk:'write',payloadHint:'{"name":"..."}' },

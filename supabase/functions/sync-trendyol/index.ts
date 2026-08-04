@@ -16,6 +16,7 @@ import {
   trendyolLineFinancials,
   trendyolPackageId,
 } from '../_shared/trendyolOrders.ts'
+import { normalizeTrendyolV2Products } from '../_shared/trendyolProducts.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,6 +104,9 @@ Deno.serve(async (req) => {
       syncProducts(admin, merchantCode, credentials.sellerId, headers))
     details.products = typeof productResult === 'object' && productResult ? (productResult as any).products : productResult
     details.inventory = typeof productResult === 'object' && productResult ? (productResult as any).inventory : 0
+    details.product_transport = typeof productResult === 'object' && productResult ? (productResult as any).transport : null
+    details.approved_products = typeof productResult === 'object' && productResult ? (productResult as any).approved_products : 0
+    details.unapproved_products = typeof productResult === 'object' && productResult ? (productResult as any).unapproved_products : 0
     // Settlement synchronization may refine order commissions. Rebuild the
     // financial layer only after every order and finance write has finished,
     // using the database's canonical source-precedence rules.
@@ -495,41 +499,61 @@ async function syncSettlements(admin: any, merchantCode: string, sellerId: strin
 }
 
 async function syncProducts(admin: any, merchantCode: string, sellerId: string, headers: Record<string, string>) {
-  const items = await pagedContent(`${TRENDYOL_PRODUCT_API}/${encodeURIComponent(sellerId)}/products`, headers)
+  const localizedHeaders = { ...headers, 'Accept-Language': 'ar' }
+  const [approvedContent, unapprovedContent] = await Promise.all([
+    pagedProductV2(`${TRENDYOL_PRODUCT_API}/${encodeURIComponent(sellerId)}/products/approved`, localizedHeaders, 100),
+    pagedProductV2(`${TRENDYOL_PRODUCT_API}/${encodeURIComponent(sellerId)}/products/unapproved`, localizedHeaders, 1000),
+  ])
   const now = new Date().toISOString()
-  const productCandidates = items.map((item: any) => {
-    const sku = String(item.stockCode || item.merchantSku || item.barcode || item.id || '')
-    return {
-      merchant_code: merchantCode, name: item.title || item.productName || sku, sku,
-      barcode: String(item.barcode || '') || null, category: item.categoryName || item.category?.name || null,
-      description: item.description || null, image_url: item.images?.[0]?.url || item.imageUrl || null,
-      images: item.images || null, cost_price: 0, target_net_price: numberValue(item.salePrice || item.price),
-      sale_price: numberValue(item.salePrice || item.price), status: item.approved === false || item.archived ? 'inactive' : 'active',
-      brand: item.brand || item.brandName || null, external_id: String(item.id || item.productMainId || '') || null,
-      model_code: item.productMainId || item.modelCode || null, vat_rate: numberValue(item.vatRate),
-      commission_rate: numberValue(item.commissionRate), supplier_sku: item.stockCode || null,
-      platform_source: 'trendyol_api', raw: item, last_synced_at: now,
-    }
-  }).filter((item: any) => item.sku)
-  const products = [...new Map(productCandidates.map((item:any) => [item.sku,item])).values()]
+  const normalized = normalizeTrendyolV2Products(merchantCode, approvedContent, unapprovedContent, now)
+  const products = normalized.products
   for (let index = 0; index < products.length; index += 100) {
     const { error } = await admin.from('products').upsert(products.slice(index, index + 100), { onConflict: 'merchant_code,sku' })
     if (error) throw error
   }
-  const inventoryCandidates = items.map((item: any) => ({
-    merchant_code: merchantCode, platform: 'trendyol',
-    sku: String(item.stockCode || item.merchantSku || item.barcode || item.id || ''),
-    product_name: item.title || item.productName || null,
-    quantity: Math.max(0, Math.trunc(numberValue(item.quantity || item.stock))), reserved_quantity: 0,
-    low_stock_threshold: 5, cost_price: null, image_url: item.images?.[0]?.url || item.imageUrl || null,
-    is_active: item.approved !== false && !item.archived, last_updated: now, raw: item,
-  })).filter((item: any) => item.sku)
-  const inventory = [...new Map(inventoryCandidates.map((item:any) => [item.sku,item])).values()]
+  const inventory = normalized.inventory
   for (let index = 0; index < inventory.length; index += 100) {
     const { error } = await admin.from('inventory').upsert(inventory.slice(index, index + 100), { onConflict: 'merchant_code,sku,platform' })
     if (error) throw error
   }
-  return { products: products.length, inventory: inventory.length }
+  return {
+    products: products.length,
+    inventory: inventory.length,
+    approved_products: normalized.approvedVariants,
+    unapproved_products: normalized.unapprovedVariants,
+    transport: 'v2',
+  }
+}
+
+async function pagedProductV2(url: string, headers: Record<string, string>, size: number) {
+  const rows: any[] = []
+  let page = 0
+  let nextPageToken = ''
+  let requestCount = 0
+
+  while (true) {
+    const query = new URLSearchParams({ size: String(size) })
+    if (nextPageToken) query.set('nextPageToken', nextPageToken)
+    else query.set('page', String(page))
+    const data = await fetchJsonWithRetry(`${url}?${query}`, { headers }, 'Trendyol Product V2 API')
+    const content = Array.isArray(data?.content) ? data.content : []
+    rows.push(...content)
+    requestCount++
+
+    if (!content.length || content.length < size) break
+    const token = String(data?.nextPageToken || '')
+    if (token) {
+      if (token === nextPageToken) throw new HttpError(502, 'Trendyol Product V2 returned an invalid page token')
+      nextPageToken = token
+    } else {
+      const totalPages = Number(data?.totalPages || 0)
+      if (!Number.isFinite(totalPages) || page + 1 >= totalPages) break
+      page++
+    }
+    if (requestCount >= 500) throw new HttpError(502, 'Trendyol Product V2 exceeded the safe pagination limit')
+  }
+
+  return rows
 }
 
 async function upsertRows(admin: any, rows: any[]) {
