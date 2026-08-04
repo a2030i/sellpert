@@ -1,6 +1,7 @@
 param(
   [string]$AppUrl = 'https://sellpert.vercel.app',
   [string]$SupabaseUrl = 'https://urdyzbsukcuibadlaath.supabase.co',
+  [string]$SupabasePublishableKey = 'sb_publishable_mQxr9nnCBszsxIB39DvWgw_T5R3BDL7',
   [string]$ExpectedRelease = '',
   [ValidateRange(0, 600)]
   [int]$ReleaseWaitSeconds = 0
@@ -117,6 +118,37 @@ if ($ExpectedRelease) {
 # project key. Sensitive functions must also reject anonymous callers.
 $authHealth = Invoke-WithRetry { Get-HttpStatus "$SupabaseUrl/auth/v1/health" }
 Assert-Status 'Supabase API gateway' $authHealth @(401)
+
+# pg_net is required by trusted database cron/trigger functions, but its `net`
+# schema must never be exposed through PostgREST to browser-facing API keys.
+$netSchemaStatus = 0
+$netSchemaBody = ''
+try {
+  $netResponse = Invoke-WebRequest -UseBasicParsing -Method Post -TimeoutSec 20 `
+    -Uri "$SupabaseUrl/rest/v1/rpc/http_post" `
+    -Headers @{
+      apikey = $SupabasePublishableKey
+      'Accept-Profile' = 'net'
+      'Content-Profile' = 'net'
+    } `
+    -ContentType 'application/json' `
+    -Body '{"url":"https://example.invalid"}'
+  $netSchemaStatus = [int]$netResponse.StatusCode
+  $netSchemaBody = $netResponse.Content
+} catch {
+  if (-not $_.Exception.Response) { throw }
+  $netSchemaStatus = [int]$_.Exception.Response.StatusCode
+  if ($_.ErrorDetails.Message) {
+    $netSchemaBody = $_.ErrorDetails.Message
+  } else {
+    $reader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
+    try { $netSchemaBody = $reader.ReadToEnd() } finally { $reader.Dispose() }
+  }
+}
+if ($netSchemaStatus -ne 406 -or $netSchemaBody -notmatch 'PGRST106') {
+  throw "pg_net schema boundary failed: HTTP $netSchemaStatus $netSchemaBody"
+}
+Write-Host 'PASS pg_net is not exposed through the Data API (406)'
 
 $protectedFunctions = @(
   'queue-worker',

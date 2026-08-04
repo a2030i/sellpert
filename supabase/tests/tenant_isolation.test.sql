@@ -60,6 +60,12 @@ BEGIN
 
   INSERT INTO public.ad_metrics (merchant_code, platform, report_date, spend)
   VALUES (tenant_a, 'trendyol', current_date, 999);
+
+  -- Preserve the generated high-entropy tenant identifiers for the RLS write
+  -- checks below. The authenticated role cannot discover the other tenant's
+  -- code through `merchants`, so the fixture must pass it out-of-band.
+  PERFORM set_config('app.tenant_a', tenant_a, true);
+  PERFORM set_config('app.tenant_b', tenant_b, true);
 END
 $$;
 
@@ -70,6 +76,7 @@ SET LOCAL ROLE authenticated;
 DO $$
 DECLARE
   blocked_platform_kpis boolean := false;
+  blocked_cross_tenant_write boolean := false;
 BEGIN
   IF (SELECT count(*) FROM public.orders) <> 1 THEN
     RAISE EXCEPTION 'tenant owner isolation failed';
@@ -88,6 +95,25 @@ BEGIN
   END IF;
   IF (SELECT count(*) FROM public.platform_file_uploads WHERE file_name IN ('tenant-a.xlsx','tenant-b.xlsx')) <> 1 THEN
     RAISE EXCEPTION 'tenant owner upload isolation failed';
+  END IF;
+
+  UPDATE public.orders SET status = 'owner_verified'
+  WHERE order_id = 'TENANT-A-ORDER';
+  IF NOT EXISTS (
+    SELECT 1 FROM public.orders
+    WHERE order_id = 'TENANT-A-ORDER' AND status = 'owner_verified'
+  ) THEN
+    RAISE EXCEPTION 'tenant owner cannot update an own order';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.orders (merchant_code, platform, order_id, total_amount)
+    VALUES (current_setting('app.tenant_b'), 'trendyol', 'TENANT-B-CROSS-WRITE', 40);
+  EXCEPTION WHEN insufficient_privilege THEN
+    blocked_cross_tenant_write := true;
+  END;
+  IF NOT blocked_cross_tenant_write THEN
+    RAISE EXCEPTION 'tenant owner wrote an order into another tenant';
   END IF;
 
   BEGIN

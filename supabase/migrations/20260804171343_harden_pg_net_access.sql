@@ -1,0 +1,4 @@
+-- Reserved migration version. Hosted Supabase owns the pg_net grant event
+-- trigger, so changing extension grants from the project role is immediately
+-- reverted. The application keeps `net` outside the Data API exposed schemas
+-- and exposes outbound calls only through private SECURITY DEFINER wrappers.
