@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, ExternalLink, KeyRound, Loader2, MessageSquare, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Merchant } from '../../lib/supabase'
 import { S } from './adminShared'
@@ -213,15 +213,43 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
   const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null; created_at?: string | null; started_at?: string | null } | null>(null)
   const [syncDetails, setSyncDetails] = useState<any>(null)
   const [showActions, setShowActions] = useState(false)
+  const [waitingQuestions, setWaitingQuestions] = useState<number | null>(null)
 
   const syncInProgress = ['pending', 'processing', 'running'].includes(syncJob?.status || '')
   const syncProcessing = syncJob?.status === 'processing' || syncJob?.status === 'running'
+
+  const loadQuestionSummary = useCallback(async () => {
+    if (platform !== 'trendyol' || !status?.is_active) {
+      setWaitingQuestions(null)
+      return
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method: 'POST',
+        headers: functionHeaders(session.access_token),
+        body: JSON.stringify({ merchant_code: merchantCode, action: 'questions.inbox', query: { limit: 1 } }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (response.ok && !data.error) setWaitingQuestions(Number(data?.data?.waitingCount || 0))
+    } catch {
+      // Keep the last known count. The full inbox reports refresh errors when opened.
+    }
+  }, [merchantCode, platform, status?.is_active])
 
   useEffect(() => {
     setEditing(!status)
     setVerified(false)
     setForm({ ...EMPTY_FORM, seller_id: status?.seller_id || '' })
   }, [merchantCode, status])
+
+  useEffect(() => {
+    void loadQuestionSummary()
+    if (platform !== 'trendyol' || !status?.is_active) return
+    const timer = window.setInterval(() => void loadQuestionSummary(), 60_000)
+    return () => window.clearInterval(timer)
+  }, [loadQuestionSummary, platform, status?.is_active])
 
   useEffect(() => {
     if (!status?.is_active) { setSyncJob(null); setSyncDetails(null); return }
@@ -438,6 +466,34 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
               ) : null}
               {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color: 'var(--danger-text)', fontSize: 10, marginTop: 7 }}>{syncJob.error_message}</div> : null}
             </div>
+            {status.is_active ? (
+              <button
+                type="button"
+                onClick={() => setShowActions(true)}
+                style={{
+                  width: '100%', marginBottom: 12, padding: '11px 12px', borderRadius: 10,
+                  border: `1px solid ${waitingQuestions ? `${meta.color}55` : 'var(--border)'}`,
+                  background: waitingQuestions ? `${meta.color}0D` : 'var(--surface)', color: 'var(--text)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <MessageSquare size={17} color={meta.color} />
+                  <span>
+                    <strong style={{ display: 'block', fontSize: 12 }}>أسئلة العملاء</strong>
+                    <span style={{ display: 'block', marginTop: 3, color: 'var(--text3)', fontSize: 10 }}>
+                      {waitingQuestions === null ? 'فتح صندوق الأسئلة والردود' : waitingQuestions > 0 ? 'تحتاج ردك الآن' : 'لا توجد أسئلة تنتظر الرد'}
+                    </span>
+                  </span>
+                </span>
+                {waitingQuestions !== null ? (
+                  <span style={{ minWidth: 28, height: 28, padding: '0 8px', borderRadius: 999, display: 'grid', placeItems: 'center', background: waitingQuestions > 0 ? meta.color : 'var(--surface2)', color: waitingQuestions > 0 ? '#fff' : 'var(--text3)', fontSize: 11, fontWeight: 900 }}>
+                    {waitingQuestions.toLocaleString('ar-SA')}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             <div style={{ display: 'flex', gap: 8 }}>
               {status.is_active ? (
                 <button style={{ ...S.miniBtn, flex: 1, color: meta.color, borderColor: meta.color, opacity: syncInProgress ? 0.65 : 1 }} onClick={() => void requestSync()} disabled={!!busy || syncInProgress}>
@@ -468,7 +524,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
           </div>
         )}
       </div>
-      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => setShowActions(false)} merchantMode={!showAdvancedActions} /> : null}
+      {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => { setShowActions(false); void loadQuestionSummary() }} merchantMode={!showAdvancedActions} /> : null}
     </article>
   )
 }
