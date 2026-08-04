@@ -192,6 +192,118 @@ test('store owner downloads a complete paged data archive without integration se
   await expect(page.getByText(/مفاتيح الربط والأسرار/)).toBeVisible()
 })
 
+test('merchant follows a synced Trendyol order into product management', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const order = {
+    id: 'order-e2e-1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: '11344951785',
+    status: 'delivered', product_name: 'قهوة تركية 3 كجم', sku: 'TR-4999', quantity: 1,
+    unit_price: 54, total_amount: 54, gross_amount: 54, platform_fee: 0, shipping_cost: 2,
+    discount_amount: 0, commission_rate: 10, vat_rate: 15, currency: 'SAR', customer_city: 'الرياض',
+    order_date: '2026-08-03T10:00:00.000Z', created_at: '2026-08-03T10:00:00.000Z',
+    shipment_package_id: '3941019487', cargo_tracking_number: '4782465687', cargo_provider: 'Starlinks',
+  }
+  const product = {
+    id: 'product-e2e-1', merchant_code: merchant.merchant_code, name: 'قهوة تركية 3 كجم',
+    sku: 'TR-4999', barcode: '1492736729', category: 'قهوة', brand: 'Sellpert Test',
+    description: 'قهوة تركية محمصة بعناية.', cost_price: 30, target_net_price: 54, sale_price: 54,
+    msrp: 60, status: 'active', image_url: null, images: [], external_id: '1492736729',
+    raw: {}, created_at: '2026-08-01T08:00:00.000Z',
+  }
+
+  const fulfillRows = async (route: Route, rows: unknown[]) => {
+    const accept = route.request().headers().accept || ''
+    const wantsObject = accept.includes('application/vnd.pgrst.object')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' },
+      body: JSON.stringify(wantsObject ? (rows[0] ?? null) : rows),
+    })
+  }
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    if (table === 'orders') {
+      const select = url.searchParams.get('select') || ''
+      await fulfillRows(route, select.includes('shipment_address')
+        ? [{ raw: {}, shipment_address: { city: 'الرياض' }, invoice_address: { city: 'الرياض' }, last_synced_at: '2026-08-03T10:05:00.000Z', gross_amount: 54 }]
+        : [order])
+      return
+    }
+    if (table === 'products') { await fulfillRows(route, [product]); return }
+    if (table === 'order_items') {
+      await fulfillRows(route, [{ id: 'item-e2e-1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: order.order_id, line_id: 1, sku: product.sku, barcode: product.barcode, product_name: product.name, quantity: 1, unit_price: 54, line_total: 54, commission_rate: 10, shipment_package_id: order.shipment_package_id }])
+      return
+    }
+    if (table === 'order_packages') {
+      await fulfillRows(route, [{ id: 'package-e2e-1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: order.order_id, shipment_package_id: order.shipment_package_id, status: 'Delivered', provider_status: 'Delivered', cargo_provider: order.cargo_provider, cargo_tracking_number: order.cargo_tracking_number, invoice_number: 'INV-1', invoice_status: 'Invoiced', modified_at: '2026-08-03T10:05:00.000Z', raw: {} }])
+      return
+    }
+    if (table === 'product_profitability') {
+      await fulfillRows(route, [{ product_id: product.id, sku: product.sku, product_name: product.name, units_sold: 8, revenue: 432, platform_fees: 49.68, ad_spend: 20, returns_amount: 0, net_profit: 122.32, profit_margin_pct: 28.31, roas: 4.2 }])
+      return
+    }
+    if (table === 'inventory') {
+      await fulfillRows(route, [{ id: 'inventory-e2e-1', merchant_code: merchant.merchant_code, platform: 'trendyol', sku: product.sku, product_name: product.name, quantity: 12, fulfillment_channel: 'Merchant' }])
+      return
+    }
+    if (table === 'product_platform_prices') {
+      await fulfillRows(route, [{ id: 'price-e2e-1', merchant_code: merchant.merchant_code, product_id: product.id, platform: 'trendyol', sale_price: 54, list_price: 60 }])
+      return
+    }
+    if (table === 'platform_commission_rates') {
+      await fulfillRows(route, [{ platform: 'trendyol', category: 'قهوة', commission_rate: 10 }])
+      return
+    }
+    if (table === 'product_platform_listings') {
+      await fulfillRows(route, [{ id: 'listing-e2e-1', merchant_code: merchant.merchant_code, product_id: product.id, platform: 'trendyol', title: product.name, description: product.description, images: [], delivery_status: 'success' }])
+      return
+    }
+    if (['product_performance_snapshots', 'returns', 'ad_metrics', 'marketplace_action_logs'].includes(table || '')) {
+      await fulfillRows(route, [])
+      return
+    }
+    await route.fallback()
+  })
+
+  await page.goto('/orders')
+  await expect(page.getByRole('heading', { name: 'الطلبات' })).toBeVisible()
+  await expect(page.getByText('API Trendyol').first()).toBeVisible()
+  await page.getByRole('button', { name: order.order_id }).click()
+
+  const orderDialog = page.getByRole('dialog', { name: `تفاصيل الطلب ${order.order_id}` })
+  await expect(orderDialog).toBeVisible()
+  await expect(orderDialog.getByText('عمولة المنصة', { exact: true })).toBeVisible()
+  await expect(orderDialog.getByText('صافي الطلب', { exact: true })).toBeVisible()
+  const exactCommission = (-6.21).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س'
+  await expect(orderDialog.getByText(exactCommission, { exact: true })).toBeVisible()
+  await expect(orderDialog.getByText(order.cargo_tracking_number, { exact: true }).first()).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'تفاصيل طلب Trendyol متزامن')
+
+  await page.goto('/products')
+  await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible()
+  await expect(page.getByText(product.name).first()).toBeVisible()
+  await page.getByRole('button', { name: 'إدارة المنتج' }).first().click()
+  await expect(page).toHaveURL(new RegExp(`/product-detail\\?id=${product.id}`))
+  await expect(page.getByRole('heading', { name: product.name })).toBeVisible()
+  await expect(page.getByText('إدارة المنتج في Trendyol')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'مراجعة تعديل المنتج' })).toBeVisible()
+  await expect(page.getByText(/JSON/)).toHaveCount(0)
+  const updatedTitle = 'قهوة تركية 3 كجم - عبوة محسّنة'
+  await page.getByLabel('عنوان المنتج في Trendyol').fill(updatedTitle)
+  await page.getByRole('button', { name: 'مراجعة تعديل المنتج' }).click()
+  await expect(page.getByText('راجع تعديل بيانات المنتج', { exact: true })).toBeVisible()
+  await expect(page.getByText(updatedTitle, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'تأكيد وإرسال إلى Trendyol' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'تفاصيل وإدارة منتج Trendyol')
+  expect(runtimeErrors).toEqual([])
+})
+
 test('decision center explains evidence, value and action without misleading estimates', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

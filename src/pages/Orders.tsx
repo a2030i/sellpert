@@ -545,11 +545,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           ))}
         </div>
         <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
-          <select style={S.select} value={platform} onChange={e => setPlatform(e.target.value)}>
+          <select aria-label="تصفية الطلبات حسب المنصة" style={S.select} value={platform} onChange={e => setPlatform(e.target.value)}>
             <option value="all">كل المنصات</option>
             {platforms.map(p => <option key={p} value={p}>{PLATFORM_MAP[p] || p}</option>)}
           </select>
-          <select style={S.select} value={status} onChange={e => setStatus(e.target.value)}>
+          <select aria-label="تصفية الطلبات حسب الحالة" style={S.select} value={status} onChange={e => setStatus(e.target.value)}>
             <option value="all">كل الحالات</option>
             {(Object.keys(STATUS_MAP) as OrderStatus[]).map(s => (
               <option key={s} value={s}>{STATUS_MAP[s].label}</option>
@@ -627,7 +627,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       </button>
                     </td>
                     <td style={S.td}>
-                      <span style={{ ...S.platformTag, background:(PLATFORM_COLORS[o.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[o.platform]||'#5a5a7a' }}>
+                      <span style={{ ...S.platformTag, background:(PLATFORM_COLORS[o.platform]||'#5a5a7a')+'22', color:o.platform === 'trendyol' ? '#9a3f00' : PLATFORM_COLORS[o.platform]||'#5a5a7a' }}>
                         {PLATFORM_MAP[o.platform] || o.platform}
                       </span>
                     </td>
@@ -861,7 +861,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) minmax(150px,1fr) auto', gap:8 }}>
                 <input disabled={!packageWorkflow.canUpdateTracking} value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}/>
-                <select disabled={!packageWorkflow.canUpdateTracking} value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
+                <select aria-label="شركة الشحن" disabled={!packageWorkflow.canUpdateTracking} value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
                 <button disabled={orderActionLoading || !packageWorkflow.canUpdateTracking || !packageForm.trackingNumber.trim()} onClick={() => void runPackageAction('packages.tracking', { cargoSenderNumber:packageForm.trackingNumber.trim(), providerCode:packageForm.providerCode }, 'تسجيل بيانات الشحن')} style={{...S.actionBtn,opacity:packageWorkflow.canUpdateTracking ? 1 : .5}}>حفظ الشحن</button>
               </div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 }}>

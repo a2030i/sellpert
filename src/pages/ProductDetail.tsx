@@ -15,6 +15,19 @@ import {
 import { userErrorMessage } from '../lib/userError'
 import { ChevronLeft } from 'lucide-react'
 
+const DATA_COLORS = {
+  accent: 'var(--accent)',
+  info: '#116783',
+  success: 'var(--success-text)',
+  warning: '#8a5100',
+  danger: 'var(--danger-text)',
+  trendyol: '#9a3f00',
+} as const
+
+function platformDisplayColor(platform?: string) {
+  return platform === 'trendyol' ? DATA_COLORS.trendyol : PLATFORM_COLORS[platform || ''] || DATA_COLORS.accent
+}
+
 export default function ProductDetail({ merchant }: { merchant: Merchant | null }) {
   const productId = new URLSearchParams(window.location.search).get('id')
   const [product, setProduct] = useState<any>(null)
@@ -110,17 +123,17 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
-        <Kpi label="سعر التكلفة" value={fmtCurrency(product.cost_price)} color="#0f958c" />
-        <Kpi label="سعر البيع المستهدف" value={fmtCurrency(product.target_net_price)} color="#4cc9f0" />
-        <Kpi label="إجمالي الوحدات المباعة" value={fmtNumber(profitability?.units_sold || 0)} color="#00b894" />
-        <Kpi label="الإيرادات" value={fmtCurrency(profitability?.revenue || 0)} color="#00b894" />
+        <Kpi label="سعر التكلفة" value={fmtCurrency(product.cost_price)} color={DATA_COLORS.accent} />
+        <Kpi label="سعر البيع المستهدف" value={fmtCurrency(product.target_net_price)} color={DATA_COLORS.info} />
+        <Kpi label="إجمالي الوحدات المباعة" value={fmtNumber(profitability?.units_sold || 0)} color={DATA_COLORS.success} />
+        <Kpi label="الإيرادات" value={fmtCurrency(profitability?.revenue || 0)} color={DATA_COLORS.success} />
         <Kpi
           label={Number(product.cost_price || 0) > 0 ? 'صافي الربح التقديري' : 'الربحية'}
           value={Number(product.cost_price || 0) > 0 ? fmtCurrency(profitability?.net_profit || 0) : 'غير مكتملة'}
           sub={Number(product.cost_price || 0) > 0 && profitability?.profit_margin_pct !== null ? fmtPercent(profitability?.profit_margin_pct) + ' هامش' : 'أدخل سعر التكلفة أولًا'}
-          color={Number(product.cost_price || 0) <= 0 ? 'var(--warning-text)' : (profitability?.net_profit || 0) >= 0 ? '#00b894' : '#e84040'}
+          color={Number(product.cost_price || 0) <= 0 ? 'var(--warning-text)' : (profitability?.net_profit || 0) >= 0 ? DATA_COLORS.success : DATA_COLORS.danger}
         />
-        <Kpi label="ROAS" value={profitability?.roas ? Number(profitability.roas).toFixed(2) + 'x' : '—'} color="#ff9900" />
+        <Kpi label="ROAS" value={profitability?.roas ? Number(profitability.roas).toFixed(2) + 'x' : '—'} color={DATA_COLORS.warning} />
       </div>
 
       {/* Profitability Simulator */}
@@ -136,7 +149,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <Section title="المخزون حسب المنصة">
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {inventory.map((i, idx) => {
-              const c = PLATFORM_COLORS[i.platform] || '#0f958c'
+              const c = platformDisplayColor(i.platform)
               return (
                 <div key={idx} style={{ padding: '10px 14px', background: 'var(--surface2)', borderRadius: 10, borderLeft: `3px solid ${c}` }}>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[i.platform] || i.platform}</div>
@@ -154,9 +167,9 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         <Section title={`الإعلانات (${adMetrics.length})`}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
             <Kpi label="إنفاق إعلاني" value={fmtCurrency(adTotals.spend)} color="#e84040" />
-            <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color="#00b894" />
-            <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color="#0f958c" />
-            <Kpi label="ROAS الإعلاني" value={adTotals.spend > 0 ? (adTotals.revenue / adTotals.spend).toFixed(2) + 'x' : '—'} color="#ff9900" />
+            <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color={DATA_COLORS.success} />
+            <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color={DATA_COLORS.accent} />
+            <Kpi label="ROAS الإعلاني" value={adTotals.spend > 0 ? (adTotals.revenue / adTotals.spend).toFixed(2) + 'x' : '—'} color={DATA_COLORS.warning} />
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -170,8 +183,8 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
                       <td style={{ ...td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.campaign_name}>{a.campaign_name || '—'}</td>
                       <td style={td}>{a.search_query || '—'}</td>
                       <td style={{ ...td, color: '#e84040' }}>{Number(a.spend).toFixed(2)}</td>
-                      <td style={{ ...td, color: '#00b894' }}>{Number(a.revenue).toFixed(2)}</td>
-                      <td style={{ ...td, fontWeight: 700, color: r >= 3 ? '#00b894' : r >= 1 ? '#ff9900' : '#e84040' }}>{r.toFixed(2)}x</td>
+                      <td style={{ ...td, color: DATA_COLORS.success }}>{Number(a.revenue).toFixed(2)}</td>
+                      <td style={{ ...td, fontWeight: 700, color: r >= 3 ? DATA_COLORS.success : r >= 1 ? DATA_COLORS.warning : DATA_COLORS.danger }}>{r.toFixed(2)}x</td>
                     </tr>
                   )
                 })}
@@ -191,7 +204,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
                 {returns.map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={td}>{fmtDate(r.return_date)}</td>
-                    <td style={{ ...td, color: PLATFORM_COLORS[r.platform], fontWeight: 700 }}>{PLATFORM_MAP[r.platform] || r.platform}</td>
+                    <td style={{ ...td, color: platformDisplayColor(r.platform), fontWeight: 700 }}>{PLATFORM_MAP[r.platform] || r.platform}</td>
                     <td style={td}>{r.reason || '—'}</td>
                     <td style={{ ...td, color: '#e84040', fontWeight: 700 }}>{fmtCurrency(r.return_amount)}</td>
                   </tr>
@@ -212,7 +225,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
                 {orders.slice(0, 30).map((o, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={td}>{fmtDate(o.order_date)}</td>
-                    <td style={{ ...td, color: PLATFORM_COLORS[o.platform], fontWeight: 700 }}>{PLATFORM_MAP[o.platform] || o.platform}</td>
+                    <td style={{ ...td, color: platformDisplayColor(o.platform), fontWeight: 700 }}>{PLATFORM_MAP[o.platform] || o.platform}</td>
                     <td style={td}>{o.quantity}</td>
                     <td style={{ ...td, fontWeight: 700 }}>{fmtCurrency(o.total_amount)}</td>
                     <td style={td}><span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: 'var(--surface2)', color: 'var(--text3)' }}>{o.status}</span></td>
@@ -287,16 +300,16 @@ function ProfitSimulator({ product: _product, profitability }: { product: any; p
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>جرّب تغيير الأسعار والإعلانات وشوف تأثيرها على الربح (مرونة الطلب: {Math.abs(demandElasticity)}x)</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
-        <SliderInput label="تغيير السعر" value={pricePct} onChange={setPricePct} min={-30} max={50} suffix="%" color="#0f958c" />
-        <SliderInput label="تغيير الإعلانات" value={adPct} onChange={setAdPct} min={-100} max={100} suffix="%" color="#ff9900" />
-        <SliderInput label="تغيير التكلفة" value={costPct} onChange={setCostPct} min={-30} max={30} suffix="%" color="#4cc9f0" />
+        <SliderInput label="تغيير السعر" value={pricePct} onChange={setPricePct} min={-30} max={50} suffix="%" color={DATA_COLORS.accent} />
+        <SliderInput label="تغيير الإعلانات" value={adPct} onChange={setAdPct} min={-100} max={100} suffix="%" color={DATA_COLORS.warning} />
+        <SliderInput label="تغيير التكلفة" value={costPct} onChange={setCostPct} min={-30} max={30} suffix="%" color={DATA_COLORS.info} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-        <SimBox label="الإيراد الجديد" value={fmtCurrency(newRevenue)} sub={`${newUnits.toFixed(0)} وحدة`} color="#0f958c" />
+        <SimBox label="الإيراد الجديد" value={fmtCurrency(newRevenue)} sub={`${newUnits.toFixed(0)} وحدة`} color={DATA_COLORS.accent} />
         <SimBox label="الربح الحالي" value={fmtCurrency(baseProfit)} color="var(--text2)" />
-        <SimBox label="الربح الجديد" value={fmtCurrency(newProfit)} color={newProfit >= baseProfit ? '#00b894' : '#e84040'} />
-        <SimBox label="الفرق" value={(profitDelta >= 0 ? '+' : '') + fmtCurrency(Math.abs(profitDelta))} sub={(profitDelta >= 0 ? '▲' : '▼') + ' ' + Math.abs(profitPct).toFixed(0) + '%'} color={profitDelta >= 0 ? '#00b894' : '#e84040'} />
+        <SimBox label="الربح الجديد" value={fmtCurrency(newProfit)} color={newProfit >= baseProfit ? DATA_COLORS.success : DATA_COLORS.danger} />
+        <SimBox label="الفرق" value={(profitDelta >= 0 ? '+' : '') + fmtCurrency(Math.abs(profitDelta))} sub={(profitDelta >= 0 ? '▲' : '▼') + ' ' + Math.abs(profitPct).toFixed(0) + '%'} color={profitDelta >= 0 ? DATA_COLORS.success : DATA_COLORS.danger} />
       </div>
 
       {(pricePct !== 0 || adPct !== 0 || costPct !== 0) && (
@@ -317,7 +330,7 @@ function SliderInput({ label, value, onChange, min, max, suffix, color }: { labe
         <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{label}</span>
         <span style={{ fontSize: 13, fontWeight: 800, color }}>{value > 0 ? '+' : ''}{value}{suffix}</span>
       </div>
-      <input type="range" min={min} max={max} value={value} step={1} onChange={e => onChange(Number(e.target.value))} style={{ width: '100%', accentColor: color }} />
+      <input aria-label={label} type="range" min={min} max={max} value={value} step={1} onChange={e => onChange(Number(e.target.value))} style={{ width: '100%', accentColor: color }} />
     </div>
   )
 }
@@ -681,7 +694,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           return (
             <button key={p} onClick={() => setActivePlatform(p)} style={{
               padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              background: activePlatform === p ? (PLATFORM_COLORS[p] || 'var(--accent)') : 'var(--surface2)',
+              background: activePlatform === p ? platformDisplayColor(p) : 'var(--surface2)',
               color: activePlatform === p ? '#fff' : 'var(--text2)',
             }}>{PLATFORM_MAP[p] || p} {has && '— مفعّل'}</button>
           )
@@ -706,17 +719,17 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
         <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>السعر والمخزون</div>
         <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, marginBottom:10 }}>أدخل الكمية المتاحة للبيع والأسعار بالريال السعودي، ثم راجع الفرق قبل الإرسال.</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:8 }}>
-          <div><label style={fieldLabel}>المخزون المتاح</label><input disabled={pendingDelivery} type="number" min="0" max="20000" step="1" value={commercial.quantity} onChange={e => updateCommercial('quantity', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
-          <div><label style={fieldLabel}>سعر البيع (ر.س)</label><input disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.salePrice} onChange={e => updateCommercial('salePrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
-          <div><label style={fieldLabel}>السعر قبل الخصم (ر.س)</label><input disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.listPrice} onChange={e => updateCommercial('listPrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>المخزون المتاح</label><input aria-label="المخزون المتاح" disabled={pendingDelivery} type="number" min="0" max="20000" step="1" value={commercial.quantity} onChange={e => updateCommercial('quantity', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>سعر البيع (ر.س)</label><input aria-label="سعر البيع بالريال" disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.salePrice} onChange={e => updateCommercial('salePrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
+          <div><label style={fieldLabel}>السعر قبل الخصم (ر.س)</label><input aria-label="السعر قبل الخصم بالريال" disabled={pendingDelivery} type="number" min="0" step="0.01" value={commercial.listPrice} onChange={e => updateCommercial('listPrice', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }}/></div>
         </div>
         {reviewMode === 'commercial' ? <ProductChangeReview title="راجع تحديث السعر والمخزون" changes={commercialChanges} busy={commercialSaving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void savePriceInventory()} /> : null}
-        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={reviewCommercialUpdate} disabled={commercialSaving || pendingDelivery} style={{ background:'var(--surface)', border:'1px solid #f27a1a', color:'#d8630c', padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:commercialSaving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:commercialSaving || pendingDelivery ? .6 : 1 }}>{pendingDelivery ? 'تحديث قيد المعالجة' : 'مراجعة السعر والمخزون'}</button></div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}><button onClick={reviewCommercialUpdate} disabled={commercialSaving || pendingDelivery} style={{ background:'var(--surface)', border:`1px solid ${DATA_COLORS.trendyol}`, color:DATA_COLORS.trendyol, padding:'8px 13px', borderRadius:8, fontFamily:'inherit', fontSize:12, fontWeight:700, cursor:commercialSaving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:commercialSaving || pendingDelivery ? .6 : 1 }}>{pendingDelivery ? 'تحديث قيد المعالجة' : 'مراجعة السعر والمخزون'}</button></div>
       </div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
         <div>
           <label style={fieldLabel}>العنوان</label>
-          <input disabled={pendingDelivery} value={editing.title || ''} onChange={e => updateEditing('title', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }} />
+          <input aria-label="عنوان المنتج في Trendyol" disabled={pendingDelivery} value={editing.title || ''} onChange={e => updateEditing('title', e.target.value)} style={{ ...inp, opacity:pendingDelivery ? .65 : 1 }} />
         </div>
         {activePlatform !== 'trendyol' ? <div>
           <label style={fieldLabel}>الكلمات المفتاحية</label>
@@ -725,7 +738,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       </div>
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>الوصف</label>
-        <textarea disabled={pendingDelivery} value={editing.description || ''} onChange={e => updateEditing('description', e.target.value)} rows={3} style={{ ...inp, minHeight: 80, opacity:pendingDelivery ? .65 : 1 }} />
+        <textarea aria-label="وصف المنتج في Trendyol" disabled={pendingDelivery} value={editing.description || ''} onChange={e => updateEditing('description', e.target.value)} rows={3} style={{ ...inp, minHeight: 80, opacity:pendingDelivery ? .65 : 1 }} />
       </div>
       {activePlatform !== 'trendyol' ? <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>النقاط (سطر لكل واحدة)</label>
@@ -733,11 +746,11 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       </div> : null}
       <div style={{ marginTop: 10 }}>
         <label style={fieldLabel}>روابط الصور (سطر لكل واحدة)</label>
-        <textarea disabled={pendingDelivery} value={editing.images || ''} onChange={e => updateEditing('images', e.target.value)} rows={3} style={{ ...inp, minHeight: 70, opacity:pendingDelivery ? .65 : 1 }} placeholder="https://..." />
+        <textarea aria-label="روابط صور المنتج في Trendyol" disabled={pendingDelivery} value={editing.images || ''} onChange={e => updateEditing('images', e.target.value)} rows={3} style={{ ...inp, minHeight: 70, opacity:pendingDelivery ? .65 : 1 }} placeholder="https://..." />
       </div>
       {reviewMode === 'content' ? <ProductChangeReview title="راجع تعديل بيانات المنتج" changes={contentChanges} busy={saving} confirmLabel="تأكيد وإرسال إلى Trendyol" onBack={() => setReviewMode(null)} onConfirm={() => void save()} /> : null}
       <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button onClick={reviewContentUpdate} disabled={saving || pendingDelivery} style={{ background: PLATFORM_COLORS[activePlatform] || 'var(--accent)', border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: saving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:saving || pendingDelivery ? .65 : 1, fontFamily: 'inherit' }}>
+        <button onClick={reviewContentUpdate} disabled={saving || pendingDelivery} style={{ background: platformDisplayColor(activePlatform), border: 'none', color: '#fff', padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: saving || pendingDelivery ? 'not-allowed' : 'pointer', opacity:saving || pendingDelivery ? .65 : 1, fontFamily: 'inherit' }}>
           {pendingDelivery ? 'تعديل قيد المعالجة' : activePlatform === 'trendyol' ? 'مراجعة تعديل المنتج' : 'حفظ ' + (PLATFORM_MAP[activePlatform] || activePlatform)}
         </button>
       </div>
