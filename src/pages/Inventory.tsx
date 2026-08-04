@@ -277,11 +277,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
             <button key={k} style={{ ...S.pill, ...(filter===k ? S.pillActive : {}) }} onClick={() => setFilter(k as any)}>{l}</button>
           ))}
         </div>
-        <select style={{ ...S.input, width: 'auto', minWidth: 150 }} value={platformFilter} onChange={e => setPlatformFilter(e.target.value)}>
+        <select aria-label="تصفية المخزون حسب المنصة" style={{ ...S.input, width: 'auto', minWidth: 150 }} value={platformFilter} onChange={e => setPlatformFilter(e.target.value)}>
           <option value="all">كل المنصات</option>
           {platforms.map(p => <option key={p} value={p}>{PLATFORM_MAP[p] || p}</option>)}
         </select>
-        <select style={{ ...S.input, width: 'auto', minWidth: 160 }} value={sort} onChange={e => setSort(e.target.value as typeof sort)}>
+        <select aria-label="ترتيب قائمة المخزون" style={{ ...S.input, width: 'auto', minWidth: 160 }} value={sort} onChange={e => setSort(e.target.value as typeof sort)}>
           <option value="attention">الأكثر حاجة للإجراء</option>
           <option value="name">الاسم أبجديًا</option>
           <option value="quantity">الأعلى كمية</option>

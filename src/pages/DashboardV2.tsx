@@ -684,7 +684,14 @@ function WorkspaceReadinessPanel({ readiness }: { readiness: WorkspaceReadiness 
         <span>{readiness.completed.toLocaleString('ar-SA-u-nu-latn')} من {readiness.total.toLocaleString('ar-SA-u-nu-latn')} مكتملة</span>
       </div>
     </header>
-    <div className="db-readiness-progress" aria-label={`اكتملت ${readiness.percentage}% من تهيئة مساحة العمل`}><i style={{ width: `${readiness.percentage}%` }} /></div>
+    <div
+      className="db-readiness-progress"
+      role="progressbar"
+      aria-label="تقدم تهيئة مساحة العمل"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={readiness.percentage}
+    ><i style={{ width: `${readiness.percentage}%` }} /></div>
     <div className="db-readiness-steps">
       {readiness.steps.map((step, index) => <article key={step.key} className={step.complete ? 'is-complete' : step.key === readiness.nextStep?.key ? 'is-current' : ''}>
         <span className="db-readiness-step-number" aria-hidden="true">{step.complete ? <Check size={15} /> : (index + 1).toLocaleString('ar-SA-u-nu-latn')}</span>

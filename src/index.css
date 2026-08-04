@@ -21,11 +21,11 @@
   --border:   #e2e8f2;
   --border2:  #cdd5e8;
 
-  --accent:        #0f958c; /* العلامة — للتوهّج/الحدود/الأسطح الكبيرة */
-  --accent-soft:   #55bdb5;
-  --accent-strong: #08766f; /* تعبئة الأزرار — أبيض عليه 6.38:1 (يمر AA) */
-  --accent-glow:   rgba(15,149,140,0.3);
-  --accent-12:     rgba(15,149,140,0.12); /* تظليل خفيف للعنصر النشط */
+  --accent:        #08766f; /* نص وروابط العلامة — يمر AA على الأسطح الفاتحة */
+  --accent-soft:   #42918c;
+  --accent-strong: #065d58; /* تعبئة الأزرار — تباين مرتفع مع النص الأبيض */
+  --accent-glow:   rgba(8,118,111,0.3);
+  --accent-12:     rgba(8,118,111,0.12); /* تظليل خفيف للعنصر النشط */
   --on-accent:     #ffffff;
   --accent2: #00b894;
   --accent3: #ff6b6b;
@@ -36,18 +36,18 @@
 
   --gold:    #f0a800;
   --green:   #00b894;
-  --red:     #e84040;
+  --red:     #c63232;
 
   /* ألوان دلالية: -text يمر AA كنص، -bg خلفية الشرائح */
-  --success-text: #0b7f62; --success-bg: rgba(0,184,148,0.12);
+  --success-text: #08745a; --success-bg: rgba(0,184,148,0.12);
   --warning-text: #9c6700; --warning-bg: rgba(240,168,0,0.14);
-  --danger-text:  #d12f3f; --danger-bg:  rgba(232,64,64,0.12);
+  --danger-text:  #a92232; --danger-bg:  rgba(232,64,64,0.12);
   --info:         #2563eb; --info-text:  #2563eb; --info-bg: rgba(37,99,235,0.12);
   --overlay:      rgba(8,10,20,0.55);
 
   --text:       #1a1e30;
   --text2:      #5a6480;
-  --text3:      #6b7694; /* كان #94a0b8 (2.63:1 فشل) → 4.52:1 يمر AA */
+  --text3:      #5a6b78; /* 5.27:1 على السطح الثانوي الفاتح — يمر AA للنص الصغير */
   --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
@@ -619,17 +619,17 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
   --surface3: #f0f4f6;
   --border: #dfe6ea;
   --border2: #cbd6dc;
-  --accent: #0f958c;
-  --accent-soft: #55bdb5;
-  --accent-strong: #08766f;
-  --accent-glow: rgba(15,149,140,0.16);
-  --accent-12: rgba(15,149,140,0.10);
-  --accent2: #0f958c;
+  --accent: #08766f;
+  --accent-soft: #42918c;
+  --accent-strong: #065d58;
+  --accent-glow: rgba(8,118,111,0.16);
+  --accent-12: rgba(8,118,111,0.10);
+  --accent2: #08766f;
   --grad-brand: var(--accent-strong);
   --grad-accent: var(--accent-strong);
   --text: #132432;
   --text2: #526575;
-  --text3: #748694;
+  --text3: #5a6b78;
   --text-faint: #9ba9b3;
   --radius: 12px;
   --radius-sm: 8px;

@@ -56,11 +56,11 @@ export function accentFamily(accent: string): AccentTokens {
   }
 }
 
-export const DEFAULT_ACCENT = '#0f958c'
+export const DEFAULT_ACCENT = '#08766f'
 
 // لوحات جاهزة (تُستخدم في الدفعة التالية: منتقي ألوان في الإعدادات)
 export const PRESETS: Record<string, { label: string; accent: string }> = {
-  teal:    { label: 'أخضر مؤسسي (الافتراضي)', accent: '#0f958c' },
+  teal:    { label: 'أخضر مؤسسي (الافتراضي)', accent: '#08766f' },
   violet:  { label: 'بنفسجي', accent: '#7c6bff' },
   emerald: { label: 'زمرّدي',             accent: '#0ea66e' },
   azure:   { label: 'أزرق',               accent: '#2f6bff' },

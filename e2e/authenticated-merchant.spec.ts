@@ -146,10 +146,42 @@ test('registered merchant reaches complete Trendyol actions without technical JS
   expect(runtimeErrors).toEqual([])
 })
 
+test('core merchant workspace is accessible and stable before the first import', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const routes = [
+    { path: '/', heading: 'مركز قرارات المتجر', context: 'نظرة عامة' },
+    { path: '/orders', heading: 'لا توجد طلبات بعد', context: 'الطلبات' },
+    { path: '/products', heading: 'المنتجات', context: 'المنتجات' },
+    { path: '/inventory', heading: 'المخزون', context: 'المخزون' },
+    { path: '/statement', heading: 'الأرباح والتسويات', context: 'الأرباح والتسويات' },
+    { path: '/marketing', heading: 'لا توجد بيانات إعلانية بعد', context: 'الإعلانات والأداء' },
+    { path: '/actions', heading: 'خطة العمل', context: 'خطة العمل' },
+    { path: '/notifications', heading: 'مركز المتابعة', context: 'مركز المتابعة' },
+    { path: '/store-status', heading: 'حالة المتجر', context: 'حالة المتجر' },
+    { path: '/activity', heading: 'سجل النشاط', context: 'سجل النشاط' },
+    { path: '/security', heading: 'الأمان والجلسات', context: 'الأمان والجلسات' },
+    { path: '/team', heading: 'الفريق', context: 'الفريق والصلاحيات' },
+    { path: '/requests', heading: 'تذاكر الدعم', context: 'تذاكر الدعم' },
+  ]
+
+  for (const route of routes) {
+    await page.goto(route.path)
+    await expect(page.getByRole('heading', { name: route.heading }).first()).toBeVisible()
+    await expectNoSeriousAccessibilityViolations(page, `صفحة ${route.context}`)
+  }
+
+  expect(runtimeErrors).toEqual([])
+})
+
 test('store owner downloads a complete paged data archive without integration secrets', async ({ page }) => {
   await mockAuthenticatedMerchant(page)
   await page.goto('/settings')
   await expect(page.getByRole('heading', { name: 'إعدادات المتجر' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'صفحة إعدادات المتجر')
 
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'تنزيل البيانات' }).click()
@@ -202,6 +234,7 @@ test('decision center explains evidence, value and action without misleading est
   await expect(page.getByText('45.25 ر.س', { exact: true })).toBeVisible()
   await expect(page.getByText('ليست مبيعات مضمونة')).toBeVisible()
   await expect(page.getByText('قبل احتساب تكلفة المنتج')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'مركز قرارات المتجر')
 
   await page.getByRole('button', { name: 'إضافة للمتابعة' }).first().click()
   await expect(page.getByText('أُضيف القرار إلى خطة العمل')).toBeVisible()

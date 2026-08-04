@@ -18,6 +18,21 @@ export type ActivityResponse = {
   entries: ActivityEntry[]
 }
 
+export function parseActivityResponse(payload: unknown, page: number, limit: number): ActivityResponse {
+  if (!payload || typeof payload !== 'object') throw new Error('تعذر قراءة سجل النشاط. أعد المحاولة بعد قليل.')
+  const value = payload as Partial<ActivityResponse>
+  if (!Array.isArray(value.entries) || !Number.isFinite(value.total)) {
+    throw new Error('تعذر قراءة سجل النشاط. أعد المحاولة بعد قليل.')
+  }
+  return {
+    page: Number.isFinite(value.page) ? Number(value.page) : page,
+    limit: Number.isFinite(value.limit) ? Number(value.limit) : limit,
+    total: Math.max(0, Number(value.total)),
+    scope: value.scope === 'platform' ? 'platform' : 'merchant',
+    entries: value.entries,
+  }
+}
+
 export const ACTIVITY_ENTITIES: Record<string, string> = {
   merchants: 'إعدادات الحساب والفريق',
   platform_credentials: 'ربط منصات البيع',
@@ -60,6 +75,8 @@ export async function fetchActivityFeed(input: {
   action?: string
   table?: string
 } = {}): Promise<ActivityResponse> {
+  const page = input.page || 1
+  const limit = input.limit || 30
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('انتهت جلسة الدخول. يرجى تسجيل الدخول من جديد.')
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activity-feed`, {
@@ -71,13 +88,13 @@ export async function fetchActivityFeed(input: {
     },
     body: JSON.stringify({
       merchant_code: input.merchantCode || undefined,
-      page: input.page || 1,
-      limit: input.limit || 30,
+      page,
+      limit,
       action: input.action || undefined,
       table: input.table || undefined,
     }),
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload?.error || `تعذر تحميل سجل النشاط (${response.status}).`)
-  return payload as ActivityResponse
+  return parseActivityResponse(payload, page, limit)
 }
