@@ -16,6 +16,23 @@ const SA_CARRIERS = [
   ['IMILE','iMile'],['JTEXPRESS','J&T'],['NAQEL','Naqel'],['SHIPA','Shipa'],['SMSA','SMSA'],['SPL','SPL'],
   ['STARLINKS','Starlinks'],['ZID LOGISTICS','ZID Logistics'],['JOYEXPRESS','Joy Express'],
 ]
+const INVOICE_MAX_BYTES = 10 * 1024 * 1024
+const INVOICE_TYPES: Record<string,string> = { pdf:'application/pdf', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png' }
+
+function invoiceMime(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase() || ''
+  return INVOICE_TYPES[extension] || file.type.toLowerCase()
+}
+
+async function fileToBase64(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
 const STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   pending:    { label: 'معلق',      color: 'var(--warning-text)', bg: 'var(--warning-bg)' },
   processing: { label: 'قيد التنفيذ', color: 'var(--info-text)', bg: 'var(--info-bg)' },
@@ -74,6 +91,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orderActionLoading, setOrderActionLoading] = useState(false)
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [packageForm, setPackageForm] = useState({ invoiceNumber:'', trackingNumber:'', providerCode:'STARLINKS' })
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
 
@@ -221,7 +239,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function openOrder(order: Order) {
-    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setDetailLoading(true); setOrderActionMessage(null)
+    setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setInvoiceFile(null); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
@@ -257,7 +275,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   async function selectOrderPackage(packageId: string) {
     if (!selectedOrder) return
-    setActivePackageId(packageId); setSelectedActions([]); setOrderActionMessage(null)
+    setActivePackageId(packageId); setSelectedActions([]); setInvoiceFile(null); setOrderActionMessage(null)
     const { data } = await supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at,request')
       .eq('merchant_code', selectedOrder.merchant_code).eq('platform', 'trendyol')
       .contains('request', { path:{ packageId } }).order('started_at', { ascending:false }).limit(8)
@@ -372,6 +390,63 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     } catch (error:any) {
       console.error('Trendyol shipping label', error)
       setOrderActionMessage({ type:'err', text:userErrorMessage(error, 'تعذّر تجهيز ملصق الشحن.') })
+    } finally { setOrderActionLoading(false) }
+  }
+
+  function chooseInvoiceFile(file: File | null) {
+    setOrderActionMessage(null)
+    if (!file) { setInvoiceFile(null); return }
+    const type = invoiceMime(file)
+    if (!Object.values(INVOICE_TYPES).includes(type)) {
+      setInvoiceFile(null); setOrderActionMessage({ type:'err', text:'اختر فاتورة بصيغة PDF أو JPG أو PNG.' }); return
+    }
+    if (file.size > INVOICE_MAX_BYTES) {
+      setInvoiceFile(null); setOrderActionMessage({ type:'err', text:'حجم ملف الفاتورة يجب ألا يتجاوز 10 ميجابايت.' }); return
+    }
+    if (!file.size) {
+      setInvoiceFile(null); setOrderActionMessage({ type:'err', text:'ملف الفاتورة فارغ.' }); return
+    }
+    setInvoiceFile(file)
+  }
+
+  async function uploadInvoiceFile() {
+    if (!merchant || !activePackageId || !invoiceFile) return
+    if (!window.confirm(`تأكيد رفع «${invoiceFile.name}» إلى فاتورة هذه الشحنة في Trendyol؟`)) return
+    setOrderActionLoading(true); setOrderActionMessage(null)
+    try {
+      const { data:{ session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
+      const invoiceNumber = packageForm.invoiceNumber.trim()
+      const microExportNumber = /^[A-Za-z0-9]{3}\d{13}$/.test(invoiceNumber) ? invoiceNumber : undefined
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
+        body:JSON.stringify({
+          merchant_code:merchant.merchant_code,
+          action:'invoices.send_file',
+          confirm:true,
+          storefront:'SA',
+          path:{ packageId:activePackageId },
+          payload:{
+            shipmentPackageId:activePackageId,
+            fileName:invoiceFile.name,
+            contentType:invoiceMime(invoiceFile),
+            dataBase64:await fileToBase64(invoiceFile),
+            ...(microExportNumber ? { invoiceNumber:microExportNumber, invoiceDateTime:String(Date.now()) } : {}),
+          },
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol ملف الفاتورة')
+      setSelectedPackages(current => current.map(packageRow => String(packageRow.shipment_package_id) === activePackageId
+        ? { ...packageRow, invoice_status:'sent', invoice_number:invoiceNumber || packageRow.invoice_number }
+        : packageRow))
+      setSelectedActions(current => [{ id:crypto.randomUUID(), action:'invoices.send_file', status:'success', error_message:null, started_at:new Date().toISOString() }, ...current].slice(0,8))
+      setInvoiceFile(null)
+      setOrderActionMessage({ type:'ok', text:'تم رفع ملف الفاتورة إلى Trendyol وربطه بالشحنة بنجاح.' })
+    } catch (error:any) {
+      console.error('Trendyol invoice upload', error)
+      setOrderActionMessage({ type:'err', text:userErrorMessage(error, 'تعذّر رفع ملف الفاتورة إلى Trendyol.') })
     } finally { setOrderActionLoading(false) }
   }
 
@@ -720,6 +795,18 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 <input disabled={!packageWorkflow.canInvoice} value={packageForm.invoiceNumber} onChange={e => setPackageForm({...packageForm,invoiceNumber:e.target.value})} placeholder="رقم الفاتورة" style={{...S.select,minWidth:150,opacity:packageWorkflow.canInvoice ? 1 : .55}}/>
                 <button disabled={orderActionLoading || !packageWorkflow.canInvoice || activePackageItems.length === 0 || !packageForm.invoiceNumber.trim()} onClick={() => void runPackageAction('packages.status', { lines:activePackageItems.map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) })), params:{ invoiceNumber:packageForm.invoiceNumber.trim() }, status:'Invoiced' }, 'تسجيل إصدار الفاتورة')} style={{...S.actionBtn,opacity:packageWorkflow.canInvoice ? 1 : .5}}>تسجيل الفاتورة</button>
               </div>
+              <div style={{ marginBottom:10, padding:10, border:'1px solid var(--border)', borderRadius:9, background:'var(--surface)' }}>
+                <div style={{ fontSize:11, fontWeight:800, marginBottom:3 }}>ملف فاتورة العميل</div>
+                <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.6, marginBottom:8 }}>ارفع PDF أو صورة حتى 10 ميجابايت. سيُربط الملف بالشحنة الحالية فقط. لطلبات التصدير استخدم رقم فاتورة من 16 خانة في الحقل أعلاه.</div>
+                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  <label style={{ ...S.actionBtn, display:'inline-flex', alignItems:'center', cursor:orderActionLoading ? 'not-allowed' : 'pointer' }}>
+                    اختيار ملف
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" disabled={orderActionLoading} onChange={event => chooseInvoiceFile(event.target.files?.[0] || null)} style={{ display:'none' }}/>
+                  </label>
+                  <span style={{ fontSize:10, color:invoiceFile ? 'var(--text2)' : 'var(--text3)' }}>{invoiceFile ? `${invoiceFile.name} · ${(invoiceFile.size / 1024 / 1024).toLocaleString('ar-SA', { maximumFractionDigits:2 })} م.ب` : 'لم يتم اختيار ملف'}</span>
+                  <button disabled={orderActionLoading || !invoiceFile} onClick={() => void uploadInvoiceFile()} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:invoiceFile && !orderActionLoading ? 1 : .5 }}>{orderActionLoading && invoiceFile ? 'جارٍ الرفع...' : 'رفع الفاتورة إلى Trendyol'}</button>
+                </div>
+              </div>
               <div style={{ display:'grid', gridTemplateColumns:'minmax(150px,1fr) minmax(150px,1fr) auto', gap:8 }}>
                 <input disabled={!packageWorkflow.canUpdateTracking} value={packageForm.trackingNumber} onChange={e => setPackageForm({...packageForm,trackingNumber:e.target.value})} placeholder="رقم التتبع" style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}/>
                 <select disabled={!packageWorkflow.canUpdateTracking} value={packageForm.providerCode} onChange={e => setPackageForm({...packageForm,providerCode:e.target.value})} style={{...S.select,opacity:packageWorkflow.canUpdateTracking ? 1 : .55}}>{SA_CARRIERS.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</select>
@@ -732,7 +819,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
               {selectedActions.length ? <div style={{ marginTop:12, borderTop:'1px solid var(--border)', paddingTop:9 }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--text3)', marginBottom:6 }}>آخر إجراءات هذا الطلب</div>
                 <div style={{ display:'grid', gap:5 }}>{selectedActions.map(log => <div key={log.id} style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10 }}>
-                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق', 'packages.common_label_create':'طلب الملصق', 'packages.common_label_get':'تنزيل الملصق' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
+                  <span>{({ 'packages.status':'تحديث حالة الطلب', 'packages.tracking':'تسجيل الشحن', 'packages.cancel':'إلغاء بند', 'packages.common_label':'تحميل الملصق', 'packages.common_label_create':'طلب الملصق', 'packages.common_label_get':'تنزيل الملصق', 'invoices.send_file':'رفع ملف الفاتورة' } as Record<string,string>)[log.action] || 'إجراء Trendyol'}</span>
                   <span style={{ color:['success','accepted'].includes(log.status) ? 'var(--success-text)' : ['failed','partial'].includes(log.status) ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight:700 }}>{log.status === 'success' ? 'تم' : log.status === 'accepted' ? 'تم الإرسال' : log.status === 'failed' ? 'فشل' : log.status === 'partial' ? 'جزئي' : 'قيد التنفيذ'}</span>
                 </div>)}</div>
               </div> : null}

@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { trendyolPackageProviderStatus, trendyolPackageTransitionError } from '../_shared/trendyolPackageWorkflow.ts'
+import { decodeTrendyolInvoiceFile } from '../_shared/trendyolInvoice.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -12,7 +13,7 @@ const cors = {
 }
 
 type Risk = 'read' | 'write' | 'destructive'
-type Definition = { method: string; path: string; risk: Risk; storefront?: boolean; binary?: boolean }
+type Definition = { method: string; path: string; risk: Risk; storefront?: boolean; binary?: boolean; multipart?: boolean }
 
 // Every outbound request is selected from this fixed registry. Callers cannot
 // provide a host, path, or method, preventing the gateway from becoming SSRF.
@@ -80,7 +81,7 @@ const ACTIONS: Record<string, Definition> = {
 
   // Invoices and finance
   'invoices.send_link':       { method:'POST',   path:'/integration/sellers/{sellerId}/seller-invoice-links', risk:'write' },
-  'invoices.send_file':       { method:'POST',   path:'/integration/sellers/{sellerId}/seller-invoice-file', risk:'write' },
+  'invoices.send_file':       { method:'POST',   path:'/integration/sellers/{sellerId}/seller-invoice-file', risk:'write', storefront:true, multipart:true },
   'invoices.delete_link':     { method:'DELETE', path:'/integration/sellers/{sellerId}/seller-invoice-links/delete', risk:'destructive' },
   'finance.settlements':      { method:'GET', path:'/integration/finance/che/sellers/{sellerId}/settlements', risk:'read', storefront:true },
   'finance.other':            { method:'GET', path:'/integration/finance/che/sellers/{sellerId}/other-financials', risk:'read', storefront:true },
@@ -90,7 +91,8 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:cors })
   if (req.method !== 'POST') return json({ error:'Method not allowed' }, 405, cors)
   const contentLength = Number(req.headers.get('content-length') || 0)
-  if (contentLength > 5_000_000) return json({ error:'حجم الطلب يتجاوز الحد المسموح' }, 413, cors)
+  // A 10 MB invoice expands to about 13.4 MB when transported as base64 JSON.
+  if (contentLength > 15_000_000) return json({ error:'حجم الطلب يتجاوز الحد المسموح' }, 413, cors)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
   try {
@@ -148,8 +150,16 @@ Deno.serve(async req => {
     }
     if (definition.storefront) headers.storeFrontCode = clean(input?.storefront) || 'SA'
     if (definition.storefront && input?.language) headers['Accept-Language'] = clean(input.language)
-    let body: string | undefined
-    if (!['GET','DELETE'].includes(definition.method) && input?.payload !== undefined) {
+    let body: BodyInit | undefined
+    if (definition.multipart) {
+      const invoice = decodeTrendyolInvoiceFile(input?.payload)
+      const form = new FormData()
+      form.append('shipmentPackageId', invoice.shipmentPackageId)
+      if (invoice.invoiceNumber) form.append('invoiceNumber', invoice.invoiceNumber)
+      if (invoice.invoiceDateTime) form.append('invoiceDateTime', invoice.invoiceDateTime)
+      form.append('file', new Blob([invoice.bytes], { type:invoice.contentType }), invoice.fileName)
+      body = form
+    } else if (!['GET','DELETE'].includes(definition.method) && input?.payload !== undefined) {
       headers['Content-Type'] = 'application/json'
       body = JSON.stringify(input.payload)
     }
@@ -217,7 +227,7 @@ function buildPath(template:string, values:Record<string,unknown>) {
 }
 function clean(value:unknown) { return typeof value === 'string' ? value.trim() : '' }
 async function validatePackageContext(admin:any,merchantCode:string,action:string,input:any) {
-  if (!action.startsWith('packages.')) return
+  if (!action.startsWith('packages.') && action !== 'invoices.send_file') return
   if (['packages.common_label','packages.common_label_create','packages.common_label_get'].includes(action)) {
     const trackingNumber = clean(String(input?.path?.cargoTrackingNumber || ''))
     if (!/^[a-zA-Z0-9_-]{3,80}$/.test(trackingNumber)) throw new HttpError(400, 'رقم تتبع الشحنة غير صالح')
@@ -234,7 +244,7 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
     }
     return
   }
-  const packageId = clean(String(input?.path?.packageId || ''))
+  const packageId = clean(String(input?.path?.packageId || input?.payload?.shipmentPackageId || ''))
   if (!/^\d+$/.test(packageId)) throw new HttpError(400, 'رقم شحنة Trendyol غير صالح')
 
   const { data: packageRow, error } = await admin.from('order_packages')
@@ -244,10 +254,16 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
   if (error) throw error
   if (!packageRow) throw new HttpError(404, 'الشحنة غير موجودة في هذا المتجر؛ حدّث الطلبات ثم حاول مجددًا')
 
+  if (action === 'invoices.send_file') return
+
   const transitionError = trendyolPackageTransitionError(packageRow,action,String(input?.payload?.status || ''))
   if (transitionError) throw new HttpError(409,transitionError)
 }
 function validateActionInput(action:string,input:any) {
+  if (action === 'invoices.send_file') {
+    try { decodeTrendyolInvoiceFile(input?.payload) }
+    catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'ملف الفاتورة غير صالح') }
+  }
   if (action === 'products.v2_update_content') {
     const items = input?.payload?.items
     if (!Array.isArray(items) || items.length < 1 || items.length > 1000) throw new HttpError(400, 'أرسل من 1 إلى 1,000 منتج في كل تحديث للمحتوى')
