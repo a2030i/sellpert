@@ -124,6 +124,8 @@ $protectedFunctions = @(
   'sync-trendyol',
   'sync-amazon',
   'sync-noon',
+  'create-merchant',
+  'create-employee',
   'manage-platform-credentials',
   'test-platform-connection',
   'trendyol-actions',
@@ -135,7 +137,8 @@ $protectedFunctions = @(
   'analyze-merchant',
   'notify-whatsapp',
   'account-lifecycle',
-  'activity-feed'
+  'activity-feed',
+  'mfa-recovery'
 )
 foreach ($functionName in $protectedFunctions) {
   $status = Invoke-WithRetry {

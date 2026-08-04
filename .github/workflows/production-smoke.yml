@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: production-smoke
@@ -21,6 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Verify production availability and authorization boundaries
+        id: smoke
         shell: pwsh
         run: |
           if ('${{ github.event_name }}' -eq 'push') {
@@ -28,3 +30,40 @@ jobs:
           } else {
             ./scripts/test-production-smoke.ps1
           }
+      - name: Track production incident
+        if: always() && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          title='Sellpert production smoke monitor failed'
+          issue_number="$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --search "\"$title\" in:title" \
+            --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" \
+            | head -n 1)"
+
+          if [[ "$SMOKE_OUTCOME" == 'failure' ]]; then
+            if [[ -z "$issue_number" ]]; then
+              gh issue create \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --body "تعذر اجتياز فحص الإنتاج الآلي. راجع سجل التشغيل قبل أي نشر جديد.\n\n- التشغيل: $RUN_URL\n- الإصدار: \`$RELEASE_SHA\`\n- وقت الرصد: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            fi
+            exit 0
+          fi
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "عاد فحص الإنتاج إلى الحالة السليمة: $RUN_URL"
+            gh issue close "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --reason completed
+          fi
