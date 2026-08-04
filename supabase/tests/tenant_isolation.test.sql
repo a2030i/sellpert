@@ -97,11 +97,11 @@ BEGIN
     RAISE EXCEPTION 'tenant owner upload isolation failed';
   END IF;
 
-  UPDATE public.orders SET status = 'owner_verified'
+  UPDATE public.orders SET status = 'shipped'
   WHERE order_id = 'TENANT-A-ORDER';
   IF NOT EXISTS (
     SELECT 1 FROM public.orders
-    WHERE order_id = 'TENANT-A-ORDER' AND status = 'owner_verified'
+    WHERE order_id = 'TENANT-A-ORDER' AND status = 'shipped'
   ) THEN
     RAISE EXCEPTION 'tenant owner cannot update an own order';
   END IF;
