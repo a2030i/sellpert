@@ -44,6 +44,7 @@ const CAPABILITIES: Capability[] = [
   { action:'packages.alternative',label:'تسليم بديل',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{}' },
   { action:'packages.cargo_provider',label:'تغيير شركة الشحن',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"cargoProviderCode":"..."}' },
   { action:'packages.box_info',label:'عدد الصناديق والوزن الحجمي',group:'الطلبات والشحن',risk:'write',pathHint:'{"packageId":"..."}',payloadHint:'{"boxQuantity":1,"deci":1}' },
+  { action:'packages.common_label_create',label:'طلب إنشاء ملصق الشحن',group:'الطلبات والشحن',risk:'write',pathHint:'{"cargoTrackingNumber":"..."}',payloadHint:'{"format":"ZPL","boxQuantity":1}' },
   { action:'packages.common_label_get',label:'تحميل ملصق الشحن',group:'الطلبات والشحن',risk:'read',pathHint:'{"cargoTrackingNumber":""}' },
   { action:'seller.addresses',label:'عناوين الشحن والإرجاع',group:'الطلبات والشحن',risk:'read' },
   { action:'questions.list',label:'أسئلة العملاء',group:'خدمة العملاء',risk:'read',queryHint:'{"status":"WAITING_FOR_ANSWER","page":0,"size":50}' },

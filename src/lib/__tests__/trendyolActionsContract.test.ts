@@ -13,6 +13,14 @@ describe('Trendyol fulfillment action contract', () => {
     expect(gateway).not.toContain('/common-label/query')
   })
 
+  it('exposes every supported gateway action except the compatibility alias', () => {
+    const gatewayActions = [...gateway.matchAll(/^\s*'([^']+)'\s*:\s*\{/gm)]
+      .map(match => match[1]).filter(action => action !== 'packages.common_label').sort()
+    const exposedActions = [...merchantCenter.matchAll(/\{\s*action:'([^']+)'/g)]
+      .map(match => match[1]).sort()
+    expect(exposedActions).toEqual(gatewayActions)
+  })
+
   it('binds label access to a tracking number owned by the merchant', () => {
     expect(gateway).toContain(".eq('merchant_code',merchantCode).eq('platform','trendyol')")
     expect(gateway).toContain(".eq('cargo_tracking_number',trackingNumber)")
