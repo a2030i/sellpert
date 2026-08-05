@@ -46,17 +46,32 @@ test('merchant can understand and navigate the complete public entry journey', a
   await expect(page.getByRole('button', { name: 'إنشاء المتجر والبدء' })).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page, 'نموذج إنشاء المتجر')
 
-  await page.route('**/auth/v1/signup**', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ user: { id: 'signup-e2e', email: 'new@example.test' }, session: null }),
-  }))
+  let signupPayload: Record<string, unknown> | null = null
+  await page.route('**/auth/v1/signup**', route => {
+    signupPayload = route.request().postDataJSON() as Record<string, unknown>
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ user: { id: 'signup-e2e', email: 'new@example.test' }, session: null }),
+    })
+  })
   await page.getByLabel('اسم المتجر').fill('متجر جديد')
   await page.getByLabel('البريد الإلكتروني').fill('new@example.test')
   await page.getByLabel('كلمة المرور', { exact: true }).fill('SafeMerchant42!')
   await page.getByLabel('تأكيد كلمة المرور').fill('SafeMerchant42!')
   await page.getByRole('button', { name: 'إنشاء المتجر والبدء' }).click()
+  await expect(page.getByRole('alert')).toContainText('الموافقة عليهما لإنشاء المتجر')
+  expect(signupPayload).toBeNull()
+  await page.getByLabel(/قرأت وأوافق على/).check()
+  await page.getByRole('button', { name: 'إنشاء المتجر والبدء' }).click()
   await expect(page.getByText('تم إنشاء متجرك. افتح رسالة التحقق في بريدك ثم سجّل الدخول.')).toBeVisible()
+  expect(signupPayload).toMatchObject({
+    data: {
+      terms_accepted: true,
+      privacy_accepted: true,
+      legal_version: '2026-08-05',
+    },
+  })
   await expect(page.getByRole('button', { name: /إعادة المحاولة بعد/ })).toBeDisabled()
 
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first().click()

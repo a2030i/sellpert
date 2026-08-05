@@ -10,6 +10,8 @@ Deno.test('account export registry has unique public keys and no credential colu
   const salla = findAccountExportResource('salla_metadata')!
   assertEquals(salla.columns?.includes('access_token'), false)
   assertEquals(salla.columns?.includes('refresh_token'), false)
+  const legal = findAccountExportResource('legal_acceptances')!
+  assertEquals(legal.columns, 'id,merchant_code,user_id,terms_version,privacy_version,accepted_at,source')
 })
 
 Deno.test('export pagination is bounded and unknown resources are rejected', () => {

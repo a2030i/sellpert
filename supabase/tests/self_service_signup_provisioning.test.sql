@@ -27,7 +27,7 @@ INSERT INTO auth.users (
   '',
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
-  '{"signup_source":"self_service","name":"  متجر اختبار آمن  ","whatsapp_phone":"  +966500000000  "}'::jsonb,
+  '{"signup_source":"self_service","name":"  متجر اختبار آمن  ","whatsapp_phone":"  +966500000000  ","terms_accepted":true,"privacy_accepted":true,"legal_version":"2026-08-05"}'::jsonb,
   now(),
   now(),
   '',
@@ -59,6 +59,22 @@ BEGIN
      OR v_row.signup_source <> 'self_service'
      OR NOT v_row.is_active THEN
     RAISE EXCEPTION 'workspace defaults are incorrect';
+  END IF;
+END
+$$;
+
+DO $$
+DECLARE
+  v_acceptance public.merchant_legal_acceptances%ROWTYPE;
+BEGIN
+  SELECT * INTO STRICT v_acceptance
+  FROM public.merchant_legal_acceptances
+  WHERE user_id = 'a1200000-0000-4000-8000-000000000001';
+
+  IF v_acceptance.terms_version <> '2026-08-05'
+     OR v_acceptance.privacy_version <> '2026-08-05'
+     OR v_acceptance.source <> 'self_service_signup' THEN
+    RAISE EXCEPTION 'legal acceptance was not recorded with the signed document version';
   END IF;
 END
 $$;

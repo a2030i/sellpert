@@ -4,6 +4,7 @@ import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 import { authRedirectErrorMessage, cleanAuthRedirectUrl, registrationErrorMessage } from '../lib/authErrors'
 import { authCooldownRemaining, startAuthCooldown } from '../lib/authCooldown'
+import { hasAcceptedCurrentLegalDocuments, LEGAL_DOCUMENT_VERSION } from '../lib/legal'
 
 export default function Login() {
   const [redirectError] = useState(() => authRedirectErrorMessage(window.location))
@@ -13,6 +14,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [legalAccepted, setLegalAccepted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(redirectError)
@@ -62,6 +64,10 @@ export default function Login() {
       setError('كلمتا المرور غير متطابقتين')
       return
     }
+    if (!hasAcceptedCurrentLegalDocuments(legalAccepted)) {
+      setError('يجب قراءة شروط الاستخدام وسياسة الخصوصية والموافقة عليهما لإنشاء المتجر')
+      return
+    }
     const remaining = authCooldownRemaining(window.localStorage, 'register')
     if (remaining > 0) {
       setRegisterCooldown(remaining)
@@ -82,6 +88,9 @@ export default function Login() {
           name: name.trim(),
           whatsapp_phone: phone.trim(),
           signup_source: 'self_service',
+          terms_accepted: true,
+          privacy_accepted: true,
+          legal_version: LEGAL_DOCUMENT_VERSION,
         },
       },
     })
@@ -218,6 +227,21 @@ export default function Login() {
             {passwordChecks(password).map(check => <span key={check.key} style={{ color: check.passed ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> {check.label}</span>)}
             <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
           </div>
+          <label style={styles.legalConsent}>
+            <input
+              type="checkbox"
+              checked={legalAccepted}
+              onChange={event => setLegalAccepted(event.target.checked)}
+              style={styles.legalCheckbox}
+            />
+            <span>
+              قرأت وأوافق على{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" style={styles.footerLink}>شروط الاستخدام</a>
+              {' '}و{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer" style={styles.footerLink}>سياسة الخصوصية</a>
+              {' '}— الإصدار {LEGAL_DOCUMENT_VERSION}
+            </span>
+          </label>
         </>}
 
         {mode === 'login' && (
@@ -246,9 +270,9 @@ export default function Login() {
                 : 'إنشاء المتجر والبدء'}
         </button>
 
-        <p style={styles.footer}>
-          بإنشاء الحساب أنت توافق على <a href="/privacy" style={styles.footerLink}>سياسة الخصوصية</a> و<a href="/terms" style={styles.footerLink}>شروط الاستخدام</a>
-        </p>
+        {mode === 'login' && <p style={styles.footer}>
+          <a href="/privacy" style={styles.footerLink}>سياسة الخصوصية</a> و<a href="/terms" style={styles.footerLink}>شروط الاستخدام</a>
+        </p>}
       </div>
     </div>
   )
@@ -307,6 +331,8 @@ const styles: Record<string, React.CSSProperties> = {
   passwordToggle: { position: 'absolute', left: 10, bottom: 9, width: 32, height: 32, border: 0, background: 'transparent', color: 'var(--text3)', display: 'grid', placeItems: 'center', cursor: 'pointer' },
   securityNote: { display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 9, background: 'rgba(15,149,140,.07)', color: 'var(--text2)', fontSize: 12, lineHeight: 1.7, marginBottom: 10 },
   passwordRules: { display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, marginBottom: 14 },
+  legalConsent: { display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 12px', marginBottom: 14, border: '1px solid var(--border)', borderRadius: 9, color: 'var(--text2)', fontSize: 12, lineHeight: 1.8, cursor: 'pointer' },
+  legalCheckbox: { width: 17, height: 17, marginTop: 3, flexShrink: 0, accentColor: 'var(--accent)' },
   forgot: { display: 'block', margin: '-6px 0 14px auto', padding: 0, border: 0, background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' },
   error: {
     background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)',

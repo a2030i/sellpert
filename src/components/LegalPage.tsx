@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { LEGAL_DOCUMENT_VERSION } from '../lib/legal'
 
 export default function LegalPage({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
   return (
@@ -10,7 +11,7 @@ export default function LegalPage({ title, intro, children }: { title: string; i
       <article style={S.article}>
         <div style={S.kicker}>المستندات النظامية</div>
         <h1 style={S.title}>{title}</h1>
-        <p style={S.updated}>آخر تحديث: 3 أغسطس 2026</p>
+        <p style={S.updated}>الإصدار المعتمد: {LEGAL_DOCUMENT_VERSION}</p>
         <p style={S.intro}>{intro}</p>
         <div style={S.content}>{children}</div>
       </article>

@@ -53,6 +53,7 @@ export const ACCOUNT_EXPORT_RESOURCES: readonly AccountExportResource[] = [
   { key: 'notes', label: 'ملاحظات المتجر', table: 'merchant_notes' },
   { key: 'nps', label: 'تقييمات التجربة', table: 'nps_responses' },
   { key: 'account_closure', label: 'طلبات إغلاق الحساب', table: 'account_closure_requests' },
+  { key: 'legal_acceptances', label: 'سجل الموافقة على الشروط والخصوصية', table: 'merchant_legal_acceptances', columns: 'id,merchant_code,user_id,terms_version,privacy_version,accepted_at,source' },
   { key: 'audit_log', label: 'سجل النشاط والأمان', table: 'audit_log' },
 ] as const
 
