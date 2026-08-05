@@ -247,6 +247,9 @@ export default function App() {
   const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(() => window.location.pathname === '/auth/recovery')
+  const [passwordSetupMode, setPasswordSetupMode] = useState<'recovery' | 'invite'>(() =>
+    new URLSearchParams(window.location.search).get('flow') === 'invite' ? 'invite' : 'recovery',
+  )
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_GROUPS))
   const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, customers: 0, support: 0, integrationNeedsUpdate: false })
@@ -277,11 +280,15 @@ export default function App() {
 
     if (tokenHash && type) {
       // Clear URL params first, then exchange token
-      window.history.replaceState(null, '', '/')
+      const isPasswordSetup = type === 'recovery' || type === 'invite'
+      window.history.replaceState(null, '', isPasswordSetup ? '/auth/recovery' : '/')
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ data, error }) => {
         if (!error && data.session) {
-          if (type === 'recovery') setShowPasswordRecovery(true)
-          continueSessionRef.current(data.session, type === 'recovery')
+          if (isPasswordSetup) {
+            setPasswordSetupMode(type === 'invite' ? 'invite' : 'recovery')
+            setShowPasswordRecovery(true)
+          }
+          continueSessionRef.current(data.session, isPasswordSetup)
         } else {
           window.history.replaceState(null, '', '/?auth_error=verification_failed')
           setLoading(false)
@@ -477,7 +484,7 @@ export default function App() {
   )
 
   if (!session) return <Login />
-  if (showPasswordRecovery) return <PasswordRecovery onComplete={async () => {
+  if (showPasswordRecovery) return <PasswordRecovery mode={passwordSetupMode} onComplete={async () => {
     setShowPasswordRecovery(false)
     setLoading(true)
     const { data } = await supabase.auth.getSession()

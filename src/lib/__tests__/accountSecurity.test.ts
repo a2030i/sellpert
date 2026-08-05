@@ -39,6 +39,11 @@ describe('account provisioning security', () => {
       dashboard: true,
       orders: true,
     })
+    expect(normalizeMerchantPermissions({ customers: true }, defaults)).toEqual({
+      dashboard: true,
+      orders: false,
+      customers: true,
+    })
     expect(normalizeMerchantPermissions({ team: true }, defaults)).toBeNull()
     expect(normalizeMerchantPermissions({ orders: 'yes' }, defaults)).toBeNull()
   })

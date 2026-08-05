@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import {
-  Users, UserPlus, Trash2, Key, Save, Mail, Briefcase, Phone,
-  Check, Power, Shield,
+  Users, UserPlus, Trash2, Save, Mail, Briefcase, Phone,
+  Power, Shield, Send,
 } from 'lucide-react'
 import { toastOk, toastErr } from '../components/Toast'
 import { fmtRelative } from '../lib/formatters'
 import { DEFAULT_MERCHANT_PERMISSIONS, MERCHANT_PERMISSION_ITEMS } from '../lib/merchantPermissions'
-import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 import { userErrorMessage } from '../lib/userError'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
@@ -36,12 +35,10 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   const [editId, setEditId] = useState<string | null>(null)
   const [editPermissions, setEditPermissions] = useState<Record<string, boolean>>({})
   const [editJobTitle, setEditJobTitle] = useState('')
-  const [resetPwdFor, setResetPwdFor] = useState<string | null>(null)
-  const [newPwd, setNewPwd] = useState('')
   const [busy, setBusy] = useState(false)
 
   const [form, setForm] = useState({
-    name: '', email: '', password: '', whatsapp_phone: '', job_title: '',
+    name: '', email: '', whatsapp_phone: '', job_title: '',
     permissions: { ...DEFAULT_PERMISSIONS } as Record<string, boolean>,
   })
 
@@ -70,21 +67,20 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function addEmployee() {
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
-      toastErr('الاسم والبريد وكلمة المرور مطلوبة'); return
+    if (!form.name.trim() || !form.email.trim()) {
+      toastErr('الاسم والبريد الإلكتروني مطلوبان'); return
     }
-    if (!isStrongPassword(form.password)) { toastErr(PASSWORD_POLICY_MESSAGE); return }
     setBusy(true)
     const data = await callFn({
-      name: form.name, email: form.email, password: form.password,
+      name: form.name, email: form.email,
       whatsapp_phone: form.whatsapp_phone || undefined,
       job_title: form.job_title || undefined,
       permissions: form.permissions,
     })
     setBusy(false)
     if (data.error) { console.error('add employee', data.error); toastErr(userErrorMessage(data.error, 'تعذّر إضافة الموظف.')) ; return }
-    toastOk(`تم إضافة ${form.name} — الكود: ${data.merchant_code}`)
-    setForm({ name: '', email: '', password: '', whatsapp_phone: '', job_title: '', permissions: { ...DEFAULT_PERMISSIONS } })
+    toastOk(`أُرسلت دعوة آمنة إلى ${form.email}`)
+    setForm({ name: '', email: '', whatsapp_phone: '', job_title: '', permissions: { ...DEFAULT_PERMISSIONS } })
     setShowAdd(false)
     load()
   }
@@ -133,16 +129,13 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     load()
   }
 
-  async function resetPassword() {
-    if (!resetPwdFor || !isStrongPassword(newPwd)) { toastErr(PASSWORD_POLICY_MESSAGE); return }
+  async function sendPasswordLink(employee: Employee) {
+    if (!confirm(`إرسال رابط آمن لتعيين كلمة المرور إلى ${employee.email}؟`)) return
     setBusy(true)
-    const data = await callFn({ action: 'reset_password', employee_code: resetPwdFor, new_password: newPwd })
+    const data = await callFn({ action: 'send_recovery', employee_code: employee.merchant_code })
     setBusy(false)
-    if (data.error) { console.error('reset employee password', data.error); toastErr(userErrorMessage(data.error, 'تعذّر تغيير كلمة المرور.')) }
-    else {
-      toastOk('تم تغيير كلمة المرور')
-      setResetPwdFor(null); setNewPwd('')
-    }
+    if (data.error) { console.error('send employee password link', data.error); toastErr(userErrorMessage(data.error, 'تعذّر إرسال رابط تعيين كلمة المرور.')) }
+    else toastOk(`أُرسل الرابط الآمن إلى ${employee.email}`)
   }
 
   if (!merchant) return null
@@ -157,7 +150,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>الفريق</h1>
             <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
-              أضف موظفين بصلاحيات مخصصة لإدارة متجرك
+              ادعُ فريقك بأمان وحدد صلاحيات كل عضو داخل متجرك
             </div>
           </div>
         </div>
@@ -172,19 +165,16 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
           <h3 style={cardTitleStyle}>موظف جديد</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 14 }}>
             <Field label="الاسم الكامل" Icon={Users}>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="أحمد العلي" />
+              <input aria-label="الاسم الكامل" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="أحمد العلي" />
             </Field>
             <Field label="البريد الإلكتروني" Icon={Mail}>
-              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="employee@example.com" />
-            </Field>
-            <Field label="كلمة المرور (10+، حرف ورقم)" Icon={Key}>
-              <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} placeholder="********" />
+              <input aria-label="البريد الإلكتروني" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="employee@example.com" />
             </Field>
             <Field label="المسمى الوظيفي" Icon={Briefcase}>
-              <input value={form.job_title} onChange={e => setForm({ ...form, job_title: e.target.value })} style={inputStyle} placeholder="مدير عمليات" />
+              <input aria-label="المسمى الوظيفي" value={form.job_title} onChange={e => setForm({ ...form, job_title: e.target.value })} style={inputStyle} placeholder="مدير عمليات" />
             </Field>
             <Field label="رقم الواتساب" Icon={Phone}>
-              <input value={form.whatsapp_phone} onChange={e => setForm({ ...form, whatsapp_phone: e.target.value })} style={inputStyle} placeholder="+966500000000" />
+              <input aria-label="رقم الواتساب" value={form.whatsapp_phone} onChange={e => setForm({ ...form, whatsapp_phone: e.target.value })} style={inputStyle} placeholder="+966500000000" />
             </Field>
           </div>
 
@@ -198,7 +188,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={() => setShowAdd(false)} style={secondaryBtn}>إلغاء</button>
             <button onClick={addEmployee} disabled={busy} style={primaryBtn}>
-              {busy ? 'جاري...' : <><Check size={13} /> إنشاء وإرسال بيانات الدخول</>}
+              {busy ? 'جاري الإرسال...' : <><Send size={13} /> إرسال دعوة آمنة</>}
             </button>
           </div>
         </div>
@@ -250,8 +240,8 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                         <button onClick={() => startEdit(e)} style={iconBtnStyle} title="تعديل الصلاحيات">
                           <Shield size={13} />
                         </button>
-                        <button onClick={() => setResetPwdFor(e.merchant_code)} style={iconBtnStyle} title="تغيير كلمة المرور">
-                          <Key size={13} />
+                        <button onClick={() => sendPasswordLink(e)} style={iconBtnStyle} title="إرسال رابط تعيين كلمة المرور" aria-label={`إرسال رابط تعيين كلمة المرور إلى ${e.name}`}>
+                          <Mail size={13} />
                         </button>
                         <button onClick={() => toggleActive(e)} style={{ ...iconBtnStyle, color: e.is_active ? '#f0a800' : 'var(--success-text)' }} title={e.is_active ? 'إيقاف' : 'تفعيل'}>
                           <Power size={13} />
@@ -280,7 +270,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                 {isEditing && (
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--border)' }}>
                     <Field label="المسمى الوظيفي" Icon={Briefcase}>
-                      <input value={editJobTitle} onChange={ev => setEditJobTitle(ev.target.value)} style={inputStyle} />
+                      <input aria-label={`المسمى الوظيفي لـ ${e.name}`} value={editJobTitle} onChange={ev => setEditJobTitle(ev.target.value)} style={inputStyle} />
                     </Field>
                     <div style={{ marginTop: 12, marginBottom: 12 }}>
                       <PermissionGrid value={editPermissions} onChange={setEditPermissions} />
@@ -299,23 +289,6 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* Reset password modal */}
-      {resetPwdFor && (
-        <div onClick={() => setResetPwdFor(null)} style={modalOverlayStyle}>
-          <div onClick={ev => ev.stopPropagation()} style={modalStyle}>
-            <h3 style={{ ...cardTitleStyle, marginTop: 0 }}>
-              <Key size={14} /> تغيير كلمة المرور
-            </h3>
-            <Field label="كلمة المرور الجديدة (10+، حرف ورقم)" Icon={Key}>
-              <input type="password" value={newPwd} onChange={ev => setNewPwd(ev.target.value)} style={inputStyle} autoFocus />
-            </Field>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
-              <button onClick={() => { setResetPwdFor(null); setNewPwd('') }} style={secondaryBtn}>إلغاء</button>
-              <button onClick={resetPassword} disabled={busy} style={primaryBtn}>تغيير</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -365,5 +338,3 @@ const primaryBtn: React.CSSProperties = { display: 'flex', alignItems: 'center',
 const secondaryBtn: React.CSSProperties = { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }
 const iconBtnStyle: React.CSSProperties = { width: 30, height: 30, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit' }
 const permChip: React.CSSProperties = { fontSize: 10, padding: '3px 8px', background: 'rgba(108,92,231,0.12)', color: 'var(--accent)', borderRadius: 5, fontWeight: 700 }
-const modalOverlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(15,18,40,0.65)', backdropFilter: 'blur(4px)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }
-const modalStyle: React.CSSProperties = { width: '100%', maxWidth: 420, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }

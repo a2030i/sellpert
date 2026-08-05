@@ -3,6 +3,7 @@ export const ACCOUNT_CODE_PATTERN = /^[A-Z]-[A-F0-9]{16}$/
 export const MERCHANT_PERMISSION_KEYS = [
   'dashboard',
   'orders',
+  'customers',
   'products',
   'inventory',
   'marketing',

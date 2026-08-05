@@ -1,7 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import {
   generateAccountCode,
-  isStrongAccountPassword,
   normalizeEmail,
   normalizeMerchantPermissions,
   normalizeName,
@@ -12,9 +11,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const APP_URL = Deno.env.get('APP_URL') || 'https://sellpert.vercel.app'
+
 const DEFAULT_PERMISSIONS = {
   dashboard:  true,
   orders:     true,
+  customers:  false,
   products:   true,
   inventory:  true,
   marketing:  false,
@@ -46,6 +48,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json()
     const action = body.action || 'create'
+    if (!['create', 'delete_auth', 'send_recovery'].includes(action)) {
+      return json({ error: 'Unsupported employee action' }, 400)
+    }
     const callerCanManageStaff = callerMerchant.role === 'staff'
       && Array.isArray(callerMerchant.permissions)
       && callerMerchant.permissions.includes('create_staff')
@@ -85,21 +90,24 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
 
-    // ── RESET PASSWORD ──────────────────────────────────────────────────
-    if (action === 'reset_password') {
-      const { employee_code, new_password } = body
-      if (!employee_code || !new_password) return json({ error: 'employee_code & new_password required' }, 400)
-      if (!isStrongAccountPassword(new_password)) {
-        return json({ error: 'كلمة المرور يجب أن تكون من 12 إلى 128 حرفًا وتحتوي على حرف ورقم ورمز، وألا تكون كلمة شائعة' }, 400)
-      }
+    // ── SEND EMPLOYEE-OWNED PASSWORD LINK ───────────────────────────────
+    if (action === 'send_recovery') {
+      const { employee_code } = body
+      if (!employee_code) return json({ error: 'employee_code required' }, 400)
 
       const { data: emp } = await adminClient.from('merchants')
-        .select('id,owner_merchant_code,role').eq('merchant_code', employee_code).maybeSingle()
+        .select('id,email,owner_merchant_code,role').eq('merchant_code', employee_code).maybeSingle()
       if (!emp || emp.role !== 'employee' || emp.owner_merchant_code !== callerMerchant.merchant_code) {
         return json({ error: 'Forbidden: not your employee' }, 403)
       }
-      const { error } = await adminClient.auth.admin.updateUserById(emp.id, { password: new_password })
-      if (error) return json({ error: error.message }, 400)
+
+      const publicClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+      })
+      const { error } = await publicClient.auth.resetPasswordForEmail(emp.email, {
+        redirectTo: new URL('/auth/recovery', APP_URL).toString(),
+      })
+      if (error) return json({ error: 'تعذر إرسال رابط تعيين كلمة المرور. حاول بعد قليل.' }, 400)
       return json({ ok: true })
     }
 
@@ -109,7 +117,6 @@ Deno.serve(async (req) => {
     }
 
     const {
-      password,
       job_title,
       whatsapp_phone,
       permissions = DEFAULT_PERMISSIONS,
@@ -121,9 +128,6 @@ Deno.serve(async (req) => {
     if (!name || !email) {
       return json({ error: 'الاسم أو البريد الإلكتروني غير صالح' }, 400)
     }
-    if (!isStrongAccountPassword(password)) {
-      return json({ error: 'كلمة المرور يجب أن تكون من 12 إلى 128 حرفًا وتحتوي على حرف ورقم ورمز، وألا تكون كلمة شائعة' }, 400)
-    }
     if (!safePermissions) return json({ error: 'الصلاحيات المرسلة غير صالحة' }, 400)
     if (job_title != null && (typeof job_title !== 'string' || job_title.trim().length > 100)) {
       return json({ error: 'المسمى الوظيفي غير صالح' }, 400)
@@ -133,19 +137,20 @@ Deno.serve(async (req) => {
     }
 
     // An existing identity must be recovered by its owner, never claimed here.
-    const { data: authData, error: createErr } = await adminClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
+    const { data: authData, error: createErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      data: { name },
+      redirectTo: new URL('/auth/recovery?flow=invite', APP_URL).toString(),
     })
 
     if (createErr) {
-      const isAlreadyRegistered = /already registered|already been registered/i.test(createErr.message)
+      console.error('employee invitation failed', createErr.code || createErr.name)
+      const isAlreadyRegistered = createErr.code === 'email_exists'
+        || /already registered|already been registered/i.test(createErr.message)
       return json({
         error: isAlreadyRegistered
           ? 'هذا البريد مستخدم بحساب موجود. استخدم بريدًا مختلفًا أو اطلب من صاحبه استعادة الحساب.'
-          : createErr.message,
-      }, 400)
+          : 'تعذر إرسال الدعوة عبر البريد الآن. حاول مرة أخرى بعد قليل.',
+      }, isAlreadyRegistered ? 400 : 502)
     }
     const userId = authData.user!.id
 
@@ -177,10 +182,11 @@ Deno.serve(async (req) => {
       return json({ error: 'خطأ في قاعدة البيانات: ' + dbErr.message }, 500)
     }
 
-    return json({ ok: true, merchant_code: code, user_id: userId })
+    return json({ ok: true, merchant_code: code, user_id: userId, invitation_sent: true })
 
   } catch (e: any) {
-    return json({ error: e.message }, 500)
+    console.error('create-employee unexpected failure', e?.name || 'Error')
+    return json({ error: 'تعذر تنفيذ طلب الفريق الآن. حاول مرة أخرى بعد قليل.' }, 500)
   }
 })
 

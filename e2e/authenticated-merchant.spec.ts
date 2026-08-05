@@ -154,6 +154,41 @@ test('new merchant reaches one clear first-value action instead of empty analyti
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant invites an employee without creating or sharing their password', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  let submitted: Record<string, unknown> | null = null
+
+  await page.route('**/functions/v1/create-employee', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, merchant_code: 'E-0011223344556677', invitation_sent: true }),
+    })
+  })
+
+  await page.goto('/team')
+  await expect(page.getByRole('heading', { name: 'الفريق' })).toBeVisible()
+  await page.getByRole('button', { name: 'إضافة موظف' }).click()
+  await expect(page.locator('input[type="password"]')).toHaveCount(0)
+  await page.getByLabel('الاسم الكامل').fill('سارة محمد')
+  await page.getByLabel('البريد الإلكتروني').fill('sara@example.test')
+  await page.getByRole('button', { name: 'إرسال دعوة آمنة' }).click()
+
+  await expect.poll(() => submitted).toMatchObject({
+    name: 'سارة محمد',
+    email: 'sara@example.test',
+  })
+  expect(submitted).not.toHaveProperty('password')
+  await expect(page.getByText('أُرسلت دعوة آمنة إلى sara@example.test')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'دعوة موظف آمنة')
+  await page.screenshot({ path: testInfo.outputPath('secure-team-invitation.png'), fullPage: true })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('merchant sees a truthful purchase funding decision and opens bank evidence', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

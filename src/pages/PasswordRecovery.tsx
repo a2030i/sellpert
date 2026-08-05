@@ -3,13 +3,14 @@ import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../lib/passwordPolicy'
 
-export default function PasswordRecovery({ onComplete }: { onComplete: () => void }) {
+export default function PasswordRecovery({ mode = 'recovery', onComplete }: { mode?: 'recovery' | 'invite'; onComplete: () => void }) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [show, setShow] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const checks = useMemo(() => passwordChecks(password), [password])
+  const isInvite = mode === 'invite'
 
   async function save() {
     if (!isStrongPassword(password)) {
@@ -44,8 +45,10 @@ export default function PasswordRecovery({ onComplete }: { onComplete: () => voi
     <main dir="rtl" style={styles.wrap}>
       <section style={styles.card} aria-labelledby="recovery-title">
         <div style={styles.icon}><KeyRound size={26} /></div>
-        <h1 id="recovery-title" style={styles.title}>تعيين كلمة مرور جديدة</h1>
-        <p style={styles.sub}>تم التحقق من رابط الاستعادة. اختر كلمة قوية لحماية بيانات متجرك.</p>
+        <h1 id="recovery-title" style={styles.title}>{isInvite ? 'أنشئ كلمة مرور حسابك' : 'تعيين كلمة مرور جديدة'}</h1>
+        <p style={styles.sub}>{isInvite
+          ? 'تم قبول دعوتك إلى فريق المتجر. اختر كلمة مرور خاصة بك قبل الدخول.'
+          : 'تم التحقق من رابط الاستعادة. اختر كلمة قوية لحماية بيانات متجرك.'}</p>
 
         <label style={styles.label}>كلمة المرور الجديدة</label>
         <div style={styles.passwordWrap}>
