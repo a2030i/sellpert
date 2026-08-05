@@ -1,6 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { expectNoSeriousAccessibilityViolations } from './accessibility'
 
+test.skip(true, 'محفوظة للمرحلة المتقدمة؛ واجهة الإطلاق تعرض مسارات المرحلة الأولى فقط')
+
 const merchant = {
   id: '00000000-0000-4000-8000-000000000111',
   merchant_code: 'M-E2E-001',

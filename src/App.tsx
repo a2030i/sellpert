@@ -1,27 +1,19 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
-import { listPlatformCredentials } from './lib/platformCredentialManager'
-import { useCallback } from 'react'
 import { useMobile } from './lib/hooks'
 import Login from './pages/Login'
 import PasswordRecovery from './pages/PasswordRecovery'
 import { ToastContainer, toastErr } from './components/Toast'
 import OnboardingFlow from './components/OnboardingFlow'
-import AIChat from './components/AIChat'
-import ThemeToggle from './components/ThemeToggle'
 import AccountSwitcher from './components/AccountSwitcher'
-import CommandPalette from './components/CommandPalette'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
-import NPSWidget from './components/NPSWidget'
 import AccountAccessState from './components/AccountAccessState'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import MfaChallenge from './components/MfaChallenge'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import {
-  LayoutDashboard, Tags, Package, Megaphone, LifeBuoy,
-  FileText, Link2, Settings as SettingsIcon, LogOut, Boxes, Users,
-  Search, MoreHorizontal, X, Bell, ChevronDown, ListChecks, Activity, History, ShieldCheck, Eye, MessageSquare,
+  LayoutDashboard, Tags, Package, Link2, LogOut, Boxes, Eye,
   type LucideIcon,
 } from 'lucide-react'
 import type { EmailOtpType, Session } from '@supabase/supabase-js'
@@ -65,51 +57,25 @@ const PageFallback = () => (
 export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
 const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-detail', 'quick-inventory'])
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
-  { key: 'main', label: 'الرئيسية', items: [
-    { Icon: LayoutDashboard, label: 'مركز القرارات', key: 'dashboard', permission: 'dashboard' },
-    { Icon: Bell, label: 'مركز المتابعة', key: 'notifications', permission: 'dashboard' },
-  ]},
-  { key: 'store', label: 'إدارة المتجر', items: [
-    { Icon: ListChecks, label: 'خطة العمل', key: 'actions', permission: 'dashboard' },
+  { key: 'phase-one', label: 'المرحلة الأولى', items: [
+    { Icon: LayoutDashboard, label: 'الرئيسية', key: 'dashboard', permission: 'dashboard' },
     { Icon: Package, label: 'الطلبات', key: 'orders', permission: 'orders' },
-    { Icon: MessageSquare, label: 'خدمة العملاء', key: 'customers', permission: 'customers' },
     { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
-  ]},
-  { key: 'analytics', label: 'التقارير والتحليلات', items: [
-    { Icon: FileText, label: 'الأرباح والتحصيل', key: 'statement', permission: 'statement' },
-    { Icon: Megaphone, label: 'الإعلانات والأداء', key: 'marketing', permission: 'marketing' },
-  ]},
-  { key: 'settings', label: 'الإعدادات', placement: 'secondary', items: [
-    { Icon: Activity, label: 'حالة المتجر', key: 'store-status', permission: 'integrations' },
-    { Icon: History, label: 'سجل النشاط', key: 'activity', permission: 'settings' },
-    { Icon: ShieldCheck, label: 'الأمان والجلسات', key: 'security', permission: 'settings' },
-    { Icon: Link2, label: 'الربط ورفع الملفات', key: 'integrations', permission: 'integrations' },
-    { Icon: Users, label: 'الفريق والصلاحيات', key: 'team', permission: 'team' },
-    { Icon: SettingsIcon, label: 'إعدادات المتجر', key: 'settings', permission: 'settings' },
-  ]},
-  { key: 'support', label: 'المساعدة', placement: 'secondary', items: [
-    { Icon: LifeBuoy, label: 'الدعم ومركز المعرفة', key: 'requests' },
+    { Icon: Link2, label: 'الربط', key: 'integrations', permission: 'integrations' },
   ]},
 ]
 
-const DEFAULT_COLLAPSED_GROUPS = new Set<string>(NAV_GROUPS.map(group => group.key))
 const NAV_PARENT: Partial<Record<View, View>> = {
   help: 'requests', 'quick-inventory': 'inventory',
   'product-detail': 'products', 'product-compare': 'products',
   notifications: 'dashboard',
-}
-
-type SidebarBadges = {
-  orders: number
-  customers: number
-  support: number
-  integrationNeedsUpdate: boolean
 }
 
 const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
@@ -142,98 +108,14 @@ function visibleMerchantNav(account: Merchant | null): NavGroup[] {
   })).filter(group => group.items.length > 0)
 }
 
-// تبويبات الجوال الأساسية (الباقي في ورقة «المزيد») — مختارة عمداً لا أول 5
-const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'inventory']
+const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'inventory', 'integrations']
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
-  return VALID_VIEWS.includes(path) ? path : 'dashboard'
+  return VALID_VIEWS.includes(path) && PHASE_ONE_VIEWS.has(path) ? path : 'dashboard'
 }
 
 // ── Notification Bell ─────────────────────────────────────────────────────────
-
-interface Notification {
-  id: string; title: string; body: string; is_read: boolean; created_at: string; type?: string
-}
-
-function NotificationBell({ merchantCode }: { merchantCode?: string }) {
-  const [notifs, setNotifs] = useState<Notification[]>([])
-  const [open, setOpen]     = useState(false)
-  const ref                 = useRef<HTMLDivElement>(null)
-  const unread              = notifs.filter(n => !n.is_read).length
-
-  const loadNotifs = useCallback(async () => {
-    const { data } = await supabase.from('notifications').select('*')
-      .eq('merchant_code', merchantCode).order('created_at', { ascending: false }).limit(20)
-    setNotifs(data || [])
-  }, [merchantCode])
-
-  useEffect(() => {
-    if (!merchantCode) return
-    loadNotifs()
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [merchantCode, loadNotifs])
-
-  async function markAllRead() {
-    await supabase.from('notifications').update({ is_read: true })
-      .eq('merchant_code', merchantCode).eq('is_read', false)
-    setNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
-  }
-
-  function relTime(iso: string) {
-    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-    if (m < 1) return 'الآن'
-    if (m < 60) return `منذ ${m} د`
-    const h = Math.floor(m / 60)
-    if (h < 24) return `منذ ${h} س`
-    return `منذ ${Math.floor(h / 24)} يوم`
-  }
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button aria-label="الإشعارات" aria-expanded={open} onClick={() => { setOpen(v => !v); if (!open) loadNotifs() }}
-        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <Bell size={17} />
-        {unread > 0 && (
-          <span style={{ position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%', background: 'var(--red)', color: '#fff', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340, maxWidth: 'calc(100vw - 32px)', maxHeight: 420, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 10000, color: 'var(--text)' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #1d3b4d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e6f4' }}>الإشعارات</span>
-            {unread > 0 && (
-              <button onClick={markAllRead} style={{ background: 'transparent', border: 'none', color: '#a598ff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>قراءة الكل</button>
-            )}
-          </div>
-          {notifs.length === 0 ? (
-            <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-              <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--text3)' }}>لا توجد إشعارات</div>
-            </div>
-          ) : notifs.map(n => (
-            <div key={n.id} style={{ padding: '12px 16px', background: n.is_read ? 'transparent' : 'rgba(108,92,231,0.08)', borderBottom: '1px solid #1d3b4d' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                {!n.is_read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a598ff', flexShrink: 0, marginTop: 5 }} />}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e6f4', marginBottom: 3 }}>{n.title}</div>
-                  <div style={{ fontSize: 11, color: '#8891b4', lineHeight: 1.5 }}>{n.body}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5 }}>{relTime(n.created_at)}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -244,19 +126,15 @@ export default function App() {
   const [loading, setLoading]               = useState(true)
   const [mfaRequired, setMfaRequired]       = useState(false)
   const [view, setView]                     = useState<View>(readView)
-  const [mobileMore, setMobileMore]         = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(() => window.location.pathname === '/auth/recovery')
   const [passwordSetupMode, setPasswordSetupMode] = useState<'recovery' | 'invite'>(() =>
     new URLSearchParams(window.location.search).get('flow') === 'invite' ? 'invite' : 'recovery',
   )
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_GROUPS))
-  const [sidebarBadges, setSidebarBadges] = useState<SidebarBadges>({ orders: 0, customers: 0, support: 0, integrationNeedsUpdate: false })
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
   const activeMerchant                      = impersonating || merchant
-  const activeMerchantCode                  = activeMerchant?.merchant_code
   const continueSessionRef                  = useRef<(nextSession: Session, skipMfa?: boolean) => Promise<void>>(async () => undefined)
   const merchantNavGroups                   = visibleMerchantNav(activeMerchant)
   const visibleNavItems                     = merchantNavGroups.flatMap(group => group.items)
@@ -335,48 +213,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const code = activeMerchantCode
-    if (!code) return
-    let cancelled = false
-    Promise.allSettled([
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('platform', 'trendyol'),
-      supabase.from('trendyol_customer_questions').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'WAITING_FOR_ANSWER'),
-      supabase.from('merchant_requests').select('id', { count: 'exact', head: true }).eq('merchant_code', code).eq('status', 'pending'),
-      listPlatformCredentials(code),
-    ]).then(([ordersSettled, customersSettled, supportSettled, credentialsSettled]) => {
-      if (cancelled) return
-      const ordersResult = ordersSettled.status === 'fulfilled' ? ordersSettled.value : null
-      const customersResult = customersSettled.status === 'fulfilled' ? customersSettled.value : null
-      const supportResult = supportSettled.status === 'fulfilled' ? supportSettled.value : null
-      const credentialResult = credentialsSettled.status === 'fulfilled' ? credentialsSettled.value : []
-      const credential = credentialResult.find(item => item.platform === 'trendyol')
-      const lastSyncAge = credential?.last_sync_at ? Date.now() - new Date(credential.last_sync_at).getTime() : Number.POSITIVE_INFINITY
-      setSidebarBadges({
-        orders: ordersResult?.count || 0,
-        customers: customersResult?.count || 0,
-        support: supportResult?.count || 0,
-        integrationNeedsUpdate: !credential?.is_active || lastSyncAge > 24 * 60 * 60 * 1000,
-      })
-    })
-    return () => { cancelled = true }
-  }, [activeMerchantCode])
-
-  useEffect(() => {
     if (!activeMerchant || canAccessMerchantView(activeMerchant, view)) return
     const fallback = visibleMerchantNav(activeMerchant).flatMap(group => group.items)[0]?.key || 'requests'
     setView(fallback)
     window.history.replaceState(null, '', '/' + (fallback === 'dashboard' ? '' : fallback))
   }, [activeMerchant, view])
-
-  function toggleNavGroup(key: string) {
-    setCollapsedGroups(current => {
-      const opening = current.has(key)
-      const next = opening
-        ? new Set(merchantNavGroups.filter(group => group.key !== key).map(group => group.key))
-        : new Set(merchantNavGroups.map(group => group.key))
-      return next
-    })
-  }
 
   async function fetchMerchant(userId: string) {
     setMerchantLoadError('')
@@ -446,12 +287,13 @@ export default function App() {
   continueSessionRef.current = continueAuthenticatedSession
 
   function goTo(v: View) {
-    if (!canAccessMerchantView(activeMerchant, v)) {
+    const destination = PHASE_ONE_VIEWS.has(v) ? v : 'dashboard'
+    if (!canAccessMerchantView(activeMerchant, destination)) {
       toastErr('ليس لديك صلاحية لفتح هذا القسم')
       return
     }
-    setView(v)
-    window.history.pushState(null, '', '/' + (v === 'dashboard' ? '' : v))
+    setView(destination)
+    window.history.pushState(null, '', '/' + (destination === 'dashboard' ? '' : destination))
     window.scrollTo(0, 0)
   }
 
@@ -554,57 +396,25 @@ export default function App() {
                 const { data } = await supabase.from('merchants').select('*').eq('merchant_code', code).maybeSingle()
                 if (data) setMerchant(data)
               }} />}
-              <ThemeToggle />
-              <NotificationBell merchantCode={activeMerchant?.merchant_code} />
             </div>
           </div>
 
-          {/* Visible search trigger (الـ CommandPalette كان Cmd+K فقط) */}
-          <div style={{ padding: '4px 14px 8px' }}>
-            <button
-              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#b4c5cf', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'right' }}>
-              <Search size={15} />
-              <span style={{ flex: 1 }}>ابحث عن صفحة أو منتج…</span>
-              <span style={{ fontSize: 11, opacity: 0.75, direction: 'ltr' }}>Ctrl K</span>
-            </button>
-          </div>
-
           {/* Nav */}
-          <nav style={{ flex: 1, padding: '8px 0 12px', overflowY: 'auto' }}>
-            {merchantNavGroups.map(group => (
-              <div key={group.key} style={{
-                padding: '6px 8px 2px',
-                marginTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 0,
-                paddingTop: group.placement === 'secondary' && group.key === 'settings' ? 14 : 6,
-                borderTop: group.placement === 'secondary' && group.key === 'settings' ? '1px solid rgba(255,255,255,0.08)' : undefined,
-              }}>
-                <button className="sidebar-group-label" type="button" aria-expanded={!collapsedGroups.has(group.key)} onClick={() => toggleNavGroup(group.key)} style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, color: '#8fa6b5', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.7, cursor: 'pointer', textAlign: 'right' }}>
-                  <span style={{ flex: 1 }}>{group.label}</span>
-                  <ChevronDown size={13} style={{ transition: 'transform .2s ease', transform: collapsedGroups.has(group.key) ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+          <nav style={{ flex: 1, padding: '18px 8px', overflowY: 'auto' }} aria-label="التنقل الرئيسي">
+            {visibleNavItems.map(item => {
+              const Icon = item.Icon
+              return (
+                <button type="button" key={item.key}
+                  className={`nav-item${isActiveNav(item.key) ? ' active' : ''}`}
+                  style={S.navItem}
+                  onClick={() => goTo(item.key)}
+                >
+                  <Icon size={17} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {isActiveNav(item.key) && <div className="nav-dot" />}
                 </button>
-                {!collapsedGroups.has(group.key) ? group.items.map(item => {
-                  const Icon = item.Icon
-                  const numericBadge = item.key === 'orders' ? sidebarBadges.orders : item.key === 'customers' ? sidebarBadges.customers : item.key === 'requests' ? sidebarBadges.support : 0
-                  const statusBadge = item.key === 'integrations' && sidebarBadges.integrationNeedsUpdate ? 'تحديث مطلوب' : ''
-                  return (
-                    <button type="button" key={item.key}
-                      className={`nav-item${isActiveNav(item.key) ? ' active' : ''}`}
-                      style={S.navItem}
-                      onClick={() => goTo(item.key)}
-                    >
-                      <Icon size={16} style={{ flexShrink: 0 }} />
-                      <span style={{ flex: 1 }}>{item.label}</span>
-                      {numericBadge > 0 ? <span style={{ minWidth: 24, height: 20, padding: '0 6px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.11)', color: '#e2edf2', fontSize: 11, fontWeight: 700 }}>
-                        {numericBadge > 999 ? '999+' : numericBadge.toLocaleString('ar-SA')}
-                      </span> : null}
-                      {statusBadge ? <span style={{ padding: '3px 7px', borderRadius: 9, background: 'rgba(242,122,26,.18)', color: '#ffc188', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>{statusBadge}</span> : null}
-                      {isActiveNav(item.key) && <div className="nav-dot" />}
-                    </button>
-                  )
-                }) : null}
-              </div>
-            ))}
+              )
+            })}
           </nav>
 
           {/* Merchant card */}
@@ -632,7 +442,7 @@ export default function App() {
       <main style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
         <PageErrorBoundary resetKey={view} onGoHome={() => goTo('dashboard')}>
           <Suspense fallback={<PageFallback />}>
-            {view === 'dashboard'    && <Dashboard    merchant={activeMerchant} />}
+            {view === 'dashboard'    && <Dashboard merchant={activeMerchant} onNavigate={goTo} />}
             {view === 'actions'      && <Actions      merchant={activeMerchant} />}
             {view === 'products'     && <Products     merchant={activeMerchant} />}
             {view === 'orders'       && <Orders       merchant={activeMerchant} />}
@@ -657,17 +467,6 @@ export default function App() {
       </main>
       <ToastContainer />
       <PWAInstallPrompt />
-      <CommandPalette
-        isAdmin={false}
-        merchant={activeMerchant}
-        onNavigate={(p) => {
-          const v = p.replace(/^\//, '').split('?')[0].split('/')[0] as View
-          if (VALID_VIEWS.includes(v)) goTo(v)
-          else window.location.href = p
-        }}
-      />
-      {activeMerchant && activeMerchant.role !== 'employee' && <NPSWidget merchantCode={activeMerchant.merchant_code} />}
-      {activeMerchant && hasMerchantPermission(activeMerchant, 'dashboard') && <AIChat merchantCode={activeMerchant.merchant_code} />}
 
       {/* ── Mobile Top Bar ── */}
       {isMobile && (
@@ -676,17 +475,11 @@ export default function App() {
             <div style={S.logoIconSm}>S</div>
             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Sellpert</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-              style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', padding: 4, display: 'flex' }} aria-label="بحث">
-              <Search size={20} />
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
-          </div>
+          <span style={{ maxWidth: '48vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
         </header>
       )}
 
-      {/* ── Mobile Bottom Nav (4 أساسية + المزيد) ── */}
+      {/* ── Mobile Bottom Nav: phase-one destinations only ── */}
       {isMobile && (
         <nav style={S.bottomNav}>
           {visibleMobilePrimary.map(key => {
@@ -700,40 +493,7 @@ export default function App() {
               </button>
             )
           })}
-          <button aria-expanded={mobileMore} aria-controls="mobile-more-sheet" style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text2)' }} onClick={() => setMobileMore(true)}>
-            <MoreHorizontal size={20} />
-            <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>المزيد</span>
-          </button>
         </nav>
-      )}
-
-      {/* ── Mobile "المزيد" sheet (كل الوجهات المتبقية) ── */}
-      {isMobile && mobileMore && (
-        <div onClick={() => setMobileMore(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
-          <div id="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="كل صفحات النظام" onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--surface)', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '16px 14px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontSize: 15, fontWeight: 800 }}>كل الصفحات</span>
-              <button aria-label="إغلاق قائمة الصفحات" onClick={() => setMobileMore(false)} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: 'var(--text2)', display: 'flex' }}><X size={18} /></button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {visibleNavItems.filter(n => !visibleMobilePrimary.includes(n.key)).map(item => {
-                const Icon = item.Icon
-                return (
-                  <button key={item.key} onClick={() => { goTo(item.key); setMobileMore(false) }}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: view === item.key ? 'var(--accent-12)' : 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: view === item.key ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
-                    <Icon size={20} />
-                    <span>{item.label}</span>
-                  </button>
-                )
-              })}
-              <button onClick={signOut}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--danger-text)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>
-                <LogOut size={20} />
-                <span>تسجيل الخروج</span>
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )

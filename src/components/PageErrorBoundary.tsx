@@ -47,14 +47,14 @@ export default class PageErrorBoundary extends Component<Props, State> {
         <p className="page-error-state__eyebrow">تعذر إكمال عرض الصفحة</p>
         <h1 id="page-error-title">بقية النظام ما زالت متاحة</h1>
         <p>
-          تم عزل الخطأ في هذه الصفحة وتسجيله للمراجعة. يمكنك المحاولة مرة أخرى أو الانتقال إلى مركز القرارات.
+          تعذر تحميل هذه الصفحة. يمكنك المحاولة مرة أخرى أو الانتقال إلى الرئيسية.
         </p>
         <div className="page-error-state__actions">
           <button type="button" className="page-error-state__primary" onClick={this.retry}>
             <RefreshCw size={16} aria-hidden="true" /> إعادة المحاولة
           </button>
           <button type="button" className="page-error-state__secondary" onClick={this.props.onGoHome}>
-            الانتقال إلى مركز القرارات
+            الانتقال إلى الرئيسية
           </button>
         </div>
       </section>

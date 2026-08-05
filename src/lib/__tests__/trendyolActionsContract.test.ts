@@ -128,7 +128,8 @@ describe('Trendyol fulfillment action contract', () => {
     expect(syncBoundary).toContain("employeePermissions: string[] = ['integrations']")
     expect(gateway).toContain("if (action.startsWith('questions.')) return ['customers','integrations']")
     expect(customerPermissionMigration).toContain("ARRAY['customers', 'integrations']::text[]")
-    expect(app).toContain("label: 'خدمة العملاء', key: 'customers', permission: 'customers'")
+    expect(app).toContain("customers: 'customers'")
+    expect(app).not.toContain("label: 'خدمة العملاء', key: 'customers'")
   })
 
   it('binds every customer reply to an unanswered question owned by the current merchant', () => {
