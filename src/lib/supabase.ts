@@ -82,7 +82,7 @@ export interface Merchant {
 }
 
 export type PerformancePlatform = 'salla' | 'noon' | 'amazon' | 'trendyol' | 'zid' | 'shopify' | 'other'
-export type OrderPlatform      = 'trendyol' | 'noon' | 'amazon'
+export type OrderPlatform      = 'trendyol' | 'noon' | 'amazon' | 'salla' | 'zid'
 export type InventoryPlatform  = 'trendyol' | 'noon' | 'amazon' | 'warehouse'
 export type ConnectionPlatform = 'trendyol' | 'noon' | 'amazon' | 'respondly' | 'openrouter'
 

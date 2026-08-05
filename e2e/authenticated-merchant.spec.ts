@@ -1042,6 +1042,55 @@ test('merchant can trace every order back to its API sync or uploaded source fil
   await expect(dialog.getByText('مصدر غير محدد', { exact: true })).toHaveCount(0)
 })
 
+test('platform comparison uses canonical orders and never product snapshots', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+  let snapshotsRequested = false
+  const comparisonOrders = [
+    {
+      id:'compare-amazon-1', merchant_code:merchant.merchant_code, platform:'amazon', order_id:'AMZ-1', status:'delivered',
+      product_name:'منتج أمازون', sku:'AMZ-SKU', quantity:1, unit_price:300, total_amount:300, platform_fee:30,
+      shipping_cost:0, currency:'SAR', customer_city:'Riyadh', order_date:'2026-08-05T08:00:00Z', created_at:'2026-08-05T08:00:00Z',
+    },
+    {
+      id:'compare-trendyol-1', merchant_code:merchant.merchant_code, platform:'trendyol', order_id:'TY-1', status:'delivered',
+      product_name:'منتج ترنديول', sku:'TY-SKU-1', quantity:1, unit_price:100, total_amount:100, platform_fee:10,
+      shipping_cost:0, currency:'SAR', customer_city:'Jeddah', order_date:'2026-08-05T09:00:00Z', created_at:'2026-08-05T09:00:00Z',
+    },
+    {
+      id:'compare-trendyol-2', merchant_code:merchant.merchant_code, platform:'trendyol', order_id:'TY-2', status:'cancelled',
+      product_name:'منتج ترنديول', sku:'TY-SKU-2', quantity:1, unit_price:50, total_amount:50, platform_fee:5,
+      shipping_cost:0, currency:'SAR', customer_city:'Jeddah', order_date:'2026-08-05T10:00:00Z', created_at:'2026-08-05T10:00:00Z',
+    },
+  ]
+
+  await page.route('**/rest/v1/product_performance_snapshots**', async route => {
+    snapshotsRequested = true
+    await route.fulfill({
+      status:200, contentType:'application/json', headers:{ 'content-range':'0-0/1' },
+      body:JSON.stringify([{ platform:'trendyol', sold:999, net_sold:999, gross_sales:999999, snapshot_date:'2026-08-05' }]),
+    })
+  })
+  await page.route('**/rest/v1/orders**', route => route.fulfill({
+    status:200, contentType:'application/json', headers:{ 'content-range':'0-2/3' }, body:JSON.stringify(comparisonOrders),
+  }))
+
+  await page.goto('/orders')
+  await page.getByRole('button', { name:'مقارنة المنصات' }).click()
+
+  await expect(page.getByText('المقارنة مبنية على سجل الطلبات الظاهر ومرشحات الفترة والحالة الحالية فقط؛ ولا تخلط إحصاءات المنتجات المجمعة مع الطلبات.')).toBeVisible()
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="amazon"]')).toHaveAttribute('data-order-count', '1')
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="amazon"]')).toHaveAttribute('data-revenue', '300')
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="trendyol"]')).toHaveAttribute('data-order-count', '2')
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="trendyol"]')).toHaveAttribute('data-revenue', '150')
+  await expect(page.getByTestId('platform-comparison-card')).toHaveCount(2)
+  expect(snapshotsRequested).toBe(false)
+
+  await page.getByLabel('تصفية الطلبات حسب المنصة').selectOption('amazon')
+  await expect(page.getByTestId('platform-comparison-card')).toHaveCount(1)
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="amazon"]')).toBeVisible()
+  await expect(page.locator('[data-testid="platform-comparison-card"][data-platform="trendyol"]')).toHaveCount(0)
+})
+
 test('merchant sees the source and age of every inventory quantity and updates only the active tenant', async ({ page }, testInfo) => {
   await mockAuthenticatedMerchant(page)
   const now = new Date()

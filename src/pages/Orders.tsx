@@ -14,6 +14,7 @@ import { calculateOrderProfit } from '../lib/orderProfit'
 import { buildOrderOperationQueue, type OperationalPackage, type OrderOperationTaskKind } from '../lib/orderOperations'
 import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
 import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
+import { buildOrderPlatformComparison } from '../lib/orderComparison'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -76,7 +77,6 @@ const SOURCE_TONE = {
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
-  const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [operationalPackages, setOperationalPackages] = useState<OperationalPackage[]>([])
   const [pendingReturnCount, setPendingReturnCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -122,10 +122,6 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
         supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,last_synced_at,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
-      // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
-      fetchAll<any>((f, t) =>
-        supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
-          .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
       fetchAll<any>((f, t) =>
         supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,invoice_rejected_reasons,modified_at,raw')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
@@ -133,11 +129,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       fetchAll<LineageUpload>((f, t) =>
         supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
           .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).range(f, t), 'سجل ملفات المصادر'),
-    ]).then(([o, t, packageRows, returnResult, uploads]) => {
+    ]).then(([o, packageRows, returnResult, uploads]) => {
       if (returnResult.error) throw returnResult.error
       setOrders(o)
       setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
-      setTrendyolSnaps(t)
       setOperationalPackages(packageRows)
       setPendingReturnCount(returnResult.count || 0)
       const orderRef = new URLSearchParams(window.location.search).get('order')
@@ -208,45 +203,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }))
   }, [filtered])
 
-  // Compare: per platform — يدمج الطلبات + لقطات تراندايول (لأنها aggregate وليست orders)
-  const platformCompare = useMemo(() => {
-    const map: Record<string, { revenue: number; count: number; delivered: number; cancelled: number; returned: number }> = {}
-    for (const o of filtered) {
-      if (!map[o.platform]) map[o.platform] = { revenue: 0, count: 0, delivered: 0, cancelled: 0, returned: 0 }
-      map[o.platform].revenue += o.total_amount
-      map[o.platform].count++
-      if (o.status === 'delivered') map[o.platform].delivered++
-      if (o.status === 'cancelled') map[o.platform].cancelled++
-      if (o.status === 'returned')  map[o.platform].returned++
-    }
-    // لقطات تراندايول تخضع لنفس فلتر الفترة المختار (كانت تدخل بأرقامها التاريخية كلها)
-    const now2 = Date.now()
-    const snapInRange = (s: any) => {
-      if (!s.snapshot_date) return true
-      const t2 = new Date(s.snapshot_date).getTime()
-      if (preset === 'today')     return new Date(s.snapshot_date).toDateString() === new Date().toDateString()
-      if (preset === 'last7')     return t2 >= now2 - 7 * 86400000
-      if (preset === 'last30')    return t2 >= now2 - 30 * 86400000
-      if (preset === 'thisMonth') { const st = new Date(); st.setDate(1); st.setHours(0,0,0,0); return t2 >= st.getTime() }
-      return true
-    }
-    for (const s of trendyolSnaps.filter(snapInRange)) {
-      if (!map['trendyol']) map['trendyol'] = { revenue: 0, count: 0, delivered: 0, cancelled: 0, returned: 0 }
-      map['trendyol'].revenue   += Number(s.gross_sales) || 0
-      map['trendyol'].count     += s.sold || 0
-      map['trendyol'].delivered += s.net_sold || 0
-      map['trendyol'].cancelled += s.cancelled || 0
-      map['trendyol'].returned  += s.returned || 0
-    }
-    return Object.entries(map).map(([p, v]) => ({
-      platform: p, name: PLATFORM_MAP[p] || p,
-      revenue: Math.round(v.revenue), count: v.count,
-      deliveryRate: v.count > 0 ? ((v.delivered / v.count) * 100).toFixed(1) : '0.0',
-      cancelRate:   v.count > 0 ? ((v.cancelled / v.count) * 100).toFixed(1) : '0.0',
-      returnRate:   v.count > 0 ? ((v.returned / v.count) * 100).toFixed(1) : '0.0',
-      aov: v.count > 0 ? Math.round(v.revenue / v.count) : 0,
-    })).sort((a,b) => b.revenue - a.revenue)
-  }, [filtered, trendyolSnaps, preset])
+  // Product-performance snapshots contain units and aggregate sales, not
+  // canonical orders. Keeping the comparison on one grain prevents inflated
+  // revenue, counts, and average-order values after an API sync.
+  const platformCompare = useMemo(() => buildOrderPlatformComparison(filtered).map(row => ({
+    ...row,
+    name: PLATFORM_MAP[row.platform] || row.platform,
+  })), [filtered])
 
   const platforms = [...new Set(orders.map(o => o.platform))]
 
@@ -644,7 +607,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   // التبويبات قبل الحالة الفارغة: تاجر تراندايول-فقط (بياناته لقطات لا طلبات) كان يفقد
   // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
-  if (orders.length === 0 && trendyolSnaps.length === 0) return (
+  if (orders.length === 0) return (
     <div style={S.wrap}>
       <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
@@ -868,10 +831,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             <div style={{ ...S.card, padding:50, textAlign:'center', color:'var(--text3)' }}>لا توجد بيانات</div>
           ) : (
             <>
+              <div style={{ marginBottom:12, color:'var(--text3)', fontSize:11, lineHeight:1.8 }}>
+                المقارنة مبنية على سجل الطلبات الظاهر ومرشحات الفترة والحالة الحالية فقط؛ ولا تخلط إحصاءات المنتجات المجمعة مع الطلبات.
+              </div>
               {/* Platform cards */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:16, marginBottom:20 }}>
                 {platformCompare.map(p => (
-                  <div key={p.platform} style={{ ...S.card, padding:20, borderTop:`3px solid ${PLATFORM_COLORS[p.platform]||'#0f958c'}` }}>
+                  <div key={p.platform} data-testid="platform-comparison-card" data-platform={p.platform} data-order-count={p.count} data-revenue={p.revenue} style={{ ...S.card, padding:20, borderTop:`3px solid ${PLATFORM_COLORS[p.platform]||'#0f958c'}` }}>
                     <div style={{ fontSize:16, fontWeight:800, marginBottom:14, color:PLATFORM_COLORS[p.platform]||'#0f958c' }}>
                       {p.name}
                     </div>
@@ -879,7 +845,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       {[
                         { label:'الإيراد',       value: fmt(p.revenue) },
                         { label:'الطلبات',       value: p.count.toLocaleString() },
-                        { label:'متوسط الطلب',  value: fmt(p.aov) },
+                        { label:'متوسط الطلب',  value: fmt(p.averageOrderValue) },
                         { label:'نسبة التسليم',  value: p.deliveryRate + '%' },
                         { label:'نسبة الإلغاء',  value: p.cancelRate + '%' },
                       ].map((item,i) => (
