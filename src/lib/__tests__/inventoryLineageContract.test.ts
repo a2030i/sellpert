@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const migration = readFileSync('supabase/migrations/20260805064000_inventory_data_lineage.sql', 'utf8')
+const migration = readFileSync('supabase/migrations/20260805040550_inventory_data_lineage.sql', 'utf8')
 const trendyolSync = readFileSync('supabase/functions/_shared/trendyolProducts.ts', 'utf8')
 const inventoryPage = readFileSync('src/pages/Inventory.tsx', 'utf8')
 const quickInventoryPage = readFileSync('src/pages/QuickInventory.tsx', 'utf8')
