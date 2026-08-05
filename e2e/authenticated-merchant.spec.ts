@@ -806,6 +806,37 @@ test('merchant imports a Noon order and goes directly to the resulting orders', 
   expect(runtimeErrors).toEqual([])
 })
 
+test('merchant can identify and validate a custom Salla order export without administration help', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  await page.route('**/rest/v1/platform_file_uploads**', route => route.fulfill({
+    status: 200, contentType: 'application/json', headers: { 'content-range': '*/0' }, body: '[]',
+  }))
+
+  await page.goto('/integrations')
+  await expect(page.getByText('طلبات جاهزة للرفع', { exact: true })).toHaveCount(2)
+  await page.getByRole('button', { name: 'رفع ملفات الآن' }).click()
+  const platformSelect = page.getByLabel('منصة الملف')
+  await expect(platformSelect).toBeVisible()
+  await platformSelect.selectOption('salla')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'orders-custom.csv', mimeType: 'text/csv',
+    buffer: Buffer.from([
+      'رقم الطلب,حالة الطلب,إجمالي الطلب,تاريخ الطلب,اسم المنتج,SKU,الكمية,العملة,المدينة',
+      'S-1001,تم التسليم,120,01/08/2026,قهوة عربية,SKU-1,1,SAR,الرياض',
+      'S-1001,تم التسليم,120,01/08/2026,تمر فاخر,SKU-2,2,SAR,الرياض',
+    ].join('\n'), 'utf8'),
+  })
+
+  await expect(page.getByText('طلبات سلة', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'حفظ الكل' })).toBeEnabled()
+  await expectNoSeriousAccessibilityViolations(page, 'رفع طلبات سلة بقالب مخصص')
+  await page.screenshot({ path: testInfo.outputPath('salla-custom-orders-ready.png'), fullPage: true })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('duplicate merchant file reaches a final skipped state without repeated saving', async ({ page }) => {
   await mockAuthenticatedMerchant(page)
   await page.route('**/rest/v1/platform_file_uploads**', async route => {

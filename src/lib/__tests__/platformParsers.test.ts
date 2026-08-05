@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as XLSX from 'xlsx'
-import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns, parseAmazonSalesDashboard, parseAmazonBusinessReport, parseNoonAsn, parseAmazonSettlement } from '../platformParsers'
+import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns, parseAmazonSalesDashboard, parseAmazonBusinessReport, parseNoonAsn, parseAmazonSettlement, parseCommerceOrders } from '../platformParsers'
 
 describe('n (تحويل رقمي متسامح)', () => {
   it('يحلل الأرقام داخل نصوص بعملات وفواصل', () => {
@@ -97,6 +97,57 @@ describe('parseNoonSales (تحليل مبيعات نون)', () => {
   it('يتجاهل الصفوف الفارغة ويرفض الملف الفارغ', () => {
     const r = parseNoonSales('item_nr,gmv_lcy\n', 'M-TEST')
     expect(r.error).toBeTruthy()
+  })
+})
+
+describe('ملفات طلبات سلة وزد', () => {
+  const arabicHeaders = ['رقم الطلب', 'حالة الطلب', 'إجمالي الطلب', 'تاريخ الطلب', 'اسم المنتج', 'SKU', 'الكمية', 'العملة', 'المدينة']
+
+  it('يستخدم اختيار التاجر للمنصة عندما يكون قالب سلة مخصصًا ومحايد الاسم', () => {
+    const csv = `${arabicHeaders.join(',')}\n1001,تم التسليم,120,2026-08-01,قهوة عربية,SKU-1,1,SAR,الرياض`
+    expect(detectFileKind({ name: 'orders.csv', isCsv: true, csvText: csv, platform: 'salla' })).toBe('salla_orders')
+    expect(detectFileKind({ name: 'orders.csv', isCsv: true, csvText: csv })).toBe('unknown')
+  })
+
+  it('يتعرف تلقائيًا على بنية تصدير زد الإنجليزية', () => {
+    const csv = 'order_id,order_status,order_total,created_at,currency_code\n2001,delivered,85,2026-08-02,SAR'
+    expect(detectFileKind({ name: 'orders.xlsx', isCsv: true, csvText: csv })).toBe('zid_orders')
+  })
+
+  it('يجمع بنود الطلب الواحد دون مضاعفة إجمالي المبيعات ويثبت كود المتجر', () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      arabicHeaders,
+      ['S-1001', 'تم التسليم', 120, '01/08/2026', 'قهوة عربية', 'SKU-1', 1, 'SAR', 'الرياض'],
+      ['S-1001', 'تم التسليم', 120, '01/08/2026', 'تمر فاخر', 'SKU-2', 2, 'SAR', 'الرياض'],
+      ['S-1002', 'ملغي', 40, '02/08/2026', 'منتج ملغى', 'SKU-3', 1, 'SAR', 'جدة'],
+      ['S-1003', 'جاهز', 30, '03/08/2026', '', 'SKU-4', 1, 'SAR', 'الدمام'],
+      ['S-1003', 'جاهز', 30, '03/08/2026', '', 'SKU-4', 1, 'SAR', 'الدمام'],
+    ]), 'Orders')
+
+    const result = parseCommerceOrders(workbook, 'M-TENANT-A', 'salla')
+    expect(result.error).toBeUndefined()
+    expect(result.summary).toMatchObject({ orders: 3, totalSales: 150, skippedRows: 0, currency: 'SAR' })
+    expect(result.payloads[0]).toMatchObject({ table: 'orders', conflict: 'merchant_code,platform,order_id' })
+    expect(result.payloads[0].rows[0]).toMatchObject({
+      merchant_code: 'M-TENANT-A', platform: 'salla', order_id: 'S-1001',
+      status: 'delivered', total_amount: 120, quantity: 3,
+    })
+    expect(result.payloads[0].rows[0].product_name).toContain('قهوة عربية')
+    expect(result.payloads[0].rows[0].product_name).toContain('تمر فاخر')
+    expect(result.payloads[0].rows[1].status).toBe('cancelled')
+    expect(result.payloads[0].rows[2]).toMatchObject({ status: 'processing', quantity: 2, product_name: null })
+  })
+
+  it('يرفض قالبًا لا يحتوي الحقول الأساسية بدل حفظ بيانات ناقصة', () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ['رقم الطلب', 'إجمالي الطلب'],
+      ['Z-1', 20],
+    ]), 'Orders')
+    const result = parseCommerceOrders(workbook, 'M-TENANT-A', 'zid')
+    expect(result.error).toContain('الأعمدة الأساسية')
+    expect(result.payloads).toHaveLength(0)
   })
 })
 

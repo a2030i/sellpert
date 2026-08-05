@@ -12,8 +12,8 @@ const MerchantFileImport = lazy(() => import('./admin/ImportFilesView'))
 const FILE_UPLOAD_PLATFORMS = [
   { key: 'amazon', label: 'Amazon', status: 'جاهز للرفع' },
   { key: 'noon', label: 'Noon', status: 'جاهز للرفع' },
-  { key: 'salla', label: 'سلة', status: 'تُضاف التعريفات دوريًا' },
-  { key: 'zid', label: 'زد', status: 'تُضاف التعريفات دوريًا' },
+  { key: 'salla', label: 'سلة', status: 'طلبات جاهزة للرفع' },
+  { key: 'zid', label: 'زد', status: 'طلبات جاهزة للرفع' },
 ] as const
 
 // ─── Salla Card ───────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', gap: 8, marginTop: 16 }}>
           {FILE_UPLOAD_PLATFORMS.map(item => <div key={item.key} style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>{item.label}</div>
-            <div style={{ fontSize: 10, color: item.status === 'جاهز للرفع' ? 'var(--success-text)' : 'var(--text3)', marginTop: 3 }}>{item.status}</div>
+            <div style={{ fontSize: 10, color: item.status.includes('جاهز') ? 'var(--success-text)' : 'var(--text3)', marginTop: 3 }}>{item.status}</div>
           </div>)}
         </div>
         {MERCHANT_FILE_IMPORT_ENABLED && showFileUpload ? <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>

@@ -125,7 +125,7 @@ export interface ParseResult {
 // ─── File Detector ────────────────────────────────────────────────────────────
 export interface FileInput {
   name: string
-  platform?: 'noon' | 'trendyol' | 'amazon' | null
+  platform?: 'noon' | 'trendyol' | 'amazon' | 'salla' | 'zid' | null
   isCsv: boolean
   csvText?: string
   workbook?: XLSX.WorkBook
@@ -169,10 +169,40 @@ function findHeaderRow(ws: XLSX.WorkSheet, maxScan = 5): string[] {
   return best.map(h => String(h ?? '').replace(/^﻿/, '').trim().toLowerCase())
 }
 
+const ORDER_HEADER_ALIASES = {
+  id: ['order id', 'order number', 'order no', 'reference id', 'رقم الطلب', 'رقم طلب'],
+  status: ['order status', 'status', 'display status', 'حالة الطلب', 'الحالة'],
+  total: ['order total', 'total amount', 'grand total', 'total', 'اجمالي الطلب', 'إجمالي الطلب', 'المجموع الاجمالي', 'الإجمالي'],
+  date: ['created at', 'order date', 'issue date', 'date', 'تاريخ الطلب', 'تاريخ الانشاء', 'تاريخ الإنشاء'],
+} as const
+
+function hasHeader(headers: string[], aliases: readonly string[]) {
+  const normalized = headers.map(normalize)
+  return aliases.some(alias => normalized.includes(normalize(alias)))
+}
+
+function commerceOrderKind(headers: string[], fileName: string, platform?: FileInput['platform']): string | null {
+  const hasRequiredShape = Object.values(ORDER_HEADER_ALIASES).every(aliases => hasHeader(headers, aliases))
+  if (!hasRequiredShape) return null
+  if (platform === 'salla' || platform === 'zid') return `${platform}_orders`
+
+  const normalizedHeaders = headers.map(normalize)
+  const normalizedName = normalize(fileName)
+  const looksLikeZid = normalizedHeaders.includes('order total')
+    && normalizedHeaders.includes('currency code')
+    && (normalizedHeaders.includes('order id') || normalizedHeaders.includes('order number'))
+  if (looksLikeZid || /(^|\s)(zid|زد)(\s|$)/.test(normalizedName)) return 'zid_orders'
+  if (/(^|\s)(salla|سلة)(\s|$)/.test(normalizedName)) return 'salla_orders'
+  return null
+}
+
 export function detectFileKind(input: FileInput): string {
   // CSV files
   if (input.isCsv) {
     const firstLine = (input.csvText || '').replace(/^﻿/, '').split(/\r?\n/)[0].toLowerCase()
+    const headerCells = firstLine
+      .split(firstLine.includes('\t') ? '\t' : ',')
+      .map(cell => cell.replace(/^['"]+|['"]+$/g, '').trim())
     // لوحة مبيعات أمازون الملخّصة (إجماليات يومية، ليست تقريراً تفصيلياً)
     if (firstLine.includes('اللوحة الرئيسية للمبيعات'))                              return 'amazon_sales_dashboard'
     // تقرير Business Reports > Detail Page Sales and Traffic by Child Item.
@@ -186,12 +216,19 @@ export function detectFileKind(input: FileInput): string {
     // تقرير حملات أمازون (مستوى الحملة) — يحتوي اسم الحملة + ميزانية/إستراتيجية بدل اسم المجموعة الإعلانية
     if (firstLine.includes('اسم الحملة') && (firstLine.includes('ميزانية الحملة') || firstLine.includes('إستراتيجية عرض') || firstLine.includes('استراتيجية عرض'))) return 'amazon_campaigns'
     if (firstLine.includes('حالة المعاملة') || firstLine.includes('نوع المعاملة'))    return 'amazon_transactions'
+    const commerceKind = commerceOrderKind(headerCells, input.name, input.platform)
+    if (commerceKind) return commerceKind
     return 'unknown'
   }
 
   // XLSX
   const wb = input.workbook!
   const sheets = wb.SheetNames
+
+  for (const sheetName of sheets.slice(0, 3)) {
+    const commerceKind = commerceOrderKind(findHeaderRow(wb.Sheets[sheetName], 8), input.name, input.platform)
+    if (commerceKind) return commerceKind
+  }
 
   // --- Amazon Inventory Template / Listing (يحتوي على Template + Data Definitions) ---
   if (sheets.includes('Template') && sheets.includes('Data Definitions')) {
@@ -1293,8 +1330,120 @@ export function parseAmazonAds(csv: string, merchantCode: string, reportDate = n
   }
 }
 
+function exactColumn(headers: string[], aliases: readonly string[]): number {
+  const normalized = headers.map(normalize)
+  for (const alias of aliases) {
+    const index = normalized.indexOf(normalize(alias))
+    if (index >= 0) return index
+  }
+  return -1
+}
+
+function mapCommerceOrderStatus(value: unknown): string {
+  const status = normalize(value)
+  if (/cancel|canceled|cancelled|ملغي|ملغى|الغاء|إلغاء/.test(status)) return 'cancelled'
+  if (/return|refund|مرتجع|استرجاع/.test(status)) return 'returned'
+  if (/delivered|completed|مكتمل|تم التوصيل|تم التسليم|مستلم/.test(status)) return 'delivered'
+  if (/shipped|delivery|in delivery|تم الشحن|قيد الشحن|التوصيل/.test(status)) return 'shipped'
+  if (/ready|جاهز/.test(status)) return 'processing'
+  if (/processing|preparing|confirmed|تجهيز|معالجة|مؤكد/.test(status)) return 'processing'
+  return 'pending'
+}
+
+export function parseCommerceOrders(
+  workbook: XLSX.WorkBook,
+  merchantCode: string,
+  platform: 'salla' | 'zid',
+): ParseResult {
+  const label = platform === 'salla' ? 'طلبات سلة' : 'طلبات زد'
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  if (!sheet) return errResult(`${platform}_orders`, platform, label, 'الملف لا يحتوي ورقة بيانات')
+
+  const matrix = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][]
+  const headerRowIndex = matrix.slice(0, 12).findIndex(row => {
+    const headers = row.map(cell => String(cell ?? ''))
+    return Object.values(ORDER_HEADER_ALIASES).every(aliases => hasHeader(headers, aliases))
+  })
+  if (headerRowIndex < 0) {
+    return errResult(`${platform}_orders`, platform, label, 'ينقص الملف واحد أو أكثر من الأعمدة الأساسية: رقم الطلب، الحالة، الإجمالي، وتاريخ الطلب')
+  }
+
+  const headers = matrix[headerRowIndex].map(cell => String(cell ?? ''))
+  const idIndex = exactColumn(headers, ORDER_HEADER_ALIASES.id)
+  const statusIndex = exactColumn(headers, ORDER_HEADER_ALIASES.status)
+  const totalIndex = exactColumn(headers, ORDER_HEADER_ALIASES.total)
+  const dateIndex = exactColumn(headers, ORDER_HEADER_ALIASES.date)
+  const currencyIndex = exactColumn(headers, ['currency code', 'currency', 'العملة', 'رمز العملة'])
+  const productIndex = exactColumn(headers, ['product name', 'product', 'item name', 'اسم المنتج', 'المنتج', 'اسم الصنف'])
+  const skuIndex = exactColumn(headers, ['sku', 'product sku', 'item sku', 'رمز المنتج', 'رمز الصنف'])
+  const quantityIndex = exactColumn(headers, ['quantity', 'qty', 'الكمية', 'العدد'])
+  const unitPriceIndex = exactColumn(headers, ['unit price', 'item price', 'price', 'سعر الوحدة', 'سعر المنتج', 'السعر'])
+  const cityIndex = exactColumn(headers, ['customer city', 'city', 'shipping city', 'مدينة العميل', 'المدينة', 'مدينة الشحن'])
+  const shippingIndex = exactColumn(headers, ['shipping cost', 'shipping fee', 'تكلفة الشحن', 'رسوم الشحن'])
+  const discountIndex = exactColumn(headers, ['discount amount', 'discount', 'قيمة الخصم', 'الخصم'])
+
+  const orders = new Map<string, any>()
+  let skippedRows = 0
+  for (const cells of matrix.slice(headerRowIndex + 1)) {
+    if (!Array.isArray(cells) || cells.every(cell => !s(cell))) continue
+    const orderId = s(cells[idIndex])
+    const orderDate = xlsxDate(cells[dateIndex])
+    if (!orderId || !orderDate) { skippedRows++; continue }
+
+    const quantity = Math.max(1, Math.trunc(n(cells[quantityIndex]) || 1))
+    const totalAmount = Math.max(0, n(cells[totalIndex]))
+    const productName = s(cells[productIndex])
+    const existing = orders.get(orderId)
+    if (existing) {
+      existing.quantity += quantity
+      // Export templates commonly repeat the order total on every product row.
+      // Keep the highest order total instead of multiplying merchant revenue.
+      existing.total_amount = Math.max(existing.total_amount, totalAmount)
+      existing.gross_amount = Math.max(existing.gross_amount, totalAmount + Math.max(0, n(cells[discountIndex])))
+      if (productName && !String(existing.product_name || '').split('، ').includes(productName)) {
+        existing.product_name = [existing.product_name, productName].filter(Boolean).join('، ').slice(0, 500)
+      }
+      continue
+    }
+
+    const unitPrice = Math.max(0, n(cells[unitPriceIndex])) || (quantity ? totalAmount / quantity : totalAmount)
+    const discountAmount = Math.max(0, n(cells[discountIndex]))
+    orders.set(orderId, {
+      merchant_code: merchantCode,
+      platform,
+      order_id: orderId,
+      status: mapCommerceOrderStatus(cells[statusIndex]),
+      total_amount: totalAmount,
+      gross_amount: totalAmount + discountAmount,
+      currency: s(cells[currencyIndex]) || 'SAR',
+      order_date: orderDate,
+      quantity,
+      unit_price: unitPrice,
+      product_name: productName || null,
+      sku: s(cells[skuIndex]) || null,
+      customer_city: s(cells[cityIndex]) || null,
+      shipping_cost: Math.max(0, n(cells[shippingIndex])),
+      discount_amount: discountAmount,
+    })
+  }
+
+  const rows = [...orders.values()]
+  if (!rows.length) return errResult(`${platform}_orders`, platform, label, 'لم يُعثر على طلبات صالحة؛ تأكد من أرقام الطلبات والتواريخ')
+  const totalSales = rows.filter(row => row.status !== 'cancelled').reduce((sum, row) => sum + row.total_amount, 0)
+  return {
+    kind: `${platform}_orders`, platform, label,
+    summary: { orders: rows.length, totalSales: Math.round(totalSales * 100) / 100, skippedRows, currency: rows[0]?.currency || 'SAR' },
+    payloads: [{ table: 'orders', rows, conflict: 'merchant_code,platform,order_id' }],
+  }
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
-export async function parsePlatformFile(file: File, merchantCode: string, snapshotDate?: string): Promise<ParseResult> {
+export async function parsePlatformFile(
+  file: File,
+  merchantCode: string,
+  snapshotDate?: string,
+  platformHint?: FileInput['platform'],
+): Promise<ParseResult> {
   const isCsv = /\.csv$/i.test(file.name) || /\.txt$/i.test(file.name)
   let csvText: string | undefined
   let workbook: XLSX.WorkBook | undefined
@@ -1312,11 +1461,13 @@ export async function parsePlatformFile(file: File, merchantCode: string, snapsh
     return errResult('unknown', 'other', file.name, 'فشل قراءة الملف: ' + e.message)
   }
 
-  const kind = detectFileKind({ name: file.name, isCsv, csvText, workbook })
+  const kind = detectFileKind({ name: file.name, isCsv, csvText, workbook, platform: platformHint })
   const sd = snapshotDate || new Date().toISOString().split('T')[0]
 
   try {
     switch (kind) {
+      case 'salla_orders':         return parseCommerceOrders(workbook!, merchantCode, 'salla')
+      case 'zid_orders':           return parseCommerceOrders(workbook!, merchantCode, 'zid')
       case 'noon_sales':           return parseNoonSales(csvText!, merchantCode)
       case 'noon_products':        return parseNoonProducts(csvText!, merchantCode)
       case 'noon_asn':             return parseNoonAsn(workbook!, merchantCode, file.name)

@@ -28,7 +28,11 @@ begin
      merchant_b || '/00000000-0000-4000-a000-000000008813/other-tenant.xlsx'),
     ('00000000-0000-4000-a000-000000008814', merchant_a, 'noon', 'not-archived.xlsx', 'noon_sales', 'processing', null),
     ('00000000-0000-4000-a000-000000008815', merchant_a, 'noon', 'unknown-table.xlsx', 'noon_sales', 'processing',
-     merchant_a || '/00000000-0000-4000-a000-000000008815/unknown-table.xlsx');
+     merchant_a || '/00000000-0000-4000-a000-000000008815/unknown-table.xlsx'),
+    ('00000000-0000-4000-a000-000000008816', merchant_a, 'salla', 'salla-orders.xlsx', 'salla_orders', 'processing',
+     merchant_a || '/00000000-0000-4000-a000-000000008816/salla-orders.xlsx'),
+    ('00000000-0000-4000-a000-000000008817', merchant_a, 'zid', 'zid-orders.xlsx', 'zid_orders', 'processing',
+     merchant_a || '/00000000-0000-4000-a000-000000008817/zid-orders.xlsx');
 end
 $$;
 
@@ -91,6 +95,34 @@ begin
       and status = 'success' and rows_processed = 2 and rows_inserted = 2
   ) then
     raise exception 'successful import audit was not completed in the same transaction';
+  end if;
+
+  perform public.commit_my_file_import(
+    '00000000-0000-4000-a000-000000008816',
+    jsonb_build_array(jsonb_build_object('table', 'orders', 'rows', jsonb_build_array(
+      jsonb_build_object('merchant_code', merchant_b, 'platform', 'salla', 'order_id', 'SALLA-ATOMIC-1', 'status', 'delivered', 'total_amount', 120)
+    )))
+  );
+  perform public.commit_my_file_import(
+    '00000000-0000-4000-a000-000000008817',
+    jsonb_build_array(jsonb_build_object('table', 'orders', 'rows', jsonb_build_array(
+      jsonb_build_object('merchant_code', merchant_b, 'platform', 'zid', 'order_id', 'ZID-ATOMIC-1', 'status', 'processing', 'total_amount', 85)
+    )))
+  );
+  if not exists (
+    select 1 from public.orders
+    where merchant_code = merchant_a and platform = 'salla' and order_id = 'SALLA-ATOMIC-1'
+  ) or not exists (
+    select 1 from public.orders
+    where merchant_code = merchant_a and platform = 'zid' and order_id = 'ZID-ATOMIC-1'
+  ) then
+    raise exception 'Salla or Zid order import did not persist inside the caller tenant';
+  end if;
+  if exists (
+    select 1 from public.orders
+    where merchant_code = merchant_b and order_id in ('SALLA-ATOMIC-1', 'ZID-ATOMIC-1')
+  ) then
+    raise exception 'Salla or Zid client merchant code escaped the tenant boundary';
   end if;
 
   blocked := false;

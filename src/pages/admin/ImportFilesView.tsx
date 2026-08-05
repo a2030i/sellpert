@@ -21,6 +21,12 @@ interface FileGuide {
 }
 
 const FILE_GUIDES: Record<string, FileGuide[]> = {
+  salla: [
+    { kind: 'salla_orders', label: 'تصدير الطلبات', desc: 'الطلبات وحالاتها وقيمتها وتاريخها؛ اختر سلة قبل الرفع إذا كان القالب مخصصًا', importance: 'critical' },
+  ],
+  zid: [
+    { kind: 'zid_orders', label: 'تصدير الطلبات', desc: 'ملف الطلبات الكامل من لوحة زد، ويشمل الحالة والإجمالي وتاريخ الطلب', importance: 'critical' },
+  ],
   noon: [
     { kind: 'noon_sales',    label: 'تقرير المبيعات',         desc: 'كل الطلبات المشحونة والمسلّمة — يحدّث جدول الطلبات والإيرادات', importance: 'critical' },
     { kind: 'noon_products', label: 'تقرير الأصناف Live',     desc: 'كاتالوج المنتجات + الأسعار + المخزون FBN/Xdock', importance: 'critical' },
@@ -471,8 +477,9 @@ type ImportFilesViewProps = {
 
 export default function ImportFilesView({ merchants, lockedMerchantCode, merchantMode = false, allowedPlatforms }: ImportFilesViewProps) {
   const [merchantCode, setMerchantCode] = useState<string>(lockedMerchantCode || '')
-  // الوضع التلقائي افتراضي: المنصة تُكتشف من محتوى كل ملف، فلا حاجة لاختيارها يدوياً
-  const [platform]                      = useState<string>('auto')
+  // الاكتشاف التلقائي هو الافتراضي، ويمكن تحديد المنصة لقوالب سلة المخصصة
+  // التي لا تحمل دائمًا اسم المنصة داخل الملف أو عناوين الأعمدة.
+  const [platform, setPlatform]         = useState<string>('auto')
   const [files, setFiles]               = useState<FileEntry[]>([])
   const [busy, setBusy]                 = useState(false)
   const [snapshotDate, setSnapshotDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -571,7 +578,12 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
 
     for (const entry of newEntries) {
       try {
-        const parsed = await parsePlatformFile(entry.file, merchantCode, snapshotDate)
+        const parsed = await parsePlatformFile(
+          entry.file,
+          merchantCode,
+          snapshotDate,
+          platform === 'auto' ? undefined : platform as 'amazon' | 'noon' | 'trendyol' | 'salla' | 'zid',
+        )
         const validation = validateMatch(parsed, platform)
         if (validation?.ok && allowedPlatformSet.size > 0 && !allowedPlatformSet.has(parsed.platform)) {
           validation.ok = false
@@ -817,13 +829,31 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           </div> : null}
         </div>
 
+        <div style={{ marginTop: 14, maxWidth: 360 }}>
+          <label style={S.label} htmlFor="import-platform">منصة الملف</label>
+          <select
+            id="import-platform"
+            value={platform}
+            onChange={event => { setPlatform(event.target.value); clearAll() }}
+            style={{ ...S.input, fontSize: 13 }}
+          >
+            <option value="auto">اكتشاف تلقائي</option>
+            {['amazon', 'noon', 'salla', 'zid', 'trendyol']
+              .filter(key => allowedPlatformSet.size === 0 || allowedPlatformSet.has(key))
+              .map(key => <option key={key} value={key}>{PLATFORM_MAP[key] || key}</option>)}
+          </select>
+          <div style={{ color: 'var(--text3)', fontSize: 11, lineHeight: 1.6, marginTop: 5 }}>
+            اختر سلة أو زد إذا كان ملف الطلبات بقالب مخصص ولا يظهر اسم المنصة داخله.
+          </div>
+        </div>
+
         {!merchantCode
           ? <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)', color: 'var(--warning-text)', fontSize: 12 }}>
               اختر التاجر أولاً قبل رفع الملفات
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               {merchantMode
-                ? 'ارفع ملفات Amazon أو Noon، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه، وستظهر تعريفات سلة وزد هنا عند إضافتها.'
+                ? 'ارفع ملفات Amazon أو Noon أو تصدير الطلبات من سلة وزد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. اختر المنصة فقط للقوالب المخصصة.'
                 : 'ارفع ملفات Amazon أو Noon أو سلة أو زد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.'}
             </div>
         }
