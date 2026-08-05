@@ -1,0 +1,51 @@
+name: Vercel production release
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vite.config.*'
+      - 'vercel.json'
+      - '.github/workflows/vercel-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-production-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_RnIh0txGDI26IavAcpabyqCs
+      VERCEL_PROJECT_ID: prj_Upq6kKTrMOC3NEfe2NMlrMFEiv8D
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+      - name: Validate required Vercel secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN" || { echo 'Missing VERCEL_TOKEN' >&2; exit 1; }
+      - name: Deploy immutable release to production
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dlx vercel@58.5.1 deploy \
+            --prod \
+            --yes \
+            --token="$VERCEL_TOKEN" \
+            --build-env="VITE_APP_RELEASE=$GITHUB_SHA"

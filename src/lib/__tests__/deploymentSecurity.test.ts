@@ -66,6 +66,18 @@ describe('deployment browser security', () => {
     expect(workflow).toContain('Deploy functions, migrations, then final functions')
   })
 
+  it('deploys web releases through an explicit fail-closed Vercel workflow', () => {
+    const workflow = readFileSync('.github/workflows/vercel-release.yml', 'utf8')
+    expect(workflow).toContain('environment: production')
+    expect(workflow).toContain('cancel-in-progress: false')
+    expect(workflow).toContain('Validate required Vercel secret')
+    expect(workflow).toContain("echo 'Missing VERCEL_TOKEN'")
+    expect(workflow).toContain('vercel@58.5.1 deploy')
+    expect(workflow).toContain('--prod')
+    expect(workflow).toContain('--build-env="VITE_APP_RELEASE=$GITHUB_SHA"')
+    expect(workflow).not.toMatch(/VERCEL_TOKEN:\s+[^$\n]/)
+  })
+
   it('pins the Supabase client used by the app and every Edge Function', () => {
     const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'))
     const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8')
