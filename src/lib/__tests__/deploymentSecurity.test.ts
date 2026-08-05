@@ -47,6 +47,8 @@ describe('deployment browser security', () => {
     expect(smokeWorkflow).toContain('Determine whether this commit changes the web release')
     expect(smokeWorkflow).toContain('fetch-depth: 2')
     expect(smokeWorkflow).toContain('$webReleasePattern')
+    expect(smokeWorkflow).toContain('$nonRuntimeSourcePattern')
+    expect(smokeWorkflow).toContain('$_ -notmatch $nonRuntimeSourcePattern')
     expect(smokeWorkflow).toContain("'^(src/|public/|")
     expect(smokeWorkflow).toContain('-ExpectedRelease $expectedRelease -ReleaseWaitSeconds 240')
     expect(smokeWorkflow).toContain('if ($expectedRelease)')
