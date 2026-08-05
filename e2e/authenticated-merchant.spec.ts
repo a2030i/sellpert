@@ -1198,8 +1198,13 @@ test('merchant follows a synced Trendyol order into product management', async (
       await fulfillRows(route, [productListing])
       return
     }
-    if (table === 'marketplace_action_logs') {
-      await fulfillRows(route, productActionHistory)
+    if (table === 'list_marketplace_operation_facts') {
+      const body = (route.request().postDataJSON() || {}) as Record<string, any>
+      const rows = productActionHistory.filter(action =>
+        (!body.p_product_id || action.target_id === body.p_product_id) &&
+        (!body.p_order_id || action.target_type === 'order' && action.target_id === body.p_order_id),
+      )
+      await fulfillRows(route, rows)
       return
     }
     if (['product_performance_snapshots', 'returns', 'ad_metrics'].includes(table || '')) {
@@ -1224,8 +1229,9 @@ test('merchant follows a synced Trendyol order into product management', async (
     sentProductAction = body
     productActionHistory = [{
       id: 'action-e2e-1', action: body.action, status: 'accepted', error_message: null,
-      external_batch_id: batchId, started_at: '2026-08-04T15:30:00.000Z', finished_at: null,
-      request: body,
+      merchant_code: merchant.merchant_code, platform: 'trendyol', risk_level: 'write',
+      reference: 'TY-20260804', started_at: '2026-08-04T15:30:00.000Z', finished_at: null,
+      target_type: 'product', target_id: product.id,
     }]
     await route.fulfill({
       status: 200,

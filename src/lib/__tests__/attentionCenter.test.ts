@@ -11,7 +11,7 @@ describe('attention center', () => {
       packages: [{ order_id: 'T-10', status: 'Created', cargo_tracking_number: null, invoice_status: 'Rejected', invoice_rejected_reasons: ['invalid'], modified_at: '2026-08-04T10:00:00Z' }],
       questions: [{ status: 'WAITING_FOR_ANSWER', asked_at: '2026-08-04T08:00:00Z' }],
       listings: [{ product_id: 'p1', delivery_status: 'failed', delivery_error: 'provider error' }],
-      actionLogs: [{ status: 'partial', action: 'update-product' }],
+      actionLogs: [{ status: 'partial', action: 'update-product', target_type:'integration' }],
       products: [{ sku: 'SKU-1', cost_price: 20 }],
     })
 
@@ -47,8 +47,8 @@ describe('attention center', () => {
       packages: [{ order_id:'T-20', shipment_package_id:'PKG-20', status:'processing', cargo_tracking_number:'TRK-20' }],
       products: [{ id:'p20', sku:'SKU-20', barcode:'BAR-20', external_id:'20020', cost_price:20 }],
       actionLogs: [
-        { id:'a1', status:'failed', action:'products.v2_update_content', error_message:'[object Object]', request:{ payload:{ items:[{ contentId:20020 }] } }, started_at:'2026-08-04T10:00:00Z' },
-        { id:'a2', status:'partial', action:'packages.tracking', request:{ path:{ packageId:'PKG-20' } }, started_at:'2026-08-04T11:00:00Z' },
+        { id:'a1', status:'failed', action:'products.v2_update_content', error_message:'[object Object]', target_type:'product', target_id:'p20', started_at:'2026-08-04T10:00:00Z' },
+        { id:'a2', status:'partial', action:'packages.tracking', target_type:'order', target_id:'T-20', started_at:'2026-08-04T11:00:00Z' },
       ],
     }
 
@@ -63,7 +63,7 @@ describe('attention center', () => {
       ...empty,
       listings: [{ product_id:'p30', delivery_status:'failed', delivery_error:'rejected' }],
       products: [{ id:'p30', external_id:'30030', cost_price:10 }],
-      actionLogs: [{ status:'failed', action:'products.v2_update_content', request:{ payload:{ items:[{ contentId:30030 }] } } }],
+      actionLogs: [{ status:'failed', action:'products.v2_update_content', target_type:'product', target_id:'p30' }],
     })
 
     expect(items.find(item => item.id === 'rejected-listings')?.count).toBe(1)
@@ -73,7 +73,7 @@ describe('attention center', () => {
   it('keeps successful read-only polling out of the merchant operation history', () => {
     const operations = buildMarketplaceOperations({
       ...empty,
-      actionLogs: [{ id:'poll-1', risk_level:'read', status:'success', action:'products.batch_result' }],
+      actionLogs: [{ id:'poll-1', risk_level:'read', status:'success', action:'products.batch_result', target_type:'products' }],
     })
 
     expect(operations).toEqual([])
@@ -83,8 +83,8 @@ describe('attention center', () => {
     const operations = buildMarketplaceOperations({
       ...empty,
       actionLogs: [
-        { id:'claim-1', risk_level:'write', status:'success', action:'claims.approve' },
-        { id:'cancel-1', risk_level:'destructive', status:'accepted', action:'packages.cancel' },
+        { id:'claim-1', risk_level:'write', status:'success', action:'claims.approve', target_type:'returns' },
+        { id:'cancel-1', risk_level:'destructive', status:'accepted', action:'packages.cancel', target_type:'orders' },
       ],
     })
 

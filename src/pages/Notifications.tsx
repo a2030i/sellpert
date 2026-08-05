@@ -11,6 +11,7 @@ import {
 import { PageHeader } from '../components/UI'
 import { userErrorMessage } from '../lib/userError'
 import { hasMerchantPermission } from '../lib/merchantPermissions'
+import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
 import './Notifications.css'
 
 interface NotificationRow {
@@ -95,8 +96,7 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
         .eq('merchant_code', merchantCode).order('asked_at', { ascending: true }).limit(500),
       supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,updated_at')
         .eq('merchant_code', merchantCode).order('updated_at', { ascending: false }).limit(500),
-      supabase.from('marketplace_action_logs').select('id,platform,risk_level,status,action,request,external_batch_id,error_message,started_at,finished_at')
-        .eq('merchant_code', merchantCode).order('started_at', { ascending: false }).limit(100),
+      listMarketplaceOperationFacts({ merchantCode, limit: 100 }),
       supabase.from('products').select('id,sku,barcode,external_id,cost_price')
         .eq('merchant_code', merchantCode).limit(2000),
       supabase.from('notifications').select('id,type,title,body,is_read,action_path,created_at')

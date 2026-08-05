@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ExternalLink, KeyRound, Loader2, MessageSquare, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Merchant } from '../../lib/supabase'
+import { listMarketplaceOperationFacts } from '../../lib/marketplaceOperations'
 import { S } from './adminShared'
 import TrendyolActionCenter from '../../components/TrendyolActionCenter'
 
@@ -254,15 +255,11 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
       return
     }
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const { data, error } = await supabase.from('marketplace_action_logs')
-      .select('status,started_at,finished_at,risk_level')
-      .eq('merchant_code', merchantCode)
-      .eq('platform', 'trendyol')
-      .gte('started_at', since)
-      .order('started_at', { ascending:false })
-      .limit(100)
+    const { data, error } = await listMarketplaceOperationFacts({ merchantCode, platform:'trendyol', limit:100 })
     if (error) return
-    const merchantActions = (data || []).filter(row => row.risk_level !== 'read' || ['failed','partial'].includes(row.status))
+    const merchantActions = (data || []).filter(row =>
+      row.started_at >= since && (row.risk_level !== 'read' || ['failed','partial'].includes(row.status)),
+    )
     setOperationSummary({
       completed: merchantActions.filter(row => row.status === 'success').length,
       pending: merchantActions.filter(row => ['running','accepted','processing'].includes(row.status)).length,

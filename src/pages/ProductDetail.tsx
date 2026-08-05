@@ -10,10 +10,10 @@ import {
   getProductContentChanges,
   normalizeProductImages,
   productActionLabel,
-  productActionMatches,
   productPublicationStatusLabel,
   shortDeliveryReference,
 } from '../lib/productDelivery'
+import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
 import { userErrorMessage } from '../lib/userError'
 import { ChevronLeft } from 'lucide-react'
 import { productDataLineage, type LineageUpload } from '../lib/dataLineage'
@@ -433,17 +433,16 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     if (!merchantCode) return
     setHistoryLoading(true)
     setHistoryError('')
-    const { data, error } = await supabase.from('marketplace_action_logs')
-      .select('id,action,status,error_message,external_batch_id,started_at,finished_at,request')
-      .eq('merchant_code', merchantCode)
-      .eq('platform', 'trendyol')
-      .in('action', ['products.v2_create', 'products.v2_update_unapproved', 'products.v2_update_content', 'products.price_inventory', 'products.v2_update_delivery'])
-      .order('started_at', { ascending: false })
-      .limit(100)
+    const { data, error } = await listMarketplaceOperationFacts({
+      merchantCode,
+      platform: 'trendyol',
+      productId,
+      limit: 8,
+    })
     if (error) setHistoryError('تعذر تحميل سجل تحديثات المنتج الآن.')
-    else setActionHistory((data || []).filter(action => productActionMatches(action, product)).slice(0, 8))
+    else setActionHistory(data || [])
     setHistoryLoading(false)
-  }, [merchantCode, product])
+  }, [merchantCode, productId])
 
   useEffect(() => {
     void loadActionHistory()
@@ -949,7 +948,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           {actionHistory.map((action, index) => <div key={action.id} style={{ padding:'11px 12px', borderBottom:index === actionHistory.length - 1 ? 'none' : '1px solid var(--border)', display:'flex', flexWrap:'wrap', gap:'10px 18px', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ flex:'1 1 170px', minWidth:0 }}><div style={{ fontSize:12, fontWeight:700 }}>{productActionLabel(action.action)}</div><div style={{ fontSize:11, color:'var(--text3)', marginTop:3 }}>{formatDeliveryDate(action.started_at)}</div></div>
             <div style={{ flex:'1 1 150px', minWidth:0 }}><div style={{ fontSize:12, fontWeight:600, color:deliveryStatusColor(action.status) }}>{deliveryStatusLabel(action.status)}</div>{friendlyDeliveryError(action.error_message) ? <div style={{ fontSize:11, color:'var(--danger-text)', marginTop:3 }}>{friendlyDeliveryError(action.error_message)}</div> : null}</div>
-            <div style={{ flex:'0 0 auto', fontSize:11, color:'var(--text3)', direction:'ltr' }}>{shortDeliveryReference(action.external_batch_id)}</div>
+            <div style={{ flex:'0 0 auto', fontSize:11, color:'var(--text3)', direction:'ltr' }}>{action.reference || ''}</div>
           </div>)}
         </div> : null}
       </div>

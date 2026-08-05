@@ -5,7 +5,6 @@ import {
   friendlyProductPublicationError,
   getProductContentChanges,
   productActionLabel,
-  productActionMatches,
   productPublicationStatusLabel,
   shortDeliveryReference,
 } from '../productDelivery'
@@ -35,13 +34,6 @@ describe('product delivery lifecycle', () => {
     )
     expect(changes.map(change => change.field)).toEqual(['title', 'description', 'images'])
     expect(changes[2]).toMatchObject({ before: 'صورة واحدة', after: 'صورتان' })
-  })
-
-  it('matches logs by Trendyol content id or barcode only', () => {
-    const product = { external_id: 1234, barcode: 'ABC-1', raw: { contentId: 5678 } }
-    expect(productActionMatches({ request: { payload: { items: [{ contentId: 5678 }] } } }, product)).toBe(true)
-    expect(productActionMatches({ request: { payload: { items: [{ barcode: 'ABC-1' }] } } }, product)).toBe(true)
-    expect(productActionMatches({ request: { payload: { items: [{ contentId: 9999, barcode: 'OTHER' }] } } }, product)).toBe(false)
   })
 
   it('uses clear status and action labels without exposing internal values', () => {

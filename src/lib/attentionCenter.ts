@@ -1,5 +1,6 @@
 import { orderFinancialIssue } from './orderQuality'
-import { friendlyDeliveryError, productActionLabel, shortDeliveryReference } from './productDelivery'
+import { friendlyDeliveryError, productActionLabel } from './productDelivery'
+import { marketplaceOperationPath, type MarketplaceOperationTarget } from './marketplaceOperations'
 
 export type AttentionSeverity = 'urgent' | 'attention' | 'info'
 export type AttentionCategory = 'orders' | 'customers' | 'catalog' | 'finance' | 'integration'
@@ -57,11 +58,12 @@ export interface AttentionActionLog {
   risk_level?: string
   status: string
   action: string
-  request?: unknown
-  external_batch_id?: string | null
+  reference?: string | null
   error_message?: string | null
   started_at?: string | null
   finished_at?: string | null
+  target_type: MarketplaceOperationTarget
+  target_id?: string | null
 }
 
 export interface AttentionProduct {
@@ -140,32 +142,15 @@ function marketplaceStatus(status: string): { label: string; tone: MarketplaceOp
   return { label:'جارٍ التنفيذ', tone:'pending' }
 }
 
-function operationTarget(log: AttentionActionLog, input: AttentionCenterInput) {
-  const request = log.request as { path?: Record<string, unknown>; payload?: { items?: Array<Record<string, unknown>> } } | null
-  const action = String(log.action || '')
-  if (action.startsWith('products.')) {
-    const item = request?.payload?.items?.[0]
-    const contentId = normalized(item?.contentId)
-    const barcode = normalized(item?.barcode)
-    const product = input.products.find(row =>
-      (contentId && normalized(row.external_id) === contentId) || (barcode && normalized(row.barcode) === barcode),
-    )
-    if (product?.id) return { path:`/product-detail?id=${encodeURIComponent(product.id)}`, actionLabel:'فتح المنتج' }
-    return { path:'/products', actionLabel:'فتح المنتجات' }
-  }
-  if (action.startsWith('packages.') || action.startsWith('invoices.')) {
-    const packageId = normalized(request?.path?.packageId)
-    const trackingNumber = normalized(request?.path?.cargoTrackingNumber)
-    const shipment = input.packages.find(row =>
-      (packageId && normalized(row.shipment_package_id) === packageId) ||
-      (trackingNumber && normalized(row.cargo_tracking_number) === trackingNumber),
-    )
-    if (shipment?.order_id) return { path:`/orders?order=${encodeURIComponent(shipment.order_id)}`, actionLabel:'فتح الطلب' }
-    return { path:'/orders', actionLabel:'فتح الطلبات' }
-  }
-  if (action === 'questions.answer') return { path:'/integrations?panel=trendyol-questions', actionLabel:'فتح أسئلة العملاء' }
-  if (action.startsWith('claims.') || action.startsWith('returns.')) return { path:'/statement?tab=returns', actionLabel:'فتح المرتجعات' }
-  return { path:'/integrations', actionLabel:'فتح الربط' }
+function operationTarget(log: AttentionActionLog) {
+  const actionLabel = log.target_type === 'product' ? 'فتح المنتج'
+    : log.target_type === 'products' ? 'فتح المنتجات'
+    : log.target_type === 'order' ? 'فتح الطلب'
+    : log.target_type === 'orders' ? 'فتح الطلبات'
+    : log.target_type === 'questions' ? 'فتح أسئلة العملاء'
+    : log.target_type === 'returns' ? 'فتح المرتجعات'
+    : 'فتح الربط'
+  return { path: marketplaceOperationPath(log), actionLabel }
 }
 
 export function buildMarketplaceOperations(input: AttentionCenterInput): MarketplaceOperation[] {
@@ -173,7 +158,7 @@ export function buildMarketplaceOperations(input: AttentionCenterInput): Marketp
     .filter(log => normalized(log.risk_level) !== 'read' || FAILED_DELIVERY_STATUSES.has(normalized(log.status)))
     .map((log, index) => {
     const status = marketplaceStatus(log.status)
-    const target = operationTarget(log, input)
+    const target = operationTarget(log)
     return {
       id: log.id || `marketplace-operation-${index}`,
       label: marketplaceActionLabel(log.action),
@@ -182,7 +167,7 @@ export function buildMarketplaceOperations(input: AttentionCenterInput): Marketp
       path: target.path,
       actionLabel: target.actionLabel,
       error: friendlyDeliveryError(log.error_message),
-      reference: shortDeliveryReference(log.external_batch_id),
+      reference: log.reference || '',
       occurredAt: log.finished_at || log.started_at,
     }
     })

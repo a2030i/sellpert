@@ -13,6 +13,7 @@ import OrderExceptionPanel from '../components/OrderExceptionPanel'
 import { calculateOrderProfit } from '../lib/orderProfit'
 import { buildOrderOperationQueue, type OperationalPackage, type OrderOperationTaskKind } from '../lib/orderOperations'
 import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
+import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -345,18 +346,17 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
       supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('modified_at', { ascending:false }),
       order.platform === 'trendyol'
-        ? supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at,request').eq('merchant_code',order.merchant_code).eq('platform','trendyol').order('started_at',{ascending:false}).limit(50)
-        : Promise.resolve({data:[] as any[]}),
+        ? listMarketplaceOperationFacts({ merchantCode:order.merchant_code, platform:'trendyol', orderId:order.order_id, limit:8 })
+        : Promise.resolve({data:[] as any[], error:null}),
     ])
     if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
     const packageRows = packages.data || []
-    const packageIds = new Set(packageRows.map(item => String(item.shipment_package_id)))
     const initialPackageId = String(packageRows[0]?.shipment_package_id || order.shipment_package_id || '')
     setSelectedItems(items.data || [])
     setSelectedPackages(packageRows)
     setActivePackageId(initialPackageId)
     setPackageForm(current => ({ ...current, invoiceNumber:String(packageRows[0]?.invoice_number || ''), invoiceLink:'' }))
-    setSelectedActions((actions.data || []).filter(log => String(log.request?.path?.packageId || '') === initialPackageId && packageIds.has(initialPackageId)).slice(0,8))
+    setSelectedActions(actions.data || [])
     const detailItems = items.data || []
     const skus = [...new Set([order.sku, ...detailItems.map(item => item.sku)].filter(Boolean).map(String))]
     const barcodes = [...new Set(detailItems.map(item => item.barcode).filter(Boolean).map(String))]
@@ -394,9 +394,12 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setActivePackageId(packageId); setSelectedActions([]); setInvoiceFile(null); setOrderActionMessage(null)
     const packageRow = selectedPackages.find(item => String(item.shipment_package_id) === packageId)
     setPackageForm(current => ({ ...current, invoiceNumber:String(packageRow?.invoice_number || ''), invoiceLink:'' }))
-    const { data } = await supabase.from('marketplace_action_logs').select('id,action,status,error_message,started_at,request')
-      .eq('merchant_code', selectedOrder.merchant_code).eq('platform', 'trendyol')
-      .contains('request', { path:{ packageId } }).order('started_at', { ascending:false }).limit(8)
+    const { data } = await listMarketplaceOperationFacts({
+      merchantCode:selectedOrder.merchant_code,
+      platform:'trendyol',
+      packageId,
+      limit:8,
+    })
     setSelectedActions(data || [])
   }
 

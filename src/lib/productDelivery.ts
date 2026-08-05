@@ -13,11 +13,6 @@ export type ProductContentChange = {
   after: string
 }
 
-export type MarketplaceProductAction = {
-  action?: string | null
-  request?: unknown
-}
-
 const STATUS_LABELS: Record<ProductDeliveryStatus, string> = {
   draft: 'مسودة لم تُرسل',
   running: 'جارٍ الإرسال إلى Trendyol',
@@ -127,23 +122,4 @@ export function friendlyProductPublicationError(value: unknown) {
     return 'تعذر إكمال مراجعة المنتج. راجع بيانات المنتج والصور والخصائص ثم أعد إرساله.'
   }
   return message.length > 500 ? `${message.slice(0, 497)}…` : message
-}
-
-export function productActionMatches(action: MarketplaceProductAction, product: { external_id?: unknown; barcode?: unknown; raw?: Record<string, unknown> | null }) {
-  const request = action.request as { payload?: { items?: Array<Record<string, unknown>> } } | null
-  const items = request?.payload?.items
-  if (!Array.isArray(items)) return false
-
-  const contentIds = new Set(
-    [product.external_id, product.raw?.contentId, product.raw?.id]
-      .map(value => cleanText(String(value ?? '')))
-      .filter(Boolean),
-  )
-  const barcode = cleanText(String(product.barcode ?? ''))
-
-  return items.some(item => {
-    const itemContentId = cleanText(String(item.contentId ?? ''))
-    const itemBarcode = cleanText(String(item.barcode ?? ''))
-    return Boolean((itemContentId && contentIds.has(itemContentId)) || (barcode && itemBarcode === barcode))
-  })
 }
