@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 describe('Supabase production release workflow', () => {
   it('uses a pinned CLI and a serialized protected production environment', () => {
     const workflow = readFileSync('.github/workflows/supabase-release.yml', 'utf8')
+    expect(workflow).toContain('supabase/setup-cli@v3.0.0')
     expect(workflow).toContain('version: 2.111.0')
     expect(workflow).toContain('environment: production')
     expect(workflow).toContain('cancel-in-progress: false')
@@ -12,6 +13,21 @@ describe('Supabase production release workflow', () => {
     expect(workflow).toContain("echo 'Missing SUPABASE_ACCESS_TOKEN'")
     expect(workflow).toContain("echo 'Missing SUPABASE_DB_PASSWORD'")
     expect(workflow).not.toMatch(/SUPABASE_(ACCESS_TOKEN|DB_PASSWORD):\s+[^$\n]/)
+  })
+
+  it('uses the Node 24 compatible Supabase setup action in every workflow', () => {
+    const workflows = [
+      '.github/workflows/ci.yml',
+      '.github/workflows/schema-recovery-drill.yml',
+      '.github/workflows/supabase-release.yml',
+    ]
+
+    for (const path of workflows) {
+      const workflow = readFileSync(path, 'utf8')
+      expect(workflow).toContain('supabase/setup-cli@v3.0.0')
+      expect(workflow).not.toContain('supabase/setup-cli@v1')
+      expect(workflow).toContain('version: 2.111.0')
+    }
   })
 
   it('deploys compatible functions before migrations and converges afterward', () => {
