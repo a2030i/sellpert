@@ -963,6 +963,47 @@ test('core merchant workspace is accessible and stable before the first import',
   expect(runtimeErrors).toEqual([])
 })
 
+test('financial statement never presents partial order costs as net profit', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  const performanceRows = [
+    { id:'perf-noon-sales', merchant_code:merchant.merchant_code, platform:'noon', data_date:'2026-08-01', total_sales:65, order_count:2, platform_fees:8.97, ad_spend:0 },
+    { id:'perf-noon-ads', merchant_code:merchant.merchant_code, platform:'noon', data_date:'2026-08-02', total_sales:0, order_count:0, platform_fees:0, ad_spend:835.48 },
+    { id:'perf-trendyol-summary', merchant_code:merchant.merchant_code, platform:'trendyol', data_date:'2026-08-02', total_sales:4785, order_count:165, platform_fees:0, ad_spend:0 },
+  ]
+  const orderFacts = [
+    { id:'order-detail-1', order_id:'NOON-1', merchant_code:merchant.merchant_code, platform:'noon', status:'shipped', sku:'SKU-1', quantity:1, total_amount:30, upload_id:'upload-1', order_date:'2026-08-01T08:00:00Z' },
+    { id:'order-detail-2', order_id:'NOON-2', merchant_code:merchant.merchant_code, platform:'noon', status:'shipped', sku:'SKU-1', quantity:1, total_amount:35, upload_id:'upload-1', order_date:'2026-08-01T09:00:00Z' },
+  ]
+  const fulfillRows = (route: Route, rows: unknown[]) => route.fulfill({
+    status:200,
+    contentType:'application/json',
+    headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' },
+    body:JSON.stringify(rows),
+  })
+
+  await page.route('**/rest/v1/performance_data**', route => fulfillRows(route, performanceRows))
+  await page.route('**/rest/v1/rpc/list_order_operating_facts**', route => fulfillRows(route, orderFacts))
+  await page.route('**/rest/v1/products**', route => fulfillRows(route, [{ id:'product-1', merchant_code:merchant.merchant_code, sku:'SKU-1', cost_price:10 }]))
+  await page.route('**/rest/v1/ad_metrics**', route => fulfillRows(route, [{ id:'ad-1', merchant_code:merchant.merchant_code, platform:'noon', report_date:'2026-08-02', upload_id:'ads-upload' }]))
+
+  await page.goto('/statement')
+  await expect(page.getByRole('heading', { name:'الأرباح والتحصيل' })).toBeVisible()
+  await expect(page.getByText('تفاصيل الطلبات تغطي 1% فقط من قيمة المبيعات. نعرض الصافي بعد التكاليف المعروفة ولا نسميه ربحًا حتى تكتمل الطلبات.')).toBeVisible()
+  await expect(page.getByText('الصافي بعد التكاليف المعروفة', { exact:true }).first()).toBeVisible()
+  await expect(page.getByText('صافي الربح التقديري', { exact:true })).toHaveCount(0)
+
+  await page.getByRole('tab', { name:'تحليلات واتجاهات' }).click()
+  await expect(page.getByText('هذه قائمة مؤقتة وليست صافي ربح نهائيًا؛ لن نعتمد تكلفة جزئية على كامل المبيعات.')).toBeVisible()
+  await expect(page.getByText('تفاصيل الطلبات تغطي 1% من المبيعات')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'قائمة مالية ببيانات طلبات جزئية')
+  await page.screenshot({ path:testInfo.outputPath('partial-financial-data.png'), fullPage:true })
+  expect(runtimeErrors).toEqual([])
+})
+
 test('store owner downloads a complete paged data archive without integration secrets', async ({ page }) => {
   await mockAuthenticatedMerchant(page)
   await page.goto('/settings')

@@ -11,6 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Landmark, RefreshCw } from 'lucide-react'
 import { financialTransactionMeta } from '../lib/trendyolFinance'
 import { hasMerchantPermission } from '../lib/merchantPermissions'
+import { buildFinancialSummary, type FinancialSummary } from '../lib/financialSummary'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -74,11 +75,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [costInfo, setCostInfo] = useState({ cogs: 0, costedUnits: 0, missingUnits: 0 })
   const [qualityInfo, setQualityInfo] = useState({
     orders: 0, apiOrders: 0, uploadedOrders: 0, costCoverage: 0,
+    detailedRevenue: 0,
     transactions: 0, settlements: 0, adRows: 0, uploadedAdRows: 0,
     latestSync: '', latestTransaction: '', latestAdReport: '',
   })
-  // الباقة الحالية مجانية، لذلك لا تُحتسب أي عمولة للمنصة.
-  const commRate = 0
   const [loading, setLoading]       = useState(true)
   const [periodReady, setPeriodReady] = useState(false)
   const isMobile = useMobile()
@@ -147,7 +147,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const costs = new Map<string, number>()
     for (const product of productCosts) if (product.sku && Number(product.cost_price) > 0) costs.set(String(product.sku).toLowerCase(), Number(product.cost_price))
     let cogs = 0, costedUnits = 0, missingUnits = 0
-    const activeOrders = monthOrders.filter((row: any) => !['cancelled','returned'].includes(row.status))
+    const ledgerOrders = monthOrders.filter((row: any) => row.status !== 'cancelled')
+    const activeOrders = ledgerOrders.filter((row: any) => row.status !== 'returned')
     for (const order of activeOrders) {
       const units = Number(order.quantity || 1)
       const cost = order.sku ? costs.get(String(order.sku).toLowerCase()) : undefined
@@ -156,9 +157,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     setCostInfo({ cogs, costedUnits, missingUnits })
     const totalUnits = costedUnits + missingUnits
     setQualityInfo({
-      orders: activeOrders.length,
-      apiOrders: activeOrders.filter((row: any) => !row.upload_id).length,
-      uploadedOrders: activeOrders.filter((row: any) => row.upload_id).length,
+      orders: new Set(ledgerOrders.map((row: any) => row.order_id || row.id)).size,
+      apiOrders: new Set(ledgerOrders.filter((row: any) => !row.upload_id).map((row: any) => row.order_id || row.id)).size,
+      uploadedOrders: new Set(ledgerOrders.filter((row: any) => row.upload_id).map((row: any) => row.order_id || row.id)).size,
+      detailedRevenue: ledgerOrders.reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0),
       costCoverage: totalUnits > 0 ? costedUnits / totalUnits * 100 : 0,
       transactions: monthTransactions.length,
       settlements: new Set(monthTransactions.map((row: any) => row.settlement_id).filter(Boolean)).size,
@@ -176,19 +178,16 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const summary = useMemo(() => {
-    const grossRevenue  = perfData.reduce((s, r) => s + r.total_sales, 0)
-    const platformFees  = perfData.reduce((s, r) => s + (r.platform_fees || 0), 0)
-    const adSpend       = perfData.reduce((s, r) => s + (r.ad_spend || 0), 0)
-    const totalReturns  = returns.reduce((s, r) => s + (r.return_amount || 0), 0)
-    const afterFees     = grossRevenue - platformFees - adSpend - totalReturns
-    const sellpertComm  = Math.round(grossRevenue * commRate / 100)
-    const netPayout     = afterFees - sellpertComm
-    const estimatedProfit = netPayout - costInfo.cogs
-    const costsComplete = costInfo.missingUnits === 0 && costInfo.costedUnits > 0
-    const margin        = grossRevenue > 0 && costsComplete ? (estimatedProfit / grossRevenue * 100) : null
-    const totalOrders   = perfData.reduce((s, r) => s + r.order_count, 0)
-    return { grossRevenue, platformFees, adSpend, totalReturns, afterFees, sellpertComm, netPayout, estimatedProfit, costsComplete, margin, totalOrders }
-  }, [perfData, returns, commRate, costInfo])
+    return buildFinancialSummary({
+      performanceRows: perfData,
+      returnRows: returns,
+      detailedRevenue: qualityInfo.detailedRevenue,
+      detailedOrders: qualityInfo.orders,
+      knownCogs: costInfo.cogs,
+      costedUnits: costInfo.costedUnits,
+      missingCostUnits: costInfo.missingUnits,
+    })
+  }, [perfData, returns, costInfo, qualityInfo.detailedRevenue, qualityInfo.orders])
 
   // Per-platform breakdown
   const byPlatform = useMemo(() => {
@@ -304,15 +303,15 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {[
             {
               label:'المبيعات',
-              value: qualityInfo.orders ? `${qualityInfo.orders.toLocaleString('ar-SA')} طلب` : 'لا توجد طلبات',
-              detail: qualityInfo.orders ? `${qualityInfo.apiOrders.toLocaleString('ar-SA')} عبر الربط · ${qualityInfo.uploadedOrders.toLocaleString('ar-SA')} عبر الملفات` : 'اربط منصة أو ارفع ملف الطلبات',
-              ok: qualityInfo.orders > 0,
+              value: summary.reportedActivity ? `${summary.reportedActivity.toLocaleString('ar-SA')} عملية/وحدة بحسب المصدر` : 'لا توجد مبيعات',
+              detail: qualityInfo.orders ? `${qualityInfo.orders.toLocaleString('ar-SA')} طلب بتفاصيل كاملة · تغطية ${summary.detailCoverage.toFixed(0)}% من قيمة المبيعات` : 'المتوفر ملخص منصة بلا طلبات تفصيلية',
+              ok: summary.salesDetailsComplete,
             },
             {
               label:'تكاليف المنتجات',
               value: qualityInfo.orders ? `${qualityInfo.costCoverage.toFixed(0)}% مكتملة` : 'لا توجد مبيعات',
-              detail: qualityInfo.costCoverage >= 100 ? 'صافي الربح قابل للحساب' : 'الصافي المعروض لا يشمل التكاليف الناقصة',
-              ok: qualityInfo.orders === 0 || qualityInfo.costCoverage >= 100,
+              detail: summary.profitComplete ? 'صافي الربح قابل للحساب' : !summary.salesDetailsComplete ? 'يلزم اكتمال تفاصيل الطلبات قبل حساب الربح' : 'الصافي المعروض لا يشمل التكاليف الناقصة',
+              ok: summary.profitComplete,
             },
             {
               label:'المعاملات والتسويات',
@@ -364,10 +363,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {/* Summary KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: `${summary.totalOrders} طلب` },
+              { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: summary.salesDetailsComplete ? `${summary.detailedOrders} طلب بتفاصيل كاملة` : `${summary.reportedActivity} عملية/وحدة بحسب المصدر` },
               { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
               { label: 'المرتجعات', value: fmt(summary.totalReturns), color: 'var(--warning-text)', icon: '', sub: 'بحسب البيانات المستوردة' },
-              { label: summary.costsComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكلفة المنتجات', value: fmt(summary.costsComplete ? summary.estimatedProfit : summary.netPayout), color: (summary.costsComplete ? summary.estimatedProfit : summary.netPayout) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: summary.costsComplete ? `${summary.margin?.toFixed(1)}% هامش تقديري` : 'الربحية غير مكتملة حتى تُدخل تكاليف المنتجات' },
+              { label: summary.profitComplete ? 'صافي الربح التقديري' : 'الصافي بعد التكاليف المعروفة', value: fmt(summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts), color: (summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: summary.profitComplete ? `${summary.margin?.toFixed(1)}% هامش تقديري` : 'رقم مؤقت لا يُعد ربحًا حتى تكتمل التفاصيل والتكاليف' },
             ].map((k, i) => (
               <div key={i} style={{ ...S.card, padding: 16, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: k.color, borderRadius: '12px 12px 0 0' }} />
@@ -396,7 +395,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 null, // divider
                 { label: 'الصافي بعد الرسوم والإعلانات والمرتجعات', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 null,
-                { label: summary.costsComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكاليف المنتجات الناقصة', value: summary.costsComplete ? summary.estimatedProfit : summary.netPayout, color: (summary.costsComplete ? summary.estimatedProfit : summary.netPayout) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
+                { label: summary.profitComplete ? 'صافي الربح التقديري' : 'الصافي بعد التكاليف المعروفة وقبل الناقصة', value: summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts, color: (summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
                 <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
               ) : (
@@ -410,9 +409,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             </div>
           </div>
 
-          {!summary.costsComplete ? <div style={{ marginBottom:16, padding:'12px 15px', borderRadius:10, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
+          {!summary.profitComplete ? <div style={{ marginBottom:16, padding:'12px 15px', borderRadius:10, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
             <div style={{ fontSize:12, fontWeight:800, color:'var(--warning-text)' }}>الربحية غير مكتملة</div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, lineHeight:1.7 }}>هناك {costInfo.missingUnits.toLocaleString('ar-SA')} وحدة مباعة بلا تكلفة منتج مسجّلة. لذلك لا نعرضها كصافي ربح، ويمكن استكمال التكاليف من صفحة المنتجات.</div>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, lineHeight:1.7 }}>{!summary.salesDetailsComplete ? `تفاصيل الطلبات تغطي ${summary.detailCoverage.toFixed(0)}% فقط من قيمة المبيعات. نعرض الصافي بعد التكاليف المعروفة ولا نسميه ربحًا حتى تكتمل الطلبات.` : `هناك ${costInfo.missingUnits.toLocaleString('ar-SA')} وحدة مباعة بلا تكلفة منتج مسجّلة. لذلك لا نعرضها كصافي ربح، ويمكن استكمال التكاليف من صفحة المنتجات.`}</div>
           </div> : null}
 
           {/* Data mismatch warning — منصات فيها إنفاق إعلاني بدون مبيعات */}
@@ -513,7 +512,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           </>)}
 
           {stab === 'trends' && (<>
-            <PnLPanel merchant={merchant} year={year} month={month} />
+            <PnLPanel summary={summary} knownCogs={costInfo.cogs} />
             <RevenueForecastPanel merchant={merchant} />
             <MonthlyCashflowPanel merchant={merchant} />
           </>)}
@@ -1201,24 +1200,17 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
 }
 
 // ── P&L Statement ────────────────────────────────────────────────────────────
-function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: number; month: number }) {
-  const [data, setData] = useState<any>(null)
-  useEffect(() => {
-    if (!merchant) return
-    supabase.rpc('pnl_statement', { p_merchant_code: merchant.merchant_code, p_year: year, p_month: month })
-      .then(({ data }) => setData(data))
-  }, [merchant, year, month])
-  if (!data || Number(data.revenue) === 0) return null
+function PnLPanel({ summary, knownCogs }: { summary: FinancialSummary; knownCogs: number }) {
+  if (summary.grossRevenue === 0) return null
+  const netValue = summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts
   const lines = [
-    { label: 'الإيرادات', value: Number(data.revenue), bold: true, color: 'var(--text)' },
-    { label: 'تكلفة البضاعة المباعة (COGS)', value: -Number(data.cogs), color: 'var(--danger-text)' },
+    { label: 'الإيرادات', value: summary.grossRevenue, bold: true, color: 'var(--text)' },
+    { label: summary.profitComplete ? 'تكلفة البضاعة المباعة' : 'تكلفة المنتجات المعروفة فقط', value: -knownCogs, color: 'var(--danger-text)' },
+    { label: 'رسوم المنصات', value: -summary.platformFees, color: 'var(--danger-text)' },
+    { label: 'الإنفاق الإعلاني', value: -summary.adSpend, color: 'var(--danger-text)' },
+    { label: 'المرتجعات', value: -summary.totalReturns, color: 'var(--warning-text)' },
     null,
-    { label: 'الربح الإجمالي', value: Number(data.gross_profit), bold: true, color: 'var(--accent2)', sub: data.gross_margin_pct ? `هامش ${data.gross_margin_pct}%` : '' },
-    { label: 'رسوم المنصات', value: -Number(data.platform_fees), color: 'var(--danger-text)' },
-    { label: 'الإنفاق الإعلاني', value: -Number(data.ad_spend), color: 'var(--danger-text)' },
-    { label: 'المرتجعات', value: -Number(data.returns), color: 'var(--warning-text)' },
-    null,
-    { label: 'صافي الدخل', value: Number(data.net_income), bold: true, large: true, color: Number(data.net_income) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sub: data.net_margin_pct ? `هامش صافي ${data.net_margin_pct}%` : '' },
+    { label: summary.profitComplete ? 'صافي الربح التقديري' : 'الصافي قبل تكاليف المنتجات الناقصة', value: netValue, bold: true, large: true, color: netValue >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sub: summary.profitComplete && summary.margin !== null ? `هامش صافي ${summary.margin.toFixed(1)}%` : `تفاصيل الطلبات تغطي ${summary.detailCoverage.toFixed(0)}% من المبيعات` },
   ] as any[]
   return (
     <div style={{ ...S.card, padding: 0, marginBottom: 20, overflow: 'hidden' }}>
@@ -1226,6 +1218,7 @@ function PnLPanel({ merchant, year, month }: { merchant: Merchant | null; year: 
         قائمة الأرباح والخسائر (P&L)
       </div>
       <div style={{ padding: 20 }}>
+        {!summary.profitComplete ? <div style={{ marginBottom:12, padding:'10px 12px', borderRadius:8, background:'var(--warning-bg)', color:'var(--warning-text)', fontSize:11, lineHeight:1.7 }}>هذه قائمة مؤقتة وليست صافي ربح نهائيًا؛ لن نعتمد تكلفة جزئية على كامل المبيعات.</div> : null}
         {lines.map((row, i) => row === null ? (
           <div key={i} style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
         ) : (
