@@ -3,6 +3,13 @@
 -- and remove the default PUBLIC network/queue privileges that would allow a
 -- browser JWT to issue arbitrary outbound requests or inspect responses.
 
+-- Keep the queue check, response backup, extension recreation, and restore in
+-- one explicit transaction. Supabase's initial bootstrap wraps migrations,
+-- while `supabase db reset` may execute statements without an outer
+-- transaction; LOCK TABLE must be valid and must protect the full operation in
+-- both recovery paths.
+begin;
+
 create schema if not exists extensions;
 
 lock table net.http_request_queue in access exclusive mode;
@@ -88,3 +95,5 @@ begin
   end if;
 end
 $$;
+
+commit;
