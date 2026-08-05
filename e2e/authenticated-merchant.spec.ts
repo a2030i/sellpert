@@ -20,7 +20,13 @@ function unsignedToken() {
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: merchant.id, role: 'authenticated', exp: 2_000_000_000 })}.e2e`
 }
 
-async function mockAuthenticatedMerchant(page: Page) {
+async function mockAuthenticatedMerchant(
+  page: Page,
+  merchantOverride: Partial<typeof merchant> = {},
+  options: { connectedMarketplace?: boolean } = {},
+) {
+  const activeMerchant = { ...merchant, ...merchantOverride }
+  const connectedMarketplace = options.connectedMarketplace !== false
   const accessToken = unsignedToken()
   await page.addInitScript(({ session }) => {
     window.localStorage.setItem('sellpert-auth-v1', JSON.stringify(session))
@@ -55,11 +61,14 @@ async function mockAuthenticatedMerchant(page: Page) {
   await page.route('**/rest/v1/**', async route => {
     const url = new URL(route.request().url())
     const isMerchantLookup = url.pathname.endsWith('/merchants') && url.searchParams.has('id')
+    const isMerchantUpdate = url.pathname.endsWith('/merchants') && route.request().method() === 'PATCH'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      headers: { 'content-range': isMerchantLookup ? '0-0/1' : '*/0' },
-      body: JSON.stringify(isMerchantLookup ? [merchant] : []),
+      headers: { 'content-range': isMerchantLookup || isMerchantUpdate ? '0-0/1' : '*/0' },
+      body: isMerchantUpdate
+        ? JSON.stringify({ ...activeMerchant, onboarding_done: true })
+        : JSON.stringify(isMerchantLookup ? [activeMerchant] : []),
     })
   })
 
@@ -101,12 +110,12 @@ async function mockAuthenticatedMerchant(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          credentials: [{
+          credentials: connectedMarketplace ? [{
             id: 'credential-e2e', merchant_code: merchant.merchant_code, platform: 'trendyol',
             seller_id: '1148158', is_active: true, test_status: 'success',
             last_tested_at: '2026-08-03T08:00:00.000Z', last_sync_at: '2026-08-03T08:05:00.000Z',
             records_synced: 18, configured: true,
-          }],
+          }] : [],
           job: null,
         }),
       })
@@ -115,6 +124,35 @@ async function mockAuthenticatedMerchant(page: Page) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
 }
+
+test('new merchant reaches one clear first-value action instead of empty analytics', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page, { onboarding_done: false }, { connectedMarketplace: false })
+
+  await page.goto('/')
+  const onboarding = page.getByRole('dialog', { name: 'مرحبًا بك في Sellpert' })
+  await expect(onboarding).toBeVisible()
+  await onboarding.getByRole('button', { name: 'متابعة' }).click()
+  await page.getByRole('button', { name: 'متابعة' }).click()
+  await page.getByRole('button', { name: 'متابعة' }).click()
+  await expect(page.getByRole('heading', { name: 'مساحة العمل جاهزة' })).toBeVisible()
+  await page.getByRole('button', { name: 'الانتقال إلى نظرة عامة' }).click()
+
+  await expect(page.getByRole('heading', { name: 'ابدأ تشغيل متجرك' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'اربط قناة البيع أو ارفع أول ملف' })).toBeVisible()
+  await expect(page.getByText('مساحة معزولة', { exact: true })).toBeVisible()
+  await expect(page.getByText('حالة واضحة', { exact: true })).toBeVisible()
+  await expect(page.getByText('نتيجة قابلة للعمل', { exact: true })).toBeVisible()
+  await expect(page.getByText('صافي التدفق النقدي الأخير')).toHaveCount(0)
+  await expectNoSeriousAccessibilityViolations(page, 'لوحة بدء تشغيل متجر جديد')
+  await page.screenshot({ path: testInfo.outputPath('new-merchant-first-value.png'), fullPage: true })
+
+  await page.getByRole('button', { name: /الربط ورفع الملفات/ }).click()
+  await expect(page).toHaveURL(/\/integrations$/)
+  expect(runtimeErrors).toEqual([])
+})
 
 test('merchant sees a truthful purchase funding decision and opens bank evidence', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []

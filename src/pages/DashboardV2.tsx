@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   Activity, AlertTriangle, ArrowLeft, Banknote, Boxes, ChevronLeft, CircleDollarSign,
-  Check, ClipboardPlus, Database, Megaphone, RefreshCw, Target, TrendingUp, WalletCards,
+  Check, ClipboardPlus, Database, Megaphone, RefreshCw, ShieldCheck, Target, TrendingUp, WalletCards,
 } from 'lucide-react'
 import { supabase, type Merchant, type Order, type PlatformCredential } from '../lib/supabase'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
@@ -331,6 +331,7 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     productCount: model.totalProducts,
     costedProductCount: model.costedProducts,
   })
+  const isNewWorkspace = !sourceReady && orders.length === 0 && model.totalProducts === 0
 
   async function trackDecision(decision: typeof decisions[number]) {
     if (!merchant?.merchant_code) return
@@ -419,6 +420,18 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   }
 
   if (loading) return <div className="db-loading"><RefreshCw size={20} className="db-spin" /> جارٍ بناء مركز قرارات متجرك…</div>
+
+  if (isNewWorkspace) return (
+    <div className="db-page db-page--launch">
+      <header className="db-header db-header--launch">
+        <div><h1>ابدأ تشغيل متجرك</h1><p>أحضر أول بيانات فعلية، ثم يحوّلها Sellpert إلى طلبات ومخزون وربحية وقرارات قابلة للتنفيذ.</p></div>
+      </header>
+
+      {partialData ? <div className="db-data-state db-data-state--partial"><AlertTriangle size={16} /><span>تعذر فحص بعض المصادر الآن، لكن يمكنك بدء الربط أو رفع الملف بصورة طبيعية.</span></div> : null}
+      <WorkspaceReadinessPanel readiness={readiness} />
+      <FirstValueLaunchpad merchantName={merchant?.name || 'متجرك'} />
+    </div>
+  )
 
   return (
     <div className="db-page">
@@ -677,6 +690,28 @@ function Metric({ label, value, danger = false }: { label: string; value: string
 }
 
 function EmptyState({ text }: { text: string }) { return <div className="db-empty">{text}</div> }
+
+function FirstValueLaunchpad({ merchantName }: { merchantName: string }) {
+  return <section className="db-launchpad" aria-labelledby="first-value-title">
+    <div className="db-launchpad-main">
+      <span className="db-launchpad-icon" aria-hidden="true"><Database size={28} /></span>
+      <div>
+        <span className="db-eyebrow db-eyebrow--blue">الخطوة التالية</span>
+        <h2 id="first-value-title">اربط قناة البيع أو ارفع أول ملف</h2>
+        <p>لم تصل بيانات إلى {merchantName} بعد. اربط Trendyol للمزامنة المباشرة، أو ارفع ملف Amazon أو Noon أو سلة أو زد؛ وسيعرض النظام حالة المعالجة وما تم استيراده بوضوح.</p>
+        <div className="db-launchpad-actions">
+          <button className="db-launchpad-primary" onClick={() => go('/integrations')}>الربط ورفع الملفات <ArrowLeft size={16} /></button>
+          <button className="db-launchpad-secondary" onClick={() => go('/help')}>شرح طرق البدء</button>
+        </div>
+      </div>
+    </div>
+    <div className="db-launchpad-assurance" aria-label="ما الذي سيحدث بعد الربط">
+      <article><ShieldCheck size={18} /><span><strong>مساحة معزولة</strong><small>تُحفظ بياناتك داخل مساحة متجرك فقط.</small></span></article>
+      <article><RefreshCw size={18} /><span><strong>حالة واضحة</strong><small>ترى الجاري والمكتمل وما يحتاج إجراء.</small></span></article>
+      <article><Check size={18} /><span><strong>نتيجة قابلة للعمل</strong><small>تظهر الطلبات والمنتجات ثم مؤشرات الربحية.</small></span></article>
+    </div>
+  </section>
+}
 
 function WorkspaceReadinessPanel({ readiness }: { readiness: WorkspaceReadiness }) {
   return <section className="db-readiness" aria-labelledby="workspace-readiness-title">
