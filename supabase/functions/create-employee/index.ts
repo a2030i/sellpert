@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json()
     const action = body.action || 'create'
-    if (!['create', 'delete_auth', 'send_recovery'].includes(action)) {
+    if (!['create', 'delete_auth', 'invitation_status', 'send_access_link'].includes(action)) {
       return json({ error: 'Unsupported employee action' }, 400)
     }
     const callerCanManageStaff = callerMerchant.role === 'staff'
@@ -57,6 +57,39 @@ Deno.serve(async (req) => {
     if (!['merchant', 'admin', 'super_admin'].includes(callerMerchant.role)
         && !(callerCanManageStaff && action === 'delete_auth')) {
       return json({ error: 'Only merchants/admins can add employees' }, 403)
+    }
+
+    // ── LIST INVITATION STATES ──────────────────────────────────────────
+    // Employee ids are always derived from the authenticated owner. The
+    // client cannot provide ids or another merchant code to probe Auth users.
+    if (action === 'invitation_status') {
+      if (callerMerchant.role !== 'merchant') return json({ error: 'Forbidden' }, 403)
+      const { data: employees, error: employeeError, count } = await adminClient
+        .from('merchants')
+        .select('id', { count: 'exact' })
+        .eq('owner_merchant_code', callerMerchant.merchant_code)
+        .eq('role', 'employee')
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (employeeError) return json({ error: 'تعذر تحميل حالات دعوات الفريق.' }, 500)
+
+      const statuses: Array<Record<string, unknown>> = []
+      for (let index = 0; index < (employees || []).length; index += 10) {
+        const batch = (employees || []).slice(index, index + 10)
+        const resolved = await Promise.all(batch.map(async employee => {
+          const { data, error } = await adminClient.auth.admin.getUserById(employee.id)
+          if (error || !data.user) return { id: employee.id, status: 'unknown' }
+          return {
+            id: employee.id,
+            status: data.user.email_confirmed_at ? 'accepted' : 'pending',
+            invited_at: data.user.invited_at || null,
+            accepted_at: data.user.email_confirmed_at || null,
+            last_sign_in_at: data.user.last_sign_in_at || null,
+          }
+        }))
+        statuses.push(...resolved)
+      }
+      return json({ statuses, truncated: (count || 0) > statuses.length })
     }
 
     // ── DELETE EMPLOYEE (auth user + merchants row) ─────────────────────
@@ -90,8 +123,8 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
 
-    // ── SEND EMPLOYEE-OWNED PASSWORD LINK ───────────────────────────────
-    if (action === 'send_recovery') {
+    // ── SEND EMPLOYEE-OWNED ACCESS LINK ─────────────────────────────────
+    if (action === 'send_access_link') {
       const { employee_code } = body
       if (!employee_code) return json({ error: 'employee_code required' }, 400)
 
@@ -101,6 +134,17 @@ Deno.serve(async (req) => {
         return json({ error: 'Forbidden: not your employee' }, 403)
       }
 
+      const { data: authUser, error: authUserError } = await adminClient.auth.admin.getUserById(emp.id)
+      if (authUserError || !authUser.user) return json({ error: 'تعذر العثور على حساب دخول الموظف.' }, 404)
+
+      if (!authUser.user.email_confirmed_at) {
+        const { error } = await adminClient.auth.admin.inviteUserByEmail(emp.email, {
+          redirectTo: new URL('/auth/recovery?flow=invite', APP_URL).toString(),
+        })
+        if (error) return json({ error: 'تعذر إعادة إرسال الدعوة الآن. حاول بعد قليل.' }, 400)
+        return json({ ok: true, link_type: 'invite' })
+      }
+
       const publicClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
       })
@@ -108,7 +152,7 @@ Deno.serve(async (req) => {
         redirectTo: new URL('/auth/recovery', APP_URL).toString(),
       })
       if (error) return json({ error: 'تعذر إرسال رابط تعيين كلمة المرور. حاول بعد قليل.' }, 400)
-      return json({ ok: true })
+      return json({ ok: true, link_type: 'recovery' })
     }
 
     // ── CREATE EMPLOYEE (default action) ────────────────────────────────

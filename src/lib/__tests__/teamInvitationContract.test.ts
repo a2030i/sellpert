@@ -18,11 +18,23 @@ describe('merchant team invitation contract', () => {
     expect(team).toContain('إرسال دعوة آمنة')
   })
 
-  it('sends recovery only for an employee owned by the authenticated store', () => {
-    expect(edge).toContain("action === 'send_recovery'")
+  it('sends access links only for an employee owned by the authenticated store', () => {
+    expect(edge).toContain("action === 'send_access_link'")
     expect(edge).toContain("emp.owner_merchant_code !== callerMerchant.merchant_code")
     expect(edge).toContain('resetPasswordForEmail(emp.email')
-    expect(team).toContain("action: 'send_recovery'")
+    expect(edge).toContain("link_type: 'invite'")
+    expect(edge).toContain("link_type: 'recovery'")
+    expect(team).toContain("action: 'send_access_link'")
+  })
+
+  it('derives invitation status from employees owned by the authenticated store', () => {
+    expect(edge).toContain("action === 'invitation_status'")
+    expect(edge).toContain(".eq('owner_merchant_code', callerMerchant.merchant_code)")
+    expect(edge).toContain(".eq('role', 'employee')")
+    expect(edge).toContain('auth.admin.getUserById(employee.id)')
+    expect(team).toContain('دعوة معلقة')
+    expect(team).toContain('بانتظار القبول')
+    expect(team).toContain('حالة الدخول غير متاحة')
   })
 
   it('routes invite links to employee-owned password setup', () => {

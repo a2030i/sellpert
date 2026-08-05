@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import {
@@ -26,6 +26,18 @@ interface Employee {
   permissions: Record<string, boolean>
   is_active: boolean
   created_at: string
+  invitation_status?: 'pending' | 'accepted' | 'unknown'
+  invited_at?: string | null
+  accepted_at?: string | null
+  last_sign_in_at?: string | null
+}
+
+interface InvitationStatus {
+  id: string
+  status: 'pending' | 'accepted' | 'unknown'
+  invited_at: string | null
+  accepted_at: string | null
+  last_sign_in_at: string | null
 }
 
 export default function Team({ merchant }: { merchant: Merchant | null }) {
@@ -42,17 +54,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     permissions: { ...DEFAULT_PERMISSIONS } as Record<string, boolean>,
   })
 
-  useEffect(() => { if (merchant) load() }, [merchant])
-
-  async function load() {
-    setLoading(true)
-    const { data, error } = await supabase.rpc('my_employees')
-    if (error) { console.error('load employees', error); toastErr(userErrorMessage(error, 'تعذّر تحميل أعضاء الفريق.')) }
-    setEmployees((data as Employee[]) || [])
-    setLoading(false)
-  }
-
-  async function callFn(body: any) {
+  const callFn = useCallback(async (body: Record<string, unknown>) => {
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(`${SUPABASE_URL}/functions/v1/create-employee`, {
       method: 'POST',
@@ -64,7 +66,29 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
       body: JSON.stringify(body),
     })
     return await res.json()
-  }
+  }, [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [{ data, error }, statusResult] = await Promise.all([
+      supabase.rpc('my_employees'),
+      callFn({ action: 'invitation_status' }).catch(() => null),
+    ])
+    if (error) { console.error('load employees', error); toastErr(userErrorMessage(error, 'تعذّر تحميل أعضاء الفريق.')) }
+    const statusById = new Map<string, InvitationStatus>(
+      Array.isArray(statusResult?.statuses)
+        ? (statusResult.statuses as InvitationStatus[]).map(status => [status.id, status])
+        : [],
+    )
+    setEmployees(((data as Employee[]) || []).map(employee => ({
+      ...employee,
+      ...statusById.get(employee.id),
+      invitation_status: statusById.get(employee.id)?.status,
+    })))
+    setLoading(false)
+  }, [callFn])
+
+  useEffect(() => { if (merchant) void load() }, [merchant, load])
 
   async function addEmployee() {
     if (!form.name.trim() || !form.email.trim()) {
@@ -129,13 +153,18 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
     load()
   }
 
-  async function sendPasswordLink(employee: Employee) {
-    if (!confirm(`إرسال رابط آمن لتعيين كلمة المرور إلى ${employee.email}؟`)) return
+  async function sendAccessLink(employee: Employee) {
+    const pending = employee.invitation_status === 'pending'
+    const unknown = !employee.invitation_status || employee.invitation_status === 'unknown'
+    const actionLabel = pending ? 'إعادة إرسال الدعوة' : unknown ? 'إرسال رابط دخول آمن' : 'إرسال رابط آمن لتعيين كلمة المرور'
+    if (!confirm(`${actionLabel} إلى ${employee.email}؟`)) return
     setBusy(true)
-    const data = await callFn({ action: 'send_recovery', employee_code: employee.merchant_code })
+    const data = await callFn({ action: 'send_access_link', employee_code: employee.merchant_code })
     setBusy(false)
-    if (data.error) { console.error('send employee password link', data.error); toastErr(userErrorMessage(data.error, 'تعذّر إرسال رابط تعيين كلمة المرور.')) }
-    else toastOk(`أُرسل الرابط الآمن إلى ${employee.email}`)
+    if (data.error) { console.error('send employee access link', data.error); toastErr(userErrorMessage(data.error, 'تعذّر إرسال رابط الدخول.')) }
+    else toastOk(data.link_type === 'invite'
+      ? `أُعيد إرسال الدعوة إلى ${employee.email}`
+      : `أُرسل رابط تعيين كلمة المرور إلى ${employee.email}`)
   }
 
   if (!merchant) return null
@@ -211,6 +240,9 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
           {employees.map(e => {
             const isEditing = editId === e.merchant_code
             const enabledCount = Object.values(e.permissions || {}).filter(Boolean).length
+            const invitePending = e.invitation_status === 'pending'
+            const inviteUnknown = !e.invitation_status || e.invitation_status === 'unknown'
+            const accessLinkLabel = invitePending ? 'إعادة إرسال الدعوة' : inviteUnknown ? 'إرسال رابط دخول آمن' : 'إرسال رابط تعيين كلمة المرور'
             return (
               <div key={e.id} style={{ ...cardStyle, opacity: e.is_active ? 1 : 0.55 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
@@ -221,7 +253,9 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{e.name}</div>
                       {!e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 700 }}>موقوف</span>}
-                      {e.is_active && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--success-bg)', color: 'var(--success-text)', fontWeight: 700 }}>نشط</span>}
+                      {e.is_active && invitePending && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--warning-bg)', color: 'var(--warning-text)', fontWeight: 700 }}>دعوة معلقة</span>}
+                      {e.is_active && inviteUnknown && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--surface2)', color: 'var(--text2)', fontWeight: 700 }}>حالة الدخول غير متاحة</span>}
+                      {e.is_active && !invitePending && !inviteUnknown && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: 'var(--success-bg)', color: 'var(--success-text)', fontWeight: 700 }}>نشط</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <span>{e.email}</span>
@@ -230,7 +264,13 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                       {e.job_title && <><span>·</span><span>{e.job_title}</span></>}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
-                      انضم {fmtRelative(e.created_at)} · {enabledCount} صلاحية مفعّلة
+                      {invitePending
+                        ? `أُرسلت الدعوة ${fmtRelative(e.invited_at || e.created_at)} · بانتظار القبول`
+                        : inviteUnknown
+                          ? `${enabledCount} صلاحية مفعّلة · أعد تحميل الصفحة للتحقق من حالة الدخول`
+                          : e.last_sign_in_at
+                          ? `آخر دخول ${fmtRelative(e.last_sign_in_at)} · ${enabledCount} صلاحية مفعّلة`
+                          : `انضم ${fmtRelative(e.accepted_at || e.created_at)} · لم يسجل الدخول بعد`}
                     </div>
                   </div>
 
@@ -240,7 +280,7 @@ export default function Team({ merchant }: { merchant: Merchant | null }) {
                         <button onClick={() => startEdit(e)} style={iconBtnStyle} title="تعديل الصلاحيات">
                           <Shield size={13} />
                         </button>
-                        <button onClick={() => sendPasswordLink(e)} style={iconBtnStyle} title="إرسال رابط تعيين كلمة المرور" aria-label={`إرسال رابط تعيين كلمة المرور إلى ${e.name}`}>
+                        <button onClick={() => sendAccessLink(e)} style={iconBtnStyle} title={accessLinkLabel} aria-label={`${accessLinkLabel} إلى ${e.name}`}>
                           <Mail size={13} />
                         </button>
                         <button onClick={() => toggleActive(e)} style={{ ...iconBtnStyle, color: e.is_active ? '#f0a800' : 'var(--success-text)' }} title={e.is_active ? 'إيقاف' : 'تفعيل'}>

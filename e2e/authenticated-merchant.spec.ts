@@ -162,7 +162,12 @@ test('merchant invites an employee without creating or sharing their password', 
   let submitted: Record<string, unknown> | null = null
 
   await page.route('**/functions/v1/create-employee', async route => {
-    submitted = route.request().postDataJSON() as Record<string, unknown>
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    if (body.action === 'invitation_status') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ statuses: [], truncated: false }) })
+      return
+    }
+    submitted = body
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -186,6 +191,58 @@ test('merchant invites an employee without creating or sharing their password', 
   await expect(page.getByText('أُرسلت دعوة آمنة إلى sara@example.test')).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page, 'دعوة موظف آمنة')
   await page.screenshot({ path: testInfo.outputPath('secure-team-invitation.png'), fullPage: true })
+  expect(runtimeErrors).toEqual([])
+})
+
+test('merchant sees a pending team invitation and resends the correct access link', async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+  const employee = {
+    id: '00000000-0000-4000-8000-000000000771',
+    merchant_code: 'E-0011223344556677',
+    name: 'سارة محمد',
+    email: 'sara@example.test',
+    whatsapp_phone: null,
+    job_title: 'خدمة العملاء',
+    permissions: { dashboard: true, customers: true },
+    is_active: true,
+    created_at: '2026-08-05T01:00:00.000Z',
+  }
+  let submitted: Record<string, unknown> | null = null
+
+  await page.route('**/rest/v1/rpc/my_employees', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([employee]),
+  }))
+  await page.route('**/functions/v1/create-employee', async route => {
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    if (body.action === 'invitation_status') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          statuses: [{ id: employee.id, status: 'pending', invited_at: employee.created_at, accepted_at: null, last_sign_in_at: null }],
+          truncated: false,
+        }),
+      })
+      return
+    }
+    submitted = body
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, link_type: 'invite' }) })
+  })
+  page.on('dialog', dialog => dialog.accept())
+
+  await page.goto('/team')
+  await expect(page.getByText('دعوة معلقة')).toBeVisible()
+  await expect(page.getByText(/بانتظار القبول/)).toBeVisible()
+  await page.getByRole('button', { name: 'إعادة إرسال الدعوة إلى سارة محمد' }).click()
+  await expect.poll(() => submitted).toEqual({ action: 'send_access_link', employee_code: employee.merchant_code })
+  await expect(page.getByText('أُعيد إرسال الدعوة إلى sara@example.test')).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page, 'متابعة دعوة موظف معلقة')
+  await page.screenshot({ path: testInfo.outputPath('pending-team-invitation.png'), fullPage: true })
   expect(runtimeErrors).toEqual([])
 })
 
