@@ -16,6 +16,8 @@ import {
 } from '../lib/productDelivery'
 import { userErrorMessage } from '../lib/userError'
 import { ChevronLeft } from 'lucide-react'
+import { productDataLineage, type LineageUpload } from '../lib/dataLineage'
+import { productDataQuality } from '../lib/productQuality'
 
 const TrendyolPublishWizard = lazy(() => import('../components/TrendyolPublishWizard'))
 
@@ -40,6 +42,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
   const [adMetrics, setAdMetrics] = useState<any[]>([])
   const [profitability, setProfitability] = useState<any>(null)
   const [inventory, setInventory] = useState<any[]>([])
+  const [sourceUpload, setSourceUpload] = useState<LineageUpload | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const merchantCode = merchant?.merchant_code
@@ -48,6 +51,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
     if (!productId || !merchantCode) return
     setLoading(true)
     setLoadError('')
+    setSourceUpload(null)
     Promise.all([
       supabase.from('products').select('*').eq('merchant_code', merchantCode).eq('id', productId).maybeSingle(),
       supabase.from('product_profitability').select('*').eq('merchant_code', merchantCode).eq('product_id', productId).maybeSingle(),
@@ -56,16 +60,21 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       setProduct(prod)
       setProfitability(prof.data)
       if (prod) {
-        const [ord, ret, ads, inv] = await Promise.all([
+        const uploadPromise = prod.upload_id
+          ? supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchantCode).eq('id', prod.upload_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null })
+        const [ord, ret, ads, inv, upload] = await Promise.all([
           supabase.from('orders').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('order_date', { ascending: false }).limit(50),
           supabase.from('returns').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('return_date', { ascending: false }).limit(20),
           supabase.from('ad_metrics').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
           supabase.from('inventory').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku),
+          uploadPromise,
         ])
         setOrders(ord.data || [])
         setReturns(ret.data || [])
         setAdMetrics(ads.data || [])
         setInventory(inv.data || [])
+        setSourceUpload(upload.data as LineageUpload | null)
       }
       setLoading(false)
     }).catch(error => {
@@ -81,6 +90,8 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
     clicks:  adMetrics.reduce((a, r) => a + r.clicks, 0),
     orders:  adMetrics.reduce((a, r) => a + r.orders, 0),
   }), [adMetrics])
+  const dataQuality = useMemo(() => product ? productDataQuality(product) : null, [product])
+  const dataLineage = useMemo(() => product ? productDataLineage({ ...product, platform: '' }, sourceUpload) : null, [product, sourceUpload])
 
   function back() {
     window.history.pushState(null, '', '/products')
@@ -124,6 +135,21 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
           {product.description && <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12, lineHeight: 1.7 }}>{String(product.description).slice(0, 280)}{String(product.description).length > 280 ? '…' : ''}</p>}
         </div>
       </div>
+
+      {dataQuality && dataLineage ? <section aria-label="مصدر وجودة بيانات المنتج" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:10, marginBottom:22 }}>
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:11, padding:'13px 15px' }}>
+          <div style={{ fontSize:10, color:'var(--text3)', marginBottom:5 }}>مصدر بيانات المنتج</div>
+          <div style={{ fontSize:14, fontWeight:800, color:dataLineage.tone === 'success' ? 'var(--success-text)' : dataLineage.tone === 'warning' ? 'var(--warning-text)' : 'var(--info-text)' }}>{dataLineage.label}</div>
+          <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.7, marginTop:5 }}>{dataLineage.title}</div>
+          {dataLineage.fileName ? <div style={{ fontSize:11, color:'var(--text3)', marginTop:5 }}>الملف: <b dir="ltr">{dataLineage.fileName}</b></div> : null}
+          {dataLineage.occurredAt ? <div style={{ fontSize:11, color:'var(--text3)', marginTop:3 }}>آخر تحديث للمصدر: {new Date(dataLineage.occurredAt).toLocaleString('ar-SA-u-ca-gregory-nu-latn')}</div> : null}
+        </div>
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:11, padding:'13px 15px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'center' }}><div><div style={{ fontSize:10, color:'var(--text3)', marginBottom:5 }}>اكتمال بيانات المنتج</div><div style={{ fontSize:14, fontWeight:800 }}>{dataQuality.label}</div></div><strong style={{ fontSize:20, color:dataQuality.tone === 'success' ? 'var(--success-text)' : dataQuality.tone === 'warning' ? 'var(--warning-text)' : 'var(--danger-text)' }}>{dataQuality.score}%</strong></div>
+          <div role="progressbar" aria-label="اكتمال بيانات المنتج" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dataQuality.score} style={{ height:6, borderRadius:7, background:'var(--border)', overflow:'hidden', marginTop:9 }}><i style={{ display:'block', width:`${dataQuality.score}%`, height:'100%', background:dataQuality.tone === 'success' ? 'var(--success-text)' : dataQuality.tone === 'warning' ? 'var(--warning-text)' : 'var(--danger-text)' }} /></div>
+          <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.7, marginTop:7 }}>{dataQuality.missing.length ? `البيانات الناقصة: ${dataQuality.missing.join('، ')}.` : 'بيانات الهوية والمحتوى والتسعير مكتملة.'}</div>
+        </div>
+      </section> : null}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>

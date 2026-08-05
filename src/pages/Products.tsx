@@ -12,12 +12,27 @@ import { ArrowRightLeft, Award } from 'lucide-react'
 import { userErrorMessage } from '../lib/userError'
 import { friendlyDeliveryError } from '../lib/productDelivery'
 import { trendyolCatalogReadiness, type TrendyolCatalogReadiness } from '../lib/trendyolCatalog'
+import { productDataLineage, type LineageUpload } from '../lib/dataLineage'
+import { productDataQuality } from '../lib/productQuality'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
 
 type TrendyolInventoryRow = { sku: string; partner_sku: string | null; quantity: number }
 type TrendyolListingRow = { product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null }
+type QualityFilter = 'all' | 'complete' | 'needs_content' | 'missing_cost' | 'unknown_source'
+
+const LINEAGE_TONE = {
+  info: { background: 'var(--info-bg)', color: 'var(--info-text)' },
+  success: { background: 'var(--success-bg)', color: 'var(--success-text)' },
+  warning: { background: 'var(--warning-bg)', color: 'var(--warning-text)' },
+} as const
+
+const QUALITY_TONE = {
+  success: { background: 'var(--success-bg)', color: 'var(--success-text)' },
+  warning: { background: 'var(--warning-bg)', color: 'var(--warning-text)' },
+  danger: { background: 'var(--danger-bg)', color: 'var(--danger-text)' },
+} as const
 
 function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
   if (!netTarget || netTarget <= 0) return 0
@@ -31,9 +46,11 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [rates, setRates]               = useState<CommissionRate[]>([])
   const [trendyolInventory, setTrendyolInventory] = useState<TrendyolInventoryRow[]>([])
   const [trendyolListings, setTrendyolListings] = useState<TrendyolListingRow[]>([])
+  const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
   const [loading, setLoading]           = useState(true)
   const [loadError, setLoadError]       = useState('')
   const [search, setSearch]             = useState('')
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all')
   const [page, setPage]                 = useState(1)
   const [showAdd, setShowAdd]           = useState(false)
   const [showCostImport, setShowCostImport] = useState(() => new URLSearchParams(window.location.search).get('costs') === 'import')
@@ -62,12 +79,15 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     if (!options.background) setLoading(true)
     setLoadError('')
     try {
-      const [productResult, priceResult, rateResult, inventoryResult, listingResult] = await Promise.all([
+      const [productResult, priceResult, rateResult, inventoryResult, listingResult, uploadRows] = await Promise.all([
         supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
         supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
         supabase.from('platform_commission_rates').select('*'),
         supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
         supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
+        fetchAll<LineageUpload>((from, to) =>
+          supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
+            .eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending: false }).range(from, to), 'سجل ملفات المنتجات'),
       ])
       const error = productResult.error || priceResult.error || rateResult.error || inventoryResult.error || listingResult.error
       if (error) throw error
@@ -76,6 +96,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       setRates(rateResult.data || [])
       setTrendyolInventory((inventoryResult.data || []) as TrendyolInventoryRow[])
       setTrendyolListings((listingResult.data || []) as TrendyolListingRow[])
+      setSourceUploads(new Map(uploadRows.map(upload => [upload.id, upload])))
     } catch (error) {
       console.error('load products', error)
       setLoadError(userErrorMessage(error, 'تعذّر تحميل المنتجات الآن.'))
@@ -99,9 +120,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
   function getPrices(productId: string): Record<string, number> {
     const result: Record<string, number> = {}
-    const prod = products.find(pr => pr.id === productId)
+    const prod = productById.get(productId)
     for (const p of PLATFORMS) {
-      const existing = prices.find(pr => pr.product_id === productId && pr.platform === p)
+      const existing = priceByProductPlatform.get(`${productId}:${p}`)
       if (existing) {
         result[p] = existing.override_price ?? existing.selling_price
       } else {
@@ -122,6 +143,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       category: form.category.trim() || null,
       cost_price: parseFloat(form.cost_price) || 0,
       target_net_price: parseFloat(form.target_net_price),
+      platform_source: 'manual',
     }).select().maybeSingle()
     if (error) { console.error('create product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر إضافة المنتج.') }); setSaving(false); return }
 
@@ -185,13 +207,44 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     loadData()
   }
 
+  const productQualityById = useMemo(() => new Map(products.map(product => [product.id, productDataQuality(product)])), [products])
+  const productLineageById = useMemo(() => new Map(products.map(product => [
+    product.id,
+    productDataLineage(
+      { ...product, platform: '' },
+      product.upload_id ? sourceUploads.get(product.upload_id) : null,
+    ),
+  ])), [products, sourceUploads])
+  const productById = useMemo(() => new Map(products.map(product => [product.id, product])), [products])
+  const priceByProductPlatform = useMemo(() => new Map(prices.map(price => [`${price.product_id}:${price.platform}`, price])), [prices])
+
   const deferredSearch = useDeferredValue(search)
-  const filtered = useMemo(() =>
-    products.filter(p => !deferredSearch || p.name.toLowerCase().includes(deferredSearch.toLowerCase()) || p.sku?.toLowerCase().includes(deferredSearch.toLowerCase()))
-  , [products, deferredSearch])
+  const filtered = useMemo(() => {
+    const query = deferredSearch.toLowerCase()
+    return products.filter(product => {
+      const matchesSearch = !query || product.name.toLowerCase().includes(query) || product.sku?.toLowerCase().includes(query)
+      if (!matchesSearch) return false
+      const quality = productQualityById.get(product.id)!
+      const lineage = productLineageById.get(product.id)!
+      if (qualityFilter === 'complete') return quality.complete
+      if (qualityFilter === 'needs_content') return quality.missingContent
+      if (qualityFilter === 'missing_cost') return Number(product.cost_price || 0) <= 0
+      if (qualityFilter === 'unknown_source') return lineage.kind === 'unknown'
+      return true
+    })
+  }, [products, deferredSearch, qualityFilter, productQualityById, productLineageById])
   const pageProducts = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
   const costedProducts = useMemo(() => products.filter(product => Number(product.cost_price || 0) > 0).length, [products])
   const missingCosts = products.length - costedProducts
+  const catalogQuality = useMemo(() => {
+    const qualities = [...productQualityById.values()]
+    return {
+      score: qualities.length ? Math.round(qualities.reduce((sum, quality) => sum + quality.score, 0) / qualities.length) : 0,
+      complete: qualities.filter(quality => quality.complete).length,
+      needsContent: qualities.filter(quality => quality.missingContent).length,
+      unknownSource: [...productLineageById.values()].filter(lineage => lineage.kind === 'unknown').length,
+    }
+  }, [productQualityById, productLineageById])
 
   const trendyolStateByProduct = useMemo(() => {
     const inventory = new Map<string, TrendyolInventoryRow>()
@@ -202,14 +255,14 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const listings = new Map(trendyolListings.map(row => [row.product_id, row]))
     const result = new Map<string, TrendyolCatalogReadiness>()
     for (const product of products) {
-      const platformPrice = prices.find(row => row.product_id === product.id && row.platform === 'trendyol')
+      const platformPrice = priceByProductPlatform.get(`${product.id}:trendyol`)
       const rate = getRate('trendyol', product.category)
       const calculatedPrice = platformPrice?.override_price ?? platformPrice?.selling_price ?? (rate ? calcSellingPrice(product.target_net_price, rate) : null)
       const stock = inventory.get(String(product.sku || '')) || inventory.get(String(product.supplier_sku || '')) || inventory.get(String(product.barcode || ''))
       result.set(product.id, trendyolCatalogReadiness(product, stock, listings.get(product.id), calculatedPrice))
     }
     return result
-  }, [products, prices, trendyolInventory, trendyolListings, getRate])
+  }, [products, priceByProductPlatform, trendyolInventory, trendyolListings, getRate])
 
   const trendyolSummary = useMemo(() => {
     const values = [...trendyolStateByProduct.values()]
@@ -369,6 +422,32 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         <button style={{ ...S.addBtn, padding: '8px 15px' }} onClick={() => setShowCostImport(true)}>استكمال التكاليف</button>
       </section> : null}
 
+      {products.length ? <section aria-label="جودة بيانات الكتالوج" style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'15px 17px', marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', gap:16, flexWrap:'wrap', alignItems:'flex-start' }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800 }}>جودة بيانات الكتالوج</div>
+            <div style={{ color:'var(--text3)', fontSize:11, marginTop:4, lineHeight:1.7 }}>يعتمد القياس على هوية المنتج ومحتواه وتكلفته وسعره، ويوضح مصدر كل سجل دون تخمين.</div>
+          </div>
+          <div style={{ minWidth:190, flex:'0 1 260px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:6 }}><span style={{ color:'var(--text3)' }}>متوسط الاكتمال</span><strong>{catalogQuality.score}%</strong></div>
+            <div role="progressbar" aria-label="متوسط اكتمال بيانات المنتجات" aria-valuemin={0} aria-valuemax={100} aria-valuenow={catalogQuality.score} style={{ height:7, borderRadius:8, background:'var(--border)', overflow:'hidden' }}><i style={{ display:'block', width:`${catalogQuality.score}%`, height:'100%', background:catalogQuality.score >= 85 ? 'var(--success-text)' : catalogQuality.score >= 60 ? 'var(--warning-text)' : 'var(--danger-text)' }} /></div>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(5,minmax(120px,1fr))', gap:8, marginTop:13 }}>
+          {([
+            ['all', 'كل المنتجات', products.length],
+            ['complete', 'مكتملة', catalogQuality.complete],
+            ['needs_content', 'تحتاج محتوى', catalogQuality.needsContent],
+            ['missing_cost', 'بلا تكلفة', missingCosts],
+            ['unknown_source', 'مصدر غير موثق', catalogQuality.unknownSource],
+          ] as Array<[QualityFilter, string, number]>).map(([key, label, value]) => (
+            <button key={key} type="button" aria-pressed={qualityFilter === key} onClick={() => setQualityFilter(key)} style={{ textAlign:'right', padding:'9px 11px', borderRadius:9, border:`1px solid ${qualityFilter === key ? 'var(--accent)' : 'var(--border)'}`, background:qualityFilter === key ? 'color-mix(in srgb,var(--accent) 8%,var(--surface))' : 'var(--surface2)', color:'var(--text)', cursor:'pointer', fontFamily:'inherit' }}>
+              <span style={{ display:'block', fontSize:10, color:'var(--text3)' }}>{label}</span><strong style={{ display:'block', fontSize:17, marginTop:2 }}>{value.toLocaleString('ar-SA-u-nu-latn')}</strong>
+            </button>
+          ))}
+        </div>
+      </section> : null}
+
       {/* Notification */}
       {msg && (
         <div style={{ ...S.alert, background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
@@ -484,9 +563,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       {/* Products table */}
       {filtered.length === 0 ? (
         <div style={S.empty}>
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>لا توجد منتجات</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>لا توجد منتجات بعد</div>
-          <div style={{ fontSize: 13, color: 'var(--text3)' }}>أضف منتجك الأول وسيحسب النظام أسعاره تلقائياً</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>{products.length ? 'لا توجد نتائج مطابقة' : 'لا توجد منتجات'}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>{products.length ? 'لا توجد منتجات ضمن هذا الفلتر' : 'لا توجد منتجات بعد'}</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>{products.length ? 'غيّر البحث أو اعرض كل المنتجات.' : 'أضف منتجك الأول وسيحسب النظام أسعاره تلقائياً'}</div>
+          {products.length ? <button type="button" onClick={() => { setSearch(''); setQualityFilter('all') }} style={{ ...S.reqBtn, marginTop:14 }}>عرض كل المنتجات</button> : null}
         </div>
       ) : (
         <div style={S.tableCard}>
@@ -497,6 +577,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 const ps = getPrices(prod.id)
                 const profit = prod.target_net_price - prod.cost_price
                 const readiness = trendyolStateByProduct.get(prod.id)
+                const quality = productQualityById.get(prod.id)!
+                const lineage = productLineageById.get(prod.id)!
+                const lineageTone = LINEAGE_TONE[lineage.tone]
+                const qualityTone = QUALITY_TONE[quality.tone]
                 return (
                   <div key={prod.id} role="link" tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.mobileCard, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -513,6 +597,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     </div>
                     <div style={{ marginBottom:10, fontSize:11, color:readiness?.ready ? 'var(--accent2)' : readiness?.pending ? 'var(--warning-text)' : 'var(--text3)', fontWeight:700 }}>
                       Trendyol: {readiness?.ready ? 'جاهز لتحديث السعر والمخزون' : readiness?.pending ? 'تحديث قيد المعالجة' : readiness?.reason || 'يحتاج استكمال الربط'}
+                    </div>
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+                      <span title={lineage.title} style={{ ...S.statusBadge, ...lineageTone }}>{lineage.label}</span>
+                      <span title={quality.missing.length ? `البيانات الناقصة: ${quality.missing.join('، ')}` : 'بيانات المنتج مكتملة'} style={{ ...S.statusBadge, ...qualityTone }}>{quality.label} · {quality.score}%</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
                       {PLATFORMS.map(p => (
@@ -541,7 +629,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 <thead>
                   <tr>
                     <th style={{ ...S.th, width:38 }}><input type="checkbox" aria-label="تحديد المنتجات الجاهزة في الصفحة" checked={pageProducts.some(product => trendyolStateByProduct.get(product.id)?.ready) && pageProducts.filter(product => trendyolStateByProduct.get(product.id)?.ready).every(product => selectedProducts.has(product.id))} onChange={event => toggleReadyPage(event.target.checked)} style={{ width:24, height:24 }} /></th>
-                    {['المنتج', 'SKU', 'التكلفة', 'الصافي المستهدف', ...PLATFORMS.map(p => PLATFORM_NAMES[p]), 'الهامش', 'جاهزية Trendyol', 'الحالة', ''].map(h => (
+                    {['المنتج', 'SKU', 'المصدر', 'اكتمال البيانات', 'التكلفة', 'الصافي المستهدف', ...PLATFORMS.map(p => PLATFORM_NAMES[p]), 'الهامش', 'جاهزية Trendyol', 'الحالة', ''].map(h => (
                       <th key={h} style={S.th}>{h}</th>
                     ))}
                   </tr>
@@ -551,6 +639,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     const ps = getPrices(prod.id)
                     const profit = prod.target_net_price - prod.cost_price
                     const readiness = trendyolStateByProduct.get(prod.id)
+                    const quality = productQualityById.get(prod.id)!
+                    const lineage = productLineageById.get(prod.id)!
+                    const lineageTone = LINEAGE_TONE[lineage.tone]
+                    const qualityTone = QUALITY_TONE[quality.tone]
                     return (
                       <tr key={prod.id} tabIndex={0} aria-label={`فتح المنتج ${prod.name}`} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => openProduct(prod.id)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProduct(prod.id) } }}>
                         <td style={{ ...S.td, width:38 }}><input type="checkbox" aria-label={`تحديد ${prod.name}`} checked={selectedProducts.has(prod.id)} onClick={e => e.stopPropagation()} onChange={() => toggleSelected(prod.id)} style={{ width:24, height:24 }} /></td>
@@ -559,6 +651,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                           {prod.category && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{prod.category}</div>}
                         </td>
                         <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{prod.sku || '—'}</td>
+                        <td style={S.td}><span title={lineage.title} style={{ ...S.statusBadge, ...lineageTone, whiteSpace:'nowrap' }}>{lineage.label}</span></td>
+                        <td style={S.td}><span title={quality.missing.length ? `البيانات الناقصة: ${quality.missing.join('، ')}` : 'بيانات المنتج مكتملة'} style={{ ...S.statusBadge, ...qualityTone, whiteSpace:'nowrap' }}>{quality.label} · {quality.score}%</span></td>
                         <td style={S.td}>{prod.cost_price > 0 ? prod.cost_price.toLocaleString() + ' ر.س' : '—'}</td>
                         <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{prod.target_net_price.toLocaleString()} ر.س</td>
                         {PLATFORMS.map(p => (

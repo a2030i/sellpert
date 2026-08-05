@@ -234,7 +234,9 @@ export interface Product {
   brand?: string
   sale_price?: number | null
   msrp?: number | null
+  upload_id?: string | null
   platform_source?: string | null
+  last_synced_at?: string | null
   raw?: Record<string, any> | null
   cost_price: number
   target_net_price: number

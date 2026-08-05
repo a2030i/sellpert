@@ -1062,7 +1062,8 @@ test('merchant follows a synced Trendyol order into product management', async (
     sku: 'TR-4999', barcode: '1492736729', category: 'قهوة', brand: 'Sellpert Test',
     description: 'قهوة تركية محمصة بعناية.', cost_price: 30, target_net_price: 54, sale_price: 54,
     msrp: 60, status: 'active', image_url: null, images: [], external_id: '1492736729',
-    raw: {}, created_at: '2026-08-01T08:00:00.000Z',
+    raw: {}, upload_id: 'upload-product-e2e', platform_source: 'trendyol_api_v2',
+    last_synced_at: '2026-08-04T15:00:00.000Z', created_at: '2026-08-01T08:00:00.000Z',
   }
   const batchId = 'batch-e2e-20260804'
   let sentProductAction: Record<string, any> | null = null
@@ -1095,6 +1096,10 @@ test('merchant follows a synced Trendyol order into product management', async (
       return
     }
     if (table === 'products') { await fulfillRows(route, [product]); return }
+    if (table === 'platform_file_uploads') {
+      await fulfillRows(route, [{ id:'upload-product-e2e', platform:'noon', file_name:'كتالوج-نون.xlsx', file_type:'noon_products', uploaded_at:'2026-08-01T07:55:00.000Z' }])
+      return
+    }
     if (table === 'order_items') {
       await fulfillRows(route, [{ id: 'item-e2e-1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: order.order_id, line_id: 1, sku: product.sku, barcode: product.barcode, product_name: product.name, quantity: 1, unit_price: 54, line_total: 54, commission_rate: 10, shipment_package_id: order.shipment_package_id }])
       return
@@ -1182,9 +1187,20 @@ test('merchant follows a synced Trendyol order into product management', async (
   await page.goto('/products')
   await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible()
   await expect(page.getByText(product.name).first()).toBeVisible()
+  await expect(page.getByText('ملف نون + API Trendyol', { exact:true }).first()).toBeVisible()
+  await expect(page.getByText('ينقص 1 · 86%', { exact:true }).first()).toBeVisible()
+  await expect(page.getByRole('progressbar', { name:'متوسط اكتمال بيانات المنتجات' })).toHaveAttribute('aria-valuenow', '86')
+  await page.getByRole('button', { name:/تحتاج محتوى/ }).click()
+  await expect(page.getByText(product.name).first()).toBeVisible()
+  await page.getByRole('button', { name:/مكتملة/ }).click()
+  await expect(page.getByText('لا توجد منتجات ضمن هذا الفلتر', { exact:true })).toBeVisible()
+  await page.getByRole('button', { name:'عرض كل المنتجات' }).click()
+  await expect(page.getByText(product.name).first()).toBeVisible()
   await page.getByRole('button', { name: 'إدارة المنتج' }).first().click()
   await expect(page).toHaveURL(new RegExp(`/product-detail\\?id=${product.id}`))
   await expect(page.getByRole('heading', { name: product.name })).toBeVisible()
+  await expect(page.getByRole('region', { name:'مصدر وجودة بيانات المنتج' }).getByText('كتالوج-نون.xlsx', { exact:true })).toBeVisible()
+  await expect(page.getByText('البيانات الناقصة: الصورة.', { exact:true })).toBeVisible()
   await expect(page.getByText('إدارة المنتج في Trendyol')).toBeVisible()
   await expect(page.getByRole('button', { name: 'مراجعة تعديل المنتج' })).toBeVisible()
   await expect(page.getByText(/JSON/)).toHaveCount(0)
