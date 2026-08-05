@@ -169,12 +169,13 @@ Deno.serve(async (req) => {
 async function resolveCredentials(admin: any, merchantCode: string, mappingId: string) {
   if (mappingId) {
     const { data } = await admin.from('merchant_platform_mappings')
-      .select('seller_id,merchant_code,platform,platform_connections(api_key,api_secret)')
+      .select('seller_id,merchant_code,platform,platform_connections(seller_id,api_key,api_secret,extra)')
       .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle()
     const connection = data?.platform_connections as any
     if (!data || !connection) throw new HttpError(404, 'Trendyol connection not found')
-    assertCredentials(data.seller_id, connection.api_key, connection.api_secret)
-    return { sellerId: data.seller_id, apiKey: connection.api_key, apiSecret: connection.api_secret }
+    const secret = await resolveSecretPayload({ ...connection, seller_id: data.seller_id || connection.seller_id })
+    assertCredentials(secret.seller_id, secret.api_key, secret.api_secret)
+    return { sellerId: secret.seller_id, apiKey: secret.api_key, apiSecret: secret.api_secret }
   }
 
   const { data } = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')
@@ -362,9 +363,9 @@ async function enrichArabicTitles(admin:any, merchantCode:string, rows:any[]) {
   if (missing.length) {
     let apiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
     if (!apiKey) {
-      const { data } = await admin.from('platform_connections').select('api_key')
+      const { data } = await admin.from('platform_connections').select('api_key,api_secret,extra,seller_id')
         .eq('platform','openrouter').eq('is_active',true).maybeSingle()
-      apiKey = data?.api_key || ''
+      apiKey = data ? (await resolveSecretPayload(data)).api_key || '' : ''
     }
     if (apiKey) for (let start=0; start<missing.length; start+=25) {
       const batch = missing.slice(start,start+25)

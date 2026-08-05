@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { decryptCredentialPayload, encryptCredentialPayload, legacyCredentialMaterial } from '../_shared/credentialVault.ts'
 import { authorizeInternalWorker } from '../_shared/webhookSecurity.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -32,6 +33,10 @@ Deno.serve(async (req) => {
   const startedAt = Date.now()
 
   try {
+    const credentialsSealed = await sealLegacyCredentials(admin).catch(error => {
+      console.error('[queue-worker] Credential sealing failed:', error?.message || 'unknown error')
+      return 0
+    })
     const { data: jobs, error: pickErr } = await admin
       .rpc('process_sync_queue', { batch_size: BATCH_SIZE })
 
@@ -41,7 +46,7 @@ Deno.serve(async (req) => {
     }
 
     if (!jobs || jobs.length === 0) {
-      return ok({ ok: true, processed: 0, message: 'Queue empty' })
+      return ok({ ok: true, processed: 0, credentials_sealed: credentialsSealed, message: 'Queue empty' })
     }
 
     console.log(`[queue-worker] Processing ${jobs.length} jobs`)
@@ -55,13 +60,40 @@ Deno.serve(async (req) => {
     const elapsed   = Date.now() - startedAt
 
     console.log(`[queue-worker] Done: ${succeeded} ok, ${failed} failed, ${elapsed}ms`)
-    return ok({ ok: true, processed: jobs.length, succeeded, failed, elapsed_ms: elapsed })
+    return ok({ ok: true, processed: jobs.length, succeeded, failed, credentials_sealed: credentialsSealed, elapsed_ms: elapsed })
 
   } catch (e: any) {
     console.error('[queue-worker] Fatal:', e)
     return ok({ ok: false, error: e.message }, 500)
   }
 })
+
+async function sealLegacyCredentials(admin: any) {
+  let sealed = 0
+  for (const table of ['platform_connections', 'platform_credentials']) {
+    const { data: rows, error } = await admin.from(table)
+      .select('id,api_key,api_secret,extra,updated_at')
+    if (error) throw error
+
+    for (const row of rows || []) {
+      const legacy = legacyCredentialMaterial(row)
+      if (!legacy) continue
+      const existing = await decryptCredentialPayload(row.extra?.secret_blob)
+      const secretBlob = await encryptCredentialPayload({ ...existing, ...legacy.secret })
+      let update = admin.from(table).update({
+        api_key: null,
+        api_secret: null,
+        extra: { ...legacy.publicExtra, secret_blob: secretBlob },
+        updated_at: new Date().toISOString(),
+      }).eq('id', row.id)
+      if (row.updated_at) update = update.eq('updated_at', row.updated_at)
+      const { data: updated, error: updateError } = await update.select('id').maybeSingle()
+      if (updateError) throw updateError
+      if (updated) sealed += 1
+    }
+  }
+  return sealed
+}
 
 async function processJob(admin: any, job: any): Promise<{ success: boolean; error?: string }> {
   const { id, merchant_code, job_type, platform, payload } = job

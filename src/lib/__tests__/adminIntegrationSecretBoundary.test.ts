@@ -38,6 +38,24 @@ describe('administration integration secret boundary', () => {
     expect(handler).toContain("action === 'save_connection' && manager")
   })
 
+  it('seals legacy connection secrets and all sync readers resolve encrypted payloads', () => {
+    const worker = source('supabase/functions/queue-worker/index.ts')
+    expect(worker).toContain('sealLegacyCredentials')
+    expect(worker).toContain('legacyCredentialMaterial')
+    expect(worker).toContain('api_key: null')
+    expect(worker).toContain('api_secret: null')
+
+    for (const path of [
+      'supabase/functions/sync-trendyol/index.ts',
+      'supabase/functions/sync-amazon/index.ts',
+    ]) {
+      const syncHandler = source(path)
+      expect(syncHandler).toContain('resolveSecretPayload')
+      expect(syncHandler).not.toContain('apiKey: connection.api_key')
+      expect(syncHandler).not.toContain('apiSecret: connection.api_secret')
+    }
+  })
+
   it('revokes browser access to global secret stores and grants only safe Salla columns', () => {
     const migration = source('supabase/migrations/20260804120000_seal_admin_integration_settings.sql')
     expect(migration).toContain('REVOKE ALL ON TABLE public.platform_connections FROM anon, authenticated')

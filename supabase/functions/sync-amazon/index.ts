@@ -202,11 +202,11 @@ async function resolveCredentials(admin: any, merchantCode: string, mappingId: s
   let data: any
   if (mappingId) {
     const result = await admin.from('merchant_platform_mappings')
-      .select('seller_id,merchant_code,platform,platform_connections(api_key,api_secret,extra)')
+      .select('seller_id,merchant_code,platform,platform_connections(seller_id,api_key,api_secret,extra)')
       .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'amazon').maybeSingle()
     const connection = result.data?.platform_connections as any
     if (!result.data || !connection) throw new HttpError(404, 'Amazon connection not found')
-    data = { seller_id: result.data.seller_id, api_key: connection.api_key, api_secret: connection.api_secret, extra: connection.extra }
+    data = { ...connection, seller_id: result.data.seller_id || connection.seller_id }
   } else {
     const result = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')
       .eq('merchant_code', merchantCode).eq('platform', 'amazon').eq('is_active', true).maybeSingle()

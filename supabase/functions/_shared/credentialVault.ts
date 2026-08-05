@@ -57,6 +57,27 @@ export async function resolveSecretPayload(row: any) {
   }
 }
 
+export function legacyCredentialMaterial(row: any): {
+  secret: Record<string, unknown>
+  publicExtra: Record<string, unknown>
+} | null {
+  const extra = row?.extra && typeof row.extra === 'object' && !Array.isArray(row.extra)
+    ? { ...row.extra }
+    : {}
+  const secret: Record<string, unknown> = {}
+
+  if (typeof row?.api_key === 'string' && row.api_key.trim()) secret.api_key = row.api_key
+  if (typeof row?.api_secret === 'string' && row.api_secret.trim()) secret.api_secret = row.api_secret
+
+  for (const key of ['refresh_token', 'access_token', 'service_account'] as const) {
+    if (extra[key] !== undefined && extra[key] !== null && extra[key] !== '') secret[key] = extra[key]
+    delete extra[key]
+  }
+  delete extra.secret_blob
+
+  return Object.keys(secret).length ? { secret, publicExtra: extra } : null
+}
+
 function base64(bytes: Uint8Array) {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
