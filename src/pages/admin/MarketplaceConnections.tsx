@@ -221,6 +221,12 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
 
   const syncInProgress = ['pending', 'processing', 'running'].includes(syncJob?.status || '')
   const syncProcessing = syncJob?.status === 'processing' || syncJob?.status === 'running'
+  const syncProgress = syncProcessing
+    ? Math.min(99, Math.max(1, Number(syncDetails?.progress_percent || 5)))
+    : syncJob?.status === 'pending' ? 2 : 100
+  const syncStageLabel = String(syncDetails?.stage_label || (syncProcessing
+    ? 'بدأ تنفيذ المزامنة'
+    : 'طلبك بانتظار بدء التنفيذ'))
 
   const loadQuestionSummary = useCallback(async () => {
     if (platform !== 'trendyol' || !status?.is_active) {
@@ -461,17 +467,12 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
               </div>
               {syncInProgress ? (
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: `${meta.color}0D`, border: `1px solid ${meta.color}35` }}>
-                  <style>{`@keyframes trendyol-sync-progress{0%{transform:translateX(0)}100%{transform:translateX(260%)}}`}</style>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, fontWeight: 800, color: meta.color }}>
-                    <span>{syncProcessing ? 'جاري سحب وتحديث البيانات' : 'طلبك بانتظار بدء التنفيذ'}</span>
-                    <span style={{ fontSize: 10 }}>{syncProcessing ? 'يعمل الآن' : 'في الطابور'}</span>
+                    <span>{syncStageLabel}</span>
+                    <span style={{ fontSize: 10 }}>{syncProgress.toLocaleString('ar-SA')}٪</span>
                   </div>
-                  <div style={{ height: 8, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
-                    {syncProcessing ? (
-                      <div style={{ width: '28%', height: '100%', borderRadius: 99, background: meta.color, animation: 'trendyol-sync-progress 1.6s ease-in-out infinite alternate' }} />
-                    ) : (
-                      <div style={{ width: '12%', height: '100%', borderRadius: 99, background: meta.color }} />
-                    )}
+                  <div role="progressbar" aria-label="تقدم مزامنة Trendyol" aria-valuemin={0} aria-valuemax={100} aria-valuenow={syncProgress} style={{ height: 8, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
+                    <div style={{ width: `${syncProgress}%`, height: '100%', borderRadius: 99, background: meta.color, transition: 'width .35s ease' }} />
                   </div>
                   <div style={{ marginTop: 9, color: 'var(--text3)', fontSize: 10, lineHeight: 1.7 }}>
                     يشمل التحديث الطلبات والعملاء والمنتجات والصور والمخزون والمرتجعات والتسويات. لا تحتاج للضغط مرة أخرى؛ يتم تحديث الحالة تلقائيًا.
@@ -487,9 +488,11 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
               {['done','partial'].includes(syncJob?.status || '') && syncDetails ? (
                 <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
                   {[
-                    ['الطلبات', syncDetails.orders], ['المرتجعات', syncDetails.returns],
-                    ['التسويات', syncDetails.settlements], ['المنتجات', syncDetails.products],
-                    ['المخزون', syncDetails.inventory], ['أيام الأداء', syncDetails.performance_days],
+                    ['الطلبات', syncDetails.orders], ['الشحنات', syncDetails.packages],
+                    ['بنود الطلبات', syncDetails.order_items], ['المرتجعات', syncDetails.returns],
+                    ['التسويات', syncDetails.settlements], ['الحركات المالية', syncDetails.financial_transactions],
+                    ['المنتجات', syncDetails.products], ['المخزون', syncDetails.inventory],
+                    ['أسئلة العملاء', syncDetails.customer_questions], ['أيام الأداء', syncDetails.performance_days],
                   ].map(([label, value]) => (
                     <div key={String(label)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 8px', display:'flex', justifyContent:'space-between' }}>
                       <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>

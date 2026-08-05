@@ -2,8 +2,11 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   Search, LayoutDashboard, Tags, Package, Megaphone, FileText,
-  Link2, Settings, Boxes, LifeBuoy, HelpCircle, Bell, Building2, MessageCircle,
+  Link2, Settings, Boxes, LifeBuoy, Bell, Building2, MessageCircle,
+  ListChecks, Activity, History, ShieldCheck, Users,
 } from 'lucide-react'
+import type { Merchant } from '../lib/supabase'
+import { hasMerchantPermission, type MerchantPermissionKey } from '../lib/merchantPermissions'
 
 type Cmd = {
   id: string
@@ -16,11 +19,13 @@ type Cmd = {
 
 interface Props {
   isAdmin?: boolean
-  merchantCode?: string
+  merchant?: Merchant | null
   onNavigate: (path: string) => void
 }
 
-export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Props) {
+type MerchantCommand = Cmd & { permission?: MerchantPermissionKey }
+
+export default function CommandPalette({ isAdmin, merchant, onNavigate }: Props) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [searchResults, setSearchResults] = useState<Cmd[]>([])
@@ -29,20 +34,24 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
 
   // Static commands
   const staticCmds = useMemo<Cmd[]>(() => {
-    const merchantNav: Cmd[] = [
-      { id: 'nav-dashboard', label: 'لوحة التحكم', Icon: LayoutDashboard, group: 'navigation', action: () => onNavigate('/dashboard') },
-      { id: 'nav-products', label: 'منتجاتي', Icon: Tags, group: 'navigation', action: () => onNavigate('/products') },
-      { id: 'nav-orders', label: 'الطلبات', Icon: Package, group: 'navigation', action: () => onNavigate('/orders') },
-      { id: 'nav-customers', label: 'خدمة العملاء', Icon: MessageCircle, group: 'navigation', action: () => onNavigate('/customers') },
-      { id: 'nav-inventory', label: 'المخزون', Icon: Boxes, group: 'navigation', action: () => onNavigate('/inventory') },
-      { id: 'nav-quick', label: 'تحديث المخزون السريع', hint: 'تعديل كميات بسرعة', Icon: Boxes, group: 'navigation', action: () => onNavigate('/quick-inventory') },
-      { id: 'nav-marketing', label: 'التسويق', Icon: Megaphone, group: 'navigation', action: () => onNavigate('/marketing') },
-      { id: 'nav-statement', label: 'كشف الحساب', Icon: FileText, group: 'navigation', action: () => onNavigate('/statement') },
-      { id: 'nav-integrations', label: 'المنصات', Icon: Link2, group: 'navigation', action: () => onNavigate('/integrations') },
-      { id: 'nav-help', label: 'مركز المساعدة', Icon: HelpCircle, group: 'navigation', action: () => onNavigate('/help') },
-      { id: 'nav-requests', label: 'الدعم', Icon: LifeBuoy, group: 'navigation', action: () => onNavigate('/requests') },
-      { id: 'nav-notifications', label: 'الإشعارات', Icon: Bell, group: 'navigation', action: () => onNavigate('/notifications') },
-      { id: 'nav-settings', label: 'الإعدادات', Icon: Settings, group: 'navigation', action: () => onNavigate('/settings') },
+    const merchantNav: MerchantCommand[] = [
+      { id: 'nav-dashboard', label: 'مركز القرارات', Icon: LayoutDashboard, group: 'navigation', permission: 'dashboard', action: () => onNavigate('/dashboard') },
+      { id: 'nav-notifications', label: 'مركز المتابعة', Icon: Bell, group: 'navigation', permission: 'dashboard', action: () => onNavigate('/notifications') },
+      { id: 'nav-actions', label: 'خطة العمل', Icon: ListChecks, group: 'navigation', permission: 'dashboard', action: () => onNavigate('/actions') },
+      { id: 'nav-orders', label: 'الطلبات', Icon: Package, group: 'navigation', permission: 'orders', action: () => onNavigate('/orders') },
+      { id: 'nav-customers', label: 'خدمة العملاء', Icon: MessageCircle, group: 'navigation', permission: 'customers', action: () => onNavigate('/customers') },
+      { id: 'nav-products', label: 'المنتجات', Icon: Tags, group: 'navigation', permission: 'products', action: () => onNavigate('/products') },
+      { id: 'nav-inventory', label: 'المخزون', Icon: Boxes, group: 'navigation', permission: 'inventory', action: () => onNavigate('/inventory') },
+      { id: 'nav-quick', label: 'تحديث المخزون السريع', hint: 'تعديل الكميات مباشرة', Icon: Boxes, group: 'navigation', permission: 'inventory', action: () => onNavigate('/quick-inventory') },
+      { id: 'nav-statement', label: 'الأرباح والتحصيل', Icon: FileText, group: 'navigation', permission: 'statement', action: () => onNavigate('/statement') },
+      { id: 'nav-marketing', label: 'الإعلانات والأداء', Icon: Megaphone, group: 'navigation', permission: 'marketing', action: () => onNavigate('/marketing') },
+      { id: 'nav-status', label: 'حالة المتجر', Icon: Activity, group: 'navigation', permission: 'integrations', action: () => onNavigate('/store-status') },
+      { id: 'nav-activity', label: 'سجل النشاط', Icon: History, group: 'navigation', permission: 'settings', action: () => onNavigate('/activity') },
+      { id: 'nav-security', label: 'الأمان والجلسات', Icon: ShieldCheck, group: 'navigation', permission: 'settings', action: () => onNavigate('/security') },
+      { id: 'nav-integrations', label: 'الربط ورفع الملفات', Icon: Link2, group: 'navigation', permission: 'integrations', action: () => onNavigate('/integrations') },
+      { id: 'nav-team', label: 'الفريق والصلاحيات', Icon: Users, group: 'navigation', permission: 'team', action: () => onNavigate('/team') },
+      { id: 'nav-settings', label: 'إعدادات المتجر', Icon: Settings, group: 'navigation', permission: 'settings', action: () => onNavigate('/settings') },
+      { id: 'nav-requests', label: 'الدعم ومركز المعرفة', Icon: LifeBuoy, group: 'navigation', action: () => onNavigate('/requests') },
     ]
     const adminNav: Cmd[] = [
       { id: 'a-overview', label: 'لوحة الأدمن', Icon: LayoutDashboard, group: 'navigation', action: () => onNavigate('/admin/overview') },
@@ -53,8 +62,9 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
       { id: 'a-whatsapp', label: 'إدارة الواتساب', Icon: Megaphone, group: 'navigation', action: () => onNavigate('/admin/whatsapp') },
       { id: 'a-audit', label: 'سجل التدقيق', Icon: FileText, group: 'navigation', action: () => onNavigate('/admin/audit') },
     ]
-    return isAdmin ? adminNav : merchantNav
-  }, [isAdmin, onNavigate])
+    if (isAdmin) return adminNav
+    return merchantNav.filter(command => !command.permission || hasMerchantPermission(merchant, command.permission))
+  }, [isAdmin, merchant, onNavigate])
 
   // Dynamic search (products / merchants)
   useEffect(() => {
@@ -79,7 +89,7 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
       // Search products (by merchant scope or all if admin)
       const productQuery = supabase.from('products').select('id,sku,name_ar,name,merchant_code')
         .or(`sku.ilike.%${q}%,name_ar.ilike.%${q}%,name.ilike.%${q}%`).limit(6)
-      if (!isAdmin && merchantCode) productQuery.eq('merchant_code', merchantCode)
+      if (!isAdmin && merchant?.merchant_code) productQuery.eq('merchant_code', merchant.merchant_code)
       const { data: ps } = await productQuery
       for (const p of ps || []) {
         out.push({
@@ -92,7 +102,7 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
     }, 220)
 
     return () => { cancelled = true; clearTimeout(handle) }
-  }, [q, isAdmin, merchantCode, onNavigate])
+  }, [q, isAdmin, merchant?.merchant_code, onNavigate])
 
   // Cmd+K listener
   useEffect(() => {
@@ -156,7 +166,7 @@ export default function CommandPalette({ isAdmin, merchantCode, onNavigate }: Pr
       backdropFilter: 'blur(4px)', zIndex: 10001,
       display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: 96, padding: '96px 16px',
     }}>
-      <div onClick={e => e.stopPropagation()} onKeyDown={onListKey} style={{
+      <div role="dialog" aria-modal="true" aria-label="البحث السريع" onClick={e => e.stopPropagation()} onKeyDown={onListKey} style={{
         width: '100%', maxWidth: 580, background: 'var(--surface)',
         border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden',
         boxShadow: '0 32px 80px rgba(0,0,0,0.4)',

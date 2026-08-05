@@ -12,6 +12,8 @@ const merchant = {
   subscription_status: 'active',
   onboarding_done: true,
   is_active: true,
+  owner_merchant_code: null,
+  permissions: null as Record<string, boolean> | null,
   created_at: '2026-08-01T08:00:00.000Z',
 }
 
@@ -151,6 +153,82 @@ test('new merchant reaches one clear first-value action instead of empty analyti
 
   await page.getByRole('button', { name: /الربط ورفع الملفات/ }).click()
   await expect(page).toHaveURL(/\/integrations$/)
+  expect(runtimeErrors).toEqual([])
+})
+
+test('employee command search uses current names and hides unauthorized pages', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page, {
+    role: 'employee',
+    owner_merchant_code: merchant.merchant_code,
+    permissions: {
+      dashboard: true,
+      orders: false,
+      customers: false,
+      products: true,
+      inventory: false,
+      marketing: false,
+      statement: false,
+      integrations: false,
+      settings: false,
+      team: false,
+    },
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: /ابحث عن صفحة أو منتج|بحث/ }).click()
+  const commandSearch = page.getByRole('dialog', { name: 'البحث السريع' })
+  await expect(commandSearch.getByPlaceholder('ابحث عن صفحة، منتج، أو تاجر...')).toBeVisible()
+  await expect(commandSearch.getByText('مركز القرارات', { exact: true })).toBeVisible()
+  await expect(commandSearch.getByText('المنتجات', { exact: true })).toBeVisible()
+  await expect(commandSearch.getByText('الدعم ومركز المعرفة', { exact: true })).toBeVisible()
+  await expect(commandSearch.getByText('الطلبات', { exact: true })).toHaveCount(0)
+  await expect(commandSearch.getByText('الربط ورفع الملفات', { exact: true })).toHaveCount(0)
+  await expect(commandSearch.getByText('الفريق والصلاحيات', { exact: true })).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
+})
+
+test('Trendyol synchronization shows the real server stage and percentage', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(message.text()) })
+  await mockAuthenticatedMerchant(page)
+
+  await page.route('**/functions/v1/manage-platform-credentials', async route => {
+    const body = route.request().postDataJSON() as { action?: string }
+    if (body.action === 'list') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ credentials: [{
+          id: 'credential-e2e', merchant_code: merchant.merchant_code, platform: 'trendyol',
+          seller_id: '1148158', is_active: true, test_status: 'success', configured: true,
+          last_tested_at: '2026-08-05T02:00:00.000Z', last_sync_at: null, records_synced: 0,
+        }] }),
+      })
+      return
+    }
+    if (body.action === 'sync-status') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job: { status: 'processing', started_at: '2026-08-05T02:10:00.000Z' },
+          log: { status: 'running', details: { stage: 'products', stage_label: 'تحديث المنتجات والصور والسعر والمخزون', progress_percent: 64 } },
+        }),
+      })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+
+  await page.goto('/integrations')
+  await expect(page.getByText('تحديث المنتجات والصور والسعر والمخزون', { exact: true })).toBeVisible()
+  const progress = page.getByRole('progressbar', { name: 'تقدم مزامنة Trendyol' })
+  await expect(progress).toHaveAttribute('aria-valuenow', '64')
+  await expect(page.getByText('٦٤٪', { exact: true })).toBeVisible()
   expect(runtimeErrors).toEqual([])
 })
 

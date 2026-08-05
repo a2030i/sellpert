@@ -74,6 +74,20 @@ Deno.serve(async (req) => {
     if (logError) throw logError
     logId = log.id
 
+    const details: Record<string, unknown> = {
+      stage: 'orders',
+      stage_label: 'قراءة الطلبات والشحنات من Trendyol',
+      progress_percent: 5,
+    }
+    const checkpoint = async (stage: string, stageLabel: string, progressPercent: number) => {
+      details.stage = stage
+      details.stage_label = stageLabel
+      details.progress_percent = progressPercent
+      const { error } = await admin.from('sync_logs').update({ details }).eq('id', logId)
+      if (error) throw error
+    }
+    await checkpoint('orders', 'قراءة الطلبات والشحنات من Trendyol', 5)
+
     const auth = btoa(`${credentials.apiKey}:${credentials.apiSecret}`)
     const headers = {
       Authorization: `Basic ${auth}`,
@@ -100,22 +114,23 @@ Deno.serve(async (req) => {
     await upsertRows(admin, rows)
     const daily = buildDaily(rows)
 
-    const details: Record<string, unknown> = {
-      orders: rows.length,
-      packages: await syncOrderPackages(admin, merchantCode, shipments),
-      order_days: daily.size,
-      order_transport: 'stream',
-    }
+    details.orders = rows.length
+    details.packages = await syncOrderPackages(admin, merchantCode, shipments)
+    details.order_days = daily.size
+    details.order_transport = 'stream'
     const warnings: string[] = []
     details.order_items = await optionalResource('order_items', warnings, () =>
       syncOrderItems(admin, merchantCode, credentials.sellerId, shipments, headers))
+    await checkpoint('returns', 'تحديث بنود الطلبات والمرتجعات', 34)
     details.returns = await optionalResource('returns', warnings, () =>
       syncReturns(admin, merchantCode, credentials.sellerId, from, to, headers))
+    await checkpoint('finance', 'مطابقة العمولات والتسويات والتحويلات', 48)
     const financeResult = await optionalResource('finance', warnings, () =>
       syncSettlements(admin, merchantCode, credentials.sellerId, from, to, headers))
     details.settlements = typeof financeResult === 'object' && financeResult ? (financeResult as any).settlements : financeResult
     details.other_financials = typeof financeResult === 'object' && financeResult ? (financeResult as any).other_financials : 0
     details.financial_transactions = typeof financeResult === 'object' && financeResult ? (financeResult as any).total : financeResult
+    await checkpoint('products', 'تحديث المنتجات والصور والسعر والمخزون', 64)
     const productResult = await optionalResource('products', warnings, () =>
       syncProducts(admin, merchantCode, credentials.sellerId, headers))
     details.products = typeof productResult === 'object' && productResult ? (productResult as any).products : productResult
@@ -124,17 +139,22 @@ Deno.serve(async (req) => {
     details.approved_products = typeof productResult === 'object' && productResult ? (productResult as any).approved_products : 0
     details.unapproved_products = typeof productResult === 'object' && productResult ? (productResult as any).unapproved_products : 0
     details.product_publication_updates = typeof productResult === 'object' && productResult ? (productResult as any).publication_updates : 0
+    await checkpoint('questions', 'تحديث أسئلة العملاء وسجل الخدمة', 82)
     details.customer_questions = await optionalResource('customer_questions', warnings, () =>
       syncCustomerQuestions(admin, merchantCode, credentials.sellerId, headers))
     // Settlement synchronization may refine order commissions. Rebuild the
     // financial layer only after every order and finance write has finished,
     // using the database's canonical source-precedence rules.
+    await checkpoint('analytics', 'إعادة بناء الربحية ومؤشرات الأداء', 92)
     const { data: performanceRows, error: performanceError } = await admin.rpc('rebuild_performance_data', {
       p_merchant_code: merchantCode,
     })
     if (performanceError) throw performanceError
     details.performance_days = numberValue(performanceRows)
     details.warnings = warnings
+    details.stage = 'complete'
+    details.stage_label = warnings.length ? 'اكتملت المزامنة مع أقسام تحتاج مراجعة' : 'اكتملت جميع مراحل المزامنة'
+    details.progress_percent = 100
 
     const now = new Date().toISOString()
     const syncStatus = warnings.length > 0 ? 'partial' : 'success'

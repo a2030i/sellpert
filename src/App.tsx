@@ -659,7 +659,7 @@ export default function App() {
       <PWAInstallPrompt />
       <CommandPalette
         isAdmin={false}
-        merchantCode={activeMerchant?.merchant_code}
+        merchant={activeMerchant}
         onNavigate={(p) => {
           const v = p.replace(/^\//, '').split('?')[0].split('/')[0] as View
           if (VALID_VIEWS.includes(v)) goTo(v)
