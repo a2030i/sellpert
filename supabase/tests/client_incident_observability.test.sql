@@ -10,7 +10,9 @@ insert into auth.users (
   ('00000000-0000-4000-8000-000000009972', 'authenticated', 'authenticated', 'incident-b@test.invalid', '',
    '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Incident Tenant B"}', now(), now(), now(), false, false),
   ('00000000-0000-4000-8000-000000009973', 'authenticated', 'authenticated', 'incident-admin@test.invalid', '',
-   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Incident Staff"}', now(), now(), now(), false, false);
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Incident Staff"}', now(), now(), now(), false, false),
+  ('00000000-0000-4000-8000-000000009974', 'authenticated', 'authenticated', 'incident-rate@test.invalid', '',
+   '{"provider":"email","providers":["email"]}', '{"signup_source":"self_service","name":"Incident Rate Test"}', now(), now(), now(), false, false);
 
 update public.merchants
 set role = 'staff', permissions = '["view_db_health"]'::jsonb
@@ -41,6 +43,12 @@ begin
   begin
     perform count(*) from security.client_incidents;
     raise exception 'merchant read the private incident table directly';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    perform count(*) from security.client_incident_rate_limits;
+    raise exception 'merchant read the private incident quota table directly';
   exception when insufficient_privilege then null;
   end;
 end
@@ -110,4 +118,97 @@ end
 $$;
 
 reset role;
+
+-- Repeated copies of one fingerprint must consume the same quota as distinct
+-- incidents. Once exhausted, further attempts must not write to the incident.
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000009974', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-000000009974","role":"authenticated"}', true);
+set local role authenticated;
+
+do $$
+declare
+  result jsonb;
+begin
+  for attempt in 1..30 loop
+    result := public.report_client_incident(
+      'network', 'error', '/orders', 'orders', 'load', 'network_failure', 503, 'rate-test'
+    );
+    if not coalesce((result ->> 'accepted')::boolean, false) then
+      raise exception 'incident quota rejected accepted attempt %: %', attempt, result;
+    end if;
+  end loop;
+
+  for attempt in 1..20 loop
+    result := public.report_client_incident(
+      'network', 'error', '/orders', 'orders', 'load', 'network_failure', 503, 'rate-test'
+    );
+    if coalesce((result ->> 'accepted')::boolean, true)
+       or result ->> 'reason' <> 'rate_limited' then
+      raise exception 'incident quota accepted blocked attempt %: %', attempt, result;
+    end if;
+  end loop;
+end
+$$;
+
+reset role;
+
+do $$
+declare
+  accepted_occurrences integer;
+  limiter_count integer;
+begin
+  select occurrence_count into accepted_occurrences
+  from security.client_incidents
+  where user_id = '00000000-0000-4000-8000-000000009974'
+    and release = 'rate-test';
+
+  select accepted_count into limiter_count
+  from security.client_incident_rate_limits
+  where user_id = '00000000-0000-4000-8000-000000009974';
+
+  if accepted_occurrences is distinct from 30 or limiter_count is distinct from 30 then
+    raise exception 'blocked incident attempts changed persisted counts: incident %, limiter %', accepted_occurrences, limiter_count;
+  end if;
+end
+$$;
+
+update security.client_incident_rate_limits
+set window_started_at = now() - interval '11 minutes'
+where user_id = '00000000-0000-4000-8000-000000009974';
+
+set local role authenticated;
+do $$
+declare
+  result jsonb;
+begin
+  result := public.report_client_incident(
+    'network', 'error', '/orders', 'orders', 'load', 'network_failure', 503, 'rate-test'
+  );
+  if not coalesce((result ->> 'accepted')::boolean, false) then
+    raise exception 'incident quota did not reopen after its ten-minute window: %', result;
+  end if;
+end
+$$;
+reset role;
+
+do $$
+declare
+  accepted_occurrences integer;
+  limiter_count integer;
+begin
+  select occurrence_count into accepted_occurrences
+  from security.client_incidents
+  where user_id = '00000000-0000-4000-8000-000000009974'
+    and release = 'rate-test';
+
+  select accepted_count into limiter_count
+  from security.client_incident_rate_limits
+  where user_id = '00000000-0000-4000-8000-000000009974';
+
+  if accepted_occurrences is distinct from 31 or limiter_count is distinct from 1 then
+    raise exception 'incident quota window did not reset cleanly: incident %, limiter %', accepted_occurrences, limiter_count;
+  end if;
+end
+$$;
+
 rollback;
