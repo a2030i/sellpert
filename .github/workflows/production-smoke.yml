@@ -36,7 +36,7 @@ jobs:
             $changedFiles = @(git diff --name-only $before $current)
           }
 
-          $webReleasePattern = '^(src/|public/|index\.html$|package\.json$|pnpm-lock\.yaml$|vite\.config\.[^/]+$|vercel\.json$)'
+          $webReleasePattern = '^(src/|public/|index\.html$|package\.json$|package-lock\.json$|vite\.config\.[^/]+$|vercel\.json$)'
           $nonRuntimeSourcePattern = '^src/(?:.*\/__tests__\/|.*\.(?:test|spec)\.[^/]+$)'
           $changesWebRelease = @(
             $changedFiles | Where-Object {

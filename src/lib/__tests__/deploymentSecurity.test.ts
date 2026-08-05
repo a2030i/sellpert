@@ -72,11 +72,24 @@ describe('deployment browser security', () => {
     expect(workflow).toContain('cancel-in-progress: false')
     expect(workflow).toContain('Validate required Vercel secret')
     expect(workflow).toContain("echo 'Missing VERCEL_TOKEN'")
-    expect(workflow).toContain('pnpm/action-setup@v6')
-    expect(workflow).toContain('vercel@58.5.1 deploy')
+    expect(workflow).toContain("- 'package-lock.json'")
+    expect(workflow).toContain('actions/setup-node@v6')
+    expect(workflow).toContain('node-version: 22')
+    expect(workflow).toContain('cache: npm')
+    expect(workflow).toContain('npx --yes vercel@58.5.1 deploy')
+    expect(workflow).not.toContain('pnpm')
     expect(workflow).toContain('--prod')
     expect(workflow).toContain('--build-env="VITE_APP_RELEASE=$GITHUB_SHA"')
     expect(workflow).not.toMatch(/VERCEL_TOKEN:\s+[^$\n]/)
+  })
+
+  it('treats npm dependency locks as production web releases', () => {
+    const releaseWorkflow = readFileSync('.github/workflows/vercel-release.yml', 'utf8')
+    const smokeWorkflow = readFileSync('.github/workflows/production-smoke.yml', 'utf8')
+    expect(releaseWorkflow).toContain("- 'package-lock.json'")
+    expect(smokeWorkflow).toContain('package-lock\\.json$')
+    expect(releaseWorkflow).not.toContain('pnpm-lock.yaml')
+    expect(smokeWorkflow).not.toContain('pnpm-lock\\.yaml')
   })
 
   it('pins the Supabase client used by the app and every Edge Function', () => {
