@@ -9,18 +9,32 @@ import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import { userErrorMessage } from '../lib/userError'
 import PurchaseCashReadinessPanel from '../components/PurchaseCashReadinessPanel'
+import { fetchAll } from '../lib/db'
+import { inventoryDataLineage, inventoryFreshness, type InventoryDataLineage, type InventoryFreshness, type LineageUpload } from '../lib/dataLineage'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 const PAGE_SIZE = 25
+const LINEAGE_TONE = {
+  info: { background:'var(--info-bg)', color:'var(--info-text)' },
+  success: { background:'var(--success-bg)', color:'var(--success-text)' },
+  warning: { background:'var(--warning-bg)', color:'var(--warning-text)' },
+} as const
+const FRESHNESS_TONE = {
+  success: { background:'var(--success-bg)', color:'var(--success-text)' },
+  warning: { background:'var(--warning-bg)', color:'var(--warning-text)' },
+  danger: { background:'var(--danger-bg)', color:'var(--danger-text)' },
+} as const
 
 export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
+  const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
+  const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'stale'>('all')
   const [platformFilter, setPlatformFilter] = useState('all')
   const [sort, setSort] = useState<'attention' | 'name' | 'quantity'>('attention')
   const [editId, setEditId] = useState<string | null>(null)
@@ -37,14 +51,22 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 
   async function loadInventory() {
     setLoading(true)
-    const { data } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('merchant_code', merchant!.merchant_code)
-      .order('product_name')
-    setItems(data || [])
-    setLoading(false)
+    setLoadError('')
+    try {
+      const [inventoryRows, uploads] = await Promise.all([
+        fetchAll<InventoryItem>((from, to) => supabase.from('inventory').select('*').eq('merchant_code', merchant!.merchant_code).order('product_name').range(from, to), 'المخزون'),
+        fetchAll<LineageUpload>((from, to) => supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending:false }).range(from, to), 'ملفات المخزون'),
+      ])
+      setItems(inventoryRows)
+      setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
+    } catch (error) {
+      console.error('load inventory', error)
+      setLoadError(userErrorMessage(error, 'تعذّر تحميل المخزون الآن.'))
+    } finally { setLoading(false) }
   }
+
+  const lineageById = useMemo(() => new Map(items.map(item => [item.id, inventoryDataLineage(item, item.upload_id ? sourceUploads.get(item.upload_id) : null)])), [items, sourceUploads])
+  const freshnessById = useMemo(() => new Map(items.map(item => [item.id, inventoryFreshness(item.last_updated)])), [items])
 
   const filtered = useMemo(() => {
     let d = items.filter(i => i.is_active)
@@ -54,6 +76,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
     if (filter === 'low') d = d.filter(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
     if (filter === 'out') d = d.filter(i => i.quantity === 0)
+    if (filter === 'stale') d = d.filter(i => freshnessById.get(i.id)?.status === 'stale' || freshnessById.get(i.id)?.status === 'unknown')
     if (platformFilter !== 'all') d = d.filter(i => i.platform === platformFilter)
     d = [...d].sort((a, b) => {
       if (sort === 'name') return a.product_name.localeCompare(b.product_name, 'ar')
@@ -62,7 +85,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       return priority(a) - priority(b) || a.quantity - b.quantity
     })
     return d
-  }, [items, search, filter, platformFilter, sort])
+  }, [items, search, filter, platformFilter, sort, freshnessById])
 
   // Group by SKU
   const bySku = useMemo(() => {
@@ -88,17 +111,27 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     out:      items.filter(i => i.is_active && i.quantity === 0).length,
     skus:     new Set(items.filter(i=>i.is_active).map(i=>i.sku)).size,
     units:    items.filter(i => i.is_active).reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-  }), [items])
+    stale:    items.filter(i => i.is_active && ['stale','unknown'].includes(freshnessById.get(i.id)?.status || '')).length,
+  }), [items, freshnessById])
   const platforms = useMemo(() => [...new Set(items.filter(i => i.is_active).map(i => i.platform))], [items])
 
   async function updateQty(id: string) {
+    if (!merchant) return
     setSaving(true)
     const { error } = await supabase
       .from('inventory')
-      .update({ quantity: editQty, last_updated: new Date().toISOString() })
+      .update({ quantity: editQty, last_updated: new Date().toISOString(), platform_source: 'manual_override' })
       .eq('id', id)
+      .eq('merchant_code', merchant.merchant_code)
     setSaving(false)
-    if (!error) { setEditId(null); loadInventory() }
+    if (error) {
+      console.error('update inventory quantity', error)
+      setMsg({ type:'err', text:userErrorMessage(error, 'تعذّر حفظ الكمية. لم يتم تغيير المخزون.') })
+      return
+    }
+    setMsg({ type:'ok', text:'تم حفظ الكمية وتسجيلها كتعديل يدوي.' })
+    setEditId(null)
+    void loadInventory()
   }
 
   async function addItem() {
@@ -114,6 +147,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       quantity:         Number(addForm.quantity),
       low_stock_threshold: Number(addForm.low_stock_threshold),
       cost_price:       Number(addForm.cost_price),
+      platform_source:  'manual',
     })
     setSaving(false)
     if (error) {
@@ -155,6 +189,16 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     </div>
   )
 
+  if (loadError) return (
+    <div style={S.wrap}>
+      <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
+        <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذّر تحميل المخزون</h2>
+        <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
+        <button onClick={() => void loadInventory()} style={S.addBtn}>إعادة المحاولة</button>
+      </div>
+    </div>
+  )
+
   function goProducts() {
     window.history.pushState(null, '', '/products')
     window.dispatchEvent(new PopStateEvent('popstate'))
@@ -162,6 +206,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
 
   function goQuickInventory() {
     window.history.pushState(null, '', '/quick-inventory')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  function goIntegrations() {
+    window.history.pushState(null, '', '/integrations')
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
@@ -202,12 +251,13 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {/* ALERT CARDS */}
-      <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:14, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap:14, marginBottom:20 }}>
         {[
           { label:'المنتجات الفريدة', value:stats.skus,  icon:'', color:'var(--accent)' },
           { label:'إجمالي الوحدات المتاحة', value:stats.units, icon:'', color:'#4cc9f0'     },
           { label:'مخزون منخفض',     value:stats.low,   icon:'', color:'#ffd166',     active: filter==='low', onClick:()=>setFilter(filter==='low'?'all':'low') },
           { label:'نفد المخزون',      value:stats.out,   icon:'', color:'#ff4d6d',     active: filter==='out', onClick:()=>setFilter(filter==='out'?'all':'out') },
+          { label:'بيانات كمية قديمة', value:stats.stale, icon:'', color:'var(--danger-text)', active:filter==='stale', onClick:()=>setFilter(filter==='stale'?'all':'stale') },
         ].map((k,i) => (
           <div
             key={i}
@@ -220,6 +270,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           </div>
         ))}
       </div>
+
+      {stats.stale > 0 ? <section role="status" style={{ background:'var(--danger-bg)', border:'1px solid color-mix(in srgb,var(--danger-text) 22%,transparent)', borderRadius:12, padding:'12px 14px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        <div><strong style={{ display:'block', fontSize:13 }}>لا تعتمد قرار شراء على {stats.stale.toLocaleString('ar-SA-u-nu-latn')} سجل قديم</strong><span style={{ fontSize:11, color:'var(--text2)', lineHeight:1.7 }}>حدّث الربط أو ارفع أحدث ملف مخزون أولًا، ثم راجع توصيات إعادة الشراء.</span></div>
+        <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}><button type="button" onClick={() => setFilter('stale')} style={S.miniBtn}>عرض السجلات القديمة</button><button type="button" onClick={goIntegrations} style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }}>تحديث مصادر البيانات</button></div>
+      </section> : null}
 
       {/* MESSAGE */}
       {msg && (
@@ -274,7 +329,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           onChange={e => setSearch(e.target.value)}
         />
         <div style={{ display:'flex', gap:6 }}>
-          {[['all','الكل'],['low','منخفض'],['out','نفذ']] .map(([k,l]) => (
+          {[['all','الكل'],['low','منخفض'],['out','نفذ'],['stale','بيانات قديمة']] .map(([k,l]) => (
             <button key={k} style={{ ...S.pill, ...(filter===k ? S.pillActive : {}) }} onClick={() => setFilter(k as any)}>{l}</button>
           ))}
         </div>
@@ -331,45 +386,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                 {/* Platform rows */}
                 <div>
                   {skuItems.map(item => (
-                    <div key={item.id} style={{ padding: isMobile ? '12px' : '12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap', borderBottom:'1px solid var(--border)', background: item.quantity===0 ? 'var(--danger-bg)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-bg)' : 'transparent' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:14, flex:'1 1 260px', minWidth: 0, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                        <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:6, background:(PLATFORM_COLORS[item.platform]||'#5a5a7a')+'22', color:PLATFORM_COLORS[item.platform]||'var(--text3)', minWidth:70, textAlign:'center' }}>
-                          {PLATFORM_MAP[item.platform] || item.platform}
-                        </span>
-                        <div style={{ display:'flex', gap: isMobile ? 8 : 24, fontSize:12, color:'var(--text2)', flexWrap: 'wrap' }}>
-                          <span>حد التنبيه: <strong style={{ color:'var(--text)' }}>{item.low_stock_threshold}</strong></span>
-                          {item.cost_price ? <span>التكلفة: <strong style={{ color:'var(--text)' }}>{item.cost_price} ر.س</strong></span> : null}
-                          {item.reserved_quantity > 0 ? <span>محجوز: <strong style={{ color:'var(--warning-text)' }}>{item.reserved_quantity}</strong></span> : null}
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                        {editId === item.id ? (
-                          <>
-                            <input
-                              style={{ ...S.input, width:80, textAlign:'center', padding:'6px 8px' }}
-                              type="number"
-                              value={editQty}
-                              onChange={e => setEditQty(Number(e.target.value))}
-                              min={0}
-                            />
-                            <button style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }} onClick={() => updateQty(item.id)} disabled={saving}>
-                              {saving ? '...' : 'حفظ'}
-                            </button>
-                            <button style={S.miniBtn} onClick={() => setEditId(null)}>إلغاء</button>
-                          </>
-                        ) : (
-                          <>
-                            <span style={{ fontSize:20, fontWeight:800, color: item.quantity===0?'var(--danger-text)':item.quantity<=item.low_stock_threshold?'var(--warning-text)':'var(--text)', minWidth:40, textAlign:'center' }}>
-                              {item.quantity.toLocaleString()}
-                            </span>
-                            <button
-                              style={S.miniBtn}
-                              onClick={() => { setEditId(item.id); setEditQty(item.quantity) }}
-                            >تعديل</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    <InventoryPlatformRow key={item.id} item={item} isMobile={isMobile} editId={editId} editQty={editQty} saving={saving} lineage={lineageById.get(item.id)!} freshness={freshnessById.get(item.id)!} onEditQty={setEditQty} onStartEdit={() => { setEditId(item.id); setEditQty(item.quantity) }} onCancelEdit={() => setEditId(null)} onSave={() => void updateQty(item.id)} />
                   ))}
                 </div>
               </div>
@@ -386,6 +403,55 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         <InventoryHealthPanel merchant={merchant} />
         {merchant && <InventoryAgeingSection merchantCode={merchant.merchant_code} />}
         {merchant && <InventoryPipelinePanel merchantCode={merchant.merchant_code} />}
+      </div>
+    </div>
+  )
+}
+
+function InventoryPlatformRow({
+  item, isMobile, editId, editQty, saving, lineage, freshness,
+  onEditQty, onStartEdit, onCancelEdit, onSave,
+}: {
+  item: InventoryItem
+  isMobile: boolean
+  editId: string | null
+  editQty: number
+  saving: boolean
+  lineage: InventoryDataLineage
+  freshness: InventoryFreshness
+  onEditQty: (quantity: number) => void
+  onStartEdit: () => void
+  onCancelEdit: () => void
+  onSave: () => void
+}) {
+  const sourceTone = LINEAGE_TONE[lineage.tone]
+  const freshnessTone = FRESHNESS_TONE[freshness.tone]
+  return (
+    <div style={{ padding:isMobile ? '12px' : '12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:isMobile ? 'wrap' : 'nowrap', borderBottom:'1px solid var(--border)', background:item.quantity === 0 ? 'var(--danger-bg)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-bg)' : 'transparent' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14, flex:'1 1 300px', minWidth:0, flexWrap:isMobile ? 'wrap' : 'nowrap' }}>
+        <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:6, background:(PLATFORM_COLORS[item.platform] || '#5a5a7a') + '22', color:PLATFORM_COLORS[item.platform] || 'var(--text3)', minWidth:70, textAlign:'center' }}>{PLATFORM_MAP[item.platform] || item.platform}</span>
+        <div style={{ minWidth:0 }}>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:5 }}>
+            <span title={lineage.title} style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:14, ...sourceTone }}>{lineage.label}</span>
+            <span title={item.last_updated ? new Date(item.last_updated).toLocaleString('ar-SA-u-ca-gregory-nu-latn') : undefined} style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:14, ...freshnessTone }}>{freshness.label}</span>
+          </div>
+          <div style={{ display:'flex', gap:isMobile ? 8 : 24, fontSize:12, color:'var(--text2)', flexWrap:'wrap' }}>
+            <span>حد التنبيه: <strong style={{ color:'var(--text)' }}>{item.low_stock_threshold}</strong></span>
+            {item.cost_price ? <span>التكلفة: <strong style={{ color:'var(--text)' }}>{item.cost_price} ر.س</strong></span> : null}
+            {item.reserved_quantity > 0 ? <span>محجوز: <strong style={{ color:'var(--warning-text)' }}>{item.reserved_quantity}</strong></span> : null}
+            {lineage.fileName ? <span title={lineage.fileName}>الملف: <strong dir="ltr" style={{ color:'var(--text)' }}>{lineage.fileName}</strong></span> : null}
+          </div>
+        </div>
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        {editId === item.id ? <>
+          <input aria-label={`الكمية الجديدة لـ ${item.product_name}`} style={{ ...S.input, width:80, textAlign:'center', padding:'6px 8px' }} type="number" value={editQty} onChange={event => onEditQty(Number(event.target.value))} min={0} />
+          <button style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }} onClick={onSave} disabled={saving}>{saving ? '...' : 'حفظ'}</button>
+          <button style={S.miniBtn} onClick={onCancelEdit}>إلغاء</button>
+        </> : <>
+          <span style={{ fontSize:20, fontWeight:800, color:item.quantity === 0 ? 'var(--danger-text)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-text)' : 'var(--text)', minWidth:40, textAlign:'center' }}>{item.quantity.toLocaleString()}</span>
+          <button style={S.miniBtn} onClick={onStartEdit}>تعديل</button>
+        </>}
       </div>
     </div>
   )

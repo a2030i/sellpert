@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderDataLineage, productDataLineage } from '../dataLineage'
+import { inventoryDataLineage, inventoryFreshness, orderDataLineage, productDataLineage } from '../dataLineage'
 
 describe('orderDataLineage', () => {
   it('uses the archived upload as the authoritative source and exposes its merchant-friendly name', () => {
@@ -21,6 +21,28 @@ describe('orderDataLineage', () => {
   it('does not invent an API source for legacy rows without evidence', () => {
     expect(orderDataLineage({ platform: 'amazon', upload_id: null, last_synced_at: null }))
       .toMatchObject({ kind: 'unknown', label: 'مصدر غير محدد' })
+  })
+})
+
+describe('inventory data lineage', () => {
+  it('keeps the current manual override distinct from the previous API synchronization', () => {
+    expect(inventoryDataLineage({
+      platform: 'trendyol', platform_source: 'manual_override', last_updated: '2026-08-05T10:00:00Z', last_synced_at: '2026-08-05T09:00:00Z',
+    })).toMatchObject({ kind: 'manual_override', label: 'تعديل يدوي', apiSyncedAt: '2026-08-05T09:00:00Z' })
+  })
+
+  it('identifies imported inventory and exposes the archived filename', () => {
+    expect(inventoryDataLineage(
+      { platform: 'noon', upload_id: 'upload-2', last_updated: '2026-08-05T08:00:00Z' },
+      { id: 'upload-2', platform: 'noon', file_name: 'stock.xlsx', uploaded_at: '2026-08-05T08:00:00Z' },
+    )).toMatchObject({ kind: 'file', label: 'ملف نون', fileName: 'stock.xlsx' })
+  })
+
+  it('classifies inventory age with operational freshness thresholds', () => {
+    const now = new Date('2026-08-05T12:00:00Z')
+    expect(inventoryFreshness('2026-08-05T10:00:00Z', now)).toMatchObject({ status: 'fresh', ageHours: 2 })
+    expect(inventoryFreshness('2026-08-03T12:00:00Z', now)).toMatchObject({ status: 'aging', ageHours: 48 })
+    expect(inventoryFreshness('2026-08-01T12:00:00Z', now)).toMatchObject({ status: 'stale', ageHours: 96 })
   })
 })
 

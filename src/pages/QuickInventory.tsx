@@ -85,6 +85,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
   }
 
   async function saveAll() {
+    if (!merchant) return
     const changes = Object.entries(pending)
     if (changes.length === 0) return
     setSaving(true)
@@ -93,8 +94,9 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
     const now = new Date().toISOString()
     const results = await Promise.all(changes.map(([id, p]) =>
       supabase.from('inventory')
-        .update({ quantity: p.qty, last_updated: now })
+        .update({ quantity: p.qty, last_updated: now, platform_source: 'manual_override' })
         .eq('id', id)
+        .eq('merchant_code', merchant.merchant_code)
     ))
     const succeeded = results.filter(r => !r.error).length
     setSaving(false)

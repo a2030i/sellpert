@@ -172,6 +172,9 @@ export interface InventoryItem {
   image_url?: string
   is_active: boolean
   last_updated: string
+  last_synced_at?: string | null
+  platform_source?: string | null
+  upload_id?: string | null
   created_at: string
 }
 

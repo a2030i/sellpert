@@ -316,6 +316,8 @@ export function normalizeTrendyolV2Products(
       image_url: images[0]?.url || null,
       is_active: approved && !variant?.archived && !variant?.blacklisted,
       last_updated: syncedAt,
+      platform_source: 'trendyol_api_v2',
+      last_synced_at: syncedAt,
       raw: { contentId: item?.contentId || null, variant, approvalStatus: providerStatus, rejection },
     })
 

@@ -1042,6 +1042,70 @@ test('merchant can trace every order back to its API sync or uploaded source fil
   await expect(dialog.getByText('مصدر غير محدد', { exact: true })).toHaveCount(0)
 })
 
+test('merchant sees the source and age of every inventory quantity and updates only the active tenant', async ({ page }, testInfo) => {
+  await mockAuthenticatedMerchant(page)
+  const now = new Date()
+  const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+  let inventoryPatch: { url: string; body: Record<string, unknown> } | null = null
+
+  const rows = [
+    {
+      id:'inventory-api-e2e', merchant_code:merchant.merchant_code, platform:'trendyol', sku:'TRENDYOL-FRESH',
+      product_name:'مخزون ترنديول حديث', quantity:18, reserved_quantity:0, low_stock_threshold:5, cost_price:22,
+      fulfillment_channel:'Merchant', is_active:true, upload_id:null, platform_source:'trendyol_api_v2',
+      last_updated:now.toISOString(), last_synced_at:now.toISOString(), raw:{ variant:{ barcode:'628100000001' } },
+    },
+    {
+      id:'inventory-file-e2e', merchant_code:merchant.merchant_code, platform:'noon', sku:'NOON-STALE',
+      product_name:'مخزون نون قديم', quantity:4, reserved_quantity:1, low_stock_threshold:3, cost_price:15,
+      fulfillment_channel:'Merchant', is_active:true, upload_id:'upload-noon-stock', platform_source:null,
+      last_updated:fiveDaysAgo, last_synced_at:null, raw:{},
+    },
+  ]
+
+  const fulfillRows = async (route: Route, data: unknown[]) => route.fulfill({
+    status:200, contentType:'application/json',
+    headers:{ 'content-range':data.length ? `0-${data.length - 1}/${data.length}` : '*/0' },
+    body:JSON.stringify(data),
+  })
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    if (table === 'merchants') { await route.fallback(); return }
+    if (table === 'inventory' && route.request().method() === 'PATCH') {
+      inventoryPatch = { url:url.toString(), body:route.request().postDataJSON() as Record<string, unknown> }
+      await route.fulfill({ status:204, body:'' })
+      return
+    }
+    if (table === 'inventory') { await fulfillRows(route, rows); return }
+    if (table === 'platform_file_uploads') {
+      await fulfillRows(route, [{ id:'upload-noon-stock', platform:'noon', file_name:'مخزون-نون-أغسطس.xlsx', file_type:'noon_inventory', uploaded_at:fiveDaysAgo }])
+      return
+    }
+    await fulfillRows(route, [])
+  })
+
+  await page.goto('/inventory')
+  await expect(page.getByText('API Trendyol', { exact:true })).toBeVisible()
+  await expect(page.getByText('ملف نون', { exact:true })).toBeVisible()
+  await expect(page.getByText('مخزون-نون-أغسطس.xlsx', { exact:true })).toBeVisible()
+  await expect(page.getByText(/لا تعتمد قرار شراء على 1 سجل قديم/)).toBeVisible()
+  await page.screenshot({ path:testInfo.outputPath('inventory-lineage-and-freshness.png'), fullPage:true })
+
+  await page.getByRole('button', { name:'عرض السجلات القديمة' }).click()
+  await expect(page.getByText('مخزون نون قديم', { exact:true })).toBeVisible()
+  await expect(page.getByText('مخزون ترنديول حديث', { exact:true })).toHaveCount(0)
+  await page.getByRole('button', { name:'تعديل', exact:true }).click()
+  await page.getByLabel('الكمية الجديدة لـ مخزون نون قديم').fill('9')
+  await page.getByRole('button', { name:'حفظ', exact:true }).click()
+
+  await expect.poll(() => inventoryPatch).not.toBeNull()
+  expect(inventoryPatch!.url).toContain(`merchant_code=eq.${merchant.merchant_code}`)
+  expect(inventoryPatch!.body).toMatchObject({ quantity:9, platform_source:'manual_override' })
+  await expect(page.getByText('تم حفظ الكمية وتسجيلها كتعديل يدوي.')).toBeVisible()
+})
+
 test('merchant follows a synced Trendyol order into product management', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

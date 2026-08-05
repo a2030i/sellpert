@@ -684,10 +684,12 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           last_updated: string
+          last_synced_at: string | null
           low_stock_threshold: number
           merchant_code: string
           partner_sku: string | null
           platform: string
+          platform_source: string | null
           product_name: string | null
           quantity: number
           reserved_quantity: number
@@ -706,10 +708,12 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           last_updated?: string
+          last_synced_at?: string | null
           low_stock_threshold?: number
           merchant_code: string
           partner_sku?: string | null
           platform: string
+          platform_source?: string | null
           product_name?: string | null
           quantity?: number
           reserved_quantity?: number
@@ -728,10 +732,12 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           last_updated?: string
+          last_synced_at?: string | null
           low_stock_threshold?: number
           merchant_code?: string
           partner_sku?: string | null
           platform?: string
+          platform_source?: string | null
           product_name?: string | null
           quantity?: number
           reserved_quantity?: number

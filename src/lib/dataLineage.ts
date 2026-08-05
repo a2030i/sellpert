@@ -32,6 +32,26 @@ export type ProductDataLineage = Omit<DataLineage, 'kind'> & {
   kind: 'file' | 'api' | 'manual' | 'combined' | 'unknown'
 }
 
+export type LineageInventory = {
+  platform: string
+  upload_id?: string | null
+  platform_source?: string | null
+  last_updated?: string | null
+  last_synced_at?: string | null
+}
+
+export type InventoryDataLineage = Omit<DataLineage, 'kind'> & {
+  kind: 'file' | 'api' | 'manual' | 'manual_override' | 'combined' | 'unknown'
+  apiSyncedAt: string | null
+}
+
+export type InventoryFreshness = {
+  status: 'fresh' | 'aging' | 'stale' | 'unknown'
+  label: string
+  ageHours: number | null
+  tone: 'success' | 'warning' | 'danger'
+}
+
 function sourcePlatformLabel(platformSource?: string | null) {
   const normalized = String(platformSource || '').trim().toLowerCase()
   const platform = Object.keys(PLATFORM_MAP).find(key => normalized.startsWith(key))
@@ -127,4 +147,49 @@ export function productDataLineage(product: LineageProduct, upload?: LineageUplo
     kind: 'unknown', label: 'مصدر غير موثق', exportLabel: 'مصدر غير موثق',
     title: 'هذا منتج قديم ولا توجد بيانات كافية لتحديد مصدره.', tone: 'warning', fileName: null, occurredAt: null,
   }
+}
+
+export function inventoryDataLineage(item: LineageInventory, upload?: LineageUpload | null): InventoryDataLineage {
+  const source = String(item.platform_source || '').trim().toLowerCase()
+  const platformLabel = PLATFORM_MAP[item.platform] || item.platform
+  const filePlatform = upload ? PLATFORM_MAP[upload.platform] || upload.platform : platformLabel
+  const fileName = upload?.file_name?.trim() || null
+  const hasFile = Boolean(item.upload_id)
+  const hasApi = Boolean(item.last_synced_at) || source.includes('api')
+  const base = { fileName, occurredAt: item.last_updated || upload?.uploaded_at || null, apiSyncedAt: item.last_synced_at || null }
+
+  if (source === 'manual_override') {
+    return {
+      ...base, kind: 'manual_override', label: 'تعديل يدوي', exportLabel: 'تعديل يدوي', tone: 'info',
+      title: item.last_synced_at
+        ? `عدّل التاجر الكمية بعد آخر مزامنة من ${platformLabel}.`
+        : 'عدّل التاجر الكمية يدويًا من داخل Sellpert.',
+    }
+  }
+  if (source === 'manual') {
+    return { ...base, kind: 'manual', label: 'إضافة يدوية', exportLabel: 'إضافة يدوية', tone: 'info', title: 'أضاف التاجر سجل المخزون من داخل Sellpert.' }
+  }
+  if (hasFile && hasApi) {
+    const label = `ملف ${filePlatform} + API ${platformLabel}`
+    return { ...base, kind: 'combined', label, exportLabel: fileName ? `${label}: ${fileName}` : label, tone: 'success', title: 'بدأ سجل الكمية من ملف ثم جرى تحديثه من الربط المباشر.' }
+  }
+  if (hasApi) {
+    const label = `API ${platformLabel}`
+    return { ...base, kind: 'api', label, exportLabel: label, tone: 'success', title: `تم تحديث الكمية من ربط ${platformLabel}.` }
+  }
+  if (hasFile) {
+    const label = `ملف ${filePlatform}`
+    return { ...base, kind: 'file', label, exportLabel: fileName ? `${label}: ${fileName}` : label, tone: 'info', title: fileName ? `تم تحديث الكمية من الملف ${fileName}.` : `تم تحديث الكمية من ملف ${filePlatform}.` }
+  }
+  return { ...base, kind: 'unknown', label: 'مصدر غير موثق', exportLabel: 'مصدر غير موثق', tone: 'warning', title: 'هذا سجل قديم ولا توجد بيانات كافية لتحديد مصدر الكمية.' }
+}
+
+export function inventoryFreshness(lastUpdated?: string | null, now = new Date()): InventoryFreshness {
+  const timestamp = lastUpdated ? new Date(lastUpdated) : null
+  if (!timestamp || Number.isNaN(timestamp.getTime())) return { status: 'unknown', label: 'وقت التحديث غير معروف', ageHours: null, tone: 'danger' }
+  const ageHours = Math.max(0, Math.floor((now.getTime() - timestamp.getTime()) / 3_600_000))
+  if (ageHours <= 24) return { status: 'fresh', label: ageHours < 1 ? 'محدث الآن' : `محدث منذ ${ageHours} ساعة`, ageHours, tone: 'success' }
+  const ageDays = Math.floor(ageHours / 24)
+  if (ageHours <= 72) return { status: 'aging', label: `محدث منذ ${ageDays} يوم`, ageHours, tone: 'warning' }
+  return { status: 'stale', label: `قديم منذ ${ageDays} يوم`, ageHours, tone: 'danger' }
 }

@@ -94,6 +94,8 @@ Deno.test('Product V2 normalization preserves Arabic content and variant financi
   assertEquals(result.products[0].msrp, 60)
   assertEquals(result.inventory[0].quantity, 8)
   assertEquals(result.inventory[0].is_active, true)
+  assertEquals(result.inventory[0].platform_source, 'trendyol_api_v2')
+  assertEquals(result.inventory[0].last_synced_at, '2026-08-04T00:00:00.000Z')
 })
 
 Deno.test('approved Product V2 variant wins over a duplicate rejected barcode', () => {
