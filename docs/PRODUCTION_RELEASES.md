@@ -43,3 +43,29 @@ checks the immutable Vercel release and anonymous authorization boundaries.
 
 If the deployment workflow fails, do not retry only the browser deployment.
 Fix or roll forward the Supabase release first, then rerun the failed workflow.
+
+## Production migration state (2026-08-05)
+
+Production contains historical migrations created before the repository adopted
+its rebuildable baseline. Many have the same migration name under a different
+timestamp, while several local bootstrap/restore migrations intentionally
+reconstruct effects that already exist in production. This is a history problem,
+not permission to replay old DDL.
+
+The forward migration `explicit_data_api_grants` was independently reviewed,
+rebuilt in CI, applied through the Supabase Management API, and recorded in
+production as `20260805022434_explicit_data_api_grants`. Live verification
+confirmed:
+
+- `anon` has no table or column access to any of the 86 public relations.
+- `service_role` has the required access to all public and security relations.
+- all 51 tables carrying a merchant/store discriminator have RLS enabled and at
+  least one policy.
+- future migration-owner tables, sequences, and functions default to no browser
+  access until a migration explicitly grants it.
+
+Do not run `migration repair` for the remaining historical entries as a batch.
+Reconcile each entry only after comparing its final schema effect with production.
+Until that one-time reconciliation is complete, the parity guard is expected to
+stop `db push`; deploy reviewed forward database changes through an explicitly
+audited release instead of bypassing the guard.

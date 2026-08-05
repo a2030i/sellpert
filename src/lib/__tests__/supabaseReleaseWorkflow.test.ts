@@ -10,6 +10,7 @@ describe('Supabase production release workflow', () => {
     expect(workflow).toContain('cancel-in-progress: false')
     expect(workflow).not.toContain('SUPABASE_DEPLOY_ENABLED')
     expect(workflow).toContain('Validate required Supabase secrets')
+    expect(workflow).toContain("'scripts/Test-SupabaseMigrationParity.ps1'")
     expect(workflow).toContain("echo 'Missing SUPABASE_ACCESS_TOKEN'")
     expect(workflow).toContain("echo 'Missing SUPABASE_DB_PASSWORD'")
     expect(workflow).not.toMatch(/SUPABASE_(ACCESS_TOKEN|DB_PASSWORD):\s+[^$\n]/)
