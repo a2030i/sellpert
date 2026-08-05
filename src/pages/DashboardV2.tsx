@@ -188,9 +188,10 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         .eq('merchant_code', merchantCode).order('week_start', { ascending: false }).limit(8)
     )
     Promise.allSettled([
-      fetchAll<Order>((from, to) => supabase.from('orders')
-        .select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,platform_fee,shipping_cost,discount_amount,currency,customer_city,order_date,created_at')
-        .eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(from, to), 'طلبات مركز القرارات'),
+      fetchAll<Order>((from, to) => supabase.rpc('list_order_operating_facts', {
+        p_merchant_code: merchantCode,
+        p_sku: null,
+      }).range(from, to), 'طلبات مركز القرارات'),
       fetchAll<InventoryHealthRow>((from, to) => supabase.from('inventory_health')
         .select('sku,product_name,quantity,cost_price,stock_value_cost,daily_velocity,sold_30d,days_of_stock,health_status,data_as_of,data_age_days')
         .eq('merchant_code', merchantCode).range(from, to), 'صحة المخزون'),

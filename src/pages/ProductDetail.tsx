@@ -64,7 +64,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
           ? supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchantCode).eq('id', prod.upload_id).maybeSingle()
           : Promise.resolve({ data: null, error: null })
         const [ord, ret, ads, inv, upload] = await Promise.all([
-          supabase.from('orders').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('order_date', { ascending: false }).limit(50),
+          supabase.rpc('list_order_operating_facts', { p_merchant_code: merchantCode, p_sku: prod.sku }).limit(50),
           supabase.from('returns').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('return_date', { ascending: false }).limit(20),
           supabase.from('ad_metrics').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
           supabase.from('inventory').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku),

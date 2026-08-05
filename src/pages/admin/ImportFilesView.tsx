@@ -69,7 +69,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   // fetchAll: إجماليات التقرير تُجمع من هذه الصفوف — بلا اقتطاع صامت عند 1000
   const [perfData, ordersAgg, invAgg, { data: returnsCount }] = await Promise.all([
     fetchAll<any>((f, t) => supabase.from('performance_data').select('platform, total_sales, order_count, ad_spend, platform_fees').eq('merchant_code', merchantCode).gte('data_date', monthStartIso).order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
-    fetchAll<any>((f, t) => supabase.from('orders').select('platform, total_amount, status').eq('merchant_code', merchantCode).order('id').range(f, t), 'الطلبات'),
+    fetchAll<any>((f, t) => supabase.rpc('list_order_operating_facts', { p_merchant_code: merchantCode, p_sku: null }).order('id').range(f, t), 'الطلبات'),
     fetchAll<any>((f, t) => supabase.from('inventory').select('platform, quantity').eq('merchant_code', merchantCode).order('id').range(f, t), 'المخزون'),
     supabase.from('returns').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
   ])

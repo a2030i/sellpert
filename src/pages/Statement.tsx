@@ -128,8 +128,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       supabase.from('sales_targets').select('*')
         .eq('merchant_code', code)
         .eq('year', year).eq('month', month),
-      fetchAll<any>((f, t) => supabase.from('orders').select('sku,quantity,status,platform,platform_fee,upload_id,last_synced_at')
-        .eq('merchant_code', code).gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
+      fetchAll<any>((f, t) => supabase.rpc('list_order_operating_facts', { p_merchant_code: code, p_sku: null })
+        .gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
         .order('id').range(f, t), 'تكلفة الطلبات'),
       fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
         .eq('merchant_code', code).order('id').range(f, t), 'تكلفة المنتجات'),

@@ -3566,6 +3566,29 @@ export type Database = {
       }
     }
     Functions: {
+      list_order_operating_facts: {
+        Args: { p_merchant_code: string; p_sku?: string | null }
+        Returns: {
+          id: string
+          merchant_code: string
+          platform: string
+          status: string
+          product_name: string | null
+          sku: string | null
+          quantity: number
+          unit_price: number
+          total_amount: number
+          gross_amount: number | null
+          platform_fee: number | null
+          shipping_cost: number | null
+          discount_amount: number | null
+          currency: string
+          order_date: string
+          created_at: string
+          upload_id: string | null
+          last_synced_at: string | null
+        }[]
+      }
       bulk_notify: {
         Args: {
           p_action_path?: string
