@@ -49,6 +49,15 @@ describe('deployment browser security', () => {
     expect(smokeWorkflow).toMatch(/else\s*\{\s*\.\/scripts\/test-production-smoke\.ps1\s*\}/)
   })
 
+  it('never reports a successful Supabase release when deployment is disabled', () => {
+    const workflow = readFileSync('.github/workflows/supabase-release.yml', 'utf8')
+    expect(workflow).not.toContain('SUPABASE_DEPLOY_ENABLED')
+    expect(workflow).not.toContain('configuration-notice')
+    expect(workflow).toContain("- '.github/workflows/supabase-release.yml'")
+    expect(workflow).toContain('Refuse an unconfigured production release')
+    expect(workflow).toContain('Deploy functions, migrations, then final functions')
+  })
+
   it('pins the Supabase client used by the app and every Edge Function', () => {
     const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'))
     const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8')

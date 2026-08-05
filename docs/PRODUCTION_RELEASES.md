@@ -7,14 +7,17 @@ the browser bundle.
 
 ## One-time GitHub configuration
 
-Create a protected GitHub environment named `production`, add these secrets,
-then set the repository variable `SUPABASE_DEPLOY_ENABLED` to `true`:
+Create a protected GitHub environment named `production` and add these
+required secrets:
 
 - `SUPABASE_ACCESS_TOKEN`: a scoped Supabase personal access token used only by GitHub Actions.
 - `SUPABASE_DB_PASSWORD`: the production database password.
 
 Do not store either value in source files, workflow YAML, Vercel variables, or
 browser-prefixed environment variables.
+
+The release job is intentionally mandatory. Missing secrets fail the release
+instead of producing a green workflow that did not deploy Supabase.
 
 ## Release order
 
