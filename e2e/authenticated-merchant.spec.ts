@@ -1327,13 +1327,14 @@ test('merchant starts preparing ready Trendyol shipments from one reviewed opera
   await page.route('**/rest/v1/**', async route => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()
+    const object = (route.request().headers().accept || '').includes('application/vnd.pgrst.object')
     let rows: any[] = []
     if (table === 'merchants') rows = [merchant]
     else if (table === 'orders') rows = [order]
     else if (table === 'product_performance_snapshots') rows = []
     else if (table === 'order_packages') rows = [packageRow]
-    else if (table === 'order_items') rows = [{ order_id:order.order_id, shipment_package_id:packageRow.shipment_package_id, line_id:77551, quantity:2 }]
-    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(rows) })
+    else if (table === 'order_items') rows = [{ id:'item-551', order_id:order.order_id, shipment_package_id:packageRow.shipment_package_id, line_id:77551, quantity:2 }]
+    await route.fulfill({ status:200, contentType:'application/json', headers:{ 'content-range':rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }, body:JSON.stringify(object ? (rows[0] ?? null) : rows) })
   })
   await page.route('**/functions/v1/trendyol-actions', async route => {
     submitted = route.request().postDataJSON()
@@ -1345,6 +1346,13 @@ test('merchant starts preparing ready Trendyol shipments from one reviewed opera
   await expect(operations).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page, 'مركز تشغيل الطلبات')
   await expect(operations.getByRole('button', { name:/بانتظار التجهيز.*1/ })).toBeVisible()
+  const taskList = operations.getByRole('list', { name:'مهام تشغيل الطلبات' })
+  await expect(taskList.getByText('بدء تجهيز الطلب', { exact:true })).toBeVisible()
+  await expect(taskList.getByText(order.order_id, { exact:true })).toBeVisible()
+  await taskList.getByRole('button', { name:`فتح الطلب ${order.order_id}` }).click()
+  const orderDialog = page.getByRole('dialog', { name:`تفاصيل الطلب ${order.order_id}` })
+  await expect(orderDialog).toBeVisible()
+  await orderDialog.getByRole('button', { name:'إغلاق' }).click()
   await operations.getByRole('button', { name:'بدء تجهيز الشحنات الجاهزة' }).click()
   const dialog = page.getByRole('dialog', { name:'مراجعة بدء تجهيز الشحنات' })
   await expect(dialog).toBeVisible()
@@ -1371,7 +1379,7 @@ test('merchant sends a customer invoice link from the order without technical fi
     currency:'SAR', customer_city:'Riyadh', order_date:'2026-08-04T10:00:00Z', upload_id:null, shipment_package_id:'552001', cargo_tracking_number:null,
     cargo_provider:null, commission_rate:10, vat_rate:15, discount_amount:0, created_at:'2026-08-04T10:00:00Z', raw:{}, shipment_address:{ city:'Riyadh' }, invoice_address:{ city:'Riyadh' },
   }
-  const packageRow = { id:'package-552', order_id:order.order_id, shipment_package_id:'552001', status:'processing', provider_status:'Picking', cargo_tracking_number:null, invoice_number:null, invoice_status:null, invoice_rejected_reasons:null, modified_at:'2026-08-04T10:00:00Z', raw:{} }
+  const packageRow = { id:'package-552', order_id:order.order_id, shipment_package_id:'552001', status:'processing', provider_status:'Picking', cargo_tracking_number:null, invoice_number:'INV-OLD', invoice_status:'Rejected', invoice_rejected_reasons:['الصورة غير واضحة'], modified_at:'2026-08-04T10:00:00Z', raw:{} }
   let submitted: any = null
 
   await page.route('**/rest/v1/**', async route => {
@@ -1392,6 +1400,7 @@ test('merchant sends a customer invoice link from the order without technical fi
   page.on('dialog', dialog => dialog.accept())
 
   await page.goto(`/orders?order=${order.order_id}`)
+  await expect(page.getByRole('region', { name:'مركز تشغيل الطلبات' }).getByText('تصحيح الفاتورة', { exact:true })).toBeVisible()
   const dialog = page.getByRole('dialog', { name:`تفاصيل الطلب ${order.order_id}` })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('رابط الفاتورة الإلكتروني').fill('https://billing.example/invoices/T-INVOICE-552.pdf')

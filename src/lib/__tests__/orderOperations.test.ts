@@ -23,5 +23,21 @@ describe('merchant order operations queue', () => {
     expect(queue.picking).toHaveLength(0)
     expect(queue.invoicing).toHaveLength(1)
     expect(queue.tracking).toHaveLength(1)
+    expect(queue.tasks.map(task => task.kind)).toEqual(['invoicing', 'tracking'])
+  })
+
+  it('keeps a rejected invoice actionable even when an old invoice number exists', () => {
+    const queue = buildOrderOperationQueue(orders, [
+      {
+        id:'p1', order_id:'T-1', shipment_package_id:'pkg-1', provider_status:'Picking',
+        invoice_number:'INV-OLD', invoice_status:'Rejected', invoice_rejected_reasons:['الصورة غير واضحة'],
+        cargo_tracking_number:'TRACK-1',
+      },
+    ])
+
+    expect(queue.invoicing).toHaveLength(1)
+    expect(queue.invoicing[0].needsInvoiceCorrection).toBe(true)
+    expect(queue.tasks).toHaveLength(1)
+    expect(queue.tasks[0]).toMatchObject({ kind:'invoicing', label:'تصحيح الفاتورة', priority:0 })
   })
 })

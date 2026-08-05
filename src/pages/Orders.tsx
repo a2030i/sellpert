@@ -11,7 +11,7 @@ import { userErrorMessage } from '../lib/userError'
 import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
 import OrderExceptionPanel from '../components/OrderExceptionPanel'
 import { calculateOrderProfit } from '../lib/orderProfit'
-import { buildOrderOperationQueue, type OperationalPackage } from '../lib/orderOperations'
+import { buildOrderOperationQueue, type OperationalPackage, type OrderOperationTaskKind } from '../lib/orderOperations'
 import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
 
 const ORDER_PAGE_SIZE = 50
@@ -105,6 +105,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [bulkPickingOpen, setBulkPickingOpen] = useState(false)
   const [bulkPickingLoading, setBulkPickingLoading] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
+  const [operationKind, setOperationKind] = useState<'all' | OrderOperationTaskKind>('all')
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
 
@@ -125,7 +126,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('id').range(f, t), 'لقطات الأداء'),
       fetchAll<any>((f, t) =>
-        supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,modified_at,raw')
+        supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,invoice_rejected_reasons,modified_at,raw')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
       supabase.from('returns').select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('status','pending'),
       fetchAll<LineageUpload>((f, t) =>
@@ -188,6 +189,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const needsActionCount = orders.filter(orderNeedsAction).length
   const financialReviewCount = orders.filter(o => Boolean(orderFinancialIssue(o))).length
   const operationQueue = useMemo(() => buildOrderOperationQueue(orders, operationalPackages), [orders, operationalPackages])
+  const operationTasks = useMemo(() => operationKind === 'all' ? operationQueue.tasks : operationQueue.tasks.filter(task => task.kind === operationKind), [operationKind, operationQueue.tasks])
+  const ordersById = useMemo(() => new Map(orders.map(order => [order.id, order])), [orders])
 
   // Chart: orders per day
   const dailyData = useMemo(() => {
@@ -674,11 +677,31 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         </div>
         <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(4,minmax(130px,1fr))', gap:8, marginTop:14 }}>
           {[
-            ['بانتظار التجهيز',operationQueue.picking.length,'يبدأ من هنا'],
-            ['بانتظار الفاتورة',operationQueue.invoicing.length,'افتح الطلب'],
-            ['ينقصها بيانات الشحن',operationQueue.tracking.length,'افتح الطلب'],
-            ['مرتجعات تحتاج قرار',pendingReturnCount,'راجع المرتجعات'],
-          ].map(([label,value,hint]) => <button key={String(label)} onClick={() => { if (label === 'مرتجعات تحتاج قرار') { window.history.pushState(null,'','/statement?tab=returns'); window.dispatchEvent(new PopStateEvent('popstate')); return } setTab('list'); setPlatform('trendyol'); setStatus(label === 'بانتظار التجهيز' ? 'pending' : 'processing') }} style={{ textAlign:'right', padding:'11px 12px', border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)', color:'var(--text)', cursor:'pointer', fontFamily:'inherit' }}><span style={{ display:'block', color:'var(--text3)', fontSize:10 }}>{label}</span><strong style={{ display:'block', fontSize:19, marginTop:2 }}>{Number(value).toLocaleString('ar-SA-u-nu-latn')}</strong><small style={{ color:'var(--accent)', fontSize:9 }}>{hint}</small></button>)}
+            { key:'picking', label:'بانتظار التجهيز', value:operationQueue.picking.length, hint:'اعرض المهام' },
+            { key:'invoicing', label:'بانتظار الفاتورة', value:operationQueue.invoicing.length, hint:'اعرض المهام' },
+            { key:'tracking', label:'ينقصها بيانات الشحن', value:operationQueue.tracking.length, hint:'اعرض المهام' },
+            { key:'returns', label:'مرتجعات تحتاج قرار', value:pendingReturnCount, hint:'راجع المرتجعات' },
+          ].map(card => <button key={card.key} aria-pressed={card.key !== 'returns' && operationKind === card.key} onClick={() => {
+            if (card.key === 'returns') { window.history.pushState(null,'','/statement?tab=returns'); window.dispatchEvent(new PopStateEvent('popstate')); return }
+            const nextKind = card.key as OrderOperationTaskKind
+            setOperationKind(current => current === nextKind ? 'all' : nextKind)
+          }} style={{ textAlign:'right', padding:'11px 12px', border:`1px solid ${operationKind === card.key ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, background:operationKind === card.key ? 'var(--info-bg)' : 'var(--surface2)', color:'var(--text)', cursor:'pointer', fontFamily:'inherit' }}><span style={{ display:'block', color:'var(--text3)', fontSize:10 }}>{card.label}</span><strong style={{ display:'block', fontSize:19, marginTop:2 }}>{card.value.toLocaleString('ar-SA-u-nu-latn')}</strong><small style={{ color:'var(--accent)', fontSize:9 }}>{card.hint}</small></button>)}
+        </div>
+        <div style={{ marginTop:12, border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+          <div style={{ padding:'9px 11px', display:'flex', justifyContent:'space-between', gap:10, background:'var(--surface2)', borderBottom:operationTasks.length ? '1px solid var(--border)' : 'none' }}>
+            <strong style={{ fontSize:11 }}>{operationKind === 'all' ? 'المهام التالية' : operationKind === 'picking' ? 'مهام التجهيز' : operationKind === 'invoicing' ? 'مهام الفواتير' : 'مهام الشحن'}</strong>
+            <span style={{ fontSize:10, color:'var(--text3)' }}>{operationTasks.length.toLocaleString('ar-SA-u-nu-latn')} مهمة</span>
+          </div>
+          {operationTasks.length ? <div role="list" aria-label="مهام تشغيل الطلبات">
+            {operationTasks.slice(0,8).map(task => <div role="listitem" key={task.key} style={{ padding:'10px 11px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:isMobile ? 'wrap' : 'nowrap', borderBottom:'1px solid var(--border)' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:'flex', gap:7, alignItems:'center', flexWrap:'wrap' }}><strong style={{ fontSize:11, color:task.priority === 0 ? 'var(--danger-text)' : 'var(--text)' }}>{task.label}</strong><span style={{ fontSize:10, color:'var(--accent)', fontFamily:'monospace' }}>{task.order.order_id}</span></div>
+                <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.65, marginTop:3 }}>{task.order.product_name || 'طلب Trendyol'} — {task.description}</div>
+              </div>
+              <button type="button" aria-label={`فتح الطلب ${task.order.order_id}`} onClick={() => { const order = ordersById.get(task.order.id); if (order) void openOrderFromList(order) }} style={{ ...S.actionBtn, flexShrink:0 }}>فتح الطلب</button>
+            </div>)}
+            {operationTasks.length > 8 ? <div style={{ padding:'8px 11px', color:'var(--text3)', fontSize:10 }}>تظهر أول 8 مهام حسب الأولوية. استخدم البطاقات لتضييق القائمة.</div> : null}
+          </div> : <div style={{ padding:'16px 12px', textAlign:'center', color:'var(--text3)', fontSize:11 }}>{operationKind === 'all' ? 'لا توجد مهام تشغيلية معلقة الآن.' : 'لا توجد مهام في هذا الطابور.'}</div>}
         </div>
         {bulkMessage ? <div role="status" style={{ marginTop:12, padding:'10px 12px', borderRadius:9, background:bulkMessage.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color:bulkMessage.type === 'ok' ? 'var(--accent2)' : 'var(--danger-text)', fontSize:11, lineHeight:1.7 }}>{bulkMessage.text}</div> : null}
       </section>
