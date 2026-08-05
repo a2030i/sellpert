@@ -34,6 +34,14 @@ to authenticated
 using (security.can_access_merchant(merchant_code))
 with check (security.can_access_merchant(merchant_code));
 
+create policy sellpert_require_mfa_if_enrolled
+on public.merchant_legal_acceptances
+as restrictive
+for all
+to authenticated
+using ((select security.mfa_access_allowed()))
+with check ((select security.mfa_access_allowed()));
+
 create policy merchant_legal_acceptance_owner_select
 on public.merchant_legal_acceptances
 for select

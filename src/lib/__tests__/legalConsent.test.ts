@@ -21,6 +21,8 @@ describe('merchant legal consent', () => {
     expect(migration).toContain('create policy tenant_boundary')
     expect(migration).toContain('as restrictive')
     expect(migration).toContain('security.can_access_merchant(merchant_code)')
+    expect(migration).toContain('create policy sellpert_require_mfa_if_enrolled')
+    expect(migration).toContain('security.mfa_access_allowed()')
     expect(migration).toContain('revoke all on table public.merchant_legal_acceptances from public, anon, authenticated')
     expect(migration).toContain('grant select, insert on table public.merchant_legal_acceptances to service_role')
     expect(migration).not.toContain('grant select, insert, update')
