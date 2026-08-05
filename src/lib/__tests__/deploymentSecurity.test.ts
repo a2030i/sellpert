@@ -72,6 +72,7 @@ describe('deployment browser security', () => {
     expect(workflow).toContain('cancel-in-progress: false')
     expect(workflow).toContain('Validate required Vercel secret')
     expect(workflow).toContain("echo 'Missing VERCEL_TOKEN'")
+    expect(workflow).toContain('pnpm/action-setup@v6')
     expect(workflow).toContain('vercel@58.5.1 deploy')
     expect(workflow).toContain('--prod')
     expect(workflow).toContain('--build-env="VITE_APP_RELEASE=$GITHUB_SHA"')
