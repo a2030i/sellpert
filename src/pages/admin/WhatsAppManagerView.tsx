@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { WEBHOOK_EVENT_SAFE_COLUMNS, supabase } from '../../lib/supabase'
 import { S } from './adminShared'
 import { fmtRelative } from '../../lib/formatters'
 import { toastOk, toastErr } from '../../components/Toast'
@@ -524,7 +524,7 @@ function HistoryTab() {
   const PAGE = 25
 
   async function load() {
-    const { data, count } = await supabase.from('webhook_events').select('*', { count: 'exact' })
+    const { data, count } = await supabase.from('webhook_events').select(WEBHOOK_EVENT_SAFE_COLUMNS, { count: 'exact' })
       .eq('source', 'respondly')
       .order('received_at', { ascending: false })
       .range((page - 1) * PAGE, page * PAGE - 1)
@@ -541,7 +541,7 @@ function HistoryTab() {
       <div style={{ overflowX: 'auto' }}>
         <table style={S.table}>
           <thead>
-            <tr>{['الوقت', 'النوع', 'التاجر', 'الحالة', 'البيانات'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+            <tr>{['الوقت', 'النوع', 'التاجر', 'الحالة', 'النتيجة'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {logs.map(l => (
@@ -555,8 +555,8 @@ function HistoryTab() {
                     color: l.status === 'sent' ? 'var(--success-text)' : l.status === 'failed' ? 'var(--danger-text)' : '#0f958c',
                   }}>{l.status}</span>
                 </td>
-                <td style={{ ...S.td, fontSize: 10, color: 'var(--text3)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(l.payload)}>
-                  {l.error || JSON.stringify(l.payload).slice(0, 100)}
+                <td style={{ ...S.td, fontSize: 10, color: l.error ? 'var(--danger-text)' : 'var(--text3)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.error || undefined}>
+                  {l.error || (l.status === 'processed' || l.status === 'sent' ? 'تمت المعالجة بنجاح' : 'قيد المعالجة')}
                 </td>
               </tr>
             ))}

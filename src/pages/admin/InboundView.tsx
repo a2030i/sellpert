@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../../lib/supabase'
+import { GOODS_RECEIVED_SAFE_COLUMNS, INBOUND_SHIPMENT_SAFE_COLUMNS, supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { Truck, PackageCheck, AlertTriangle, Search } from 'lucide-react'
 
@@ -69,8 +69,8 @@ export default function InboundView({ merchants }: { merchants: Merchant[] }) {
   async function load() {
     setLoading(true)
     const [{ data: s }, { data: g }] = await Promise.all([
-      supabase.from('inbound_shipments').select('*').eq('merchant_code', merchantCode).order('created_at', { ascending: false }),
-      supabase.from('goods_received').select('*').eq('merchant_code', merchantCode).order('grn_date', { ascending: false }),
+      supabase.from('inbound_shipments').select(INBOUND_SHIPMENT_SAFE_COLUMNS).eq('merchant_code', merchantCode).order('created_at', { ascending: false }),
+      supabase.from('goods_received').select(GOODS_RECEIVED_SAFE_COLUMNS).eq('merchant_code', merchantCode).order('grn_date', { ascending: false }),
     ])
     setShipments((s as Shipment[]) || [])
     setGrns((g as GrnRow[]) || [])

@@ -253,6 +253,10 @@ export interface Product {
 // needed to communicate with a marketplace.
 export const PRODUCT_SAFE_COLUMNS = 'id,merchant_code,name,sku,barcode,category,description,image_url,cost_price,target_net_price,status,created_at,updated_at,psku_code,noon_sku_child,asin,external_id,model_code,brand,msrp,sale_price,sale_start_date,sale_end_date,external_url,color,size,images,noon_price_min,noon_price_max,seller_price_min,seller_price_max,warranty,commission_rate,buybox_price,vat_rate,gender,supplier_sku,upload_id,platform_source,last_synced_at' as const
 export const INVENTORY_SAFE_COLUMNS = 'id,merchant_code,sku,product_name,platform,quantity,reserved_quantity,low_stock_threshold,cost_price,image_url,is_active,last_updated,created_at,asin,fulfillment_channel,condition_type,stock_xdock_gross,stock_xdock_net,partner_sku,upload_id,platform_source,last_synced_at' as const
+export const AD_METRIC_SAFE_COLUMNS = 'id,merchant_code,platform,report_date,campaign_name,ad_group_name,ad_status,sku,asin,search_query,impressions,clicks,orders,add_to_cart,spend,revenue,ctr,roas,cpc,cps,cvr,acos,budget_total,budget_daily,budget_remaining,start_date,end_date,currency,created_at,default_bid,suggested_bid_low,suggested_bid_med,suggested_bid_high,keywords_count,products_count,upload_id' as const
+export const INBOUND_SHIPMENT_SAFE_COLUMNS = 'id,merchant_code,platform,asn_number,warehouse_code,expected_qty,delivered_qty,variance,status,delivery_date,created_at,upload_id' as const
+export const GOODS_RECEIVED_SAFE_COLUMNS = 'id,merchant_code,platform,asn_number,warehouse_code,grn_date,sku,partner_sku,barcode,grn_quantity,qc_status,reject_reason,created_at,upload_id' as const
+export const WEBHOOK_EVENT_SAFE_COLUMNS = 'id,source,event_type,store_id,merchant_code,status,error,received_at,processed_at,event_key' as const
 
 export interface ProductPlatformPrice {
   id: string

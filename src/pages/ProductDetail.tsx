@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { INVENTORY_SAFE_COLUMNS, PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { AD_METRIC_SAFE_COLUMNS, INVENTORY_SAFE_COLUMNS, PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
@@ -66,7 +66,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         const [ord, ret, ads, inv, upload] = await Promise.all([
           supabase.rpc('list_order_operating_facts', { p_merchant_code: merchantCode, p_sku: prod.sku }).limit(50),
           supabase.rpc('list_return_facts', { p_merchant_code: merchantCode, p_sku: prod.sku }).limit(20),
-          supabase.from('ad_metrics').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
+          supabase.from('ad_metrics').select(AD_METRIC_SAFE_COLUMNS).eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
           supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS).eq('merchant_code', merchantCode).eq('sku', prod.sku),
           uploadPromise,
         ])

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { AD_METRIC_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
@@ -46,7 +46,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
     setLoading(true)
     const [{ data }, ...sums] = await Promise.all([
       supabase.from('ad_metrics')
-        .select('*')
+        .select(AD_METRIC_SAFE_COLUMNS)
         .eq('merchant_code', merchant.merchant_code)
         .order('spend', { ascending: false })
         .limit(5000),

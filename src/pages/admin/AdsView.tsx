@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../../lib/supabase'
+import { AD_METRIC_SAFE_COLUMNS, supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { Megaphone, TrendingUp, TrendingDown, Search } from 'lucide-react'
 
@@ -39,7 +39,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
   async function load() {
     setLoading(true)
     const { data } = await supabase.from('ad_metrics')
-      .select('*')
+      .select(AD_METRIC_SAFE_COLUMNS)
       .eq('merchant_code', merchantCode)
       .order('spend', { ascending: false })
       .limit(5000)
