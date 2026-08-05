@@ -1619,7 +1619,7 @@ test('decision center explains evidence, value and action without misleading est
     { product_id: 'p-missing', sku: 'MISS-1', product_name: 'منتج ناقص التكلفة', cost_price: 0, units_sold: 2, revenue: 100, platform_fees: 10, ad_spend: 0, returns_amount: 0, net_profit: 90, profit_margin_pct: 90 },
   ]))
   await page.route('**/rest/v1/inventory_health**', route => fulfillRows(route, [
-    { sku: 'LOSS-1', product_name: 'منتج بخسارة', quantity: 0, cost_price: 40, stock_value_cost: 0, daily_velocity: 1, sold_30d: 18, days_of_stock: 0, health_status: 'out_of_stock', data_as_of: '2026-08-03', data_age_days: 1 },
+    { sku: 'LOSS-1', product_name: 'منتج بخسارة', quantity: 0, cost_price: 40, stock_value_cost: 0, daily_velocity: 1, sold_30d: 18, days_of_stock: 0, health_status: 'out_of_stock', data_as_of: '2026-07-29', data_age_days: 6 },
   ]))
   await page.route('**/rest/v1/ad_net_summary**', route => fulfillRows(route, [
     { platform: 'trendyol', total_spend: 500, total_gross: 410, total_net: 320, gross_roas: 0.82, net_roas: 0.64, fee_rate: 0.1, return_rate: 0.05 },
@@ -1630,6 +1630,41 @@ test('decision center explains evidence, value and action without misleading est
   await page.route('**/rest/v1/orders**', route => fulfillRows(route, [
     { id: 'o1', merchant_code: merchant.merchant_code, platform: 'trendyol', order_id: 'T-1', status: 'delivered', product_name: 'منتج بخسارة', sku: 'LOSS-1', quantity: 1, unit_price: 100, total_amount: 100, platform_fee: 10, shipping_cost: 5, discount_amount: 0, currency: 'SAR', customer_city: 'Riyadh', order_date: '2026-08-03T10:00:00.000Z', created_at: '2026-08-03T10:00:00.000Z' },
   ]))
+  await page.route('**/rest/v1/rpc/merchant_health_score**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      score: 72, rating: 'good', confidence: 'medium', coverage_pct: 80,
+      data_as_of: '2026-08-04', data_age_days: 1,
+      breakdown: {
+        readiness: { available: true, score: 80, weight: 20 },
+        profitability: { available: true, score: 65, weight: 25 },
+        inventory: { available: true, score: 60, weight: 25 },
+        demand: { available: true, score: 75, weight: 20 },
+        marketing: { available: false, score: null, weight: 10 },
+      },
+    }),
+  }))
+  await page.route('**/rest/v1/rpc/revenue_forecast**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      last_30_sales: 100, forecast_30: 110, lower_30: 90, upper_30: 130,
+      growth_rate_pct: 10, confidence: 'medium', is_actionable: true,
+      observed_days: 30, active_days: 12, data_as_of: '2026-08-04', data_age_days: 1, caveat: 'ليست مبيعات مضمونة',
+    }),
+  }))
+  await page.route('**/rest/v1/rpc/merchant_executive_brief**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      available: false, confidence: 'low', evidence_coverage_pct: 0,
+      data_as_of: null, data_age_days: null,
+      period: { start: null, end: null, previous_start: null, previous_end: null },
+    }),
+  }))
+  await page.route('**/rest/v1/rpc/my_monthly_goal_progress**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      year: 2026, month: 8, month_start: '2026-08-01', month_end: '2026-08-31',
+      target_amount: null, actual_sales: 100, attainment_pct: null, calendar_pace_pct: 16,
+      projected_sales: 620, gap_amount: null, days_remaining: 26, required_daily_sales: null,
+      active_order_days: 1, status: 'not_set', is_reliable: false,
+    }),
+  }))
   await page.route('**/rest/v1/rpc/create_my_action**', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'action-e2e', created: true }),
   }))
@@ -1637,6 +1672,9 @@ test('decision center explains evidence, value and action without misleading est
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'مركز قرارات المتجر' })).toBeVisible()
   expect(runtimeErrors).toEqual([])
+  await expect(page.getByRole('region', { name: 'حداثة أدلة القرار' })).toContainText('تحتاج البيانات إلى تحديث')
+  await expect(page.getByRole('region', { name: 'حداثة أدلة القرار' })).toContainText('المخزون')
+  await expect(page.getByRole('button', { name: 'تحديث مصادر البيانات' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'قرارات مرتبة حسب الأثر' })).toBeVisible()
   await expect(page.getByText('دليل قوي').first()).toBeVisible()
   await expect(page.getByText('الخسارة المسجلة')).toBeVisible()
@@ -1648,4 +1686,6 @@ test('decision center explains evidence, value and action without misleading est
   await page.getByRole('button', { name: 'إضافة للمتابعة' }).first().click()
   await expect(page.getByText('أُضيف القرار إلى خطة العمل')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('dashboard-opportunities.png'), fullPage: true })
+  await page.getByRole('button', { name: 'تحديث مصادر البيانات' }).click()
+  await expect(page).toHaveURL(/\/integrations/)
 })

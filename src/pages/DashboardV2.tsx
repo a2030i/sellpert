@@ -14,6 +14,7 @@ import { buildMerchantOpportunities, type OpportunityConfidence, type Opportunit
 import { workspaceReadiness, type WorkspaceReadiness } from '../lib/workspaceReadiness'
 import { hasUsableDataSource, SUCCESSFUL_UPLOAD_STATUSES } from '../lib/onboardingActivation'
 import { orderContributionBeforeProductCost } from '../lib/orderProfit'
+import { dashboardEvidenceState } from '../lib/dashboardEvidence'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import './DashboardV2.css'
 
@@ -170,13 +171,16 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
   const [sourceReady, setSourceReady] = useState(false)
   const [partialData, setPartialData] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [tracking, setTracking] = useState<string | null>(null)
   const [savingTarget, setSavingTarget] = useState(false)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
     let cancelled = false
-    setLoading(true)
+    if (refreshKey === 0) setLoading(true)
+    else setRefreshing(true)
     const merchantCode = merchant.merchant_code
     const weeklyHistoryPromise = supabase.rpc('capture_my_weekly_brief').then(() =>
       supabase.from('merchant_weekly_briefs')
@@ -257,9 +261,10 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
       )
       setPartialData(criticalRequestFailed || malformedRpcResponse || [profitResult, cashResult, adResult, abcResult, healthResult, forecastResult, executiveResult, goalResult, historyResult].some(result => Boolean(result?.error)))
       setLoading(false)
+      setRefreshing(false)
     })
     return () => { cancelled = true }
-  }, [merchant?.merchant_code, merchant?.salla_store_id])
+  }, [merchant?.merchant_code, merchant?.salla_store_id, refreshKey])
 
   const model = useMemo(() => {
     const referenceDate = orders.reduce((latest, order) => {
@@ -324,6 +329,18 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
     Icon: OPPORTUNITY_ICONS[decision.kind],
     tone: decision.priority === 'urgent' ? 'red' : decision.kind === 'marketing' ? 'green' : 'amber',
   })), [profitability, inventory, ads, model.latestCash])
+
+  const evidenceState = useMemo(() => {
+    const inventoryAges = inventory
+      .map(row => row.data_age_days)
+      .filter((age): age is number => Number.isFinite(age))
+    return dashboardEvidenceState([
+      { key: 'executive', label: 'الملخص التنفيذي', ageDays: executiveBrief?.available ? executiveBrief.data_age_days : null },
+      { key: 'health', label: 'صحة المتجر', ageDays: health?.data_age_days },
+      { key: 'forecast', label: 'التوقع', ageDays: forecast?.data_age_days },
+      { key: 'inventory', label: 'المخزون', ageDays: inventoryAges.length ? Math.max(...inventoryAges) : null },
+    ], partialData)
+  }, [executiveBrief, health, forecast, inventory, partialData])
 
   const readiness = workspaceReadiness({
     sourceReady,
@@ -440,7 +457,22 @@ export default function DashboardV2({ merchant }: { merchant: Merchant | null })
         <label className="db-range"><span>فترة الطلبات</span><select value={range} onChange={event => changeRange(event.target.value as RangeKey)}>{Object.entries(RANGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       </header>
 
-      {partialData ? <div className="db-data-state db-data-state--partial"><AlertTriangle size={16} /><span>بعض المصادر لم تستجب. تظهر آخر بيانات متاحة، وقد تكون بعض المؤشرات ناقصة.</span></div> : null}
+      <section className={`db-evidence-state db-evidence-state--${evidenceState.status}`} aria-live="polite" aria-label="حداثة أدلة القرار">
+        <span className="db-evidence-state-icon">{evidenceState.status === 'current' ? <Check size={17} /> : <AlertTriangle size={17} />}</span>
+        <span className="db-evidence-state-copy">
+          <strong>{evidenceState.title}</strong>
+          <small>{evidenceState.detail}</small>
+        </span>
+        {evidenceState.oldestAgeDays != null ? <span className="db-evidence-age">أقدم دليل <b>{evidenceState.oldestAgeDays === 0 ? 'اليوم' : `منذ ${evidenceState.oldestAgeDays} يوم`}</b></span> : null}
+        <button
+          type="button"
+          disabled={refreshing}
+          onClick={() => evidenceState.status === 'partial' || evidenceState.status === 'current' ? setRefreshKey(key => key + 1) : go('/integrations')}
+        >
+          <RefreshCw size={14} className={refreshing ? 'db-spin' : undefined} />
+          {refreshing ? 'جارٍ التحديث' : evidenceState.status === 'partial' || evidenceState.status === 'current' ? 'إعادة فحص الأدلة' : 'تحديث مصادر البيانات'}
+        </button>
+      </section>
 
       {!readiness.ready ? <WorkspaceReadinessPanel readiness={readiness} /> : null}
 
@@ -656,7 +688,15 @@ function HealthPanel({ health }: { health: MerchantHealth | null }) {
         return <div className="db-health-dimension" key={key}>
           <span><strong>{HEALTH_LABELS[key]}</strong><small>{item.available ? `وزن ${item.weight}%` : 'غير داخلة في التقييم'}</small></span>
           <b>{item.available && item.score != null ? percent(item.score) : 'غير متاح'}</b>
-          <div className="db-health-bar" aria-label={`${HEALTH_LABELS[key]}: ${item.available && item.score != null ? percent(item.score) : 'غير متاح'}`}><i style={{ width: `${item.available && item.score != null ? Math.max(2, Math.min(100, item.score)) : 0}%` }} /></div>
+          <div
+            className="db-health-bar"
+            role="progressbar"
+            aria-label={HEALTH_LABELS[key]}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={item.available && item.score != null ? Math.round(item.score) : 0}
+            aria-valuetext={item.available && item.score != null ? percent(item.score) : 'غير متاح'}
+          ><i style={{ width: `${item.available && item.score != null ? Math.max(2, Math.min(100, item.score)) : 0}%` }} /></div>
         </div>
       })}</div>
     </> : <EmptyState text="تعذر تحميل تقييم صحة المتجر من المصادر الحالية." />}
