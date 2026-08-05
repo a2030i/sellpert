@@ -20,6 +20,10 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-00000000d451', 'authenticated', 'authenticated',
   'dashboard-only@example.test', '', '{}'::jsonb, '{}'::jsonb,
   now(), now(), now(), false, false
+), (
+  '00000000-0000-0000-0000-00000000d452', 'authenticated', 'authenticated',
+  'orders-operator@example.test', '', '{}'::jsonb, '{}'::jsonb,
+  now(), now(), now(), false, false
 );
 
 INSERT INTO public.merchants (
@@ -31,6 +35,10 @@ INSERT INTO public.merchants (
   '00000000-0000-0000-0000-00000000d451', 'PII-EMPLOYEE', 'Dashboard employee',
   'dashboard-only@example.test', 'employee', 'PII-OWNER',
   '{"dashboard":true,"orders":false}'::jsonb, true
+), (
+  '00000000-0000-0000-0000-00000000d452', 'PII-OPERATOR', 'Orders operator',
+  'orders-operator@example.test', 'employee', 'PII-OWNER',
+  '{"dashboard":false,"orders":true}'::jsonb, true
 );
 
 INSERT INTO public.orders (
@@ -64,9 +72,10 @@ END
 $$;
 
 RESET ROLE;
-UPDATE public.merchants
-SET permissions = '{"dashboard":true,"orders":true}'::jsonb
-WHERE id = '00000000-0000-0000-0000-00000000d451';
+SELECT set_config('request.jwt.claims', json_build_object(
+  'sub', '00000000-0000-0000-0000-00000000d452',
+  'role', 'authenticated'
+)::text, true);
 SET LOCAL ROLE authenticated;
 
 DO $$
