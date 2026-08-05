@@ -978,6 +978,70 @@ test('store owner downloads a complete paged data archive without integration se
   await expect(page.getByText(/مفاتيح الربط والأسرار/)).toBeVisible()
 })
 
+test('merchant can trace every order back to its API sync or uploaded source file', async ({ page }) => {
+  await mockAuthenticatedMerchant(page)
+
+  const uploadedAt = '2026-08-05T08:30:00.000Z'
+  const syncedAt = '2026-08-05T09:45:00.000Z'
+  const fileOrder = {
+    id: 'order-file-lineage', merchant_code: merchant.merchant_code, platform: 'salla', order_id: 'SALLA-1001',
+    status: 'delivered', product_name: 'منتج من ملف سلة', sku: 'SALLA-SKU', quantity: 1,
+    unit_price: 80, total_amount: 80, gross_amount: 80, platform_fee: 4, shipping_cost: 0,
+    discount_amount: 0, commission_rate: 5, vat_rate: 15, currency: 'SAR', customer_city: 'الرياض',
+    order_date: '2026-08-05T08:00:00.000Z', created_at: uploadedAt, upload_id: 'upload-salla-1', last_synced_at: null,
+    shipment_package_id: null, cargo_tracking_number: null, cargo_provider: null,
+  }
+  const apiOrder = {
+    ...fileOrder,
+    id: 'order-api-lineage', platform: 'amazon', order_id: 'AMAZON-1002', product_name: 'منتج من ربط أمازون',
+    sku: 'AMAZON-SKU', upload_id: null, last_synced_at: syncedAt, order_date: '2026-08-05T09:00:00.000Z',
+  }
+
+  const fulfillRows = async (route: Route, rows: unknown[]) => {
+    const wantsObject = (route.request().headers().accept || '').includes('application/vnd.pgrst.object')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' },
+      body: JSON.stringify(wantsObject ? (rows[0] ?? null) : rows),
+    })
+  }
+
+  await page.route('**/rest/v1/**', async route => {
+    const url = new URL(route.request().url())
+    const table = url.pathname.split('/').pop()
+    if (table === 'merchants') {
+      await route.fallback()
+      return
+    }
+    if (table === 'orders') {
+      const select = url.searchParams.get('select') || ''
+      await fulfillRows(route, select.includes('shipment_address')
+        ? [{ raw: {}, shipment_address: { city: 'الرياض' }, invoice_address: { city: 'الرياض' }, last_synced_at: null, gross_amount: 80 }]
+        : [apiOrder, fileOrder])
+      return
+    }
+    if (table === 'platform_file_uploads') {
+      await fulfillRows(route, [{
+        id: 'upload-salla-1', platform: 'salla', file_name: 'طلبات-سلة-أغسطس.xlsx',
+        file_type: 'salla_orders', uploaded_at: uploadedAt,
+      }])
+      return
+    }
+    await fulfillRows(route, [])
+  })
+
+  await page.goto('/orders')
+  await expect(page.getByText('ملف سلة', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('API أمازون', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: fileOrder.order_id }).click()
+
+  const dialog = page.getByRole('dialog', { name: `تفاصيل الطلب ${fileOrder.order_id}` })
+  await expect(dialog.getByText('طلبات-سلة-أغسطس.xlsx', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('تاريخ رفع الملف', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('مصدر غير محدد', { exact: true })).toHaveCount(0)
+})
+
 test('merchant follows a synced Trendyol order into product management', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
@@ -990,6 +1054,7 @@ test('merchant follows a synced Trendyol order into product management', async (
     unit_price: 54, total_amount: 54, gross_amount: 54, platform_fee: 0, shipping_cost: 2,
     discount_amount: 0, commission_rate: 10, vat_rate: 15, currency: 'SAR', customer_city: 'الرياض',
     order_date: '2026-08-03T10:00:00.000Z', created_at: '2026-08-03T10:00:00.000Z',
+    last_synced_at: '2026-08-03T10:05:00.000Z', upload_id: null,
     shipment_package_id: '3941019487', cargo_tracking_number: '4782465687', cargo_provider: 'Starlinks',
   }
   const product = {

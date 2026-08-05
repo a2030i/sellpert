@@ -12,6 +12,7 @@ import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
 import OrderExceptionPanel from '../components/OrderExceptionPanel'
 import { calculateOrderProfit } from '../lib/orderProfit'
 import { buildOrderOperationQueue, type OperationalPackage } from '../lib/orderOperations'
+import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -65,14 +66,15 @@ function trendyolCommission(order: Order) {
   return Number(order.total_amount || 0) * Number(order.commission_rate) / 100 * 1.15
 }
 
-function orderSource(o: Order) {
-  if (o.upload_id) return { label: 'ملف Excel', exportLabel: 'ملف Excel', title: 'تم استيراد الطلب من ملف مرفوع', bg: 'var(--info-bg)', color: 'var(--info-text)' }
-  if (o.platform === 'trendyol') return { label: 'API Trendyol', exportLabel: 'API Trendyol', title: 'تم سحب الطلب مباشرة من ربط Trendyol', bg: 'var(--success-bg)', color: 'var(--success-text)' }
-  return { label: 'مصدر غير محدد', exportLabel: 'مصدر غير محدد', title: 'لا توجد بيانات كافية لتحديد مصدر هذا الطلب', bg: 'var(--warning-bg)', color: 'var(--warning-text)' }
-}
+const SOURCE_TONE = {
+  info: { bg: 'var(--info-bg)', color: 'var(--info-text)' },
+  success: { bg: 'var(--success-bg)', color: 'var(--success-text)' },
+  warning: { bg: 'var(--warning-bg)', color: 'var(--warning-text)' },
+} as const
 
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
+  const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
   const [trendyolSnaps, setTrendyolSnaps] = useState<any[]>([])
   const [operationalPackages, setOperationalPackages] = useState<OperationalPackage[]>([])
   const [pendingReturnCount, setPendingReturnCount] = useState(0)
@@ -117,7 +119,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,last_synced_at,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
       // snapshot_date مطلوب لتطبيق فلتر الفترة على لقطات تراندايول أيضاً
       fetchAll<any>((f, t) =>
         supabase.from('product_performance_snapshots').select('platform,sold,net_sold,cancelled,returned,gross_sales,snapshot_date')
@@ -126,9 +128,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,modified_at,raw')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
       supabase.from('returns').select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('status','pending'),
-    ]).then(([o, t, packageRows, returnResult]) => {
+      fetchAll<LineageUpload>((f, t) =>
+        supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
+          .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).range(f, t), 'سجل ملفات المصادر'),
+    ]).then(([o, t, packageRows, returnResult, uploads]) => {
       if (returnResult.error) throw returnResult.error
       setOrders(o)
+      setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
       setTrendyolSnaps(t)
       setOperationalPackages(packageRows)
       setPendingReturnCount(returnResult.count || 0)
@@ -240,20 +246,29 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   const platforms = [...new Set(orders.map(o => o.platform))]
 
+  function sourceFor(order: Order) {
+    return orderDataLineage(order, order.upload_id ? sourceUploads.get(order.upload_id) : null)
+  }
+
   function exportCSV() {
     import('../lib/excel').then(({ exportToExcel }) => {
-      exportToExcel(filtered.map(o => ({
-        'رقم الطلب': o.order_id,
-        'المنصة': PLATFORM_MAP[o.platform] || o.platform,
-        'المصدر': orderSource(o).exportLabel,
-        'المنتج': o.product_name || '',
-        'الحالة': STATUS_MAP[o.status]?.label || o.status,
-        'الكمية': o.quantity,
-        'المبلغ': o.total_amount,
-        'رسوم المنصة': o.platform_fee || 0,
-        'المدينة': o.customer_city || '',
-        'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn'),
-      })), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
+      exportToExcel(filtered.map(o => {
+        const source = sourceFor(o)
+        return {
+          'رقم الطلب': o.order_id,
+          'المنصة': PLATFORM_MAP[o.platform] || o.platform,
+          'المصدر': source.exportLabel,
+          'ملف المصدر': source.fileName || '',
+          'وقت جلب المصدر': source.occurredAt || '',
+          'المنتج': o.product_name || '',
+          'الحالة': STATUS_MAP[o.status]?.label || o.status,
+          'الكمية': o.quantity,
+          'المبلغ': o.total_amount,
+          'رسوم المنصة': o.platform_fee || 0,
+          'المدينة': o.customer_city || '',
+          'التاريخ': new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn'),
+        }
+      }), `orders-${preset}-${new Date().toISOString().split('T')[0]}`, 'الطلبات')
     })
   }
 
@@ -601,6 +616,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const selectedOrderProfit = selectedOrder
     ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees)
     : null
+  const selectedSource = selectedOrder ? sourceFor(selectedOrder) : null
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
@@ -755,8 +771,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <tr><td colSpan={10} style={{ padding:'50px', textAlign:'center', color:'var(--text3)' }}>
                     لا توجد طلبات في هذه الفترة
                   </td></tr>
-                ) : pageRows.map(o => (
-                  <tr key={o.id} style={S.tr}>
+                ) : pageRows.map(o => {
+                  const source = sourceFor(o)
+                  const tone = SOURCE_TONE[source.tone]
+                  return <tr key={o.id} style={S.tr}>
                     <td style={{ ...S.td, fontFamily:'monospace', fontSize:11 }}>
                       <button onClick={() => openOrderFromList(o)} style={S.orderLink} title="فتح تفاصيل الطلب">
                         {o.order_id}
@@ -768,8 +786,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       </span>
                     </td>
                     <td style={S.td}>
-                      <span title={orderSource(o).title} style={{ ...S.statusBadge, background:orderSource(o).bg, color:orderSource(o).color, whiteSpace:'nowrap' }}>
-                        {orderSource(o).label}
+                      <span title={source.title} style={{ ...S.statusBadge, background:tone.bg, color:tone.color, whiteSpace:'nowrap' }}>
+                        {source.label}
                       </span>
                     </td>
                     <td style={{ ...S.td, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -788,7 +806,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                       {new Date(o.order_date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                     </td>
                   </tr>
-                ))}
+                })}
               </tbody>
             </table>
           </div>
@@ -1039,7 +1057,12 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             <div style={S.detailGrid}>
               {[
                 ['المنصة', PLATFORM_MAP[selectedOrder.platform] || selectedOrder.platform],
-                ['مصدر الطلب', orderSource(selectedOrder).exportLabel],
+                ['مصدر الطلب', selectedSource?.label || 'مصدر غير محدد'],
+                ...(selectedSource?.fileName ? [['ملف المصدر', selectedSource.fileName]] : []),
+                ...(selectedSource?.occurredAt ? [[
+                  selectedSource.kind === 'file' ? 'تاريخ رفع الملف' : 'آخر مزامنة',
+                  new Date(selectedSource.occurredAt).toLocaleString('ar-SA-u-ca-gregory-nu-latn'),
+                ]] : []),
                 ['الحالة', STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status],
                 ['تاريخ الطلب', new Date(selectedOrder.order_date).toLocaleString('ar-SA-u-ca-gregory-nu-latn')],
                 ['المنتج', selectedOrder.product_name || '—'],
