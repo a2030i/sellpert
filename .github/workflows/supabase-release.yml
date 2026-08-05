@@ -31,11 +31,15 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.111.0
-      - name: Refuse an unconfigured production release
+      - name: Require SUPABASE_ACCESS_TOKEN
         shell: bash
         run: |
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo 'Missing SUPABASE_ACCESS_TOKEN' >&2; exit 1; }
+      - name: Require SUPABASE_DB_PASSWORD
+        shell: bash
+        run: |
+          set -euo pipefail
           test -n "$SUPABASE_DB_PASSWORD" || { echo 'Missing SUPABASE_DB_PASSWORD' >&2; exit 1; }
       - name: Deploy functions, migrations, then final functions
         shell: pwsh

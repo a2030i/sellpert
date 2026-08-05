@@ -54,7 +54,8 @@ describe('deployment browser security', () => {
     expect(workflow).not.toContain('SUPABASE_DEPLOY_ENABLED')
     expect(workflow).not.toContain('configuration-notice')
     expect(workflow).toContain("- '.github/workflows/supabase-release.yml'")
-    expect(workflow).toContain('Refuse an unconfigured production release')
+    expect(workflow).toContain('Require SUPABASE_ACCESS_TOKEN')
+    expect(workflow).toContain('Require SUPABASE_DB_PASSWORD')
     expect(workflow).toContain('Deploy functions, migrations, then final functions')
   })
 
