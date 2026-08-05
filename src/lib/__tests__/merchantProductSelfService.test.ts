@@ -14,7 +14,7 @@ describe('merchant product self-service', () => {
 
   it('scopes product reads and writes to the active merchant', () => {
     expect(products).toContain(".eq('id', editProduct.id).eq('merchant_code', merchant!.merchant_code)")
-    expect(detail).toContain("from('products').select('*').eq('merchant_code', merchantCode).eq('id', productId)")
+    expect(detail).toContain("from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code', merchantCode).eq('id', productId)")
     expect(detail).toContain("from('product_profitability').select('*').eq('merchant_code', merchantCode).eq('product_id', productId)")
   })
 

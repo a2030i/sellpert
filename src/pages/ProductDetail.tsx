@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
@@ -53,7 +53,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
     setLoadError('')
     setSourceUpload(null)
     Promise.all([
-      supabase.from('products').select('*').eq('merchant_code', merchantCode).eq('id', productId).maybeSingle(),
+      supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code', merchantCode).eq('id', productId).maybeSingle(),
       supabase.from('product_profitability').select('*').eq('merchant_code', merchantCode).eq('product_id', productId).maybeSingle(),
     ]).then(async ([p, prof]) => {
       const prod = p.data
@@ -610,7 +610,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       if (!response.ok) throw new Error(result.error || 'تعذر تحديث حالة التعديل')
       setListings(previous => ({ ...previous, trendyol: { ...previous.trendyol, delivery_status: result.status, delivery_error: result.error || null, last_verified_at: new Date().toISOString() } }))
       if (['success','failed','partial'].includes(String(result.status || ''))) {
-        const { data: refreshedProduct } = await supabase.from('products').select('*').eq('merchant_code',merchantCode).eq('id',productId).maybeSingle()
+        const { data: refreshedProduct } = await supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code',merchantCode).eq('id',productId).maybeSingle()
         if (refreshedProduct) onProductRefresh?.(refreshedProduct)
       }
       await loadActionHistory()

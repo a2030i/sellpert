@@ -248,6 +248,11 @@ export interface Product {
   updated_at: string
 }
 
+// Browser-facing product reads deliberately omit the marketplace provider
+// payload (`raw`). Sync workers use service-role access when that payload is
+// needed to communicate with a marketplace.
+export const PRODUCT_SAFE_COLUMNS = 'id,merchant_code,name,sku,barcode,category,description,image_url,cost_price,target_net_price,status,created_at,updated_at,psku_code,noon_sku_child,asin,external_id,model_code,brand,msrp,sale_price,sale_start_date,sale_end_date,external_url,color,size,images,noon_price_min,noon_price_max,seller_price_min,seller_price_max,warranty,commission_rate,buybox_price,vat_rate,gender,supplier_sku,upload_id,platform_source,last_synced_at' as const
+
 export interface ProductPlatformPrice {
   id: string
   product_id: string

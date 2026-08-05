@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
 import { fetchAll } from '../lib/db'
@@ -80,7 +80,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     setLoadError('')
     try {
       const [productResult, priceResult, rateResult, inventoryResult, listingResult, uploadRows] = await Promise.all([
-        supabase.from('products').select('*').eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
+        supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
         supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
         supabase.from('platform_commission_rates').select('*'),
         supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
@@ -144,8 +144,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       cost_price: parseFloat(form.cost_price) || 0,
       target_net_price: parseFloat(form.target_net_price),
       platform_source: 'manual',
-    }).select().maybeSingle()
-    if (error) { console.error('create product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر إضافة المنتج.') }); setSaving(false); return }
+    }).select(PRODUCT_SAFE_COLUMNS).maybeSingle()
+    if (error || !prod) { console.error('create product', error); setMsg({ type: 'err', text: userErrorMessage(error, 'تعذّر إضافة المنتج.') }); setSaving(false); return }
 
     // Auto-calculate and insert prices for each platform
     const priceInserts = PLATFORMS.map(p => {

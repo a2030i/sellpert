@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import { useMemo } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { fmtCurrency, fmtNumber, fmtPercent } from '../lib/formatters'
@@ -16,7 +16,7 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
   useEffect(() => {
     if (!merchant || ids.length === 0) { setLoading(false); return }
     Promise.all([
-      supabase.from('products').select('*').in('id', ids).eq('merchant_code', merchant.merchant_code),
+      supabase.from('products').select(PRODUCT_SAFE_COLUMNS).in('id', ids).eq('merchant_code', merchant.merchant_code),
       supabase.from('product_profitability').select('*').in('product_id', ids).eq('merchant_code', merchant.merchant_code),
     ]).then(([p, prof]) => {
       const profMap = new Map((prof.data || []).map((r: any) => [r.product_id, r]))

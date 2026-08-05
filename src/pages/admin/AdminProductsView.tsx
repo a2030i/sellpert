@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS, supabase } from '../../lib/supabase'
 import { PLATFORM_MAP as PLT_NAMES, PLATFORM_COLORS as PLT_COLORS } from '../../lib/constants'
 import type { Merchant } from '../../lib/supabase'
 
@@ -20,7 +20,7 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
   async function load() {
     setLoading(true)
     const [{ data: prods }, { data: prics }, { data: rts }] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
+      supabase.from('products').select(PRODUCT_SAFE_COLUMNS).order('created_at', { ascending: false }),
       supabase.from('product_platform_prices').select('*'),
       supabase.from('platform_commission_rates').select('*').order('platform'),
     ])
