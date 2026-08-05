@@ -23,6 +23,7 @@ alter table public.merchant_legal_acceptances enable row level security;
 alter table public.merchant_legal_acceptances force row level security;
 
 revoke all on table public.merchant_legal_acceptances from public, anon, authenticated;
+revoke all on table public.merchant_legal_acceptances from service_role;
 grant select on table public.merchant_legal_acceptances to authenticated;
 grant select, insert on table public.merchant_legal_acceptances to service_role;
 
