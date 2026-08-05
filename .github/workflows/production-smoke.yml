@@ -21,12 +21,32 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Determine whether this commit changes the web release
+        id: web-release
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $before = '${{ github.event.before }}'
+          $current = '${{ github.sha }}'
+          if ($before -match '^0+$') {
+            $changedFiles = @(git show --pretty='' --name-only $current)
+          } else {
+            $changedFiles = @(git diff --name-only $before $current)
+          }
+
+          $webReleasePattern = '^(src/|public/|index\.html$|package\.json$|pnpm-lock\.yaml$|vite\.config\.[^/]+$|vercel\.json$)'
+          $changesWebRelease = @($changedFiles | Where-Object { $_ -match $webReleasePattern }).Count -gt 0
+          $expectedRelease = if ($changesWebRelease) { $current } else { '' }
+          "expected-release=$expectedRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Verify production availability and authorization boundaries
         id: smoke
         shell: pwsh
         run: |
-          if ('${{ github.event_name }}' -eq 'push') {
-            ./scripts/test-production-smoke.ps1 -ExpectedRelease '${{ github.sha }}' -ReleaseWaitSeconds 240
+          $expectedRelease = '${{ steps.web-release.outputs.expected-release }}'
+          if ($expectedRelease) {
+            ./scripts/test-production-smoke.ps1 -ExpectedRelease $expectedRelease -ReleaseWaitSeconds 240
           } else {
             ./scripts/test-production-smoke.ps1
           }
