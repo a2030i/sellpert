@@ -15,6 +15,7 @@ import { userErrorMessage } from '../lib/userError'
 
 type Props = {
   product: any
+  quantity?: number | null
   merchantCode: string
   onSubmitted: (listing: any) => void
   mode?: 'create' | 'repair'
@@ -33,7 +34,7 @@ function resultData(result: any) {
   return result?.data ?? result
 }
 
-export default function TrendyolPublishWizard({ product, merchantCode, onSubmitted, mode = 'create' }: Props) {
+export default function TrendyolPublishWizard({ product, quantity, merchantCode, onSubmitted, mode = 'create' }: Props) {
   const repairing = mode === 'repair'
   const [opened, setOpened] = useState(false)
   const [loadingReferences, setLoadingReferences] = useState(false)
@@ -60,7 +61,7 @@ export default function TrendyolPublishWizard({ product, merchantCode, onSubmitt
     barcode:String(product.barcode || '').trim(),
     productMainId:String(product.model_code || product.supplier_sku || product.sku || '').slice(0, 40),
     stockCode:String(product.supplier_sku || product.sku || '').slice(0, 100),
-    quantity:String(product.raw?.quantity ?? product.raw?.stock ?? 0),
+    quantity:String(quantity ?? 0),
     salePrice:String(product.sale_price ?? product.target_net_price ?? ''),
     listPrice:String(product.msrp ?? product.sale_price ?? product.target_net_price ?? ''),
     vatRate:String([0, 1, 10, 20].includes(Number(product.vat_rate)) ? Number(product.vat_rate) : 20),

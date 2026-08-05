@@ -19,7 +19,7 @@ const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
 
 type TrendyolInventoryRow = { sku: string; partner_sku: string | null; quantity: number }
-type TrendyolListingRow = { product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null }
+type TrendyolListingRow = { product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null; catalog_status: string | null; catalog_error: string | null }
 type QualityFilter = 'all' | 'complete' | 'needs_content' | 'missing_cost' | 'unknown_source'
 
 const LINEAGE_TONE = {
@@ -84,7 +84,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
         supabase.from('platform_commission_rates').select('*'),
         supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
-        supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
+        supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id,catalog_status,catalog_error').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
         fetchAll<LineageUpload>((from, to) =>
           supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
             .eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending: false }).range(from, to), 'سجل ملفات المنتجات'),

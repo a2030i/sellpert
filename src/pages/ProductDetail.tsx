@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { INVENTORY_SAFE_COLUMNS, PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { fmtCurrency, fmtNumber, fmtPercent, fmtDate } from '../lib/formatters'
@@ -67,7 +67,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
           supabase.rpc('list_order_operating_facts', { p_merchant_code: merchantCode, p_sku: prod.sku }).limit(50),
           supabase.rpc('list_return_facts', { p_merchant_code: merchantCode, p_sku: prod.sku }).limit(20),
           supabase.from('ad_metrics').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku).order('spend', { ascending: false }).limit(50),
-          supabase.from('inventory').select('*').eq('merchant_code', merchantCode).eq('sku', prod.sku),
+          supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS).eq('merchant_code', merchantCode).eq('sku', prod.sku),
           uploadPromise,
         ])
         setOrders(ord.data || [])
@@ -172,7 +172,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       )}
 
       {/* Per-platform listings */}
-      <PerPlatformListings product={product} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={(product.images || []).map((image: any) => typeof image === 'string' ? image : image?.url).filter(Boolean)} onProductRefresh={setProduct} />
+      <PerPlatformListings product={product} inventory={inventory} merchantCode={merchant?.merchant_code} defaultTitle={product.name} defaultDescription={product.description} defaultImages={(product.images || []).map((image: any) => typeof image === 'string' ? image : image?.url).filter(Boolean)} onProductRefresh={setProduct} />
 
       {/* Inventory by platform */}
       {inventory.length > 0 && (
@@ -376,7 +376,7 @@ function SimBox({ label, value, sub, color }: { label: string; value: string; su
 }
 
 // ─── Per-Platform Listings ────────────────────────────────────────────────────
-function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescription, defaultImages, onProductRefresh }: { product: any; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[]; onProductRefresh?: (product:any) => void }) {
+function PerPlatformListings({ product, inventory, merchantCode, defaultTitle, defaultDescription, defaultImages, onProductRefresh }: { product: any; inventory: any[]; merchantCode?: string; defaultTitle?: string; defaultDescription?: string; defaultImages?: string[]; onProductRefresh?: (product:any) => void }) {
   const productId = product.id
   const PLATFORMS = ['trendyol']
   const [listings, setListings] = useState<Record<string, any>>({})
@@ -387,17 +387,14 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const [editing, setEditing] = useState<any>({})
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const initialCommercial = {
-    quantity: String(product.raw?.quantity ?? product.raw?.stock ?? ''),
+    quantity: String(inventory.find(item => item.platform === 'trendyol')?.quantity ?? ''),
     salePrice: String(product.sale_price ?? product.target_net_price ?? ''),
     listPrice: String(product.msrp ?? product.sale_price ?? product.target_net_price ?? ''),
   }
   const [commercial, setCommercial] = useState(initialCommercial)
   const [commercialBaseline, setCommercialBaseline] = useState(initialCommercial)
   const [commercialSaving, setCommercialSaving] = useState(false)
-  const initialDelivery = {
-    duration: String(product.raw?.selectedVariant?.deliveryOptions?.deliveryDuration ?? product.raw?.deliveryOptions?.deliveryDuration ?? 0),
-    speed: String(product.raw?.selectedVariant?.deliveryOptions?.fastDeliveryType ?? product.raw?.deliveryOptions?.fastDeliveryType ?? 'STANDARD'),
-  }
+  const initialDelivery = { duration:'0', speed:'STANDARD' }
   const [delivery, setDelivery] = useState(initialDelivery)
   const [deliveryBaseline, setDeliveryBaseline] = useState(initialDelivery)
   const [deliverySaving, setDeliverySaving] = useState(false)
@@ -427,7 +424,16 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       keywords: (cur.keywords || []).join(', '),
       images: (cur.images || defaultImages || []).join('\n'),
     })
-  }, [activePlatform, listings, defaultTitle, defaultDescription, defaultImages])
+    if (activePlatform === 'trendyol') {
+      const quantity = inventory.find(item => item.platform === 'trendyol')?.quantity
+      const nextCommercial = { quantity:String(quantity ?? ''), salePrice:String(product.sale_price ?? product.target_net_price ?? ''), listPrice:String(product.msrp ?? product.sale_price ?? product.target_net_price ?? '') }
+      const nextDelivery = { duration:String(cur.delivery_duration ?? 0), speed:String(cur.fast_delivery_type || 'STANDARD') }
+      setCommercial(nextCommercial)
+      setCommercialBaseline(nextCommercial)
+      setDelivery(nextDelivery)
+      setDeliveryBaseline(nextDelivery)
+    }
+  }, [activePlatform, listings, defaultTitle, defaultDescription, defaultImages, inventory, product.sale_price, product.target_net_price, product.msrp])
 
   const loadActionHistory = useCallback(async () => {
     if (!merchantCode) return
@@ -643,7 +649,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
     const images = editedImages
     if (activePlatform === 'trendyol') {
       try {
-        const contentId = product.external_id || product.raw?.contentId || product.raw?.id
+        const contentId = product.external_id
         if (!contentId) throw new Error('لا يوجد معرّف Trendyol لهذا المنتج. شغّل المزامنة أولًا ثم حاول مجددًا.')
         if (!Number.isFinite(Number(contentId))) throw new Error('معرّف المنتج في Trendyol غير صالح. شغّل المزامنة ثم حاول مجددًا.')
         if (!contentChanges.length) throw new Error('لم تغيّر بيانات المنتج. عدّل العنوان أو الوصف أو الصور أولًا.')
@@ -788,10 +794,11 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       const { error } = await supabase.from('product_platform_listings').upsert({
         product_id:productId, merchant_code:merchantCode, platform:'trendyol',
         delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null,
+        delivery_duration:duration, fast_delivery_type:delivery.speed,
         last_submitted_at:now, last_verified_at:result.pendingApproval ? null : now, delivery_error:null, updated_at:now,
       }, { onConflict:'product_id,platform' })
       if (error) throw error
-      setListings(previous => ({ ...previous, trendyol:{ ...previous.trendyol, delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null, last_submitted_at:now } }))
+      setListings(previous => ({ ...previous, trendyol:{ ...previous.trendyol, delivery_status:result.status || 'accepted', external_batch_id:result.batchRequestId || null, delivery_duration:duration, fast_delivery_type:delivery.speed, last_submitted_at:now } }))
       setDeliveryBaseline({ duration:String(duration), speed:delivery.speed })
       setReviewMode(null)
       await loadActionHistory()
@@ -807,8 +814,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
   const existsInTrendyol = Boolean(
     ['accepted','processing','success','partial'].includes(String(listings.trendyol?.delivery_status || '')) ||
     String(product.platform_source || '').startsWith('trendyol') ||
-    product.raw?.contentId ||
-    product.raw?.selectedVariant?.variantId,
+    product.external_id,
   )
   const isPublicationFlow = listings.trendyol?.notes === 'trendyol_product_create'
   const isRejectedPublication = isPublicationFlow && listings.trendyol?.delivery_status === 'failed'
@@ -826,6 +832,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
           <TrendyolPublishWizard
             mode="repair"
             product={product}
+            quantity={Number(inventory.find(item => item.platform === 'trendyol')?.quantity ?? 0)}
             merchantCode={merchantCode || ''}
             onSubmitted={listing => {
               setListings(current => ({ ...current, trendyol:listing }))
@@ -844,6 +851,7 @@ function PerPlatformListings({ product, merchantCode, defaultTitle, defaultDescr
       <Suspense fallback={<div role="status" style={{ padding:18, color:'var(--text3)', fontSize:12 }}>جارٍ تجهيز نموذج النشر…</div>}>
         <TrendyolPublishWizard
           product={product}
+          quantity={Number(inventory.find(item => item.platform === 'trendyol')?.quantity ?? 0)}
           merchantCode={merchantCode || ''}
           onSubmitted={listing => {
             setListings(current => ({ ...current, trendyol:listing }))

@@ -582,6 +582,26 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
     const { error } = await admin.from('inventory').upsert(inventory.slice(index, index + 100), { onConflict: 'merchant_code,sku,platform' })
     if (error) throw error
   }
+  const listingSkus = normalized.listings.map((listing:any) => String(listing.sku || '')).filter(Boolean)
+  if (listingSkus.length) {
+    const productIds = new Map<string,string>()
+    for (let index = 0; index < listingSkus.length; index += 200) {
+      const { data:storedProducts,error:storedProductsError } = await admin.from('products')
+        .select('id,sku').eq('merchant_code',merchantCode).in('sku',listingSkus.slice(index,index + 200))
+      if (storedProductsError) throw storedProductsError
+      for (const product of storedProducts || []) productIds.set(String(product.sku || ''),String(product.id))
+    }
+    const listings = normalized.listings.flatMap((listing:any) => {
+      const productId = productIds.get(String(listing.sku || ''))
+      if (!productId) return []
+      const { sku:_sku,...row } = listing
+      return [{ ...row, product_id:productId }]
+    })
+    for (let index = 0; index < listings.length; index += 100) {
+      const { error } = await admin.from('product_platform_listings').upsert(listings.slice(index,index + 100), { onConflict:'product_id,platform' })
+      if (error) throw error
+    }
+  }
   const publicationUpdates = await reconcilePendingProductPublications(admin,merchantCode)
   return {
     products: products.length,

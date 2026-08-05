@@ -84,6 +84,7 @@ Deno.test('Product V2 normalization preserves Arabic content and variant financi
       variantId: 7, barcode: 'BAR-1', stockCode: 'SKU-1', commission: 6.21,
       vatRate: 15, onSale: true, archived: false, blacklisted: false,
       stock: { quantity: 8 }, price: { salePrice: 54, listPrice: 60 },
+      deliveryOptions: { deliveryDuration: 1, fastDeliveryType: 'FAST_DELIVERY' },
     }],
   }], [], '2026-08-04T00:00:00.000Z')
 
@@ -96,6 +97,9 @@ Deno.test('Product V2 normalization preserves Arabic content and variant financi
   assertEquals(result.inventory[0].is_active, true)
   assertEquals(result.inventory[0].platform_source, 'trendyol_api_v2')
   assertEquals(result.inventory[0].last_synced_at, '2026-08-04T00:00:00.000Z')
+  assertEquals(result.listings[0].delivery_duration, 1)
+  assertEquals(result.listings[0].fast_delivery_type, 'FAST_DELIVERY')
+  assertEquals(result.listings[0].catalog_status, 'onSale')
 })
 
 Deno.test('approved Product V2 variant wins over a duplicate rejected barcode', () => {

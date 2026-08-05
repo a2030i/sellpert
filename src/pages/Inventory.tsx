@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { INVENTORY_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
 import { InfoIcon, Pagination } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
@@ -54,7 +54,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     setLoadError('')
     try {
       const [inventoryRows, uploads] = await Promise.all([
-        fetchAll<InventoryItem>((from, to) => supabase.from('inventory').select('*').eq('merchant_code', merchant!.merchant_code).order('product_name').range(from, to), 'المخزون'),
+        fetchAll<InventoryItem>((from, to) => supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('product_name').range(from, to), 'المخزون'),
         fetchAll<LineageUpload>((from, to) => supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending:false }).range(from, to), 'ملفات المخزون'),
       ])
       setItems(inventoryRows)

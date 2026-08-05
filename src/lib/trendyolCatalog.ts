@@ -103,7 +103,6 @@ export type TrendyolCatalogProduct = {
   sale_price?: number | null
   msrp?: number | null
   target_net_price?: number | null
-  raw?: Record<string, any> | null
 }
 
 export type TrendyolCatalogInventory = {
@@ -115,6 +114,8 @@ export type TrendyolCatalogInventory = {
 export type TrendyolCatalogListing = {
   delivery_status?: string | null
   external_batch_id?: string | null
+  catalog_status?: string | null
+  catalog_error?: string | null
 }
 
 export type TrendyolCatalogReadiness = {
@@ -132,7 +133,7 @@ export function trendyolCatalogReadiness(
   calculatedPrice?: number | null,
 ): TrendyolCatalogReadiness {
   const listingStatus = String(listing?.delivery_status || '').toLowerCase()
-  const providerStatus = String(product.raw?.approvalStatus || '').toLowerCase()
+  const providerStatus = String(listing?.catalog_status || '').toLowerCase()
   const linked = String(product.platform_source || '').toLowerCase().startsWith('trendyol') ||
     Boolean(listing && listingStatus !== 'draft')
   const pending = ['accepted', 'processing', 'running'].includes(listingStatus)

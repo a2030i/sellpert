@@ -44,7 +44,7 @@ describe('Trendyol catalogue bulk readiness', () => {
   it('blocks unlinked, pending and inventory-less products with merchant guidance', () => {
     expect(trendyolCatalogReadiness({ ...product, platform_source:null }, { quantity:1 }, undefined).reason).toContain('نشره')
     expect(trendyolCatalogReadiness(product, { quantity:1 }, { delivery_status:'processing' }).reason).toContain('قيد المعالجة')
-    expect(trendyolCatalogReadiness({ ...product, raw:{ approvalStatus:'rejected' } }, { quantity:1 }, { delivery_status:'failed' }).reason).toContain('اعتماد المنتج')
+    expect(trendyolCatalogReadiness(product, { quantity:1 }, { delivery_status:'failed', catalog_status:'rejected' }).reason).toContain('اعتماد المنتج')
     expect(trendyolCatalogReadiness(product, null, { delivery_status:'success' }).reason).toContain('المخزون')
   })
 })

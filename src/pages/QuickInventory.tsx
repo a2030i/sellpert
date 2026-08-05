@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { INVENTORY_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import { useDeferredValue } from 'react'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { Search, Save, Plus, Minus, Check, AlertCircle, Zap } from 'lucide-react'
@@ -42,7 +42,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
   async function loadInventory() {
     if (!merchant) return
     setLoading(true)
-    const { data } = await supabase.from('inventory').select('*')
+    const { data } = await supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS)
       .eq('merchant_code', merchant.merchant_code).eq('is_active', true)
       .order('product_name').limit(500)
     setItems(data || [])

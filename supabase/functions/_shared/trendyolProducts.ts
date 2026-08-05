@@ -1,6 +1,7 @@
 export type TrendyolProductSyncRows = {
   products: Record<string, unknown>[]
   inventory: Record<string, unknown>[]
+  listings: Record<string, unknown>[]
   approvedVariants: number
   unapprovedVariants: number
 }
@@ -265,6 +266,7 @@ export function normalizeTrendyolV2Products(
 
   const products = new Map<string, Record<string, unknown>>()
   const inventory = new Map<string, Record<string, unknown>>()
+  const listings = new Map<string, Record<string, unknown>>()
   let approvedVariants = 0
   let unapprovedVariants = 0
 
@@ -278,6 +280,11 @@ export function normalizeTrendyolV2Products(
     const listPrice = approved ? numberValue(variant?.price?.listPrice ?? variant?.listPrice) : numberValue(item?.listPrice)
     const rejection = approved ? null : rejectionText(item)
     const providerStatus = approved ? (variant?.onSale ? 'onSale' : variant?.archived ? 'archived' : 'notOnSale') : String(item?.status || 'pendingApproval')
+    const deliveryOptions = variant?.deliveryOptions || variant?.deliveryOption || item?.deliveryOptions || item?.deliveryOption || {}
+    const deliveryDurationValue = Number(deliveryOptions?.deliveryDuration)
+    const deliveryDuration = Number.isInteger(deliveryDurationValue) && deliveryDurationValue >= 0 && deliveryDurationValue <= 30 ? deliveryDurationValue : null
+    const requestedDeliveryType = String(deliveryOptions?.fastDeliveryType || '').trim().toUpperCase()
+    const fastDeliveryType = ['FAST_DELIVERY', 'SAME_DAY_SHIPPING'].includes(requestedDeliveryType) ? requestedDeliveryType : 'STANDARD'
 
     products.set(sku, {
       merchant_code: merchantCode,
@@ -321,6 +328,17 @@ export function normalizeTrendyolV2Products(
       raw: { contentId: item?.contentId || null, variant, approvalStatus: providerStatus, rejection },
     })
 
+    listings.set(sku, {
+      merchant_code: merchantCode,
+      platform: 'trendyol',
+      sku,
+      delivery_duration: deliveryDuration,
+      fast_delivery_type: fastDeliveryType,
+      catalog_status: providerStatus,
+      catalog_error: rejection,
+      updated_at: syncedAt,
+    })
+
     if (approved) approvedVariants++
     else unapprovedVariants++
   }
@@ -328,6 +346,7 @@ export function normalizeTrendyolV2Products(
   return {
     products: [...products.values()],
     inventory: [...inventory.values()],
+    listings: [...listings.values()],
     approvedVariants,
     unapprovedVariants,
   }

@@ -597,6 +597,18 @@ async function reconcileCreatedProduct(
       const { error } = await admin.from('inventory').upsert(inventoryRows,{ onConflict:'merchant_code,sku,platform' })
       if (error) throw error
     }
+    if (productRows.length && normalized.listings.length) {
+      const sku = String(productRows[0]?.sku || '')
+      const { data:storedProduct,error:storedProductError } = await admin.from('products')
+        .select('id').eq('merchant_code',merchantCode).eq('sku',sku).maybeSingle()
+      if (storedProductError) throw storedProductError
+      const normalizedListing = normalized.listings.find(row => String(row.sku || '') === sku)
+      if (storedProduct?.id && normalizedListing) {
+        const { sku:_sku,...listing } = normalizedListing
+        const { error } = await admin.from('product_platform_listings').upsert({ ...listing,product_id:storedProduct.id },{ onConflict:'product_id,platform' })
+        if (error) throw error
+      }
+    }
   }
   return { status:review.status, error:review.error }
 }
