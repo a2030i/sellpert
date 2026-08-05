@@ -24,17 +24,6 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant usage, select, update on sequences to service_role;
 
--- Objects created through Studio and some platform-managed flows are owned by
--- supabase_admin, so secure that owner's defaults as well as postgres'.
-alter default privileges for role supabase_admin in schema public
-  revoke all privileges on tables from anon, authenticated;
-alter default privileges for role supabase_admin in schema public
-  revoke all privileges on sequences from anon, authenticated;
-alter default privileges for role supabase_admin in schema public
-  grant all privileges on tables to service_role;
-alter default privileges for role supabase_admin in schema public
-  grant usage, select, update on sequences to service_role;
-
 alter default privileges in schema security
   revoke all privileges on tables from anon, authenticated;
 alter default privileges in schema security
@@ -43,22 +32,9 @@ alter default privileges in schema security
   grant all privileges on tables to service_role;
 alter default privileges in schema security
   grant usage, select, update on sequences to service_role;
-alter default privileges for role supabase_admin in schema security
-  revoke all privileges on tables from anon, authenticated;
-alter default privileges for role supabase_admin in schema security
-  revoke all privileges on sequences from anon, authenticated;
-alter default privileges for role supabase_admin in schema security
-  grant all privileges on tables to service_role;
-alter default privileges for role supabase_admin in schema security
-  grant usage, select, update on sequences to service_role;
-
 -- Function EXECUTE is granted to PUBLIC by PostgreSQL's global hard-wired
 -- default. It must be revoked globally; a per-schema revoke cannot override it.
 alter default privileges
   revoke execute on functions from public, anon, authenticated;
 alter default privileges
-  grant execute on functions to service_role;
-alter default privileges for role supabase_admin
-  revoke execute on functions from public, anon, authenticated;
-alter default privileges for role supabase_admin
   grant execute on functions to service_role;

@@ -11,17 +11,14 @@ describe('Data API grant contract', () => {
     expect(migration).toContain('revoke all privileges on all sequences in schema public, security from anon')
   })
 
-  it('secures future objects created by postgres and supabase_admin', () => {
+  it('secures future objects created by the migration owner', () => {
     const migration = readFileSync(migrationPath, 'utf8').toLowerCase()
-    expect(migration).toContain('alter default privileges for role supabase_admin in schema public')
-    expect(migration).toContain('alter default privileges for role supabase_admin in schema security')
     expect(migration).toMatch(/alter default privileges\s+revoke execute on functions from public, anon, authenticated/)
-    expect(migration).toMatch(/alter default privileges for role supabase_admin\s+revoke execute on functions from public, anon, authenticated/)
+    expect(migration).not.toContain('for role supabase_admin')
   })
 
-  it('runs an effective-privilege database regression test for both owners', () => {
+  it('runs an effective-privilege database regression test', () => {
     const test = readFileSync('supabase/tests/data_api_grants.test.sql', 'utf8')
-    expect(test).toContain('set local role supabase_admin')
     expect(test).toContain("has_table_privilege('anon'")
     expect(test).toContain("has_table_privilege('service_role'")
     expect(test).toContain("has_function_privilege('authenticated'")
