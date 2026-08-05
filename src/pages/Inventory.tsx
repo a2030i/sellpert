@@ -372,7 +372,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                   <div style={{ display:'flex', alignItems:'center', gap:16 }}>
                     <div style={{ textAlign:'center' }}>
                       <div style={{ fontSize:22, fontWeight:800, color: isOut?'var(--danger-text)' : isLow?'var(--warning-text)' : 'var(--accent2)' }}>
-                        {totalQty.toLocaleString()}
+                        {totalQty.toLocaleString('ar-SA-u-nu-latn')}
                       </div>
                       <div style={{ fontSize:10, color:'var(--text3)' }}>إجمالي</div>
                     </div>
@@ -449,7 +449,7 @@ function InventoryPlatformRow({
           <button style={{ ...S.miniBtn, background:'var(--accent-strong)', color:'#fff' }} onClick={onSave} disabled={saving}>{saving ? '...' : 'حفظ'}</button>
           <button style={S.miniBtn} onClick={onCancelEdit}>إلغاء</button>
         </> : <>
-          <span style={{ fontSize:20, fontWeight:800, color:item.quantity === 0 ? 'var(--danger-text)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-text)' : 'var(--text)', minWidth:40, textAlign:'center' }}>{item.quantity.toLocaleString()}</span>
+          <span style={{ fontSize:20, fontWeight:800, color:item.quantity === 0 ? 'var(--danger-text)' : item.quantity <= item.low_stock_threshold ? 'var(--warning-text)' : 'var(--text)', minWidth:40, textAlign:'center' }}>{item.quantity.toLocaleString('ar-SA-u-nu-latn')}</span>
           <button style={S.miniBtn} onClick={onStartEdit}>تعديل</button>
         </>}
       </div>
@@ -581,7 +581,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
     .sort((a, b) => Number(b.stock_value_cost) - Number(a.stock_value_cost)).slice(0, 6), [data])
 
   if (loading || data.length === 0) return null
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
@@ -683,7 +683,7 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
   if (data.length === 0) return null
   const labels: any = { fresh: 'حديث', slow: 'بطيء (>30 يوم)', aging: 'متقادم (>60 يوم)', dead_stock: 'راكد (>90 يوم)', never_sold: 'لم يُبَع أبداً' }
   const colors: any = { fresh: 'var(--green)', slow: 'var(--info-text)', aging: 'var(--warning-text)', dead_stock: 'var(--red)', never_sold: '#a598ff' }
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
 
   const dead = data.filter(d => d.ageing_class === 'dead_stock' || d.ageing_class === 'never_sold')
     .sort((a, b) => Number(b.tied_capital) - Number(a.tied_capital)).slice(0, 6)
@@ -747,7 +747,7 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 700 }}>{r.asn_number}</td>
                 <td style={{ padding: '8px 10px' }}>{r.platform}</td>
-                <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.asn_sent_at).toLocaleDateString('ar-SA-u-ca-gregory', { day: 'numeric', month: 'short' })}</td>
+                <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.asn_sent_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' })}</td>
                 <td style={{ padding: '8px 10px' }}>
                   {r.days_to_receive != null && Number(r.days_to_receive) >= 0
                     ? `${r.days_to_receive} يوم`
@@ -760,7 +760,7 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
                 </td>
                 <td style={{ padding: '8px 10px', color: r.qc_failed_qty > 0 ? 'var(--warning-text)' : 'var(--text3)' }}>{r.qc_failed_qty || '—'}</td>
                 <td style={{ padding: '8px 10px', fontWeight: 700 }}>{r.units_sold_after_receive || '—'}</td>
-                <td style={{ padding: '8px 10px', color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA') : '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'var(--success-text)', fontFamily: 'monospace' }}>{r.revenue_after_receive ? Math.round(Number(r.revenue_after_receive)).toLocaleString('ar-SA-u-nu-latn') : '—'}</td>
               </tr>
             ))}
           </tbody>

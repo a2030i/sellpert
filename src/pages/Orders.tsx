@@ -61,8 +61,8 @@ function packageStatusLabel(status?: string | null) {
   return PACKAGE_STATUS_LABELS[status.toLowerCase().replace(/[^a-z]/g, '')] || status
 }
 
-function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
-function fmtExact(v: number) { return Number(v || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
+function fmt(v: number) { return v.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
+function fmtExact(v: number) { return Number(v || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 function trendyolCommission(order: Order) {
   if (order.platform !== 'trendyol' || !order.commission_rate) return Number(order.platform_fee || 0)
   return Number(order.total_amount || 0) * Number(order.commission_rate) / 100 * 1.15
@@ -389,7 +389,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       setOrders(current => current.map(order => order.id === fresh.id ? fresh as Order : order))
       await openOrder(fresh as Order)
     }
-    setOrderActionMessage({ type:'ok', text:`تم التحديث من Trendyol. تمت مزامنة ${Number(data?.records_synced || 0).toLocaleString('ar-SA')} طلب.` })
+    setOrderActionMessage({ type:'ok', text:`تم التحديث من Trendyol. تمت مزامنة ${Number(data?.records_synced || 0).toLocaleString('ar-SA-u-nu-latn')} طلب.` })
     setOrderActionLoading(false)
   }
 
@@ -631,7 +631,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       <div style={S.topbar}>
         <div>
           <h2 style={S.pageTitle}>الطلبات</h2>
-          <p style={S.pageSub}>عرض {totalOrders.toLocaleString()} من أصل {orders.length.toLocaleString()} طلب</p>
+          <p style={S.pageSub}>عرض {totalOrders.toLocaleString('ar-SA-u-nu-latn')} من أصل {orders.length.toLocaleString('ar-SA-u-nu-latn')} طلب</p>
         </div>
         <button style={S.exportBtn} onClick={exportCSV}>تصدير CSV</button>
       </div>
@@ -678,8 +678,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           {[
             { k:'today', l:'اليوم' }, { k:'last7', l:'7 أيام' },
             { k:'last30', l:'30 يوم' }, { k:'thisMonth', l:'هذا الشهر' },
-            { k:'needsAction', l:`تحتاج إجراء (${needsActionCount.toLocaleString('ar-SA')})` },
-            { k:'financialReview', l:`مراجعة مالية (${financialReviewCount.toLocaleString('ar-SA')})` },
+            { k:'needsAction', l:`تحتاج إجراء (${needsActionCount.toLocaleString('ar-SA-u-nu-latn')})` },
+            { k:'financialReview', l:`مراجعة مالية (${financialReviewCount.toLocaleString('ar-SA-u-nu-latn')})` },
             { k:'all', l:'الكل' },
           ].map(p => (
             <button key={p.k} style={{ ...S.pill, ...(preset===p.k ? S.pillActive : {}) }} onClick={() => setPreset(p.k)}>{p.l}</button>
@@ -707,7 +707,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
       {(platform !== 'all' || status !== 'all' || preset !== 'all' || search.trim()) && (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, margin:'-8px 0 16px', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:10, background:'var(--surface)' }}>
-          <span style={{ fontSize:12, color:'var(--text2)' }}>هناك فلاتر مفعّلة — تظهر {filtered.length.toLocaleString()} من {orders.length.toLocaleString()} طلب</span>
+          <span style={{ fontSize:12, color:'var(--text2)' }}>هناك فلاتر مفعّلة — تظهر {filtered.length.toLocaleString('ar-SA-u-nu-latn')} من {orders.length.toLocaleString('ar-SA-u-nu-latn')} طلب</span>
           <button onClick={() => { setPlatform('all'); setStatus('all'); setPreset('all'); setSearch('') }} style={{ border:'none', background:'transparent', color:'var(--accent)', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>مسح كل الفلاتر</button>
         </div>
       )}
@@ -716,9 +716,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       <div style={{ ...S.kpisGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)' }}>
         {[
           { label:'إجمالي الإيراد',   value: fmt(totalRevenue),               icon:'', color:'#0f958c' },
-          { label:'عدد الطلبات',      value: totalOrders.toLocaleString(),     icon:'', color:'var(--success-text)' },
+          { label:'عدد الطلبات',      value: totalOrders.toLocaleString('ar-SA-u-nu-latn'),     icon:'', color:'var(--success-text)' },
           { label:'متوسط الطلب',      value: fmt(aov),                         icon:'', color:'var(--warning-text)' },
-          { label:'تم التسليم',       value: deliveredCount.toLocaleString(),  icon:'', color:'var(--success-text)' },
+          { label:'تم التسليم',       value: deliveredCount.toLocaleString('ar-SA-u-nu-latn'),  icon:'', color:'var(--success-text)' },
           { label:'نسبة الإلغاء',     value: cancelRate.toFixed(1) + '%',      icon:'', color:'var(--danger-text)' },
         ].map((k,i) => (
           <div key={i} style={S.kpiCard}>
@@ -802,7 +802,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           {totalPages > 1 && (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px', borderTop:'1px solid var(--border)' }}>
               <span style={{ fontSize:12, color:'var(--text3)' }}>
-                {orderPage * ORDER_PAGE_SIZE + 1}–{Math.min((orderPage + 1) * ORDER_PAGE_SIZE, filtered.length)} من {filtered.length.toLocaleString()} طلب
+                {orderPage * ORDER_PAGE_SIZE + 1}–{Math.min((orderPage + 1) * ORDER_PAGE_SIZE, filtered.length)} من {filtered.length.toLocaleString('ar-SA-u-nu-latn')} طلب
               </span>
               <div style={{ display:'flex', gap:8 }}>
                 <button
@@ -844,7 +844,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                       {[
                         { label:'الإيراد',       value: fmt(p.revenue) },
-                        { label:'الطلبات',       value: p.count.toLocaleString() },
+                        { label:'الطلبات',       value: p.count.toLocaleString('ar-SA-u-nu-latn') },
                         { label:'متوسط الطلب',  value: fmt(p.averageOrderValue) },
                         { label:'نسبة التسليم',  value: p.deliveryRate + '%' },
                         { label:'نسبة الإلغاء',  value: p.cancelRate + '%' },
@@ -980,7 +980,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             {selectedPackages.length ? <div style={{ marginBottom:16, padding:13, border:'1px solid var(--border)', borderRadius:10 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
                 <div><div style={{ fontSize:12, fontWeight:800 }}>شحنات الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>اختر الشحنة لعرض حالتها وشركة الشحن ورقم التتبع. إجراءات التنفيذ المباشر تظهر فقط عندما تدعمها المنصة.</div></div>
-                <span style={{ ...S.statusBadge, background:'var(--surface2)', color:'var(--text2)' }}>{selectedPackages.length.toLocaleString('ar-SA')} شحنة</span>
+                <span style={{ ...S.statusBadge, background:'var(--surface2)', color:'var(--text2)' }}>{selectedPackages.length.toLocaleString('ar-SA-u-nu-latn')} شحنة</span>
               </div>
               <div style={{ display:'flex', gap:7, overflowX:'auto', paddingBottom:4 }}>
                 {selectedPackages.map((shipment, index) => {
@@ -1018,7 +1018,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                     اختيار ملف
                     <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" disabled={orderActionLoading} onChange={event => chooseInvoiceFile(event.target.files?.[0] || null)} style={{ display:'none' }}/>
                   </label>
-                  <span style={{ fontSize:10, color:invoiceFile ? 'var(--text2)' : 'var(--text3)' }}>{invoiceFile ? `${invoiceFile.name} · ${(invoiceFile.size / 1024 / 1024).toLocaleString('ar-SA', { maximumFractionDigits:2 })} م.ب` : 'لم يتم اختيار ملف'}</span>
+                  <span style={{ fontSize:10, color:invoiceFile ? 'var(--text2)' : 'var(--text3)' }}>{invoiceFile ? `${invoiceFile.name} · ${(invoiceFile.size / 1024 / 1024).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits:2 })} م.ب` : 'لم يتم اختيار ملف'}</span>
                   <button disabled={orderActionLoading || !invoiceFile} onClick={() => void uploadInvoiceFile()} style={{ ...S.actionBtn, color:'var(--accent)', borderColor:'rgba(15,149,140,.35)', opacity:invoiceFile && !orderActionLoading ? 1 : .5 }}>{orderActionLoading && invoiceFile ? 'جارٍ الرفع...' : 'رفع الفاتورة إلى Trendyol'}</button>
                 </div>
                 <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:9, paddingTop:9, borderTop:'1px solid var(--border)' }}>
@@ -1059,11 +1059,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                 ['تاريخ الطلب', new Date(selectedOrder.order_date).toLocaleString('ar-SA-u-ca-gregory-nu-latn')],
                 ['المنتج', selectedOrder.product_name || '—'],
                 ['SKU', selectedOrder.sku || '—'],
-                ['الكمية', selectedOrder.quantity.toLocaleString('ar-SA')],
+                ['الكمية', selectedOrder.quantity.toLocaleString('ar-SA-u-nu-latn')],
                 ['سعر الوحدة', fmt(selectedOrder.unit_price || 0)],
                 ['إجمالي الطلب', fmt(selectedOrder.total_amount)],
                 [selectedOrder.platform === 'trendyol' ? 'العمولة (شاملة ضريبة القيمة المضافة)' : 'رسوم المنصة', fmtExact(selectedOrderFees)],
-                ['نسبة العمولة', selectedOrder.commission_rate ? `${Number(selectedOrder.commission_rate).toLocaleString('ar-SA', { maximumFractionDigits: 2 })}%` : '—'],
+                ['نسبة العمولة', selectedOrder.commission_rate ? `${Number(selectedOrder.commission_rate).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 2 })}%` : '—'],
                 ['الخصومات', fmt(selectedOrder.discount_amount || 0)],
                 ['تكلفة الشحن', fmt(selectedOrder.shipping_cost || 0)],
                 ['شركة الشحن', activePackage?.cargo_provider || selectedOrder.cargo_provider || '—'],

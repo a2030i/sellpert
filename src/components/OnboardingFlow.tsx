@@ -70,7 +70,7 @@ export default function OnboardingFlow({ merchant, onComplete }: Props) {
             <div style={styles.brand}>Sellpert</div>
             <div style={styles.storeName}>{merchant.name}</div>
           </div>
-          <span style={styles.stepCounter}>الخطوة {(step + 1).toLocaleString('ar-SA')} من {STEPS.length.toLocaleString('ar-SA')}</span>
+          <span style={styles.stepCounter}>الخطوة {(step + 1).toLocaleString('ar-SA-u-nu-latn')} من {STEPS.length.toLocaleString('ar-SA-u-nu-latn')}</span>
         </header>
 
         <div style={styles.progress} aria-label={`الخطوة ${step + 1} من ${STEPS.length}`}>

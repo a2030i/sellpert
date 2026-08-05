@@ -33,7 +33,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return 'لم تتم المزامنة بعد'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'غير متاح'
-  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', {
+  return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
     day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
   }).format(date)
 }

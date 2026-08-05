@@ -105,6 +105,8 @@ test('phase-one home renders useful operations without the decision center', asy
   await expect(page.getByText('متصل', { exact: true })).toBeVisible()
   await expect(page.getByText('طلبات اليوم', { exact: true })).toBeVisible()
   await expect(page.getByText('11344951785')).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(/[\u0660-\u0669\u06F0-\u06F9]/)
+  await expect(page.locator('body')).not.toContainText('\u0635\u0641\u0631')
   await expect(page.getByText('مركز قرارات المتجر')).toHaveCount(0)
   await expect(page.getByText('لا يمكن اعتماد التقييم بعد')).toHaveCount(0)
   expect(runtimeErrors).toEqual([])

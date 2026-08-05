@@ -515,7 +515,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 {preview.map(({ p, price, ratePct }) => (
                   <div key={p} style={{ ...S.previewCard, borderColor: PLATFORM_COLORS[p] + '55' }}>
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{price.toLocaleString()}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: PLATFORM_COLORS[p] }}>{price.toLocaleString('ar-SA-u-nu-latn')}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)' }}>ر.س</div>
                     {ratePct !== undefined && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>عمولة {ratePct}%</div>}
                   </div>
@@ -606,13 +606,13 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                       {PLATFORMS.map(p => (
                         <div key={p} style={{ textAlign: 'center', background: 'var(--bg)', borderRadius: 8, padding: '6px 4px', border: `1px solid ${PLATFORM_COLORS[p]}33` }}>
                           <div style={{ fontSize: 10, color: PLATFORM_COLORS[p], fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
-                          <div style={{ fontSize: 14, fontWeight: 800 }}>{ps[p]?.toLocaleString() || '—'}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800 }}>{ps[p]?.toLocaleString('ar-SA-u-nu-latn') || '—'}</div>
                         </div>
                       ))}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 11, color: prod.cost_price > 0 ? (profit > 0 ? 'var(--accent2)' : 'var(--danger-text)') : 'var(--warning-text)' }}>
-                        {prod.cost_price > 0 ? `هامش: ${profit > 0 ? '+' : ''}${profit.toLocaleString()} ر.س` : 'الربحية غير مكتملة'}
+                        {prod.cost_price > 0 ? `هامش: ${profit > 0 ? '+' : ''}${profit.toLocaleString('ar-SA-u-nu-latn')} ر.س` : 'الربحية غير مكتملة'}
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button style={{ ...S.reqBtn, background: 'rgba(15,149,140,0.1)', color: 'var(--accent)', borderColor: 'rgba(15,149,140,0.25)' }} onClick={e => { e.stopPropagation(); openEdit(prod) }}>تعديل</button>
@@ -653,15 +653,15 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                         <td style={{ ...S.td, fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{prod.sku || '—'}</td>
                         <td style={S.td}><span title={lineage.title} style={{ ...S.statusBadge, ...lineageTone, whiteSpace:'nowrap' }}>{lineage.label}</span></td>
                         <td style={S.td}><span title={quality.missing.length ? `البيانات الناقصة: ${quality.missing.join('، ')}` : 'بيانات المنتج مكتملة'} style={{ ...S.statusBadge, ...qualityTone, whiteSpace:'nowrap' }}>{quality.label} · {quality.score}%</span></td>
-                        <td style={S.td}>{prod.cost_price > 0 ? prod.cost_price.toLocaleString() + ' ر.س' : '—'}</td>
-                        <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{prod.target_net_price.toLocaleString()} ر.س</td>
+                        <td style={S.td}>{prod.cost_price > 0 ? prod.cost_price.toLocaleString('ar-SA-u-nu-latn') + ' ر.س' : '—'}</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: 'var(--accent)' }}>{prod.target_net_price.toLocaleString('ar-SA-u-nu-latn')} ر.س</td>
                         {PLATFORMS.map(p => (
                           <td key={p} style={{ ...S.td, fontWeight: 700, color: PLATFORM_COLORS[p] }}>
-                            {ps[p] ? ps[p].toLocaleString() + ' ر.س' : '—'}
+                            {ps[p] ? ps[p].toLocaleString('ar-SA-u-nu-latn') + ' ر.س' : '—'}
                           </td>
                         ))}
                         <td style={{ ...S.td, color: prod.cost_price > 0 ? (profit > 0 ? 'var(--accent2)' : 'var(--red)') : 'var(--warning-text)', fontWeight: 700 }}>
-                          {prod.cost_price > 0 ? `${profit > 0 ? '+' : ''}${profit.toLocaleString()} ر.س` : 'غير مكتملة'}
+                          {prod.cost_price > 0 ? `${profit > 0 ? '+' : ''}${profit.toLocaleString('ar-SA-u-nu-latn')} ر.س` : 'غير مكتملة'}
                         </td>
                         <td style={S.td}><span title={readiness?.reason || undefined} style={{ ...S.statusBadge, background:readiness?.ready ? 'var(--success-bg)' : readiness?.pending ? 'var(--warning-bg)' : 'var(--surface2)', color:readiness?.ready ? 'var(--accent2)' : readiness?.pending ? 'var(--warning-text)' : 'var(--text3)', whiteSpace:'nowrap' }}>{readiness?.ready ? 'جاهز' : readiness?.pending ? 'قيد المعالجة' : readiness?.reason || 'غير جاهز'}</span></td>
                         <td style={S.td}>
@@ -748,7 +748,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                     return (
                       <div key={p} style={{ flex: 1, textAlign: 'center', background: 'var(--surface)', borderRadius: 8, padding: '8px 4px', border: `1px solid ${PLATFORM_COLORS[p]}33` }}>
                         <div style={{ fontSize: 10, color: PLATFORM_COLORS[p], fontWeight: 700 }}>{PLATFORM_NAMES[p]}</div>
-                        <div style={{ fontSize: 16, fontWeight: 800 }}>{price.toLocaleString()}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800 }}>{price.toLocaleString('ar-SA-u-nu-latn')}</div>
                         <div style={{ fontSize: 9, color: 'var(--text3)' }}>ر.س</div>
                       </div>
                     )
@@ -935,8 +935,8 @@ function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) 
       ) : (<>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 16 }}>
           {[
-            ['الجلسات', metrics.sessions.toLocaleString(), '#ff9900'],
-            ['مشاهدات الصفحة', metrics.pageViews.toLocaleString(), '#0f958c'],
+            ['الجلسات', metrics.sessions.toLocaleString('ar-SA-u-nu-latn'), '#ff9900'],
+            ['مشاهدات الصفحة', metrics.pageViews.toLocaleString('ar-SA-u-nu-latn'), '#0f958c'],
             ['معدل التحويل', `${metrics.conversion.toFixed(2)}%`, '#28c76f'],
             ['Buy Box المرجّح', `${metrics.buyBox.toFixed(2)}%`, '#00b8d9'],
             ['المبيعات', `${metrics.sales.toLocaleString(undefined, { maximumFractionDigits: 2 })} ر.س`, '#f25f5c'],
@@ -958,12 +958,12 @@ function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) 
               <tbody>{metrics.opportunities.map((row, i) => (
                 <tr key={row.asin || i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '9px 10px', fontSize: 11, maxWidth: 240 }}><div style={{ fontWeight: 700 }}>{row.product_name || row.asin}</div><div style={{ color: 'var(--text3)', fontFamily: 'monospace', marginTop: 2 }}>{row.asin}</div></td>
-                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.sessions) || 0).toLocaleString()}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.sessions) || 0).toLocaleString('ar-SA-u-nu-latn')}</td>
                   <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.unit_session_percentage) || 0).toFixed(2)}%</td>
                   <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.buy_box_percentage) || 0).toFixed(2)}%</td>
                   <td style={{ padding: '9px 10px', fontSize: 11 }}>{Number(row.sold) || 0}</td>
                   <td style={{ padding: '9px 10px', fontSize: 11, color: row.stock === 0 ? 'var(--red)' : 'var(--text)' }}>{row.stock ?? 'غير مربوط'}</td>
-                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.gross_sales) || 0).toLocaleString()} ر.س</td>
+                  <td style={{ padding: '9px 10px', fontSize: 11 }}>{(Number(row.gross_sales) || 0).toLocaleString('ar-SA-u-nu-latn')} ر.س</td>
                   <td style={{ padding: '9px 10px', fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>{row.action}{row.missedUnits > 0 ? ` · فرصة تقديرية ${row.missedUnits} وحدة` : ''}</td>
                 </tr>
               ))}</tbody>
@@ -1001,7 +1001,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
   }, [data])
 
   if (loading || stats.sold.length === 0) return null
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
   // إن كانت تكاليف الشراء غير مسجلة فالأرقام «قبل تكلفة البضاعة» — ننبّه بدل عرضها كصافٍ نهائي
   const withCost = data.filter(r => Number(r.cost_price) > 0).length
   const costMissing = data.length > 0 && withCost / data.length < 0.2
@@ -1085,7 +1085,7 @@ function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
       .then(({ data }) => setData(data))
   }, [merchant])
   if (!data || !data.turnover_ratio) return null
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA') + ' ر.س'
+  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>معدّل دوران المخزون</div>
@@ -1148,8 +1148,8 @@ function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
                   <td style={{ padding: '8px 12px', fontWeight: 700 }}>{b.brand}</td>
                   <td style={{ padding: '8px 12px', color: PLATFORM_COLORS[b.platform] || 'var(--text3)', fontWeight: 600 }}>{PLATFORM_NAMES[b.platform] || b.platform}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--success-text)' }}>{b.units_sold}</td>
-                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(b.revenue)).toLocaleString('ar-SA')}</td>
-                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: 'var(--text2)' }}>{Math.round(Number(b.net_revenue)).toLocaleString('ar-SA')}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(b.revenue)).toLocaleString('ar-SA-u-nu-latn')}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: 'var(--text2)' }}>{Math.round(Number(b.net_revenue)).toLocaleString('ar-SA-u-nu-latn')}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? 'var(--danger-text)' : ret > 5 ? 'var(--warning-text)' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
                 </tr>
               )
@@ -1217,7 +1217,7 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--success-text)' }}>{v.units_sold}</td>
                   <td style={{ padding: '8px 12px', color: v.units_returned > 0 ? 'var(--danger-text)' : 'var(--text3)' }}>{v.units_returned}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: ret > 15 ? 'var(--danger-text)' : ret > 5 ? 'var(--warning-text)' : 'var(--text3)' }}>{ret > 0 ? ret + '%' : '—'}</td>
-                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(v.revenue)).toLocaleString('ar-SA')}</td>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{Math.round(Number(v.revenue)).toLocaleString('ar-SA-u-nu-latn')}</td>
                 </tr>
               )
             })}
@@ -1325,8 +1325,8 @@ function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
                 {ents.map(([plat, v]) => (
                   <div key={plat} style={{ flex: 1, minWidth: 130, background: 'var(--surface)', borderRadius: 8, padding: 8, borderTop: `2px solid ${PLATFORM_COLORS[plat] || '#0f958c'}` }}>
                     <div style={{ fontSize: 10, color: PLATFORM_COLORS[plat] || 'var(--text3)', fontWeight: 700 }}>{PLATFORM_NAMES[plat] || plat}</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3, color: Number(v.net) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{Math.round(v.net).toLocaleString('ar-SA')} <span style={{ fontSize: 10, color: 'var(--text3)' }}>ربح</span></div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{Math.round(v.revenue).toLocaleString('ar-SA')} مبيعات · {v.margin != null ? v.margin + '% هامش' : v.units + ' وحدة'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3, color: Number(v.net) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>{Math.round(v.net).toLocaleString('ar-SA-u-nu-latn')} <span style={{ fontSize: 10, color: 'var(--text3)' }}>ربح</span></div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{Math.round(v.revenue).toLocaleString('ar-SA-u-nu-latn')} مبيعات · {v.margin != null ? v.margin + '% هامش' : v.units + ' وحدة'}</div>
                   </div>
                 ))}
               </div>
