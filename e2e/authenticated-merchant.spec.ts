@@ -496,7 +496,7 @@ test('merchant reviews and approves a Trendyol return without technical identifi
   let currentStatus = 'pending'
   let approvePayload: any = null
 
-  await page.route('**/rest/v1/returns**', async route => {
+  await page.route('**/rest/v1/rpc/list_return_facts**', async route => {
     const url = new URL(route.request().url())
     const pendingOnly = url.searchParams.get('status')?.includes('pending')
     const rows = pendingOnly && currentStatus !== 'pending' ? [] : [{ ...claim, status:currentStatus }]

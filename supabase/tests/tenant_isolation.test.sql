@@ -213,8 +213,8 @@ BEGIN
   ) <> 2 THEN
     RAISE EXCEPTION 'platform staff with view_merchants cannot read safe order facts';
   END IF;
-  IF (SELECT count(*) FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') <> 3 THEN
-    RAISE EXCEPTION 'platform staff with view_merchants cannot read shipment packages';
+  IF EXISTS (SELECT 1 FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') THEN
+    RAISE EXCEPTION 'platform staff can read raw shipment packages without the operational role';
   END IF;
   IF (SELECT count(*) FROM public.account_transactions) <> 0 THEN
     RAISE EXCEPTION 'platform staff bypassed view_finance permission';

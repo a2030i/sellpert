@@ -10,6 +10,7 @@ import type { Merchant } from '../lib/supabase'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Landmark, RefreshCw } from 'lucide-react'
 import { financialTransactionMeta } from '../lib/trendyolFinance'
+import { hasMerchantPermission } from '../lib/merchantPermissions'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -121,8 +122,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         .eq('merchant_code', code)
         .gte('data_date', start).lte('data_date', end)
         .order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
-      fetchAll<any>((f, t) => supabase.from('returns').select('*')
-        .eq('merchant_code', code)
+      fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: code, p_sku: null })
         .gte('return_date', start).lte('return_date', end)
         .order('id').range(f, t), 'المرتجعات'),
       supabase.from('sales_targets').select('*')
@@ -747,8 +747,8 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
     if (!merchant) return
     setLoading(true)
     const [rows, { count }, { data: rates }, perfRows] = await Promise.all([
-      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'المرتجعات'),
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchant.merchant_code),
+      fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }).order('id').range(f, t), 'المرتجعات'),
+      supabase.rpc('list_order_operating_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }, { count: 'exact', head: true }),
       supabase.from('platform_commission_rates').select('platform, rate, shipping_fee'),
       // إيراد كل الفترات: المرتجعات هنا تاريخية كاملة، فيجب أن يكون مقام النسبة تاريخياً كاملاً أيضاً
       // (كانت تُقسم على إيراد الشهر المعروض فقط → نسب عبثية مثل 911%)
@@ -912,6 +912,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 // ── Returns mini-section ──────────────────────────────────────────────────────
 
 function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchant | null; month: number; year: number; onUpdate: () => void }) {
+  const canManageReturns = hasMerchantPermission(merchant, 'orders')
   const [returns, setReturns] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ platform: 'amazon', order_id: '', product_name: '', quantity: '1', return_amount: '', reason: '', return_date: new Date().toISOString().split('T')[0], status: 'pending' })
@@ -934,10 +935,10 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const end = new Date(year, month, 0).toISOString().split('T')[0]
     const [periodRows, pendingRows] = await Promise.all([
-      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code)
+      fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: merchant.merchant_code, p_sku: null })
         .gte('return_date', start).lte('return_date', end)
         .order('created_at', { ascending: false }).order('id').range(f, t), 'مرتجعات الفترة'),
-      fetchAll<any>((f, t) => supabase.from('returns').select('*').eq('merchant_code', merchant.merchant_code)
+      fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: merchant.merchant_code, p_sku: null })
         .eq('platform', 'trendyol').eq('status', 'pending')
         .order('created_at', { ascending: false }).order('id').range(f, t), 'قرارات المرتجعات'),
     ])
@@ -1065,13 +1066,13 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
           <div style={{ fontWeight: 800, fontSize: 15 }}>إدارة المرتجعات</div>
           <div style={{ fontSize: 11, color:'var(--text3)', marginTop:4 }}>راجع طلبات العملاء واتخذ القرار مباشرة في Trendyol</div>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        {canManageReturns ? <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button style={S.addBtn} onClick={() => void refreshClaims()} disabled={syncingClaims}>
             <RefreshCw size={14} aria-hidden="true" style={{ marginLeft:6, verticalAlign:'middle' }} />
             {syncingClaims ? 'جارٍ التحديث...' : 'تحديث من Trendyol'}
           </button>
           <button style={S.addBtn} onClick={() => setShowForm(v => !v)}>{showForm ? 'إلغاء' : 'إضافة مرتجع يدويًا'}</button>
-        </div>
+        </div> : null}
       </div>
 
       <div style={{ padding:'16px 20px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:10, borderBottom:'1px solid var(--border)' }}>
@@ -1086,7 +1087,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
         </div>)}
       </div>
 
-      {showForm && (
+      {canManageReturns && showForm && (
         <div style={{ padding: '16px 20px', background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
@@ -1167,7 +1168,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
             <tbody>
               {returns.map(r => {
                 const statusMeta = RETURN_STATUS_META[String(r.status || '').toLowerCase()] || RETURN_STATUS_META.pending
-                const isPendingTrendyol = r.platform === 'trendyol' && r.status === 'pending' && r.claim_id && r.provider_claim_item_id
+                const isPendingTrendyol = canManageReturns && r.platform === 'trendyol' && r.status === 'pending' && r.claim_id && r.provider_claim_item_id
                 return <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ ...S.td, fontSize: 11 }}>{r.return_date}</td>
                   <td style={{ ...S.td, color: PLATFORM_META[r.platform]?.color, fontWeight: 700 }}>{PLATFORM_META[r.platform]?.label || r.platform}</td>

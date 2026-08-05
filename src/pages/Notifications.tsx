@@ -10,6 +10,7 @@ import {
 } from '../lib/attentionCenter'
 import { PageHeader } from '../components/UI'
 import { userErrorMessage } from '../lib/userError'
+import { hasMerchantPermission } from '../lib/merchantPermissions'
 import './Notifications.css'
 
 interface NotificationRow {
@@ -75,16 +76,21 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
   const [failedSources, setFailedSources] = useState<string[]>([])
   const [tab, setTab] = useState<Tab>(requestedTab)
   const merchantCode = merchant?.merchant_code
+  const canViewOrders = hasMerchantPermission(merchant, 'orders')
 
   const load = useCallback(async (quiet = false) => {
     if (!merchantCode) return
     if (quiet) setRefreshing(true)
     else setLoading(true)
     const results = await Promise.allSettled([
-      supabase.from('orders').select('id,order_id,status,cargo_tracking_number,total_amount,platform_fee,unit_price,quantity,sku,order_date')
-        .eq('merchant_code', merchantCode).order('order_date', { ascending: true }).limit(500),
-      supabase.from('order_packages').select('order_id,shipment_package_id,status,cargo_tracking_number,invoice_status,invoice_rejected_reasons,modified_at')
-        .eq('merchant_code', merchantCode).order('modified_at', { ascending: true }).limit(500),
+      canViewOrders
+        ? supabase.from('orders').select('id,order_id,status,cargo_tracking_number,total_amount,platform_fee,unit_price,quantity,sku,order_date')
+          .eq('merchant_code', merchantCode).order('order_date', { ascending: true }).limit(500)
+        : Promise.resolve({ data: [], error: null }),
+      canViewOrders
+        ? supabase.from('order_packages').select('order_id,shipment_package_id,status,cargo_tracking_number,invoice_status,invoice_rejected_reasons,modified_at')
+          .eq('merchant_code', merchantCode).order('modified_at', { ascending: true }).limit(500)
+        : Promise.resolve({ data: [], error: null }),
       supabase.from('trendyol_customer_questions').select('status,asked_at')
         .eq('merchant_code', merchantCode).order('asked_at', { ascending: true }).limit(500),
       supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,updated_at')
@@ -109,7 +115,7 @@ export default function Notifications({ merchant }: { merchant: Merchant | null 
     setFailedSources(failures)
     setLoading(false)
     setRefreshing(false)
-  }, [merchantCode])
+  }, [merchantCode, canViewOrders])
 
   useEffect(() => { void load() }, [load])
 

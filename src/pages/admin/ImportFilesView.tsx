@@ -71,7 +71,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     fetchAll<any>((f, t) => supabase.from('performance_data').select('platform, total_sales, order_count, ad_spend, platform_fees').eq('merchant_code', merchantCode).gte('data_date', monthStartIso).order('data_date').order('platform').range(f, t), 'بيانات الأداء'),
     fetchAll<any>((f, t) => supabase.rpc('list_order_operating_facts', { p_merchant_code: merchantCode, p_sku: null }).order('id').range(f, t), 'الطلبات'),
     fetchAll<any>((f, t) => supabase.from('inventory').select('platform, quantity').eq('merchant_code', merchantCode).order('id').range(f, t), 'المخزون'),
-    supabase.from('returns').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
+    supabase.rpc('list_return_facts', { p_merchant_code: merchantCode, p_sku: null }, { count: 'exact', head: true }),
   ])
 
   // إجماليات هذا الشهر
