@@ -23,9 +23,17 @@ instead of producing a green workflow that did not deploy Supabase.
 
 The `Supabase production release` workflow runs a two-phase deployment:
 
-1. Deploy backward-compatible Edge Functions.
-2. Apply every committed database migration.
-3. Deploy Edge Functions again against the final schema.
+1. Compare committed migration timestamps with the production history and stop
+   if an older local migration is missing remotely.
+2. Run a dry-run database push without changing production.
+3. Deploy backward-compatible Edge Functions.
+4. Apply only forward, committed database migrations.
+5. Deploy Edge Functions again against the final schema.
+
+The release intentionally does not use `--include-all`. If history drift is
+reported, verify that production already contains the migration's schema effect,
+then reconcile that reviewed timestamp with `supabase migration repair <version>
+--status applied`. Never mark a migration as applied merely to make CI green.
 
 Every schema-changing function release must understand both the pre-migration
 and post-migration representation during phase one. CI rebuilds the database

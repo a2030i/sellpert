@@ -16,13 +16,26 @@ describe('Supabase production release workflow', () => {
 
   it('deploys compatible functions before migrations and converges afterward', () => {
     const script = readFileSync('scripts/deploy-supabase-release.ps1', 'utf8')
+    const parity = script.indexOf('Test-SupabaseMigrationParity.ps1')
+    const preview = script.indexOf('supabase db push --linked --dry-run')
     const firstFunctions = script.indexOf('supabase functions deploy')
-    const migration = script.indexOf('supabase db push')
+    const migration = script.lastIndexOf('supabase db push --linked')
     const finalFunctions = script.lastIndexOf('supabase functions deploy')
+    expect(parity).toBeGreaterThan(0)
+    expect(preview).toBeGreaterThan(parity)
     expect(firstFunctions).toBeGreaterThan(0)
+    expect(firstFunctions).toBeGreaterThan(preview)
     expect(migration).toBeGreaterThan(firstFunctions)
     expect(finalFunctions).toBeGreaterThan(migration)
     expect(script).toContain('SUPABASE_ACCESS_TOKEN')
     expect(script).toContain('SUPABASE_DB_PASSWORD')
+    expect(script).not.toContain('--include-all')
+  })
+
+  it('fails closed when an old local migration is absent remotely', () => {
+    const guard = readFileSync('scripts/Test-SupabaseMigrationParity.ps1', 'utf8')
+    expect(guard).toContain('historicalDrift')
+    expect(guard).toContain('migration repair <version> --status applied')
+    expect(guard).toContain('No production changes were made.')
   })
 })
