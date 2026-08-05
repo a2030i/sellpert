@@ -196,8 +196,22 @@ BEGIN
   IF public.is_staff() THEN
     RAISE EXCEPTION 'limited platform staff was promoted to unrestricted staff';
   END IF;
-  IF (SELECT count(*) FROM public.orders WHERE order_id IN ('TENANT-A-ORDER','TENANT-B-ORDER')) <> 2 THEN
-    RAISE EXCEPTION 'platform staff with view_merchants cannot read merchant orders';
+  IF EXISTS (SELECT 1 FROM public.orders WHERE order_id IN ('TENANT-A-ORDER','TENANT-B-ORDER')) THEN
+    RAISE EXCEPTION 'platform staff can read full merchant orders without the operational role';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM (
+      SELECT id FROM public.list_order_operating_facts(
+        (SELECT merchant_code FROM public.merchants WHERE id = '00000000-0000-4000-8000-000000009901'), NULL
+      )
+      UNION ALL
+      SELECT id FROM public.list_order_operating_facts(
+        (SELECT merchant_code FROM public.merchants WHERE id = '00000000-0000-4000-8000-000000009902'), NULL
+      )
+    ) safe_orders
+  ) <> 2 THEN
+    RAISE EXCEPTION 'platform staff with view_merchants cannot read safe order facts';
   END IF;
   IF (SELECT count(*) FROM public.order_packages WHERE shipment_package_id LIKE 'TENANT-%-PACKAGE-%') <> 3 THEN
     RAISE EXCEPTION 'platform staff with view_merchants cannot read shipment packages';
