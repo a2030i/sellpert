@@ -48,7 +48,7 @@ export default function AuditLogView({ merchants }: { merchants: Merchant[] }) {
           {tables.map(table => <option key={table} value={table}>{ACTIVITY_ENTITIES[table] || 'سجل تشغيلي'}</option>)}
         </select>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: 'var(--text3)', alignSelf: 'center' }}>{total.toLocaleString('ar-SA')} عملية</span>
+        <span style={{ fontSize: 12, color: 'var(--text3)', alignSelf: 'center' }}>{total.toLocaleString('ar-SA-u-nu-latn')} عملية</span>
       </div>
 
       {error ? <div style={{ ...S.formCard, color: 'var(--danger-text)', background: 'var(--danger-bg)', fontSize: 12 }}>{error}</div> : loading ? null : logs.length === 0 ? (

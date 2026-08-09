@@ -162,7 +162,7 @@ export function Pagination({ page, pageSize, total, onPage }: { page: number; pa
   const to   = Math.min(page * pageSize, total)
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text3)' }}>
-      <span>{from}–{to} من {total.toLocaleString('ar-SA')}</span>
+      <span>{from}–{to} من {total.toLocaleString('ar-SA-u-nu-latn')}</span>
       <div style={{ display: 'flex', gap: 4 }}>
         <button onClick={() => onPage(1)} disabled={page === 1} style={pgBtn}>«</button>
         <button onClick={() => onPage(page - 1)} disabled={page === 1} style={pgBtn}>‹</button>

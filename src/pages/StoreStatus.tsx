@@ -139,7 +139,7 @@ export default function StoreStatus({ merchant }: { merchant: Merchant | null })
             const status = String(item.status || '').toLowerCase()
             const ok = ['success', 'completed', 'done'].includes(status)
             const running = ['pending', 'processing', 'running'].includes(status)
-            return <div className="status-source" key={item.id}><span className={`status-source__dot ${ok ? 'ok' : running ? 'warn' : 'bad'}`} /><div><strong>{platformLabel(item.platform)}</strong><span>{item.uploaded_at ? `رُفع ${timeAgo(item.uploaded_at)}` : 'وقت الرفع غير متوفر'}{item.rows_processed != null ? ` · ${item.rows_processed.toLocaleString('ar-SA')} صف` : ''}</span></div><Badge tone={ok ? 'green' : running ? 'amber' : 'red'}>{ok ? 'اكتمل' : running ? 'قيد المعالجة' : 'لم يكتمل'}</Badge></div>
+            return <div className="status-source" key={item.id}><span className={`status-source__dot ${ok ? 'ok' : running ? 'warn' : 'bad'}`} /><div><strong>{platformLabel(item.platform)}</strong><span>{item.uploaded_at ? `رُفع ${timeAgo(item.uploaded_at)}` : 'وقت الرفع غير متوفر'}{item.rows_processed != null ? ` · ${item.rows_processed.toLocaleString('ar-SA-u-nu-latn')} صف` : ''}</span></div><Badge tone={ok ? 'green' : running ? 'amber' : 'red'}>{ok ? 'اكتمل' : running ? 'قيد المعالجة' : 'لم يكتمل'}</Badge></div>
           })}</div> : <EmptySource text="لم تُرفع ملفات حتى الآن." />}
         </Card>
       </div>
@@ -175,9 +175,9 @@ function latestPerPlatform<T extends { platform: string }>(items: T[], dateOf: (
 
 function buildTimeline(logs: HealthLog[], jobs: HealthJob[], uploads: HealthUpload[]): TimelineItem[] {
   return [
-    ...logs.map(item => ({ id: `log-${item.id}`, platform: item.platform, status: item.status || '', at: item.finished_at || item.started_at || null, title: `مزامنة ${platformLabel(item.platform)}`, detail: ['success', 'completed'].includes(String(item.status).toLowerCase()) ? `اكتملت${item.records_synced != null ? ` · ${item.records_synced.toLocaleString('ar-SA')} سجل` : ''}` : statusLabel(item.status) })),
+    ...logs.map(item => ({ id: `log-${item.id}`, platform: item.platform, status: item.status || '', at: item.finished_at || item.started_at || null, title: `مزامنة ${platformLabel(item.platform)}`, detail: ['success', 'completed'].includes(String(item.status).toLowerCase()) ? `اكتملت${item.records_synced != null ? ` · ${item.records_synced.toLocaleString('ar-SA-u-nu-latn')} سجل` : ''}` : statusLabel(item.status) })),
     ...jobs.map(item => ({ id: `job-${item.id}`, platform: item.platform, status: item.status, at: item.finished_at || item.started_at || item.created_at || null, title: `عملية ${platformLabel(item.platform)}`, detail: statusLabel(item.status) })),
-    ...uploads.map(item => ({ id: `upload-${item.id}`, platform: item.platform, status: item.status || '', at: item.finished_at || item.uploaded_at || null, title: `ملف ${platformLabel(item.platform)}`, detail: `${statusLabel(item.status)}${item.rows_processed != null ? ` · ${item.rows_processed.toLocaleString('ar-SA')} صف` : ''}` })),
+    ...uploads.map(item => ({ id: `upload-${item.id}`, platform: item.platform, status: item.status || '', at: item.finished_at || item.uploaded_at || null, title: `ملف ${platformLabel(item.platform)}`, detail: `${statusLabel(item.status)}${item.rows_processed != null ? ` · ${item.rows_processed.toLocaleString('ar-SA-u-nu-latn')} صف` : ''}` })),
   ].sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime())
 }
 

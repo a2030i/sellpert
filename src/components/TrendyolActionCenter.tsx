@@ -294,13 +294,13 @@ export function TrendyolCustomerInbox({merchantCode,standalone=false}:{merchantC
       <button style={{...M.close,width:'auto',padding:'0 10px',display:'inline-flex',alignItems:'center',gap:6}} onClick={()=>void synchronize()} disabled={refreshing} aria-label="تحديث الأسئلة"><RefreshCw size={15} className={refreshing?'spin':''}/><span style={{fontSize:10,fontWeight:800}}>{refreshing?'جارٍ التحديث':'تحديث'}</span></button>
     </div>
     <div style={F.questionSummary}>
-      <div style={F.questionMetric}><span>تنتظر الرد</span><strong>{waitingCount.toLocaleString('ar-SA')}</strong></div>
-      <div style={F.questionMetric}><span>ردود أُرسلت</span><strong>{replies.filter(reply=>reply.status==='sent').length.toLocaleString('ar-SA')}</strong></div>
+      <div style={F.questionMetric}><span>تنتظر الرد</span><strong>{waitingCount.toLocaleString('ar-SA-u-nu-latn')}</strong></div>
+      <div style={F.questionMetric}><span>ردود أُرسلت</span><strong>{replies.filter(reply=>reply.status==='sent').length.toLocaleString('ar-SA-u-nu-latn')}</strong></div>
       <div style={F.questionMetric}><span>آخر مزامنة</span><strong style={{fontSize:11}}>{lastSyncedAt?new Date(lastSyncedAt).toLocaleString('ar-SA-u-ca-gregory-nu-latn',{dateStyle:'short',timeStyle:'short'}):'لم تتم بعد'}</strong></div>
     </div>
     <div style={F.questionTabs}>
-      <button onClick={()=>setView('pending')} style={{...F.questionTab,...(view==='pending'?F.questionTabActive:{})}}><Clock3 size={14}/> بانتظار الرد <span>{waitingCount.toLocaleString('ar-SA')}</span></button>
-      <button onClick={()=>setView('history')} style={{...F.questionTab,...(view==='history'?F.questionTabActive:{})}}><History size={14}/> سجل الردود <span>{replies.length.toLocaleString('ar-SA')}</span></button>
+      <button onClick={()=>setView('pending')} style={{...F.questionTab,...(view==='pending'?F.questionTabActive:{})}}><Clock3 size={14}/> بانتظار الرد <span>{waitingCount.toLocaleString('ar-SA-u-nu-latn')}</span></button>
+      <button onClick={()=>setView('history')} style={{...F.questionTab,...(view==='history'?F.questionTabActive:{})}}><History size={14}/> سجل الردود <span>{replies.length.toLocaleString('ar-SA-u-nu-latn')}</span></button>
     </div>
     {view==='pending'&&pendingQuestions.length>0?<label style={{display:'block',marginBottom:12}}>
       <span className="sr-only">البحث في أسئلة العملاء</span>
@@ -332,7 +332,7 @@ export function TrendyolCustomerInbox({merchantCode,standalone=false}:{merchantC
            <div style={{minWidth:0,flex:1}}><div style={{fontSize:11,fontWeight:800}}>{question.product_name||'منتج Trendyol'}</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5}}>{question.question_text}</div><div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>{question.show_customer_name&&question.customer_name?question.customer_name:'عميل Trendyol'} · {question.asked_at?new Date(question.asked_at).toLocaleString('ar-SA-u-ca-gregory-nu-latn'):'وقت غير متاح'}</div></div>
          </div>
          <textarea aria-label={`الرد على سؤال ${question.product_name||'العميل'}`} value={answers[id]||''} onChange={event=>setAnswers(current=>({...current,[id]:event.target.value.slice(0,2000)}))} placeholder="اكتب ردًا واضحًا للعميل..." style={{...M.textarea,minHeight:78,marginTop:10,fontFamily:'inherit',direction:'rtl',textAlign:'right'}}/>
-         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginTop:7}}><button style={{...M.run,padding:'8px 13px'}} disabled={Boolean(replying)||(answers[id]||'').trim().length<10} onClick={()=>{setMessage(null);setConfirmQuestion(question)}}><Send size={14}/> مراجعة الرد</button><span style={{fontSize:10,color:'var(--text3)'}}>{(answers[id]||'').length.toLocaleString('ar-SA')} / 2,000</span></div>
+         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginTop:7}}><button style={{...M.run,padding:'8px 13px'}} disabled={Boolean(replying)||(answers[id]||'').trim().length<10} onClick={()=>{setMessage(null);setConfirmQuestion(question)}}><Send size={14}/> مراجعة الرد</button><span style={{fontSize:10,color:'var(--text3)'}}>{(answers[id]||'').length.toLocaleString('ar-SA-u-nu-latn')} / 2,000</span></div>
        </article>
      })}</div>}
   </div>

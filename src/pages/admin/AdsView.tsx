@@ -116,15 +116,15 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
         <>
           {/* KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <KpiCard label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="#e84040" icon={<TrendingDown size={20} />} />
-            <KpiCard label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="#00b894" icon={<TrendingUp size={20} />} />
+            <KpiCard label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="#e84040" icon={<TrendingDown size={20} />} />
+            <KpiCard label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="#00b894" icon={<TrendingUp size={20} />} />
             <KpiCard label="ROAS"  value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? 'ممتاز' : roas >= 1.5 ? 'جيد' : 'منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
-            <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA')} sub={`${totals.orders} طلب`} color="#0f958c" icon={<Megaphone size={20} />} />
+            <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA-u-nu-latn')} sub={`${totals.orders} طلب`} color="#0f958c" icon={<Megaphone size={20} />} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <SubKpi label="الظهور" value={totals.impressions.toLocaleString('ar-SA')} />
-            <SubKpi label="النقرات" value={totals.clicks.toLocaleString('ar-SA') + ` (${ctr.toFixed(2)}% CTR)`} />
+            <SubKpi label="الظهور" value={totals.impressions.toLocaleString('ar-SA-u-nu-latn')} />
+            <SubKpi label="النقرات" value={totals.clicks.toLocaleString('ar-SA-u-nu-latn') + ` (${ctr.toFixed(2)}% CTR)`} />
             <SubKpi label="معدّل التحويل" value={cvr.toFixed(2) + '%'} />
           </div>
 
@@ -191,8 +191,8 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                       <tr key={i} style={S.tr}>
                         <td style={{ ...S.td, fontSize: 12, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.key}>{g.key}</td>
                         <td style={{ ...S.td, fontSize: 11, color, fontWeight: 700 }}>{PLATFORM_MAP[g.platform] || g.platform}</td>
-                        <td style={{ ...S.td, fontSize: 11 }}>{g.impressions.toLocaleString('ar-SA')}</td>
-                        <td style={{ ...S.td, fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA')}</td>
+                        <td style={{ ...S.td, fontSize: 11 }}>{g.impressions.toLocaleString('ar-SA-u-nu-latn')}</td>
+                        <td style={{ ...S.td, fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA-u-nu-latn')}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{ct.toFixed(2)}%</td>
                         <td style={{ ...S.td, fontSize: 11, fontWeight: 700 }}>{g.orders}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>

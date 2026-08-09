@@ -258,7 +258,7 @@ function KpiCard({ label, value, sub, icon, color }: { label: string; value: num
         <span style={S.kpiLabel}>{label}</span>
         {icon && <span style={{ ...S.kpiIcon, color, background: color + '15' }}>{icon}</span>}
       </div>
-      <div style={{ ...S.kpiValue, color }}>{value.toLocaleString('ar-SA')}</div>
+      <div style={{ ...S.kpiValue, color }}>{value.toLocaleString('ar-SA-u-nu-latn')}</div>
       {sub && <div style={S.kpiSub}>{sub}</div>}
     </div>
   )

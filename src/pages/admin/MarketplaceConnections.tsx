@@ -433,7 +433,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                 </div> : null}
                 {['done','partial'].includes(syncJob?.status || '') && syncDetails ? <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6 }}>
                   {oauthSyncMetrics(platform, syncDetails, status).map(([label, value]) => <div key={label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 8px', display:'flex', justifyContent:'space-between' }}>
-                    <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>
+                    <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA-u-nu-latn')}</strong>
                   </div>)}
                 </div> : null}
                 {syncJob?.status === 'failed' && syncJob.error_message ? <div style={{ color:'var(--danger-text)', fontSize:10, marginTop:8 }}>{syncJob.error_message}</div> : null}
@@ -466,7 +466,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: `${meta.color}0D`, border: `1px solid ${meta.color}35` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, fontWeight: 800, color: meta.color }}>
                     <span>{syncStageLabel}</span>
-                    <span style={{ fontSize: 10 }}>{syncProgress.toLocaleString('ar-SA')}٪</span>
+                    <span style={{ fontSize: 10 }}>{syncProgress.toLocaleString('ar-SA-u-nu-latn')}٪</span>
                   </div>
                   <div role="progressbar" aria-label="تقدم مزامنة Trendyol" aria-valuemin={0} aria-valuemax={100} aria-valuenow={syncProgress} style={{ height: 8, overflow: 'hidden', borderRadius: 99, background: `${meta.color}20`, direction: 'ltr' }}>
                     <div style={{ width: `${syncProgress}%`, height: '100%', borderRadius: 99, background: meta.color, transition: 'width .35s ease' }} />
@@ -492,7 +492,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                     ['أسئلة العملاء', syncDetails.customer_questions], ['أيام الأداء', syncDetails.performance_days],
                   ].map(([label, value]) => (
                     <div key={String(label)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 8px', display:'flex', justifyContent:'space-between' }}>
-                      <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA')}</strong>
+                      <span style={{ color:'var(--text3)' }}>{label}</span><strong>{Number(value || 0).toLocaleString('ar-SA-u-nu-latn')}</strong>
                     </div>
                   ))}
                   {syncDetails.warnings?.length ? <div style={{ gridColumn:'1/-1', color:'var(--warning-text)', fontSize:10, lineHeight:1.6 }}>تعذر تحديث بعض الأقسام: {syncDetails.warnings.join('، ')}</div> : null}
@@ -522,9 +522,9 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                   <ChevronLeft size={16}/>
                 </span>
                 {operationSummary ? <span style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginTop:10 }}>
-                  <span style={{ padding:'7px', borderRadius:7, background:'var(--success-bg)', color:'var(--success-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.completed.toLocaleString('ar-SA')}</b>اكتملت</span>
-                  <span style={{ padding:'7px', borderRadius:7, background:'var(--warning-bg)', color:'var(--warning-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.pending.toLocaleString('ar-SA')}</b>قيد التنفيذ</span>
-                  <span style={{ padding:'7px', borderRadius:7, background:'var(--danger-bg)', color:'var(--danger-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.failed.toLocaleString('ar-SA')}</b>تحتاج مراجعة</span>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--success-bg)', color:'var(--success-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.completed.toLocaleString('ar-SA-u-nu-latn')}</b>اكتملت</span>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--warning-bg)', color:'var(--warning-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.pending.toLocaleString('ar-SA-u-nu-latn')}</b>قيد التنفيذ</span>
+                  <span style={{ padding:'7px', borderRadius:7, background:'var(--danger-bg)', color:'var(--danger-text)', textAlign:'center', fontSize:10 }}><b style={{ display:'block', fontSize:14 }}>{operationSummary.failed.toLocaleString('ar-SA-u-nu-latn')}</b>تحتاج مراجعة</span>
                 </span> : <span style={{ display:'block', marginTop:7, fontSize:10, color:'var(--text3)' }}>جارٍ قراءة سجل العمليات…</span>}
                 {operationSummary?.lastAt ? <span style={{ display:'block', marginTop:7, fontSize:9, color:'var(--text3)' }}>آخر عملية: {formatDate(operationSummary.lastAt)}</span> : null}
               </button>
@@ -552,7 +552,7 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
                 </span>
                 {waitingQuestions !== null ? (
                   <span style={{ minWidth: 28, height: 28, padding: '0 8px', borderRadius: 999, display: 'grid', placeItems: 'center', background: waitingQuestions > 0 ? meta.color : 'var(--surface2)', color: waitingQuestions > 0 ? '#fff' : 'var(--text3)', fontSize: 11, fontWeight: 900 }}>
-                    {waitingQuestions.toLocaleString('ar-SA')}
+                    {waitingQuestions.toLocaleString('ar-SA-u-nu-latn')}
                   </span>
                 ) : null}
               </button>

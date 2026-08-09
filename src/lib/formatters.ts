@@ -3,18 +3,18 @@
 export function fmtCurrency(v: number | null | undefined, currency = 'SAR'): string {
   if (v === null || v === undefined || isNaN(v)) return '—'
   const symbol = currency === 'SAR' ? 'ر.س' : currency === 'AED' ? 'د.إ' : currency
-  return `${Math.round(v).toLocaleString('ar-SA')} ${symbol}`
+  return `${Math.round(v).toLocaleString('ar-SA-u-nu-latn')} ${symbol}`
 }
 
 export function fmtCurrencyDecimal(v: number | null | undefined, currency = 'SAR'): string {
   if (v === null || v === undefined || isNaN(v)) return '—'
   const symbol = currency === 'SAR' ? 'ر.س' : currency === 'AED' ? 'د.إ' : currency
-  return `${v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
+  return `${v.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
 export function fmtNumber(v: number | null | undefined): string {
   if (v === null || v === undefined || isNaN(v)) return '—'
-  return v.toLocaleString('ar-SA')
+  return v.toLocaleString('ar-SA-u-nu-latn')
 }
 
 export function fmtPercent(v: number | null | undefined, decimals = 1): string {

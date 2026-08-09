@@ -2,9 +2,9 @@ import type React from 'react'
 export { PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from '../../lib/constants'
 
 export function fmt(v: number, type: 'currency' | 'percent' | 'number' = 'currency') {
-  if (type === 'currency') return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س'
+  if (type === 'currency') return v.toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 }) + ' ر.س'
   if (type === 'percent') return v.toFixed(1) + '%'
-  return v.toLocaleString('ar-SA')
+  return v.toLocaleString('ar-SA-u-nu-latn')
 }
 
 export function relativeTime(iso: string) {

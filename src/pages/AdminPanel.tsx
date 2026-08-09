@@ -503,7 +503,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         </div>
 
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}><div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}>
-        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} totalGMV={totalGMV} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={syncLogs} perfData={perfData} />}
+        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} totalGMV={totalGMV} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={syncLogs} perfData={perfData} onNavigate={setView} />}
         {view === 'team'        && <TeamDashboardView />}
         {view === 'merchants'   && (
           timelineCode

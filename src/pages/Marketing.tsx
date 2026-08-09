@@ -154,7 +154,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
         <div><div style={{ fontSize:12, fontWeight:800 }}>مصدر بيانات الإعلانات</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3 }}>الأرقام أدناه مأخوذة من تقارير المنصات، وليست خصمًا بنكيًا نهائيًا.</div></div>
         <div style={{ display:'flex', gap:18, flexWrap:'wrap' }}>
           <div><div style={{ fontSize:10, color:'var(--text3)' }}>المصدر</div><div style={{ fontSize:11, fontWeight:700 }}>{rows.some(row => row.upload_id) ? 'ملفات تقارير مرفوعة' : 'ربط مباشر'}</div></div>
-          <div><div style={{ fontSize:10, color:'var(--text3)' }}>تواريخ التقارير</div><div style={{ fontSize:11, fontWeight:700 }}>{new Set(rows.map(row => row.report_date)).size.toLocaleString('ar-SA')} يوم</div></div>
+          <div><div style={{ fontSize:10, color:'var(--text3)' }}>تواريخ التقارير</div><div style={{ fontSize:11, fontWeight:700 }}>{new Set(rows.map(row => row.report_date)).size.toLocaleString('ar-SA-u-nu-latn')} يوم</div></div>
           <div><div style={{ fontSize:10, color:'var(--text3)' }}>آخر تاريخ تقرير</div><div style={{ fontSize:11, fontWeight:700 }}>{new Date(rows.map(row => row.report_date).sort().slice(-1)[0] || '').toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</div></div>
         </div>
       </div>
@@ -171,10 +171,10 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
-        <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
+        <Kpi label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="var(--danger-text)" icon={<TrendingDown size={18} />} />
+        <Kpi label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="var(--success-text)" icon={<TrendingUp size={18} />} />
         <Kpi labelNode={<Tooltip text="عائد الإعلان قبل خصم الرسوم: كم ريال مبيعات يحقق كل ريال إنفاق إعلاني حسب تقرير المنصة. راجع العائد بعد الرسوم للمقارنة"><span>عائد الإعلان (قبل الرسوم)</span></Tooltip>} label="" value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? 'مرتفع قبل الرسوم' : roas >= 1.5 ? 'متوسط' : 'منخفض'} color={roas >= 3 ? 'var(--success-text)' : roas >= 1.5 ? 'var(--warning-text)' : 'var(--danger-text)'} />
-        <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA')} نقرة`} color="#0f958c" />
+        <Kpi labelNode={<Tooltip text="نسبة النقر إلى الظهور (CTR): كم شخص نقر على إعلانك من بين كل من شاهده"><span>نسبة النقر (CTR) ⓘ</span></Tooltip>} label="" value={ctr.toFixed(2) + '%'} sub={`${totals.clicks.toLocaleString('ar-SA-u-nu-latn')} نقرة`} color="#0f958c" />
         <Kpi labelNode={<Tooltip text="معدّل التحويل: كم نقرة تحوّلت إلى طلب فعلي"><span>معدل التحويل ⓘ</span></Tooltip>} label="" value={cvr.toFixed(2) + '%'} sub={`${totals.orders} طلب`} color="var(--info-text)" />
       </div>
 
@@ -255,8 +255,8 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
                   <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '8px 12px', fontSize: 12, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.key}>{g.key}</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, color, fontWeight: 700 }}>{PLATFORM_MAP[g.platform] || g.platform}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{g.impressions.toLocaleString('ar-SA')}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA')}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{g.impressions.toLocaleString('ar-SA-u-nu-latn')}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA-u-nu-latn')}</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text3)' }}>{ct.toFixed(2)}%</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700 }}>{g.orders}</td>
                     <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>

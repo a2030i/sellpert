@@ -160,7 +160,7 @@ export default function AiView({ merchants, canManageKey = false }: { merchants:
         <button style={{ background: 'linear-gradient(135deg,var(--accent),#55bdb5)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(15,149,140,0.35)', opacity: (analyzing || getSelectedCodes().length === 0) ? 0.6 : 1 }} onClick={runAnalysis} disabled={analyzing || getSelectedCodes().length === 0}>
           {analyzing ? 'جاري التحليل...' : 'تشغيل تحليل AI'}
         </button>
-        {activeInsight && <span style={{ fontSize: 11, color: 'var(--text3)' }}>آخر تحليل: {new Date(activeInsight.created_at).toLocaleString('ar-SA')}</span>}
+        {activeInsight && <span style={{ fontSize: 11, color: 'var(--text3)' }}>آخر تحليل: {new Date(activeInsight.created_at).toLocaleString('ar-SA-u-nu-latn')}</span>}
       </div>
 
       {analysisErr && <div style={{ ...S.msgBox, ...S.msgErr, marginBottom: 16 }}>{analysisErr}</div>}
@@ -239,7 +239,7 @@ export default function AiView({ merchants, canManageKey = false }: { merchants:
             <tbody>
               {history.map(h => (
                 <tr key={h.id} style={{ ...S.tr, cursor: 'pointer' }} onClick={() => { setResults([{ merchant_code: selOne, insight: h }]); setActiveIdx(0) }}>
-                  <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(h.created_at).toLocaleString('ar-SA')}</td>
+                  <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(h.created_at).toLocaleString('ar-SA-u-nu-latn')}</td>
                   <td style={{ ...S.td, fontSize: 12, color: 'var(--text2)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{normalizeAiInsightContent(h.content).summary?.slice(0, 80) || '—'}</td>
                   <td style={S.td}><span style={{ fontSize: 11, color: activeInsight?.id === h.id ? 'var(--accent)' : 'var(--text3)' }}>{activeInsight?.id === h.id ? '● محدد' : 'عرض'}</span></td>
                 </tr>

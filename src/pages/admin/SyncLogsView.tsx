@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import type { Merchant, SyncLog } from '../../lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -107,7 +107,7 @@ export default function SyncLogsView({ merchants, syncLogs }: any) {
                       </span>
                     </td>
                     <td style={{ ...S.td, fontFamily: 'monospace' }}>{l.records_synced?.toLocaleString() || 0}</td>
-                    <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(l.started_at).toLocaleString('ar-SA')}</td>
+                    <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{new Date(l.started_at).toLocaleString('ar-SA-u-nu-latn')}</td>
                     <td style={{ ...S.td, fontSize: 12, fontFamily: 'monospace' }}>{duration !== null ? `${duration}ث` : '—'}</td>
                     <td style={{ ...S.td, fontSize: 11, color: 'var(--red)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.error_message || '—'}</td>
                   </tr>

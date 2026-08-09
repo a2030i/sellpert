@@ -52,7 +52,7 @@ function parseReturnReasonOptions(payload: any): ReturnReasonOption[] {
   })
 }
 
-function fmt(v: number) { return v.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
+function fmt(v: number) { return v.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س' }
 
 type StatementTab = 'month' | 'settlements' | 'trends' | 'returns'
 
@@ -303,8 +303,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           {[
             {
               label:'المبيعات',
-              value: summary.reportedActivity ? `${summary.reportedActivity.toLocaleString('ar-SA')} عملية/وحدة بحسب المصدر` : 'لا توجد مبيعات',
-              detail: qualityInfo.orders ? `${qualityInfo.orders.toLocaleString('ar-SA')} طلب بتفاصيل كاملة · تغطية ${summary.detailCoverage.toFixed(0)}% من قيمة المبيعات` : 'المتوفر ملخص منصة بلا طلبات تفصيلية',
+              value: summary.reportedActivity ? `${summary.reportedActivity.toLocaleString('ar-SA-u-nu-latn')} عملية/وحدة بحسب المصدر` : 'لا توجد مبيعات',
+              detail: qualityInfo.orders ? `${qualityInfo.orders.toLocaleString('ar-SA-u-nu-latn')} طلب بتفاصيل كاملة · تغطية ${summary.detailCoverage.toFixed(0)}% من قيمة المبيعات` : 'المتوفر ملخص منصة بلا طلبات تفصيلية',
               ok: summary.salesDetailsComplete,
             },
             {
@@ -315,14 +315,14 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
             },
             {
               label:'المعاملات والتسويات',
-              value: qualityInfo.transactions ? `${qualityInfo.transactions.toLocaleString('ar-SA')} معاملة` : 'غير متوفرة',
-              detail: qualityInfo.settlements ? `${qualityInfo.settlements.toLocaleString('ar-SA')} تسوية مرجعية مسجّلة` : 'لا يوجد رقم تسوية مؤكد لهذا الشهر',
+              value: qualityInfo.transactions ? `${qualityInfo.transactions.toLocaleString('ar-SA-u-nu-latn')} معاملة` : 'غير متوفرة',
+              detail: qualityInfo.settlements ? `${qualityInfo.settlements.toLocaleString('ar-SA-u-nu-latn')} تسوية مرجعية مسجّلة` : 'لا يوجد رقم تسوية مؤكد لهذا الشهر',
               ok: qualityInfo.transactions > 0,
             },
             {
               label:'بيانات الإعلانات',
-              value: qualityInfo.adRows ? `${qualityInfo.adRows.toLocaleString('ar-SA')} سجل` : 'غير متوفرة',
-              detail: qualityInfo.adRows ? `${qualityInfo.uploadedAdRows.toLocaleString('ar-SA')} من ملفات التقارير${qualityInfo.latestAdReport ? ` · حتى ${new Date(qualityInfo.latestAdReport).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}` : ''}` : 'لن تُخصم الإعلانات من الربحية',
+              value: qualityInfo.adRows ? `${qualityInfo.adRows.toLocaleString('ar-SA-u-nu-latn')} سجل` : 'غير متوفرة',
+              detail: qualityInfo.adRows ? `${qualityInfo.uploadedAdRows.toLocaleString('ar-SA-u-nu-latn')} من ملفات التقارير${qualityInfo.latestAdReport ? ` · حتى ${new Date(qualityInfo.latestAdReport).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}` : ''}` : 'لن تُخصم الإعلانات من الربحية',
               ok: qualityInfo.adRows > 0,
             },
           ].map((item, index) => <div key={item.label} style={{ padding:'14px 16px', borderLeft:!isMobile && index < 3 ? '1px solid var(--border)' : undefined, borderBottom:isMobile && index < 3 ? '1px solid var(--border)' : undefined }}>
@@ -411,7 +411,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
           {!summary.profitComplete ? <div style={{ marginBottom:16, padding:'12px 15px', borderRadius:10, background:'var(--warning-bg)', border:'1px solid rgba(245,166,35,.35)' }}>
             <div style={{ fontSize:12, fontWeight:800, color:'var(--warning-text)' }}>الربحية غير مكتملة</div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, lineHeight:1.7 }}>{!summary.salesDetailsComplete ? `تفاصيل الطلبات تغطي ${summary.detailCoverage.toFixed(0)}% فقط من قيمة المبيعات. نعرض الصافي بعد التكاليف المعروفة ولا نسميه ربحًا حتى تكتمل الطلبات.` : `هناك ${costInfo.missingUnits.toLocaleString('ar-SA')} وحدة مباعة بلا تكلفة منتج مسجّلة. لذلك لا نعرضها كصافي ربح، ويمكن استكمال التكاليف من صفحة المنتجات.`}</div>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, lineHeight:1.7 }}>{!summary.salesDetailsComplete ? `تفاصيل الطلبات تغطي ${summary.detailCoverage.toFixed(0)}% فقط من قيمة المبيعات. نعرض الصافي بعد التكاليف المعروفة ولا نسميه ربحًا حتى تكتمل الطلبات.` : `هناك ${costInfo.missingUnits.toLocaleString('ar-SA-u-nu-latn')} وحدة مباعة بلا تكلفة منتج مسجّلة. لذلك لا نعرضها كصافي ربح، ويمكن استكمال التكاليف من صفحة المنتجات.`}</div>
           </div> : null}
 
           {/* Data mismatch warning — منصات فيها إنفاق إعلاني بدون مبيعات */}

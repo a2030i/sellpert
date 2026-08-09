@@ -127,9 +127,9 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     {partial && !loading && <div className="quiet-notice">تعذر تحديث بعض البيانات الآن، وتم عرض أحدث بيانات متاحة.</div>}
 
     <section className="kpi-grid">
-      <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal"/>
-      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="من جميع القنوات"/>
-      <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'تحتاج إلى متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'}/>
+      <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>onNavigate('orders')}/>
+      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="من جميع القنوات" onClick={()=>onNavigate('orders')}/>
+      <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'تحتاج إلى متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>onNavigate('orders')}/>
       <Kpi icon={<Boxes/>} label="مخزون منخفض أو نافد" value={loading?'—':number(lowStock.length)} hint={`${number(outStock)} منتجات نافدة`} tone={lowStock.length?'red':'green'} onClick={()=>onNavigate('inventory')}/>
     </section>
 
@@ -139,23 +139,23 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
       </div></article>
       <article className="panel channel-panel"><PanelHead title="أداء قنوات البيع" subtitle="نسبة المبيعات لكل منصة"/><div className="channel-content">
         <div className="donut">{channels.length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={channels} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="88%" paddingAngle={3}>{channels.map(c=><Cell key={c.platform} fill={platformColor(c.platform)}/>)}</Pie><Tooltip formatter={(v)=>money(Number(v))}/></PieChart></ResponsiveContainer>:<Empty text="لا توجد بيانات"/>}<div className="donut-total"><strong>{money(revenue)}</strong><span>الإجمالي</span></div></div>
-        <div className="channel-list">{channels.slice(0,5).map((c,i)=><div key={c.platform}><span className="channel-dot" style={{background:platformColor(c.platform)}}/><span>{c.name}</span><b>{money(c.value)}</b><small>{number(c.orders)} طلب {i===0&&channels.length>1?<TrendingUp size={13}/>:<TrendingDown size={13}/>}</small></div>)}</div>
+        <div className="channel-list">{channels.slice(0,5).map((c,i)=><button type="button" onClick={()=>onNavigate('orders')} key={c.platform}><span className="channel-dot" style={{background:platformColor(c.platform)}}/><span>{c.name}</span><b>{money(c.value)}</b><small>{number(c.orders)} طلب {i===0&&channels.length>1?<TrendingUp size={13}/>:<TrendingDown size={13}/>}</small></button>)}</div>
       </div></article>
     </section>
 
     <section className="health-grid">
-      <article className="panel quota"><PanelHead title="استهلاك باقة الطلبات" subtitle={`باقة ${merchant?.subscription_plan || 'Starter'}`}/><div className="quota-numbers"><strong>{number(monthlyOrders)}</strong><span>من أصل {number(quota)} طلب هذا الشهر</span><b>{quotaPct}%</b></div><div className="progress"><i style={{width:`${quotaPct}%`}}/></div><p>{quotaPct>=80?'اقتربت من حد الباقة، ننصح بالترقية لتجنب توقف المزامنة.':'استهلاكك ضمن الحد المتاح في الباقة.'}</p></article>
+      <article className="panel quota"><PanelHead title="استهلاك باقة الطلبات" subtitle={`باقة ${merchant?.subscription_plan || 'Starter'}`}/><button type="button" className="quota-link" onClick={()=>onNavigate('orders')}><div className="quota-numbers"><strong>{number(monthlyOrders)}</strong><span>من أصل {number(quota)} طلب هذا الشهر</span><b>{quotaPct}%</b></div><div className="progress"><i style={{width:`${quotaPct}%`}}/></div></button><p>{quotaPct>=80?'اقتربت من حد الباقة، ننصح بالترقية لتجنب توقف المزامنة.':'استهلاكك ضمن الحد المتاح في الباقة.'}</p></article>
       <article className="panel sync"><PanelHead title="حالة المزامنة" subtitle={`${number(connected.length)} قنوات متصلة`}/><div className="sync-state">{lastSync?<CheckCircle2/>:<AlertTriangle/>}<div><strong>{lastSync?'المزامنة تعمل بنجاح':'لم يتم ربط قناة بعد'}</strong><span>{lastSync?`آخر تحديث ${relativeTime(lastSync)}`:'اربط أول قناة لاستقبال البيانات تلقائيًا'}</span></div></div><button onClick={()=>onNavigate('integrations')}><RefreshCw size={15}/> إدارة الربط والمزامنة</button></article>
     </section>
 
     <section className="products-grid">
-      <article className="panel"><PanelHead title="أفضل 5 منتجات مبيعًا" subtitle="الأعلى إيرادًا خلال الفترة"/><RankList items={topProducts.map(x=>({name:x.name,value:money(x.sales),detail:`${number(x.qty)} قطعة`}))} empty="لا توجد مبيعات منتجات"/></article>
-      <article className="panel"><PanelHead title="أعلى المنتجات إرجاعًا" subtitle="راقب الجودة وتكرار المرتجعات"/><RankList danger items={topReturns.map(x=>({name:x.name,value:`${number(x.qty)} مرتجع`,detail:money(x.amount)}))} empty="لا توجد مرتجعات في هذه الفترة"/></article>
+      <article className="panel"><PanelHead title="أفضل 5 منتجات مبيعًا" subtitle="الأعلى إيرادًا خلال الفترة"/><RankList onClick={()=>onNavigate('products')} items={topProducts.map(x=>({name:x.name,value:money(x.sales),detail:`${number(x.qty)} قطعة`}))} empty="لا توجد مبيعات منتجات"/></article>
+      <article className="panel"><PanelHead title="أعلى المنتجات إرجاعًا" subtitle="راقب الجودة وتكرار المرتجعات"/><RankList onClick={()=>onNavigate('products')} danger items={topReturns.map(x=>({name:x.name,value:`${number(x.qty)} مرتجع`,detail:money(x.amount)}))} empty="لا توجد مرتجعات في هذه الفترة"/></article>
     </section>
   </main>
 }
 
-function Kpi({icon,label,value,hint,tone='',onClick}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:string;onClick?:()=>void}) { return <article className={`kpi ${tone} ${onClick?'clickable':''}`} onClick={onClick}>{<span className="kpi-icon">{icon}</span>}<div><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></article> }
+function Kpi({icon,label,value,hint,tone='',onClick}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:string;onClick?:()=>void}) { return <button type="button" className={`kpi ${tone} ${onClick?'clickable':''}`} onClick={onClick}>{<span className="kpi-icon">{icon}</span>}<div><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></button> }
 function PanelHead({title,subtitle}:{title:string;subtitle:string}) { return <header className="panel-head"><div><h2>{title}</h2><p>{subtitle}</p></div></header> }
 function Empty({text}:{text:string}) { return <div className="empty"><Package size={22}/><span>{text}</span></div> }
-function RankList({items,empty,danger=false}:{items:{name:string;value:string;detail:string}[];empty:string;danger?:boolean}) { return items.length?<div className={`rank-list ${danger?'danger':''}`}>{items.map((x,i)=><div key={`${x.name}-${i}`}><b>{i+1}</b><span><strong>{x.name}</strong><small>{x.detail}</small></span><em>{x.value}</em></div>)}</div>:<Empty text={empty}/> }
+function RankList({items,empty,danger=false,onClick}:{items:{name:string;value:string;detail:string}[];empty:string;danger?:boolean;onClick?:()=>void}) { return items.length?<div className={`rank-list ${danger?'danger':''}`}>{items.map((x,i)=><button type="button" onClick={onClick} key={`${x.name}-${i}`}><b>{i+1}</b><span><strong>{x.name}</strong><small>{x.detail}</small></span><em>{x.value}</em></button>)}</div>:<Empty text={empty}/> }

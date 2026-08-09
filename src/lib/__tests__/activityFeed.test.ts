@@ -8,7 +8,7 @@ function entry(partial: Partial<ActivityEntry> = {}): ActivityEntry {
 describe('merchant activity presentation', () => {
   it('describes a change without values or technical field names', () => {
     const summary = activitySummary(entry())
-    expect(summary).toBe('تم تحديث ٢ حقول')
+    expect(summary).toBe('تم تحديث 2 حقول')
     expect(summary).not.toContain('api')
   })
 

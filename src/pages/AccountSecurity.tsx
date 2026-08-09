@@ -9,7 +9,7 @@ import './AccountSecurity.css'
 
 type TotpFactor = { id: string; friendly_name?: string; status: string; created_at: string }
 type Enrollment = { id: string; qrCode: string; secret: string }
-const dateTime = new Intl.DateTimeFormat('ar-SA', { dateStyle: 'medium', timeStyle: 'short' })
+const dateTime = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' })
 
 export default function AccountSecurity({ merchant }: { merchant: Merchant | null }) {
   const [session, setSession] = useState<CurrentSessionSummary | null>(null)

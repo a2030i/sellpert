@@ -346,7 +346,7 @@ export default function DBHealthView() {
                         <td style={S.td}>
                           <code style={{ fontSize: 12, fontFamily: 'monospace' }}>{t.table}</code>
                         </td>
-                        <td style={{ ...S.td, fontWeight: 700 }}>{Number(t.rows).toLocaleString('ar-SA')}</td>
+                        <td style={{ ...S.td, fontWeight: 700 }}>{Number(t.rows).toLocaleString('ar-SA-u-nu-latn')}</td>
                         <td style={{ ...S.td, color: 'var(--text3)', fontSize: 12 }}>{fmtBytes(t.size_bytes)}</td>
                         <td style={S.td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

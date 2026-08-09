@@ -9,7 +9,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
 
-export default function OverviewView({ merchantOnly, totalGMV, activeIntegrations, totalIntegrations, openTaskCount, gmvTrend, gmvByPlatform, topMerchants, syncLogs, perfData }: any) {
+export default function OverviewView({ merchantOnly, totalGMV, activeIntegrations, totalIntegrations, openTaskCount, gmvTrend, gmvByPlatform, topMerchants, syncLogs, perfData, onNavigate }: any) {
   const now = new Date()
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -49,24 +49,24 @@ export default function OverviewView({ merchantOnly, totalGMV, activeIntegration
   }
 
   const kpis = [
-    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#0f958c', sub: `من أصل ${merchantOnly.length} تاجر` },
-    { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), Icon: Wallet, color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta },
-    { label: 'الوحدات / الطلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA'), Icon: PackageCheck, color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA'), delta: ordersDelta },
-    { label: 'متوسط GMV / تاجر نشط', value: fmt(avgGMVPerMerchant), Icon: TrendingUp, color: '#4cc9f0', sub: 'لنفس الشهر الحالي' },
+    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#0f958c', sub: `من أصل ${merchantOnly.length} تاجر`, target: 'merchants' },
+    { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), Icon: Wallet, color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta, target: 'performance' },
+    { label: 'الوحدات / الطلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA-u-nu-latn'), Icon: PackageCheck, color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA-u-nu-latn'), delta: ordersDelta, target: 'performance' },
+    { label: 'متوسط GMV / تاجر نشط', value: fmt(avgGMVPerMerchant), Icon: TrendingUp, color: '#4cc9f0', sub: 'لنفس الشهر الحالي', target: 'performance' },
   ]
 
   const actions = [
-    { label: 'استيرادات متعثرة', value: failedImports, detail: 'فشل أو تجاوز 30 دقيقة ضمن آخر 20 عملية', attention: failedImports > 0 },
-    { label: 'بيانات تحتاج تحديثاً', value: staleMerchants, detail: 'أكثر من 7 أيام أو بلا بيانات', attention: staleMerchants > 0 },
-    { label: 'مهام مفتوحة', value: openTaskCount, detail: 'تحتاج متابعة الفريق', attention: openTaskCount > 0 },
-    { label: 'اتصالات غير نشطة', value: inactiveIntegrations, detail: `${activeIntegrations} اتصال نشط`, attention: inactiveIntegrations > 0 },
+    { label: 'استيرادات متعثرة', value: failedImports, detail: 'فشل أو تجاوز 30 دقيقة ضمن آخر 20 عملية', attention: failedImports > 0, target: 'uploads' },
+    { label: 'بيانات تحتاج تحديثاً', value: staleMerchants, detail: 'أكثر من 7 أيام أو بلا بيانات', attention: staleMerchants > 0, target: 'merchants' },
+    { label: 'مهام مفتوحة', value: openTaskCount, detail: 'تحتاج متابعة الفريق', attention: openTaskCount > 0, target: 'tasks' },
+    { label: 'اتصالات غير نشطة', value: inactiveIntegrations, detail: `${activeIntegrations} اتصال نشط`, attention: inactiveIntegrations > 0, target: 'connections' },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {kpis.map((k, i) => (
-          <div key={i} style={{ ...S.kpiCard, padding: 18 }}>
+          <button key={i} type="button" onClick={() => onNavigate(k.target)} style={{ ...S.kpiCard, padding: 18, textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer', width: '100%' }}>
             <div style={{ ...S.kpiBar, background: k.color }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{k.label}</span>
@@ -77,7 +77,7 @@ export default function OverviewView({ merchantOnly, totalGMV, activeIntegration
               <span style={{ fontSize: 10, color: 'var(--text3)', flex: 1 }}>{k.sub}</span>
               {k.delta !== undefined && <Delta v={k.delta} />}
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -91,14 +91,14 @@ export default function OverviewView({ merchantOnly, totalGMV, activeIntegration
         </div>
         <div className="grid-mobile-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
           {actions.map(action => (
-            <div key={action.label} style={{ border: `1px solid ${action.attention ? 'rgba(232,64,64,.25)' : 'var(--border)'}`, borderRadius: 10, padding: 12, background: action.attention ? 'var(--danger-bg)' : 'var(--surface2)' }}>
+            <button type="button" key={action.label} onClick={() => onNavigate(action.target)} style={{ border: `1px solid ${action.attention ? 'rgba(232,64,64,.25)' : 'var(--border)'}`, borderRadius: 10, padding: 12, background: action.attention ? 'var(--danger-bg)' : 'var(--surface2)', textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 700 }}>{action.label}</span>
                 {action.attention ? <AlertTriangle size={14} color="var(--red)" /> : <CheckCircle2 size={14} color="var(--accent2)" />}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, color: action.attention ? 'var(--red)' : 'var(--accent2)' }}>{action.value}</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{action.detail}</div>
-            </div>
+            </button>
           ))}
         </div>
       </section>

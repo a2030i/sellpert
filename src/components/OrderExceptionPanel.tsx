@@ -53,7 +53,7 @@ export default function OrderExceptionPanel({ items, workflow, busy, onRun }: Pr
       return
     }
     if (!Number.isInteger(selectedQuantity) || selectedQuantity < 1 || selectedQuantity > availableQuantity) {
-      setError(`أدخل كمية صحيحة من 1 إلى ${availableQuantity.toLocaleString('ar-SA')}.`)
+      setError(`أدخل كمية صحيحة من 1 إلى ${availableQuantity.toLocaleString('ar-SA-u-nu-latn')}.`)
       return
     }
     if (mode === 'split' && selectedQuantity >= totalPackageQuantity) {

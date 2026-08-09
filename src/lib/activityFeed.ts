@@ -63,7 +63,7 @@ export function activitySummary(entry: ActivityEntry) {
   if (entry.action === 'insert') return 'تم إنشاء سجل جديد'
   if (entry.action === 'delete') return 'تم حذف السجل'
   if (entry.action === 'update') return entry.changed_fields_count > 0
-    ? `تم تحديث ${entry.changed_fields_count.toLocaleString('ar-SA')} ${entry.changed_fields_count === 1 ? 'حقل' : 'حقول'}`
+    ? `تم تحديث ${entry.changed_fields_count.toLocaleString('ar-SA-u-nu-latn')} ${entry.changed_fields_count === 1 ? 'حقل' : 'حقول'}`
     : 'تم تحديث السجل'
   return ACTIVITY_ACTIONS[entry.action] || 'تم تنفيذ إجراء على المتجر'
 }

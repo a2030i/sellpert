@@ -7,7 +7,7 @@ import './PurchaseCashReadinessPanel.css'
 
 const money = (value: number | null, currency = 'SAR') => value == null
   ? 'غير متوفر'
-  : new Intl.NumberFormat('ar-SA', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value)
+  : new Intl.NumberFormat('ar-SA-u-nu-latn', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value)
 
 const STATUS_COPY: Record<PurchaseReadiness['status'], { title: string; detail: string; tone: string }> = {
   ready: { title: 'الخطة قابلة للتمويل', detail: 'الرصيد والمستحقات المؤكدة تغطي تكلفة الشراء المقترحة.', tone: 'success' },
@@ -84,7 +84,7 @@ export default function PurchaseCashReadinessPanel() {
 
       {data.readiness.coverage_pct != null && data.purchase_plan.estimated_cost > 0 && (
         <div className="purchase-readiness-coverage">
-          <div><span>تغطية خطة الشراء بالنقد المؤكد</span><strong>{data.readiness.coverage_pct.toLocaleString('ar-SA')}٪</strong></div>
+          <div><span>تغطية خطة الشراء بالنقد المؤكد</span><strong>{data.readiness.coverage_pct.toLocaleString('ar-SA-u-nu-latn')}٪</strong></div>
           <div className="purchase-readiness-track"><span style={{ width: `${coverage}%` }} /></div>
         </div>
       )}

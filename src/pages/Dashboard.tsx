@@ -108,9 +108,9 @@ function delta(curr: number, prev: number) {
 }
 
 function fmt(v: number, type: 'currency' | 'number' | 'percent' = 'currency') {
-  if (type === 'currency') return v.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س'
+  if (type === 'currency') return v.toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 }) + ' ر.س'
   if (type === 'percent')  return v.toFixed(1) + '%'
-  return v.toLocaleString('ar-SA')
+  return v.toLocaleString('ar-SA-u-nu-latn')
 }
 
 // ─── Saudi Arabia Map ─────────────────────────────────────────────────────────
@@ -332,7 +332,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ color: p.color || '#0f958c', marginBottom: 2 }}>
-          {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString('ar-SA') : p.value}
+          {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString('ar-SA-u-nu-latn') : p.value}
         </div>
       ))}
     </div>
@@ -826,7 +826,7 @@ export default function Dashboard({ merchant }: { merchant: Merchant | null }) {
             <BarChart3 size={20} color="var(--accent)" />
             <div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>تحليل الذكاء الاصطناعي</div>
-              {insight && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA')}</div>}
+              {insight && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>آخر تحليل: {new Date(insight.created_at).toLocaleString('ar-SA-u-nu-latn')}</div>}
             </div>
           </div>
           <button style={S.aiBtn} onClick={requestAi} disabled={aiLoading}>
@@ -1009,7 +1009,7 @@ function TopActionsCard({ merchantCode }: { merchantCode?: string }) {
       if (losingAd) acts.push({ icon: '•', color: 'var(--danger-text)', text: `أوقف إعلان: ${losingAd.product_name}`, sub: `كل ريال إعلان يرجّع ${Number(losingAd.ad_roas).toFixed(2)} ر.س مبيعات إعلانية فقط`, path: '/marketing' })
       const losingProduct = (prof || []).filter((p: any) => Number(p.revenue) > 0 && Number(p.net_profit) < 0)
         .sort((a: any, b: any) => Number(a.net_profit) - Number(b.net_profit))[0]
-      if (losingProduct) acts.push({ icon: '•', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
+      if (losingProduct) acts.push({ icon: '•', color: 'var(--warning-text)', text: `منتج يبيع بخسارة: ${losingProduct.product_name}`, sub: `خسارة ${Math.abs(Math.round(Number(losingProduct.net_profit))).toLocaleString('ar-SA-u-nu-latn')} ر.س — راجع التكلفة أو السعر`, path: '/products?tab=analytics' })
       const urgent = (restock || []).filter((r: any) => r.urgency === 'urgent' || r.urgency === 'high')
         .sort((a: any, b: any) => (a.days_of_stock ?? 99) - (b.days_of_stock ?? 99))[0]
       if (urgent) acts.push({ icon: '•', color: '#0f958c', text: `جدّد مخزون: ${urgent.product_name}`, sub: urgent.days_of_stock != null ? `يكفي ${urgent.days_of_stock} يوم — اطلب ${urgent.suggested_order_qty} قطعة` : `اطلب ${urgent.suggested_order_qty} قطعة`, path: '/inventory' })
@@ -1159,7 +1159,7 @@ function ABCWidget({ data }: { data: any[] }) {
         {data.filter((r: any) => r.abc_class === 'A').slice(0, 5).map((r: any, i: number) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 7, fontSize: 11 }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={r.product_name}>#{r.rank} · {r.product_name}</span>
-            <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>{Math.round(Number(r.revenue)).toLocaleString('ar-SA')} ر.س</span>
+            <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>{Math.round(Number(r.revenue)).toLocaleString('ar-SA-u-nu-latn')} ر.س</span>
           </div>
         ))}
       </div>

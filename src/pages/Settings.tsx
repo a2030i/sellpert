@@ -182,7 +182,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
       link.href = url
       link.download = `sellpert-${merchant?.merchant_code}-${new Date().toISOString().slice(0, 10)}.zip`
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
-      setMsg({ type: 'ok', text: `تم تنزيل نسخة كاملة: ${manifest.resources.length} قسمًا و${totalRows.toLocaleString('ar-SA')} سجلًا، دون أسرار الربط.` })
+      setMsg({ type: 'ok', text: `تم تنزيل نسخة كاملة: ${manifest.resources.length} قسمًا و${totalRows.toLocaleString('ar-SA-u-nu-latn')} سجلًا، دون أسرار الربط.` })
     } catch (e: any) {
       console.error('export store data', e)
       setMsg({ type: 'err', text: userErrorMessage(e, 'لم يكتمل التصدير ولم يُنزّل ملف جزئي. حاول مرة أخرى.') })
@@ -335,7 +335,7 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
               <span style={{ ...S.actionIcon, color: '#b45309', background: '#fff7ed' }}><CalendarClock size={19} /></span>
               <div>
                 <div style={S.actionTitle}>طلب الإغلاق قيد الانتظار</div>
-                <div style={S.actionSub}>سيُغلق الوصول إلى المتجر في {new Intl.DateTimeFormat('ar-SA', { dateStyle: 'long' }).format(new Date(closureRequest.scheduled_for))}. يمكنك إلغاء الطلب حتى ذلك الوقت.</div>
+                <div style={S.actionSub}>سيُغلق الوصول إلى المتجر في {new Intl.DateTimeFormat('ar-SA-u-nu-latn', { dateStyle: 'long' }).format(new Date(closureRequest.scheduled_for))}. يمكنك إلغاء الطلب حتى ذلك الوقت.</div>
               </div>
             </div>
             <button type="button" style={S.secondaryBtn} onClick={cancelClosure} disabled={closureLoading}>{closureLoading ? 'جاري الإلغاء...' : 'إلغاء طلب الإغلاق'}</button>

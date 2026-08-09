@@ -115,7 +115,7 @@ export default function AdminRequestsView({ merchants }: { merchants: Merchant[]
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
-                  {new Date(req.created_at).toLocaleString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(req.created_at).toLocaleString('ar-SA-u-nu-latn', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             )

@@ -107,9 +107,9 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     .map(([p, v]) => `
       <tr>
         <td><b>${escapeReportHtml(PLATFORM_MAP[p] || p)}</b></td>
-        <td>${Math.round(v.sales).toLocaleString('ar-SA')} ر.س</td>
-        <td>${v.orders.toLocaleString('ar-SA')}</td>
-        <td>${Math.round(v.adSpend).toLocaleString('ar-SA')} ر.س</td>
+        <td>${Math.round(v.sales).toLocaleString('ar-SA-u-nu-latn')} ر.س</td>
+        <td>${v.orders.toLocaleString('ar-SA-u-nu-latn')}</td>
+        <td>${Math.round(v.adSpend).toLocaleString('ar-SA-u-nu-latn')} ر.س</td>
         <td>${v.adSpend > 0 ? (v.sales / v.adSpend).toFixed(2) + 'x' : '—'}</td>
       </tr>`).join('')
 
@@ -117,7 +117,7 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
     <tr>
       <td>${escapeReportHtml(f.label)}</td>
       <td><span class="badge ${escapeReportHtml(f.platform)}">${escapeReportHtml(PLATFORM_MAP[f.platform] || f.platform)}</span></td>
-      <td style="text-align:left">${f.rows.toLocaleString('ar-SA')} صف</td>
+      <td style="text-align:left">${f.rows.toLocaleString('ar-SA-u-nu-latn')} صف</td>
     </tr>`).join('')
 
   const html = `<!DOCTYPE html>
@@ -209,10 +209,10 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   <div class="section">
     <h2>الملخص المالي للشهر</h2>
     <div class="kpis">
-      <div class="kpi"><div class="label">إجمالي المبيعات</div><div class="value">${Math.round(monthTotals.sales).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.orders} طلب</div></div>
-      <div class="kpi orange"><div class="label">الإنفاق الإعلاني</div><div class="value">${Math.round(monthTotals.adSpend).toLocaleString('ar-SA')} ر.س</div><div class="sub">ROAS ${roas}${roas !== '—' ? 'x' : ''}</div></div>
-      <div class="kpi red"><div class="label">رسوم المنصات</div><div class="value">${Math.round(monthTotals.fees).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((monthTotals.fees / monthTotals.sales) * 100).toFixed(1) + '%' : '—'}</div></div>
-      <div class="kpi green"><div class="label">صافي بعد الإعلان والرسوم</div><div class="value">${Math.round(netAfterAds).toLocaleString('ar-SA')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((netAfterAds / monthTotals.sales) * 100).toFixed(1) + '% هامش' : '—'}</div></div>
+      <div class="kpi"><div class="label">إجمالي المبيعات</div><div class="value">${Math.round(monthTotals.sales).toLocaleString('ar-SA-u-nu-latn')} ر.س</div><div class="sub">${monthTotals.orders} طلب</div></div>
+      <div class="kpi orange"><div class="label">الإنفاق الإعلاني</div><div class="value">${Math.round(monthTotals.adSpend).toLocaleString('ar-SA-u-nu-latn')} ر.س</div><div class="sub">ROAS ${roas}${roas !== '—' ? 'x' : ''}</div></div>
+      <div class="kpi red"><div class="label">رسوم المنصات</div><div class="value">${Math.round(monthTotals.fees).toLocaleString('ar-SA-u-nu-latn')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((monthTotals.fees / monthTotals.sales) * 100).toFixed(1) + '%' : '—'}</div></div>
+      <div class="kpi green"><div class="label">صافي بعد الإعلان والرسوم</div><div class="value">${Math.round(netAfterAds).toLocaleString('ar-SA-u-nu-latn')} ر.س</div><div class="sub">${monthTotals.sales > 0 ? ((netAfterAds / monthTotals.sales) * 100).toFixed(1) + '% هامش' : '—'}</div></div>
     </div>
   </div>
 
@@ -228,9 +228,9 @@ async function generateMerchantReport(merchantCode: string, merchantName: string
   <div class="section">
     <h2>المخزون والطلبات الحالية</h2>
     <div class="kpis">
-      <div class="kpi"><div class="label">إجمالي الطلبات</div><div class="value">${totalOrders.toLocaleString('ar-SA')}</div><div class="sub">${cancelled} ملغي</div></div>
-      <div class="kpi"><div class="label">المخزون</div><div class="value">${totalInventory.toLocaleString('ar-SA')}</div><div class="sub">قطعة عبر كل المنصات</div></div>
-      <div class="kpi"><div class="label">المرتجعات</div><div class="value">${(returnedCount?.count ?? 0).toLocaleString('ar-SA')}</div><div class="sub">سجل</div></div>
+      <div class="kpi"><div class="label">إجمالي الطلبات</div><div class="value">${totalOrders.toLocaleString('ar-SA-u-nu-latn')}</div><div class="sub">${cancelled} ملغي</div></div>
+      <div class="kpi"><div class="label">المخزون</div><div class="value">${totalInventory.toLocaleString('ar-SA-u-nu-latn')}</div><div class="sub">قطعة عبر كل المنصات</div></div>
+      <div class="kpi"><div class="label">المرتجعات</div><div class="value">${(returnedCount?.count ?? 0).toLocaleString('ar-SA-u-nu-latn')}</div><div class="sub">سجل</div></div>
       <div class="kpi"><div class="label">عدد المنصات</div><div class="value">${Object.keys(byPlatform).length}</div><div class="sub">قناة بيع نشطة</div></div>
     </div>
   </div>

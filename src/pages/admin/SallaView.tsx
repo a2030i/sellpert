@@ -290,7 +290,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
                       </span>
                     </td>
                     <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>
-                      {c.last_sync_at ? new Date(c.last_sync_at).toLocaleString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {c.last_sync_at ? new Date(c.last_sync_at).toLocaleString('ar-SA-u-nu-latn', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
                     <td style={S.td}>
                       {qCount > 0

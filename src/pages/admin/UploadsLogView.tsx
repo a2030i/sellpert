@@ -186,7 +186,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
           <input aria-label="من تاريخ" type="date" value={dateFrom} onChange={event => { setDateFrom(event.target.value); setPage(1) }} style={inputStyle} />
           <input aria-label="إلى تاريخ" type="date" value={dateTo} onChange={event => { setDateTo(event.target.value); setPage(1) }} style={inputStyle} />
           <button onClick={resetFilters} disabled={activeFilters === 0} style={{ ...S.miniBtn, height: 40, display: 'flex', alignItems: 'center', gap: 6, opacity: activeFilters ? 1 : 0.5 }}><FilterX size={14} /> مسح الفلاتر</button>
-          <div style={{ textAlign: 'left', fontSize: 12, color: 'var(--text3)' }}><b style={{ color: 'var(--text)' }}>{total.toLocaleString('ar-SA')}</b> عملية {activeFilters > 0 && `· ${activeFilters} فلتر نشط`}</div>
+          <div style={{ textAlign: 'left', fontSize: 12, color: 'var(--text3)' }}><b style={{ color: 'var(--text)' }}>{total.toLocaleString('ar-SA-u-nu-latn')}</b> عملية {activeFilters > 0 && `· ${activeFilters} فلتر نشط`}</div>
         </div>
       </div>
 
@@ -212,7 +212,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
                     <td style={{ ...S.td, fontSize: 11 }}>{record.detected_report || FILE_TYPE_LABELS[record.file_type || ''] || record.file_type || '—'}</td>
                     <td style={{ ...S.td, maxWidth: 260 }}><div title={record.file_name || ''} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><FileText size={14} style={{ flexShrink: 0, color: 'var(--text3)' }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>{record.file_name || '—'}</span></div><div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{fileSize(record.file_size)}</div></td>
                     <td style={{ ...S.td, fontSize: 11 }}>{employeeName(record.uploaded_by)}</td>
-                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}><div style={{ fontSize: 12, fontWeight: 800 }}>{(record.rows_inserted || 0).toLocaleString('ar-SA')}</div><div style={{ fontSize: 9, color: 'var(--text3)' }}>من {(record.rows_processed || 0).toLocaleString('ar-SA')} معالج</div></td>
+                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}><div style={{ fontSize: 12, fontWeight: 800 }}>{(record.rows_inserted || 0).toLocaleString('ar-SA-u-nu-latn')}</div><div style={{ fontSize: 9, color: 'var(--text3)' }}>من {(record.rows_processed || 0).toLocaleString('ar-SA-u-nu-latn')} معالج</div></td>
                     <td style={S.td}><span style={{ background: status.bg, color: status.color, padding: '4px 9px', borderRadius: 20, fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>{status.label}</span></td>
                     <td style={S.td}><button aria-label={`تفاصيل ${record.file_name || 'عملية الرفع'}`} onClick={() => setSelected(record)} style={{ ...S.miniBtn, display: 'flex', alignItems: 'center', gap: 5 }}><Eye size={13} /> التفاصيل</button></td>
                   </tr>
@@ -245,9 +245,9 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
               <Detail label="انتهى في" value={fullDate(selected.finished_at)} />
               <Detail label="مدة المعالجة" value={duration(selected.uploaded_at, selected.finished_at)} />
               <Detail label="الحالة" value={STATUS_META[uploadDisplayStatus(selected.status, selected.uploaded_at)].label} />
-              <Detail label="الصفوف المعالجة" value={(selected.rows_processed || 0).toLocaleString('ar-SA')} />
-              <Detail label="الصفوف المحفوظة" value={(selected.rows_inserted || 0).toLocaleString('ar-SA')} />
-              <Detail label="الصفوف المحدّثة" value={(selected.rows_updated || 0).toLocaleString('ar-SA')} />
+              <Detail label="الصفوف المعالجة" value={(selected.rows_processed || 0).toLocaleString('ar-SA-u-nu-latn')} />
+              <Detail label="الصفوف المحفوظة" value={(selected.rows_inserted || 0).toLocaleString('ar-SA-u-nu-latn')} />
+              <Detail label="الصفوف المحدّثة" value={(selected.rows_updated || 0).toLocaleString('ar-SA-u-nu-latn')} />
               <Detail label="بصمة الملف" value={selected.fingerprint || '—'} mono />
             </div>
             {selected.error_message && <Detail label="رسالة الخطأ" value={selected.error_message} wide danger />}

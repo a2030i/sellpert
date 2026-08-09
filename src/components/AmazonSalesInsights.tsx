@@ -23,9 +23,9 @@ interface DecisionRow extends AmazonProductRow {
   score: number
 }
 
-const money = (value: number) => `${value.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} ر.س`
-const number = (value: number) => value.toLocaleString('ar-SA')
-const percent = (value: number) => `${value.toLocaleString('ar-SA', { maximumFractionDigits: 1 })}%`
+const money = (value: number) => `${value.toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 2 })} ر.س`
+const number = (value: number) => value.toLocaleString('ar-SA-u-nu-latn')
+const percent = (value: number) => `${value.toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 1 })}%`
 const shortDate = (value?: string) => value
   ? new Date(value + 'T00:00:00').toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' })
   : '—'
