@@ -10,7 +10,7 @@ import './DashboardV2.css'
 type PhaseOneView = 'orders' | 'products' | 'inventory' | 'integrations'
 type DatePreset = '7' | '30' | '90' | 'month' | 'custom'
 type OrderRow = { order_id:string; platform:string; status:string; product_name:string|null; sku:string|null; quantity:number; total_amount:number; currency:string; order_date:string }
-type StockRow = { sku:string; product_name:string|null; platform:string; quantity:number; reserved_quantity:number|null; low_stock_threshold:number|null }
+type StockRow = { sku:string; product_name:string|null; platform:string; quantity:number; reserved_quantity:number|null }
 type ReturnRow = { sku:string|null; product_name:string|null; platform:string; quantity:number|null; return_amount:number|null; return_date:string }
 
 const STATUS_PENDING = new Set(['pending', 'processing', 'new', 'confirmed', 'ready_to_ship'])
@@ -49,7 +49,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     setLoading(true)
     Promise.allSettled([
       fetchAll<OrderRow>((f,t) => supabase.from('orders').select('order_id,platform,status,product_name,sku,quantity,total_amount,currency,order_date').eq('merchant_code', code).order('order_date', { ascending:false }).range(f,t), 'طلبات لوحة التحكم'),
-      fetchAll<StockRow>((f,t) => supabase.from('inventory').select('sku,product_name,platform,quantity,reserved_quantity,low_stock_threshold').eq('merchant_code', code).eq('is_active', true).range(f,t), 'مخزون لوحة التحكم'),
+      fetchAll<StockRow>((f,t) => supabase.from('inventory').select('sku,product_name,platform,quantity,reserved_quantity').eq('merchant_code', code).eq('is_active', true).range(f,t), 'مخزون لوحة التحكم'),
       fetchAll<ReturnRow>((f,t) => supabase.from('returns').select('sku,product_name,platform,quantity,return_amount,return_date').eq('merchant_code', code).order('return_date', { ascending:false }).range(f,t), 'مرتجعات لوحة التحكم'),
       listPlatformCredentials(code),
     ]).then(results => {
@@ -79,8 +79,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
   const uniqueOrders = useMemo(() => Array.from(new Map(selected.map(o => [o.order_id, o])).values()), [selected])
   const revenue = selected.reduce((sum,o) => sum + Number(o.total_amount || 0), 0)
   const pending = new Set(selected.filter(o => STATUS_PENDING.has(String(o.status).toLowerCase())).map(o => o.order_id)).size
-  const lowStock = stock.filter(s => Number(s.quantity || 0) - Number(s.reserved_quantity || 0) <= Number(s.low_stock_threshold ?? 5))
-  const outStock = lowStock.filter(s => Number(s.quantity || 0) - Number(s.reserved_quantity || 0) <= 0).length
+  const outStock = stock.filter(s => Number(s.quantity || 0) - Number(s.reserved_quantity || 0) <= 0).length
 
   const trend = useMemo(() => {
     const days = new Map<string,{ date:string; sales:number; orders:Set<string> }>()
@@ -130,7 +129,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
       <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>onNavigate('orders')}/>
       <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="من جميع القنوات" onClick={()=>onNavigate('orders')}/>
       <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'تحتاج إلى متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>onNavigate('orders')}/>
-      <Kpi icon={<Boxes/>} label="مخزون منخفض أو نافد" value={loading?'—':number(lowStock.length)} hint={`${number(outStock)} منتجات نافدة`} tone={lowStock.length?'red':'green'} onClick={()=>onNavigate('inventory')}/>
+      <Kpi icon={<Boxes/>} label="منتجات نافدة" value={loading?'—':number(outStock)} hint={outStock?'تحتاج إلى إعادة التزويد':'لا توجد منتجات نافدة'} tone={outStock?'red':'green'} onClick={()=>onNavigate('inventory')}/>
     </section>
 
     <section className="analytics-grid">

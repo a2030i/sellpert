@@ -24,4 +24,12 @@ describe('phase-one number formatting', () => {
     const dashboard = readFileSync('src/pages/DashboardV2.tsx', 'utf8')
     expect(dashboard).toContain('ar-SA-u-ca-gregory-nu-latn')
   })
+
+  it('shows only out-of-stock products in the dashboard inventory KPI', () => {
+    const dashboard = readFileSync('src/pages/DashboardV2.tsx', 'utf8')
+    expect(dashboard).toContain('label="منتجات نافدة"')
+    expect(dashboard).toContain("value={loading?'—':number(outStock)}")
+    expect(dashboard).not.toContain('lowStock')
+    expect(dashboard).not.toContain('مخزون منخفض أو نافد')
+  })
 })
