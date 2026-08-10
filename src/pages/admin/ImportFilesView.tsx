@@ -597,6 +597,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           const { data: prev } = await supabase.from('platform_file_uploads')
             .select('id, uploaded_at, file_name, rows_inserted, storage_path')
             .eq('merchant_code', merchantCode).eq('fingerprint', fingerprint)
+            .in('status', ['success', 'partial'])
             .order('uploaded_at', { ascending: false }).limit(1).maybeSingle()
           if (prev) dup = { uploadId: prev.id, uploadedAt: prev.uploaded_at, fileName: (prev as any).file_name || '', rows: prev.rows_inserted || 0, storagePath: (prev as any).storage_path }
         }
