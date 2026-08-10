@@ -24,4 +24,13 @@ describe('remaining provider payload access', () => {
     expect(source).not.toContain('l.payload')
     expect(source).not.toContain('JSON.stringify(l.payload)')
   })
+
+  it('aggregates admin advertising reports on the server', () => {
+    const source = readFileSync('src/pages/admin/AdsView.tsx', 'utf8')
+    expect(source).toContain("rpc('admin_ad_performance'")
+    expect(source).toContain('p_upload_id')
+    expect(source).toContain('تقرير الإعلانات')
+    expect(source).not.toContain("from('ad_metrics')")
+    expect(source).not.toContain('.limit(5000)')
+  })
 })

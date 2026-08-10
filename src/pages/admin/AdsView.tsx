@@ -1,99 +1,92 @@
-import { useState, useEffect, useMemo } from 'react'
-import { AD_METRIC_SAFE_COLUMNS, supabase } from '../../lib/supabase'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import { Megaphone, TrendingUp, TrendingDown, Search } from 'lucide-react'
 
 type Merchant = { merchant_code: string; name: string; role: string }
 
-interface AdRow {
-  id: string
+interface AdGroupRow {
+  key: string
   platform: string
-  campaign_name: string | null
-  ad_group_name: string | null
-  sku: string | null
-  search_query: string | null
   impressions: number
   clicks: number
   orders: number
   spend: number
   revenue: number
-  ctr: number | null
-  roas: number | null
-  cpc: number | null
-  acos: number | null
-  report_date: string
+  rows: number
 }
 
+type AdTotals = { rows:number; spend:number; revenue:number; impressions:number; clicks:number; orders:number }
+type AdUpload = { id:string; file_name:string; platform:string; uploaded_at:string; rows_inserted:number }
+const EMPTY_TOTALS: AdTotals = { rows:0, spend:0, revenue:0, impressions:0, clicks:0, orders:0 }
+
 export default function AdsView({ merchants }: { merchants: Merchant[] }) {
+  const requestSequence = useRef(0)
   const [merchantCode, setMerchantCode] = useState('')
-  const [rows, setRows] = useState<AdRow[]>([])
+  const [groups, setGroups] = useState<AdGroupRow[]>([])
+  const [totals, setTotals] = useState<AdTotals>(EMPTY_TOTALS)
+  const [platforms, setPlatforms] = useState<string[]>([])
+  const [reports, setReports] = useState<AdUpload[]>([])
+  const [reportId, setReportId] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [platformFilter, setPlatformFilter] = useState<'all' | string>('all')
   const [search, setSearch] = useState('')
   const [groupBy, setGroupBy] = useState<'campaign' | 'sku' | 'query'>('campaign')
 
-  // The report query is intentionally keyed by merchant code.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (merchantCode) load() }, [merchantCode])
+  useEffect(() => {
+    if (!merchantCode) return
+    let cancelled = false
+    setLoading(true); setError(''); setGroups([]); setTotals(EMPTY_TOTALS); setReports([]); setReportId('')
+    supabase.from('platform_file_uploads')
+      .select('id,file_name,platform,uploaded_at,rows_inserted')
+      .eq('merchant_code', merchantCode).eq('status', 'success')
+      .in('file_type', ['noon_ads', 'amazon_ads', 'trendyol_ads'])
+      .order('uploaded_at', { ascending: false })
+      .then(({ data, error: reportError }) => {
+        if (cancelled) return
+        if (reportError) { setError(reportError.message); setLoading(false); return }
+        const next = (data || []) as AdUpload[]
+        setReports(next)
+        setReportId(next[0]?.id || 'all')
+        if (!next.length) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [merchantCode])
+
+  useEffect(() => {
+    if (!merchantCode || !reportId) return
+    const timer = window.setTimeout(() => { load() }, 250)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merchantCode, reportId, platformFilter, groupBy, search])
 
   async function load() {
+    const requestId = ++requestSequence.current
     setLoading(true)
-    const { data } = await supabase.from('ad_metrics')
-      .select(AD_METRIC_SAFE_COLUMNS)
-      .eq('merchant_code', merchantCode)
-      .order('spend', { ascending: false })
-      .limit(5000)
-    setRows((data as AdRow[]) || [])
+    setError('')
+    const { data, error: queryError } = await supabase.rpc('admin_ad_performance', {
+      p_merchant_code: merchantCode,
+      p_upload_id: reportId === 'all' ? null : reportId,
+      p_platform: platformFilter === 'all' ? null : platformFilter,
+      p_group_by: groupBy,
+      p_search: search.trim() || null,
+    })
+    if (requestId !== requestSequence.current) return
+    if (queryError) {
+      setError(queryError.message); setGroups([]); setTotals(EMPTY_TOTALS)
+    } else {
+      setGroups((data?.groups || []) as AdGroupRow[])
+      setTotals({ ...EMPTY_TOTALS, ...(data?.totals || {}) })
+      if (platformFilter === 'all') setPlatforms((data?.platforms || []) as string[])
+    }
     setLoading(false)
   }
-
-  const filteredRows = useMemo(() => {
-    let r = rows
-    if (platformFilter !== 'all') r = r.filter(x => x.platform === platformFilter)
-    if (search) {
-      const q = search.toLowerCase()
-      r = r.filter(x =>
-        (x.campaign_name || '').toLowerCase().includes(q) ||
-        (x.sku || '').toLowerCase().includes(q) ||
-        (x.search_query || '').toLowerCase().includes(q)
-      )
-    }
-    return r
-  }, [rows, platformFilter, search])
-
-  const totals = useMemo(() => ({
-    rows: filteredRows.length,
-    spend: filteredRows.reduce((a, r) => a + (Number(r.spend) || 0), 0),
-    revenue: filteredRows.reduce((a, r) => a + (Number(r.revenue) || 0), 0),
-    impressions: filteredRows.reduce((a, r) => a + r.impressions, 0),
-    clicks: filteredRows.reduce((a, r) => a + r.clicks, 0),
-    orders: filteredRows.reduce((a, r) => a + r.orders, 0),
-  }), [filteredRows])
 
   const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0
   const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
   const cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0
 
-  // Group rows
-  const grouped = useMemo(() => {
-    const map: Record<string, { key: string; impressions: number; clicks: number; orders: number; spend: number; revenue: number; rows: number; platform: string }> = {}
-    for (const r of filteredRows) {
-      const key = groupBy === 'campaign' ? (r.campaign_name || r.ad_group_name || 'بلا اسم') : groupBy === 'sku' ? (r.sku || '—') : (r.search_query || '—')
-      if (!map[key]) map[key] = { key, impressions: 0, clicks: 0, orders: 0, spend: 0, revenue: 0, rows: 0, platform: r.platform }
-      map[key].impressions += r.impressions
-      map[key].clicks      += r.clicks
-      map[key].orders      += r.orders
-      map[key].spend       += Number(r.spend) || 0
-      map[key].revenue     += Number(r.revenue) || 0
-      map[key].rows        += 1
-    }
-    return Object.values(map).sort((a, b) => b.spend - a.spend).slice(0, 200)
-  }, [filteredRows, groupBy])
-
-  const platforms = useMemo(() => {
-    const set = new Set(rows.map(r => r.platform))
-    return Array.from(set)
-  }, [rows])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1300, margin: '0 auto' }}>
@@ -110,9 +103,18 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
             <option key={m.merchant_code} value={m.merchant_code}>{m.name} ({m.merchant_code})</option>
           ))}
         </select>
+        {merchantCode && reports.length > 0 && <>
+          <label style={{ ...S.label, marginTop: 12 }}>تقرير الإعلانات</label>
+          <select aria-label="اختيار تقرير الإعلانات" value={reportId} onChange={e => { setReportId(e.target.value); setPlatformFilter('all') }} style={{ ...S.input, fontSize: 13 }}>
+            {reports.map(report => <option key={report.id} value={report.id}>{reportLabel(report)}</option>)}
+            <option value="all">كل التقارير المرفوعة</option>
+          </select>
+        </>}
       </div>
 
-      {merchantCode && !loading && rows.length > 0 && (
+      {error && <div style={{ ...S.formCard, color: 'var(--danger-text)', padding: 14 }}>تعذر تحميل أداء الإعلانات: {error}</div>}
+
+      {merchantCode && !loading && !error && totals.rows > 0 && (
         <>
           {/* KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -172,7 +174,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
           <div style={{ ...S.tableCard }}>
             <div style={S.tableHeader}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>
-                {groupBy === 'campaign' ? 'الحملات' : groupBy === 'sku' ? 'المنتجات' : 'كلمات البحث'} ({grouped.length})
+                {groupBy === 'campaign' ? 'الحملات' : groupBy === 'sku' ? 'المنتجات' : 'كلمات البحث'} ({groups.length})
               </div>
             </div>
             <div style={{ overflowX: 'auto', maxHeight: 600, overflowY: 'auto' }}>
@@ -183,7 +185,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {grouped.map((g, i) => {
+                  {groups.map((g, i) => {
                     const r = g.spend > 0 ? g.revenue / g.spend : 0
                     const ct = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0
                     const color = PLATFORM_COLORS[g.platform] || '#0f958c'
@@ -208,7 +210,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
         </>
       )}
 
-      {merchantCode && !loading && rows.length === 0 && (
+      {merchantCode && !loading && !error && totals.rows === 0 && (
         <div style={{ ...S.formCard, padding: 60, textAlign: 'center' }}>
           <Megaphone size={48} color="var(--text3)" style={{ marginBottom: 12 }} />
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text2)' }}>لا توجد إعلانات لهذا التاجر</div>
@@ -217,6 +219,12 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
       )}
     </div>
   )
+}
+
+function reportLabel(report: AdUpload) {
+  const range = report.file_name.match(/(20\d{2}-\d{2}-\d{2})[_-](20\d{2}-\d{2}-\d{2})/)
+  const period = range ? `${range[1]} إلى ${range[2]}` : new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }).format(new Date(report.uploaded_at))
+  return `${PLATFORM_MAP[report.platform] || report.platform} · ${period} · ${Number(report.rows_inserted || 0).toLocaleString('ar-SA-u-nu-latn')} صف`
 }
 
 function KpiCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon?: React.ReactNode }) {
