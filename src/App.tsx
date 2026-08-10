@@ -13,7 +13,7 @@ import MfaChallenge from './components/MfaChallenge'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import {
-  LayoutDashboard, Tags, Package, Link2, LogOut, Boxes, Eye,
+  LayoutDashboard, Tags, Package, Link2, LogOut, Boxes, Eye, BookOpen,
   type LucideIcon,
 } from 'lucide-react'
 import type { EmailOtpType, Session } from '@supabase/supabase-js'
@@ -33,6 +33,7 @@ const Inventory     = lazy(() => import('./pages/Inventory'))
 const Actions       = lazy(() => import('./pages/Actions'))
 const Settings      = lazy(() => import('./pages/Settings'))
 const Products      = lazy(() => import('./pages/Products'))
+const ProductCatalog = lazy(() => import('./pages/ProductCatalog'))
 const Requests      = lazy(() => import('./pages/Requests'))
 const Statement     = lazy(() => import('./pages/Statement'))
 const Marketing     = lazy(() => import('./pages/Marketing'))
@@ -54,10 +55,10 @@ const PageFallback = () => (
   </div>
 )
 
-export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
+export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'product-catalog' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
-const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
-const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-detail', 'quick-inventory'])
+const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'product-catalog', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
+const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-catalog', 'product-detail', 'quick-inventory'])
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -67,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: LayoutDashboard, label: 'الرئيسية', key: 'dashboard', permission: 'dashboard' },
     { Icon: Package, label: 'الطلبات', key: 'orders', permission: 'orders' },
     { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
+    { Icon: BookOpen, label: 'دليل المنتجات', key: 'product-catalog', permission: 'products' },
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
     { Icon: Link2, label: 'الربط', key: 'integrations', permission: 'integrations' },
   ]},
@@ -82,7 +84,7 @@ const VIEW_PERMISSION: Partial<Record<View, MerchantPermissionKey>> = {
   dashboard: 'dashboard', actions: 'dashboard', notifications: 'dashboard',
   orders: 'orders',
   customers: 'customers',
-  products: 'products', 'product-detail': 'products', 'product-compare': 'products',
+  products: 'products', 'product-catalog': 'products', 'product-detail': 'products', 'product-compare': 'products',
   inventory: 'inventory', 'quick-inventory': 'inventory',
   marketing: 'marketing',
   statement: 'statement',
@@ -445,6 +447,7 @@ export default function App() {
             {view === 'dashboard'    && <Dashboard merchant={activeMerchant} onNavigate={goTo} />}
             {view === 'actions'      && <Actions      merchant={activeMerchant} />}
             {view === 'products'     && <Products     merchant={activeMerchant} />}
+            {view === 'product-catalog' && <ProductCatalog merchant={activeMerchant} />}
             {view === 'orders'       && <Orders       merchant={activeMerchant} />}
             {view === 'customers'    && <CustomerService merchant={activeMerchant} />}
             {view === 'inventory'    && <Inventory    merchant={activeMerchant} />}
