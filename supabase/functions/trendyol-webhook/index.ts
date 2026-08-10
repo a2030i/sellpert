@@ -40,7 +40,8 @@ Deno.serve(async (req) => {
       return json({ error: 'Webhook not configured' }, 401)
     }
     const authHeader = req.headers.get('Authorization') || ''
-    const provided = req.headers.get('x-webhook-secret')
+    const provided = req.headers.get('x-api-key')
+      || req.headers.get('x-webhook-secret')
       || new URL(req.url).searchParams.get('secret')
       || (authHeader.startsWith('Basic ') ? (atob(authHeader.slice(6)).split(':')[1] || '') : '')
       || ''

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 import { HttpError, json } from '../_shared/sync.ts'
+import { ensureTrendyolWebhook, verifyTrendyolCredentials } from '../_shared/trendyolConnection.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,6 +103,22 @@ async function saveCredential(admin: any, body: any) {
   if (!merchant) throw new HttpError(404, 'Merchant not found')
 
   const credentials = validateCredentials(platform, body?.credentials || {})
+  let serverVerified = false
+  let webhook: Record<string, unknown> | null = null
+  let webhookWarning = ''
+  if (platform === 'trendyol') {
+    await verifyTrendyolCredentials(
+      credentials.sellerId,
+      credentials.secret.api_key,
+      credentials.secret.api_secret,
+    )
+    serverVerified = true
+    const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
+      .select('merchant_code').eq('platform', 'trendyol').eq('seller_id', credentials.sellerId)
+      .neq('merchant_code', merchantCode).eq('is_active', true).limit(1).maybeSingle()
+    if (duplicateError) throw duplicateError
+    if (duplicate) throw new HttpError(409, 'حساب Trendyol هذا مرتبط بمساحة عمل أخرى')
+  }
   const secretBlob = await encryptCredentialPayload(credentials.secret)
   const extra = { ...credentials.publicExtra, secret_blob: secretBlob }
   const row = {
@@ -111,16 +128,41 @@ async function saveCredential(admin: any, body: any) {
     api_key: null,
     api_secret: null,
     extra,
-    is_active: body?.verified === true,
-    test_status: body?.verified === true ? 'success' : 'untested',
-    last_tested_at: body?.verified === true ? new Date().toISOString() : null,
+    is_active: serverVerified,
+    test_status: serverVerified ? 'success' : 'untested',
+    last_tested_at: serverVerified ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
   }
   const { data, error } = await admin.from('platform_credentials').upsert(row, {
     onConflict: 'merchant_code,platform',
   }).select('id,merchant_code,platform,seller_id,is_active,test_status,updated_at').single()
   if (error) throw error
-  return { ok: true, credential: data }
+  if (platform === 'trendyol' && serverVerified) {
+    try {
+      const webhookSecret = await resolveTrendyolWebhookSecret(admin)
+      webhook = await ensureTrendyolWebhook(
+        credentials.sellerId,
+        credentials.secret.api_key,
+        credentials.secret.api_secret,
+        webhookSecret,
+        `${SUPABASE_URL}/functions/v1/trendyol-webhook`,
+      )
+    } catch (webhookError: any) {
+      webhookWarning = webhookError?.message || 'تعذر تسجيل Webhook تلقائيًا'
+    }
+  }
+  return { ok: true, credential: data, webhook, webhook_warning: webhookWarning || null }
+}
+
+async function resolveTrendyolWebhookSecret(admin: any) {
+  const fromEnv = String(Deno.env.get('TRENDYOL_WEBHOOK_SECRET') || '').trim()
+  if (fromEnv) return fromEnv
+  const { data, error } = await admin.from('app_settings').select('value')
+    .eq('key', 'TRENDYOL_WEBHOOK_SECRET').maybeSingle()
+  if (error) throw error
+  const value = typeof data?.value === 'string' ? data.value : String(data?.value?.secret || '')
+  if (!value.trim()) throw new Error('TRENDYOL_WEBHOOK_SECRET غير مضبوط')
+  return value.trim()
 }
 
 async function deleteCredential(admin: any, body: any) {

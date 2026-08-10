@@ -359,7 +359,11 @@ function PlatformCard({ platform, merchantCode, status, onChanged, setNotice, sh
         credentials: form, verified,
       })
       if (data.error) throw new Error(data.error)
-      setNotice({ type: verified ? 'ok' : 'err', text: verified ? `${meta.label}: تم الحفظ والتفعيل.` : `${meta.label}: تم الحفظ كغير نشط حتى ينجح اختبار الاتصال.` })
+      const webhookNote = data.webhook_warning
+        ? ` تم تفعيل المزامنة، لكن Webhook يحتاج مراجعة: ${data.webhook_warning}`
+        : platform === 'trendyol' ? ' وتم تسجيل Webhook للتحديث الفوري.' : ''
+      setVerified(Boolean(data.credential?.is_active))
+      setNotice({ type: data.credential?.is_active ? 'ok' : 'err', text: data.credential?.is_active ? `${meta.label}: تم التحقق الخادمي والحفظ والتفعيل.${webhookNote}` : `${meta.label}: تم الحفظ كغير نشط.` })
       setEditing(false)
       await onChanged()
     } catch (error: any) {

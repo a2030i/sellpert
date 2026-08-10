@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { verifyTrendyolCredentials } from '../_shared/trendyolConnection.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -45,67 +46,11 @@ Deno.serve(async (req) => {
 // Auth: Basic base64(apiKey:apiSecret)
 
 async function testTrendyol(sellerId: string, apiKey: string, apiSecret: string) {
-  sellerId = String(sellerId || '').trim()
-  apiKey = String(apiKey || '').trim()
-  apiSecret = String(apiSecret || '').trim()
-
-  if (!sellerId || !apiKey || !apiSecret) {
-    return { ok: false, error: 'معرّف البائع ومفتاح API وسر API مطلوبة' }
-  }
-
-  const auth = btoa(`${apiKey}:${apiSecret}`)
-  const url  = `https://apigw.trendyol.com/integration/order/sellers/${encodeURIComponent(sellerId)}/orders?page=0&size=1`
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'User-Agent': `${sellerId} - SellpertApp`,
-      'Content-Type': 'application/json',
-    },
-  })
-
-  if (res.status === 200) {
-    return {
-      ok: true,
-      message: '✅ تم التحقق بنجاح — حساب ترنديول متصل وجاهز للمزامنة',
-    }
-  }
-
-  const body = await res.text()
-  const detail = trendyolErrorDetail(body)
-
-  if (res.status === 401) {
-    return {
-      ok: false,
-      error: `ترنديول رفض بيانات الدخول (401) — تحقق من معرّف البائع ومفتاح API وسر API، وتأكد أنها بيانات بيئة الإنتاج${detail ? ` — ${detail}` : ''}`,
-    }
-  }
-
-  if (res.status === 403) {
-    return {
-      ok: false,
-      error: `ترنديول منع طلب الاتصال (403) — البيانات قد تكون صحيحة، لكن الطلب مرفوض بسبب صلاحية التكامل أو User-Agent أو حظر عنوان الخادم${detail ? ` — ${detail}` : ''}`,
-    }
-  }
-
-  if (res.status === 404) {
-    return {
-      ok: false,
-      error: `ترنديول لم يجد خدمة الطلبات لهذا الحساب (404) — لا يعني ذلك بالضرورة أن معرّف البائع (${sellerId}) خاطئ؛ تحقق من تفعيل Partner API وبيئة الإنتاج لهذا المتجر${detail ? ` — ${detail}` : ''}`,
-    }
-  }
-
-  return { ok: false, error: `خطأ من ترنديول (${res.status})${detail ? ` — ${detail}` : ''}` }
-}
-
-function trendyolErrorDetail(body: string) {
-  if (!body) return ''
   try {
-    const data = JSON.parse(body)
-    const value = data?.message || data?.exception || data?.error?.detail || data?.error?.title
-    return typeof value === 'string' ? value.slice(0, 200) : ''
-  } catch {
-    return body.replace(/\s+/g, ' ').slice(0, 200)
+    await verifyTrendyolCredentials(sellerId, apiKey, apiSecret)
+    return { ok: true, message: '✅ تم التحقق بنجاح — حساب Trendyol متصل وجاهز للمزامنة' }
+  } catch (error: any) {
+    return { ok: false, error: error.message }
   }
 }
 
