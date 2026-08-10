@@ -72,13 +72,13 @@ export async function authorizeMerchantSync(
 
 async function requireActiveWorkspace(admin: any, merchantCode: string) {
   const { data: workspace, error } = await admin.from('merchants')
-    .select('is_active,subscription_status')
+    .select('is_active,workspace_status')
     .eq('merchant_code', merchantCode)
     .eq('role', 'merchant')
     .maybeSingle()
   if (error) throw error
   if (!workspace) throw new HttpError(404, 'Merchant not found')
-  if (workspace.is_active === false || workspace.subscription_status !== 'active') {
+  if (workspace.is_active === false || workspace.workspace_status !== 'active') {
     throw new HttpError(403, 'ACCOUNT_SUSPENDED')
   }
 }

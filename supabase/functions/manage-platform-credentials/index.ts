@@ -9,7 +9,7 @@ const corsHeaders = {
 }
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const PLATFORMS = new Set(['amazon', 'noon', 'trendyol'])
+const PLATFORMS = new Set(['trendyol'])
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -108,21 +108,15 @@ async function saveCredential(admin: any, body: any) {
   let webhookWarning = ''
   let trendyolApiKey = ''
   let trendyolApiSecret = ''
-  if (platform === 'trendyol') {
-    trendyolApiKey = String(credentials.secret.api_key || '')
-    trendyolApiSecret = String(credentials.secret.api_secret || '')
-    await verifyTrendyolCredentials(
-      credentials.sellerId,
-      trendyolApiKey,
-      trendyolApiSecret,
-    )
-    serverVerified = true
-    const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
-      .select('merchant_code').eq('platform', 'trendyol').eq('seller_id', credentials.sellerId)
-      .neq('merchant_code', merchantCode).eq('is_active', true).limit(1).maybeSingle()
-    if (duplicateError) throw duplicateError
-    if (duplicate) throw new HttpError(409, 'حساب Trendyol هذا مرتبط بمساحة عمل أخرى')
-  }
+  trendyolApiKey = String(credentials.secret.api_key || '')
+  trendyolApiSecret = String(credentials.secret.api_secret || '')
+  await verifyTrendyolCredentials(credentials.sellerId, trendyolApiKey, trendyolApiSecret)
+  serverVerified = true
+  const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
+    .select('merchant_code').eq('platform', 'trendyol').eq('seller_id', credentials.sellerId)
+    .neq('merchant_code', merchantCode).eq('is_active', true).limit(1).maybeSingle()
+  if (duplicateError) throw duplicateError
+  if (duplicate) throw new HttpError(409, 'حساب Trendyol هذا مرتبط بمساحة عمل أخرى')
   const secretBlob = await encryptCredentialPayload(credentials.secret)
   const extra = { ...credentials.publicExtra, secret_blob: secretBlob }
   const row = {
@@ -141,7 +135,7 @@ async function saveCredential(admin: any, body: any) {
     onConflict: 'merchant_code,platform',
   }).select('id,merchant_code,platform,seller_id,is_active,test_status,updated_at').single()
   if (error) throw error
-  if (platform === 'trendyol' && serverVerified) {
+  if (serverVerified) {
     try {
       const webhookSecret = await resolveTrendyolWebhookSecret(admin)
       webhook = await ensureTrendyolWebhook(
@@ -227,39 +221,9 @@ async function getSyncStatus(admin: any, body: any) {
 function validateCredentials(platform: string, input: any) {
   const sellerId = clean(input.seller_id)
   if (!sellerId) throw new HttpError(400, 'Seller ID مطلوب')
-  if (platform === 'trendyol') {
-    const apiKey = clean(input.api_key); const apiSecret = clean(input.api_secret)
-    if (!apiKey || !apiSecret) throw new HttpError(400, 'API Key وAPI Secret مطلوبان')
-    return { sellerId, secret: { api_key: apiKey, api_secret: apiSecret }, publicExtra: {} }
-  }
-  if (platform === 'amazon') {
-    const apiKey = clean(input.api_key); const apiSecret = clean(input.api_secret)
-    const refreshToken = clean(input.refresh_token)
-    if (!apiKey || !apiSecret || !refreshToken) throw new HttpError(400, 'بيانات LWA كاملة مطلوبة')
-    return {
-      sellerId,
-      secret: { api_key: apiKey, api_secret: apiSecret, refresh_token: refreshToken },
-      publicExtra: {
-        marketplace_id: clean(input.marketplace_id) || 'A17E79C6D8DWNP',
-        endpoint: clean(input.endpoint) || 'https://sellingpartnerapi-eu.amazon.com',
-      },
-    }
-  }
-  const raw = typeof input.service_account === 'string'
-    ? parseJson(input.service_account)
-    : input.service_account
-  if (!raw?.client_email || !raw?.private_key) throw new HttpError(400, 'Service Account JSON غير صالح')
-  return {
-    sellerId,
-    secret: { service_account: raw },
-    publicExtra: {
-      token_endpoint: clean(input.token_endpoint) || 'https://idp.noon.partners/token',
-      orders_endpoint: clean(input.orders_endpoint) || 'https://api.noon.partners/seller/v1/order',
-    },
-  }
-}
-
-function parseJson(value: string) {
-  try { return JSON.parse(value) } catch { throw new HttpError(400, 'Service Account JSON غير صالح') }
+  if (platform !== 'trendyol') throw new HttpError(400, 'منصة الربط المباشر غير مدعومة')
+  const apiKey = clean(input.api_key); const apiSecret = clean(input.api_secret)
+  if (!apiKey || !apiSecret) throw new HttpError(400, 'API Key وAPI Secret مطلوبان')
+  return { sellerId, secret: { api_key: apiKey, api_secret: apiSecret }, publicExtra: {} }
 }
 function clean(value: unknown) { return String(value || '').trim() }

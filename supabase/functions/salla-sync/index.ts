@@ -40,15 +40,15 @@ Deno.serve(async (req) => {
     // ── GUARD: Check administrative account access ──────────────────────────
     const { data: merchant } = await admin
       .from('merchants')
-      .select('subscription_status, name')
+      .select('workspace_status, name')
       .eq('merchant_code', merchant_code)
       .maybeSingle()
 
     if (!merchant) return json({ error: 'Merchant not found' }, 404)
 
-    if (merchant.subscription_status !== 'active') {
-      console.warn(`[GUARD] Blocked sync for ${merchant_code} — status: ${merchant.subscription_status}`)
-      return json({ error: 'ACCOUNT_SUSPENDED', status: merchant.subscription_status }, 403)
+    if (merchant.workspace_status !== 'active') {
+      console.warn(`[GUARD] Blocked sync for ${merchant_code} — status: ${merchant.workspace_status}`)
+      return json({ error: 'ACCOUNT_SUSPENDED', status: merchant.workspace_status }, 403)
     }
 
     // ── Get Salla tokens ──────────────────────────────────────────────────────

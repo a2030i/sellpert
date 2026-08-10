@@ -12,8 +12,6 @@ import PurchaseCashReadinessPanel from '../components/PurchaseCashReadinessPanel
 import { fetchAll } from '../lib/db'
 import { inventoryDataLineage, inventoryFreshness, type InventoryDataLineage, type InventoryFreshness, type LineageUpload } from '../lib/dataLineage'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 const PAGE_SIZE = 25
 const LINEAGE_TONE = {
   info: { background:'var(--info-bg)', color:'var(--info-text)' },
@@ -43,7 +41,6 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ sku:'', product_name:'', platform:'warehouse', quantity:0, low_stock_threshold:10, cost_price:0 })
   const [msg, setMsg] = useState<{ type:'ok'|'err'; text:string } | null>(null)
-  const [alertSending, setAlertSending] = useState(false)
 
   // The inventory loader is intentionally keyed by the current merchant.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,27 +158,6 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
   }
 
-  async function sendLowStockAlert() {
-    const lowProducts = items
-      .filter(i => i.is_active && (i.quantity === 0 || i.quantity <= i.low_stock_threshold))
-      .map(i => i.product_name)
-    if (lowProducts.length === 0) return
-    setAlertSending(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      await fetch(`${SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token}`, apikey: ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant_code: merchant!.merchant_code, event: 'low_stock', data: { products: lowProducts } }),
-      })
-      setMsg({ type: 'ok', text: `تم إرسال تنبيه مخزون لـ ${lowProducts.length} منتج` })
-    } catch (e: any) {
-      console.error('send inventory alert', e)
-      setMsg({ type: 'err', text: userErrorMessage(e, 'تعذّر إرسال تنبيه المخزون.') })
-    }
-    setAlertSending(false)
-  }
-
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
       <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
@@ -236,14 +212,6 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)', boxShadow: 'none' }} onClick={goQuickInventory}>
             تحديث كميات متعددة
           </button>
-          {(stats.low > 0 || stats.out > 0) && (
-            <button
-              style={{ ...S.addBtn, background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', boxShadow: 'none' }}
-              onClick={sendLowStockAlert} disabled={alertSending}
-            >
-              {alertSending ? 'جارٍ الإرسال...' : `إرسال تنبيه واتساب (${stats.low + stats.out})`}
-            </button>
-          )}
           <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
             {showAdd ? 'إلغاء' : 'إضافة منتج'}
           </button>

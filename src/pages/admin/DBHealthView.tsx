@@ -1,23 +1,15 @@
 import { useState, useEffect } from 'react'
 import {
   AlertTriangle, CheckCircle2, CircleX, Clock3, Database, FileCheck2,
-  ExternalLink, Gauge, HardDrive, Link2Off, RefreshCw, ServerCog, ShoppingBag,
+  Gauge, HardDrive, Link2Off, RefreshCw, ServerCog, ShoppingBag,
   Store, Webhook, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { S } from './adminShared'
-import { adminIntegrationRequest, loadAdminIntegrationStatus } from '../../lib/adminIntegrationSettings'
-
-const SUPABASE_PLANS = {
-  free:       { label: 'Free',       db_limit_mb: 500,   conn_limit: 60,   color: '#ffd166' },
-  pro:        { label: 'Pro',        db_limit_mb: 8192,  conn_limit: 200,  color: '#0f958c' },
-  team:       { label: 'Team',       db_limit_mb: 8192,  conn_limit: 200,  color: '#00e5b0' },
-  enterprise: { label: 'Enterprise', db_limit_mb: 99999, conn_limit: 1000, color: '#ff9900' },
-}
-type PlanKey = keyof typeof SUPABASE_PLANS
+const INFRA_CAPACITY = { db_limit_mb: 8192, conn_limit: 200, color: '#0f958c' }
 
 const KEY_TABLES = ['orders', 'merchants', 'sync_queue', 'webhook_events', 'salla_connections',
-  'subscriptions', 'invoices', 'products', 'performance_data', 'notifications']
+  'products', 'performance_data', 'notifications']
 
 type Incident = {
   id?: string
@@ -48,7 +40,6 @@ type HealthPayload = {
   client_incident_stats?: { open: number; fatal_open: number; new_24h: number; occurrences_24h: number }
   webhook_errors_24h: number
   merchant_count: number
-  active_subscriptions: number
   orders_total: number
   orders_today: number
   cache_hit_ratio: number | null
@@ -60,14 +51,10 @@ type Metric = { label: string; value: string | number; color: string; Icon: Luci
 export default function DBHealthView() {
   const [health, setHealth]     = useState<HealthPayload | null>(null)
   const [loading, setLoading]   = useState(true)
-  const [plan, setPlan]         = useState<PlanKey>('free')
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    loadAdminIntegrationStatus()
-      .then(data => { const value = data.settings.supabase_plan?.value; if (value && value in SUPABASE_PLANS) setPlan(value as PlanKey) })
-      .catch(() => {})
     load()
   }, [])
 
@@ -81,17 +68,7 @@ export default function DBHealthView() {
     setLoading(false)
   }
 
-  async function savePlan(p: PlanKey) {
-    const previous = plan
-    setPlan(p)
-    try { await adminIntegrationRequest({ action: 'save_setting', key: 'supabase_plan', value: p }) }
-    catch {
-      setPlan(previous)
-      setErrorMessage('لم يتم حفظ سعة Supabase المختارة. تحقق من الصلاحيات ثم أعد المحاولة.')
-    }
-  }
-
-  const cfg = SUPABASE_PLANS[plan]
+  const cfg = INFRA_CAPACITY
 
   const dbMb      = health ? Math.round(health.db_size_bytes / 1024 / 1024) : 0
   const dbPct     = Math.min(100, Math.round(dbMb / cfg.db_limit_mb * 100))
@@ -163,17 +140,7 @@ export default function DBHealthView() {
             آخر تحديث: {lastRefresh.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
-            {(Object.keys(SUPABASE_PLANS) as PlanKey[]).map(p => (
-              <button key={p} onClick={() => savePlan(p)} style={{
-                padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
-                background: plan === p ? SUPABASE_PLANS[p].color : 'transparent',
-                color: plan === p ? '#fff' : 'var(--text3)',
-                transition: 'all 0.2s',
-              }}>{SUPABASE_PLANS[p].label}</button>
-            ))}
-          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={load} disabled={loading} style={{ ...S.refreshBtn, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             <RefreshCw size={15} style={{ animation: loading ? 'spin .8s linear infinite' : undefined }} />
             {loading ? 'جارٍ التحديث' : 'تحديث المؤشرات'}
@@ -204,12 +171,6 @@ export default function DBHealthView() {
             </div>
             <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.65 }}>{alertDescription}</div>
           </div>
-          {dbAlert !== 'ok' && plan === 'free' && (
-            <a href="https://supabase.com/pricing" target="_blank" rel="noopener noreferrer"
-              style={{ marginRight: 'auto', background: 'var(--accent-strong)', color: '#fff', padding: '8px 18px', borderRadius: 10, fontSize: 12, fontWeight: 800, textDecoration: 'none', flexShrink: 0 }}>
-              ترقية الآن <ExternalLink size={13} aria-hidden="true" />
-            </a>
-          )}
         </div>
       )}
 
@@ -248,7 +209,7 @@ export default function DBHealthView() {
           </div>
 
           <div style={{ ...S.chartCard, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><HardDrive size={17} /> استخدام الموارد — سعة {cfg.label}</div>
+            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><HardDrive size={17} /> استخدام موارد قاعدة البيانات</div>
             {[
               { label: 'حجم قاعدة البيانات', used: dbMb, limit: cfg.db_limit_mb, pct: dbPct, unit: 'MB', alert: dbAlert, hint: cfg.db_limit_mb >= 99999 ? 'غير محدود' : `${cfg.db_limit_mb} MB` },
               { label: 'الاتصالات النشطة', used: health.total_connections, limit: cfg.conn_limit, pct: connPct, unit: '', alert: connAlert, hint: `${cfg.conn_limit} اتصال` },

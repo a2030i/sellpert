@@ -54,8 +54,7 @@ BEGIN
     RAISE EXCEPTION 'merchant phone was not normalized';
   END IF;
   IF v_row.role <> 'merchant'
-     OR v_row.subscription_plan <> 'free'
-     OR v_row.subscription_status <> 'active'
+     OR v_row.workspace_status <> 'active'
      OR v_row.signup_source <> 'self_service'
      OR NOT v_row.is_active THEN
     RAISE EXCEPTION 'workspace defaults are incorrect';

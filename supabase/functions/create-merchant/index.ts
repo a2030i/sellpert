@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         currency,
         role,
         merchant_code: code,
-        subscription_plan: 'free',
+        workspace_status: 'active',
       }
       if (whatsapp_phone?.trim()) merchantRow.whatsapp_phone = whatsapp_phone.trim()
       const result = await adminClient.from('merchants').insert(merchantRow)

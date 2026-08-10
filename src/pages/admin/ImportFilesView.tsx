@@ -762,28 +762,6 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     const derivedSummary = latestDerived
       ? ` · ${latestDerived.amazon_orders_derived || 0} طلب أمازون · ${latestDerived.platform_prices_derived || 0} سعر · ${latestDerived.returns_derived || 0} مرتجع`
       : ''
-    if (totalInserted > 0) {
-      // إرسال تقرير واتساب تلقائي للتاجر بعد الاستيراد
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const filesByPlatform: Record<string, number> = {}
-        for (const f of validFiles) {
-          const p = f.parsed!.platform
-          filesByPlatform[p] = (filesByPlatform[p] || 0) + 1
-        }
-        const summaryText = Object.entries(filesByPlatform).map(([p, n]) => `${PLATFORM_MAP[p] || p}: ${n}`).join(' · ')
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${session?.access_token}`, 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            merchant_code: merchantCode,
-            event: 'import_complete',
-            data: { files: validFiles.length, rows: totalInserted, summary: summaryText },
-          }),
-        })
-      } catch { /* silent */ }
-    }
-
     setBusy(false)
     setRefreshTick(tick => tick + 1)
     const skippedNote = skipped > 0 ? ` · تُخطّي ${skipped} ملف مكرر` : ''
@@ -975,21 +953,6 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
                     generateMerchantReport(merchantCode, merchant?.name || merchantCode, saved)
                   }} style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <FileText size={14} /> تقرير PDF للتاجر
-                  </button>}
-                  {!merchantMode && <button onClick={async () => {
-                    const { data: { session } } = await supabase.auth.getSession()
-                    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-whatsapp`, {
-                      method: 'POST',
-                      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        merchant_code: merchantCode,
-                        event: 'import_complete',
-                        data: { files: files.filter(f => f.stage === 'saved').length, rows: files.reduce((a, f) => a + (f.result?.inserted || 0), 0) }
-                      })
-                    })
-                    setGlobalMsg({ type: 'ok', text: 'تم إرسال إشعار واتساب للتاجر' })
-                  }} style={{ ...S.btn, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    إرسال على واتساب
                   </button>}
                 </>
               )}

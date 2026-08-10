@@ -11,7 +11,6 @@ const STEPS = [
   { key: 'has_orders',     label: 'استقبال الطلبات',    desc: 'تظهر تلقائيًا بعد ربط Trendyol وتشغيل المزامنة', path: '/orders' },
   { key: 'has_ad_metrics', label: 'تتبّع الإعلانات',    desc: 'تابع عائد الإنفاق الإعلاني عند توفر بيانات الحملات', path: '/marketing' },
   { key: 'has_source',     label: 'ربط أو رفع مصدر بيانات', desc: 'اربط Trendyol أو ارفع ملف منصة معتمد لبدء التحديث', path: '/integrations' },
-  { key: 'has_ai_insight', label: 'التحليل الذكي الأول', desc: 'احصل على تحليل ذكي لمتجرك من لوحة التحكم', path: '/dashboard' },
 ]
 
 export default function OnboardingTour({ merchantCode }: { merchantCode?: string }) {
@@ -24,14 +23,13 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
     if (!merchantCode) return
     setClosed(localStorage.getItem(`sellpert-onb-closed:${merchantCode}`) === 'true')
     async function loadActivation() {
-      const [rpc, products, costs, inventory, orders, ads, insights, merchant, credentials, uploads] = await Promise.all([
+      const [rpc, products, costs, inventory, orders, ads, merchant, credentials, uploads] = await Promise.all([
         supabase.rpc('merchant_activation', { p_merchant_code: merchantCode }),
         supabase.from('products').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
         supabase.from('products').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode).gt('cost_price', 0),
         supabase.from('inventory').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode).eq('is_active', true),
         supabase.from('orders').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
         supabase.from('ad_metrics').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
-        supabase.from('ai_insights').select('id', { count: 'exact', head: true }).eq('merchant_code', merchantCode),
         supabase.from('merchants').select('salla_store_id').eq('merchant_code', merchantCode).maybeSingle(),
         listPlatformCredentials(merchantCode),
         supabase.from('platform_file_uploads').select('id', { count: 'exact', head: true })
@@ -43,7 +41,6 @@ export default function OnboardingTour({ merchantCode }: { merchantCode?: string
         has_inventory: (inventory.count || 0) > 0,
         has_orders: (orders.count || 0) > 0,
         has_ad_metrics: (ads.count || 0) > 0,
-        has_ai_insight: (insights.count || 0) > 0,
         has_source: hasUsableDataSource({
           credentials,
           hasSallaStore: Boolean(merchant.data?.salla_store_id),

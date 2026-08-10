@@ -13,8 +13,7 @@ BEGIN
     RAISE EXCEPTION 'authenticated retains direct platform credential access';
   END IF;
 
-  IF has_table_privilege('authenticated', 'public.merchant_platform_mappings', 'SELECT')
-     OR has_table_privilege('authenticated', 'public.merchant_account_links', 'SELECT') THEN
+  IF has_table_privilege('authenticated', 'public.merchant_account_links', 'SELECT') THEN
     RAISE EXCEPTION 'authenticated retains direct integration metadata access';
   END IF;
 

@@ -17,14 +17,6 @@ describe('remaining provider payload access', () => {
     expect(sources.join('\n')).toContain('GOODS_RECEIVED_SAFE_COLUMNS')
   })
 
-  it('never renders webhook bodies in browser administration', () => {
-    const source = readFileSync('src/pages/admin/WhatsAppManagerView.tsx', 'utf8')
-    expect(source).toContain('WEBHOOK_EVENT_SAFE_COLUMNS')
-    expect(source).not.toContain("from('webhook_events').select('*'")
-    expect(source).not.toContain('l.payload')
-    expect(source).not.toContain('JSON.stringify(l.payload)')
-  })
-
   it('aggregates admin advertising reports on the server', () => {
     const source = readFileSync('src/pages/admin/AdsView.tsx', 'utf8')
     expect(source).toContain("rpc('admin_ad_performance'")

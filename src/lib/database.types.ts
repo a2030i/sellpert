@@ -278,33 +278,6 @@ export type Database = {
           },
         ]
       }
-      ai_insights: {
-        Row: {
-          content: Json
-          created_at: string
-          id: string
-          insight_type: string
-          merchant_code: string
-          model_used: string | null
-        }
-        Insert: {
-          content: Json
-          created_at?: string
-          id?: string
-          insight_type?: string
-          merchant_code: string
-          model_used?: string | null
-        }
-        Update: {
-          content?: Json
-          created_at?: string
-          id?: string
-          insight_type?: string
-          merchant_code?: string
-          model_used?: string | null
-        }
-        Relationships: []
-      }
       app_settings: {
         Row: {
           description: string | null
@@ -756,88 +729,6 @@ export type Database = {
           },
         ]
       }
-      invoices: {
-        Row: {
-          amount: number
-          created_at: string | null
-          due_date: string | null
-          id: string
-          invoice_number: string | null
-          merchant_code: string
-          notes: string | null
-          paid_at: string | null
-          payment_ref: string | null
-          period_end: string | null
-          period_start: string | null
-          status: string
-          subscription_id: string | null
-          tax_amount: number
-          total_amount: number
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          due_date?: string | null
-          id?: string
-          invoice_number?: string | null
-          merchant_code: string
-          notes?: string | null
-          paid_at?: string | null
-          payment_ref?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          status?: string
-          subscription_id?: string | null
-          tax_amount?: number
-          total_amount: number
-          type?: string
-          updated_at?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          due_date?: string | null
-          id?: string
-          invoice_number?: string | null
-          merchant_code?: string
-          notes?: string | null
-          paid_at?: string | null
-          payment_ref?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          status?: string
-          subscription_id?: string | null
-          tax_amount?: number
-          total_amount?: number
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoices_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["merchant_code"]
-          },
-          {
-            foreignKeyName: "invoices_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "suspended_merchants"
-            referencedColumns: ["merchant_code"]
-          },
-          {
-            foreignKeyName: "invoices_subscription_id_fkey"
-            columns: ["subscription_id"]
-            isOneToOne: false
-            referencedRelation: "subscriptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       merchant_account_links: {
         Row: {
           created_at: string | null
@@ -925,56 +816,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "suspended_merchants"
             referencedColumns: ["merchant_code"]
-          },
-        ]
-      }
-      merchant_platform_mappings: {
-        Row: {
-          connection_id: string
-          created_at: string
-          id: string
-          is_active: boolean
-          last_sync_at: string | null
-          last_sync_error: string | null
-          last_sync_status: string | null
-          merchant_code: string
-          platform: string
-          records_synced: number | null
-          seller_id: string
-        }
-        Insert: {
-          connection_id: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          last_sync_at?: string | null
-          last_sync_error?: string | null
-          last_sync_status?: string | null
-          merchant_code: string
-          platform: string
-          records_synced?: number | null
-          seller_id: string
-        }
-        Update: {
-          connection_id?: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          last_sync_at?: string | null
-          last_sync_error?: string | null
-          last_sync_status?: string | null
-          merchant_code?: string
-          platform?: string
-          records_synced?: number | null
-          seller_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_platform_mappings_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "platform_connections"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -1122,9 +963,7 @@ export type Database = {
           sellpert_commission_rate: number | null
           signup_source: string
           sub_sector: string | null
-          subscription_monthly_amount: number | null
-          subscription_plan: string | null
-          subscription_status: string
+          workspace_status: string
           whatsapp_phone: string | null
         }
         Insert: {
@@ -1148,9 +987,7 @@ export type Database = {
           sellpert_commission_rate?: number | null
           signup_source?: string
           sub_sector?: string | null
-          subscription_monthly_amount?: number | null
-          subscription_plan?: string | null
-          subscription_status?: string
+          workspace_status?: string
           whatsapp_phone?: string | null
         }
         Update: {
@@ -1174,9 +1011,7 @@ export type Database = {
           sellpert_commission_rate?: number | null
           signup_source?: string
           sub_sector?: string | null
-          subscription_monthly_amount?: number | null
-          subscription_plan?: string | null
-          subscription_status?: string
+          workspace_status?: string
           whatsapp_phone?: string | null
         }
         Relationships: []
@@ -1351,90 +1186,6 @@ export type Database = {
           },
         ]
       }
-      payment_requests: {
-        Row: {
-          admin_note: string | null
-          amount: number
-          bank_reference: string | null
-          confirmed_at: string | null
-          confirmed_by: string | null
-          created_at: string | null
-          currency: string
-          expires_at: string | null
-          id: string
-          merchant_code: string
-          notes: string | null
-          period_months: number
-          plan: string
-          rejected_at: string | null
-          status: string
-          total_amount: number | null
-          transfer_date: string | null
-          type: string
-          updated_at: string | null
-          vat_amount: number | null
-        }
-        Insert: {
-          admin_note?: string | null
-          amount: number
-          bank_reference?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          created_at?: string | null
-          currency?: string
-          expires_at?: string | null
-          id?: string
-          merchant_code: string
-          notes?: string | null
-          period_months?: number
-          plan: string
-          rejected_at?: string | null
-          status?: string
-          total_amount?: number | null
-          transfer_date?: string | null
-          type?: string
-          updated_at?: string | null
-          vat_amount?: number | null
-        }
-        Update: {
-          admin_note?: string | null
-          amount?: number
-          bank_reference?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          created_at?: string | null
-          currency?: string
-          expires_at?: string | null
-          id?: string
-          merchant_code?: string
-          notes?: string | null
-          period_months?: number
-          plan?: string
-          rejected_at?: string | null
-          status?: string
-          total_amount?: number | null
-          transfer_date?: string | null
-          type?: string
-          updated_at?: string | null
-          vat_amount?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_requests_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["merchant_code"]
-          },
-          {
-            foreignKeyName: "payment_requests_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "suspended_merchants"
-            referencedColumns: ["merchant_code"]
-          },
-        ]
-      }
       performance_data: {
         Row: {
           ad_spend: number | null
@@ -1578,42 +1329,6 @@ export type Database = {
           shipping_fee?: number
           updated_at?: string | null
           vat_rate?: number
-        }
-        Relationships: []
-      }
-      platform_connections: {
-        Row: {
-          api_key: string | null
-          api_secret: string | null
-          created_at: string
-          extra: Json | null
-          id: string
-          is_active: boolean
-          label: string
-          platform: string
-          updated_at: string
-        }
-        Insert: {
-          api_key?: string | null
-          api_secret?: string | null
-          created_at?: string
-          extra?: Json | null
-          id?: string
-          is_active?: boolean
-          label: string
-          platform: string
-          updated_at?: string
-        }
-        Update: {
-          api_key?: string | null
-          api_secret?: string | null
-          created_at?: string
-          extra?: Json | null
-          id?: string
-          is_active?: boolean
-          label?: string
-          platform?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -2714,100 +2429,6 @@ export type Database = {
           },
         ]
       }
-      subscriptions: {
-        Row: {
-          amount: number | null
-          billing_cycle: string | null
-          billing_source: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          created_at: string | null
-          currency: string | null
-          current_period_end: string | null
-          current_period_start: string | null
-          grace_period_end: string | null
-          id: string
-          merchant_code: string
-          next_billing_date: string | null
-          payment_method: string | null
-          payment_request_id: string | null
-          plan: string
-          salla_store_id: string | null
-          salla_subscription_id: string | null
-          status: string
-          trial_ends_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          amount?: number | null
-          billing_cycle?: string | null
-          billing_source?: string
-          cancel_reason?: string | null
-          cancelled_at?: string | null
-          created_at?: string | null
-          currency?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          grace_period_end?: string | null
-          id?: string
-          merchant_code: string
-          next_billing_date?: string | null
-          payment_method?: string | null
-          payment_request_id?: string | null
-          plan?: string
-          salla_store_id?: string | null
-          salla_subscription_id?: string | null
-          status?: string
-          trial_ends_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          amount?: number | null
-          billing_cycle?: string | null
-          billing_source?: string
-          cancel_reason?: string | null
-          cancelled_at?: string | null
-          created_at?: string | null
-          currency?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          grace_period_end?: string | null
-          id?: string
-          merchant_code?: string
-          next_billing_date?: string | null
-          payment_method?: string | null
-          payment_request_id?: string | null
-          plan?: string
-          salla_store_id?: string | null
-          salla_subscription_id?: string | null
-          status?: string
-          trial_ends_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscriptions_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["merchant_code"]
-          },
-          {
-            foreignKeyName: "subscriptions_merchant_code_fkey"
-            columns: ["merchant_code"]
-            isOneToOne: false
-            referencedRelation: "suspended_merchants"
-            referencedColumns: ["merchant_code"]
-          },
-          {
-            foreignKeyName: "subscriptions_payment_request_id_fkey"
-            columns: ["payment_request_id"]
-            isOneToOne: false
-            referencedRelation: "payment_requests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sync_logs: {
         Row: {
           error_message: string | null
@@ -3444,19 +3065,6 @@ export type Database = {
             referencedColumns: ["merchant_code"]
           },
         ]
-      }
-      suspended_merchants: {
-        Row: {
-          cancel_reason: string | null
-          cancelled_at: string | null
-          email: string | null
-          merchant_code: string | null
-          name: string | null
-          salla_store_id: string | null
-          store_name: string | null
-          subscription_status: string | null
-        }
-        Relationships: []
       }
       sync_queue_stats: {
         Row: {

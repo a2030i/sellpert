@@ -7,9 +7,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ALLOWED_TABLES = new Set([
-  'merchants', 'platform_credentials', 'platform_connections',
+  'merchants', 'platform_credentials',
   'merchant_account_links', 'platform_file_uploads', 'merchant_requests',
-  'payment_requests', 'account_closure_requests', 'merchant_data_export',
+  'account_closure_requests', 'merchant_data_export',
   'auth_security',
 ])
 const IGNORED_FIELDS = new Set([

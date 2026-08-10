@@ -14,10 +14,10 @@ INSERT INTO auth.users (
 );
 
 INSERT INTO public.merchants
-  (id, merchant_code, name, email, role, currency, subscription_plan, subscription_status, signup_source)
+  (id, merchant_code, name, email, role, currency, workspace_status, signup_source)
 VALUES
   ('00000000-0000-4000-8000-000000009981', 'M-SOURCE-TEST', 'Performance Source Test',
-   'performance-source@test.invalid', 'merchant', 'SAR', 'free', 'active', 'test');
+   'performance-source@test.invalid', 'merchant', 'SAR', 'active', 'test');
 
 DO $$
 DECLARE tenant_code text;

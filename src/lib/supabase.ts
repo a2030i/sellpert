@@ -62,12 +62,10 @@ export interface Merchant {
   currency: string
   logo_url?: string
   role: UserRole
-  subscription_plan?: string
   whatsapp_phone?: string
   sellpert_commission_rate?: number
-  subscription_monthly_amount?: number
   fixed_fee_per_order?: number
-  subscription_status?: string
+  workspace_status?: string
   salla_store_id?: string
   onboarding_done?: boolean
   signup_source?: string
@@ -84,7 +82,7 @@ export interface Merchant {
 export type PerformancePlatform = 'salla' | 'noon' | 'amazon' | 'trendyol' | 'zid' | 'shopify' | 'other'
 export type OrderPlatform      = 'trendyol' | 'noon' | 'amazon' | 'salla' | 'zid'
 export type InventoryPlatform  = 'trendyol' | 'noon' | 'amazon' | 'warehouse'
-export type ConnectionPlatform = 'trendyol' | 'noon' | 'amazon' | 'respondly' | 'openrouter'
+export type ConnectionPlatform = 'trendyol'
 
 export interface PerformanceData {
   id: string

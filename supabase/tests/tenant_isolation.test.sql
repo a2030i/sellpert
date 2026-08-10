@@ -23,11 +23,11 @@ BEGIN
   SELECT merchant_code INTO tenant_a FROM public.merchants WHERE id = '00000000-0000-4000-8000-000000009901';
   SELECT merchant_code INTO tenant_b FROM public.merchants WHERE id = '00000000-0000-4000-8000-000000009902';
 
-  INSERT INTO public.merchants (id, merchant_code, name, email, role, owner_merchant_code, permissions, currency, subscription_plan, subscription_status, signup_source)
-  VALUES ('00000000-0000-4000-8000-000000009903', 'E-ISO-A', 'Employee A', 'employee-a@test.invalid', 'employee', tenant_a, '{"orders":true,"statement":false}'::jsonb, 'SAR', 'free', 'active', 'test');
+  INSERT INTO public.merchants (id, merchant_code, name, email, role, owner_merchant_code, permissions, currency, workspace_status, signup_source)
+  VALUES ('00000000-0000-4000-8000-000000009903', 'E-ISO-A', 'Employee A', 'employee-a@test.invalid', 'employee', tenant_a, '{"orders":true,"statement":false}'::jsonb, 'SAR', 'active', 'test');
 
-  INSERT INTO public.merchants (id, merchant_code, name, email, role, permissions, currency, subscription_plan, subscription_status, signup_source)
-  VALUES ('00000000-0000-4000-8000-000000009904', 'S-ISO-READ', 'Platform Read Staff', 'staff-read@test.invalid', 'staff', '["view_merchants"]'::jsonb, 'SAR', 'free', 'active', 'test');
+  INSERT INTO public.merchants (id, merchant_code, name, email, role, permissions, currency, workspace_status, signup_source)
+  VALUES ('00000000-0000-4000-8000-000000009904', 'S-ISO-READ', 'Platform Read Staff', 'staff-read@test.invalid', 'staff', '["view_merchants"]'::jsonb, 'SAR', 'active', 'test');
 
   INSERT INTO public.orders (merchant_code, platform, order_id, total_amount)
   VALUES (tenant_a, 'trendyol', 'TENANT-A-ORDER', 10), (tenant_b, 'trendyol', 'TENANT-B-ORDER', 20);

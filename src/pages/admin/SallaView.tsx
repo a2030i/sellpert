@@ -185,7 +185,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
   async function load() {
     setLoading(true)
     const [{ data: conns }, { data: q }] = await Promise.all([
-      supabase.from('salla_connections').select('id,merchant_code,salla_store_id,salla_merchant_id,store_name,store_domain,store_currency,store_country,store_logo,token_expires_at,scope,installed_at,uninstalled_at,last_sync_at,sync_status,orders_synced,products_synced,created_at,updated_at,merchants(name,email,subscription_status)').order('installed_at', { ascending: false }),
+      supabase.from('salla_connections').select('id,merchant_code,salla_store_id,salla_merchant_id,store_name,store_domain,store_currency,store_country,store_logo,token_expires_at,scope,installed_at,uninstalled_at,last_sync_at,sync_status,orders_synced,products_synced,created_at,updated_at,merchants(name,email,workspace_status)').order('installed_at', { ascending: false }),
       supabase.from('sync_queue').select('merchant_code,status').in('status', ['pending', 'running', 'failed']),
     ])
     setConnections(conns || [])
@@ -220,7 +220,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
   queue.forEach(q => { queueMap[q.merchant_code] = (queueMap[q.merchant_code] || 0) + 1 })
 
   const activeCount    = connections.filter(c => !c.uninstalled_at).length
-  const suspendedCount = connections.filter(c => (c.merchants as any)?.subscription_status === 'suspended').length
+  const suspendedCount = connections.filter(c => (c.merchants as any)?.workspace_status === 'suspended').length
   const failedCount = queue.filter(q => q.status === 'failed').length
 
   if (loading) return (
@@ -271,7 +271,7 @@ export default function SallaView({ onRefresh }: { onRefresh: () => void }) {
             <tbody>
               {connections.map(c => {
                 const m = c.merchants as any
-                const status = m?.subscription_status || 'active'
+                const status = m?.workspace_status || 'active'
                 const qCount = queueMap[c.merchant_code] || 0
                 const isUninstalled = !!c.uninstalled_at
 

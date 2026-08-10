@@ -59,7 +59,6 @@ export default function CommandPalette({ isAdmin, merchant, onNavigate }: Props)
       { id: 'a-team', label: 'لوحة الفريق', hint: 'KPIs داخلية', Icon: LayoutDashboard, group: 'navigation', action: () => onNavigate('/admin/team') },
       { id: 'a-import', label: 'استيراد ملفات المنصات', Icon: FileText, group: 'navigation', action: () => onNavigate('/admin/import') },
       { id: 'a-tasks', label: 'مهام الفريق', Icon: LifeBuoy, group: 'navigation', action: () => onNavigate('/admin/tasks') },
-      { id: 'a-whatsapp', label: 'إدارة الواتساب', Icon: Megaphone, group: 'navigation', action: () => onNavigate('/admin/whatsapp') },
       { id: 'a-audit', label: 'سجل التدقيق', Icon: FileText, group: 'navigation', action: () => onNavigate('/admin/audit') },
     ]
     if (isAdmin) return adminNav

@@ -45,12 +45,10 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
-  let mappingId = ''
 
   try {
     const body = await req.json()
     const merchantCode = String(body?.merchant_code || '')
-    mappingId = String(body?.mapping_id || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
     // Each team can refresh the provider data it is responsible for without
     // receiving access to marketplace credentials. RLS still limits which
@@ -58,11 +56,11 @@ Deno.serve(async (req) => {
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations','orders','products','statement','customers'])
 
     const { data: merchant } = await admin.from('merchants')
-      .select('subscription_status').eq('merchant_code', merchantCode).maybeSingle()
+      .select('workspace_status').eq('merchant_code', merchantCode).maybeSingle()
     if (!merchant) throw new HttpError(404, 'Merchant not found')
-    if (merchant.subscription_status !== 'active') throw new HttpError(403, 'ACCOUNT_SUSPENDED')
+    if (merchant.workspace_status !== 'active') throw new HttpError(403, 'ACCOUNT_SUSPENDED')
 
-    const credentials = await resolveCredentials(admin, merchantCode, mappingId)
+    const credentials = await resolveCredentials(admin, merchantCode)
     const { from, to } = parseSyncRange(body, 90)
 
     const { data: log, error: logError } = await admin.from('sync_logs').insert({
@@ -166,12 +164,6 @@ Deno.serve(async (req) => {
     await admin.from('platform_credentials').update({
       last_sync_at: now, records_synced: rows.length,
     }).eq('merchant_code', merchantCode).eq('platform', 'trendyol')
-    if (mappingId) await admin.from('merchant_platform_mappings').update({
-      last_sync_at: now,
-      last_sync_status: syncStatus,
-      records_synced: rows.length,
-      last_sync_error: warnings.length ? warnings.join(' | ').slice(0, 4000) : null,
-    }).eq('id', mappingId).eq('merchant_code', merchantCode)
 
     return json({ ok: true, status: syncStatus, partial: warnings.length > 0, records_synced: rows.length, ...details }, 200, corsHeaders)
   } catch (error: any) {
@@ -179,25 +171,11 @@ Deno.serve(async (req) => {
     if (logId) await admin.from('sync_logs').update({
       status: 'error', error_message: error.message, finished_at: new Date().toISOString(),
     }).eq('id', logId)
-    if (mappingId) await admin.from('merchant_platform_mappings').update({
-      last_sync_status: 'error', last_sync_error: error.message,
-    }).eq('id', mappingId)
     return json({ error: error.message }, status, corsHeaders)
   }
 })
 
-async function resolveCredentials(admin: any, merchantCode: string, mappingId: string) {
-  if (mappingId) {
-    const { data } = await admin.from('merchant_platform_mappings')
-      .select('seller_id,merchant_code,platform,platform_connections(seller_id,api_key,api_secret,extra)')
-      .eq('id', mappingId).eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle()
-    const connection = data?.platform_connections as any
-    if (!data || !connection) throw new HttpError(404, 'Trendyol connection not found')
-    const secret = await resolveSecretPayload({ ...connection, seller_id: data.seller_id || connection.seller_id })
-    assertCredentials(secret.seller_id, secret.api_key, secret.api_secret)
-    return { sellerId: secret.seller_id, apiKey: secret.api_key, apiSecret: secret.api_secret }
-  }
-
+async function resolveCredentials(admin: any, merchantCode: string) {
   const { data } = await admin.from('platform_credentials').select('seller_id,api_key,api_secret,extra')
     .eq('merchant_code', merchantCode).eq('platform', 'trendyol').eq('is_active', true).maybeSingle()
   if (!data) throw new HttpError(400, 'لا توجد بيانات ربط مفعلة لترنديول')
@@ -379,43 +357,10 @@ async function enrichArabicTitles(admin:any, merchantCode:string, rows:any[]) {
     .not('product_name_ar','is',null)
   const translations = new Map<string,string>()
   for (const item of cached || []) if (item.product_name && item.product_name_ar) translations.set(item.product_name,item.product_name_ar)
-  const missing = titles.filter(title => !translations.has(title) && !/[ء-ي]/.test(title))
-  if (missing.length) {
-    let apiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
-    if (!apiKey) {
-      const { data } = await admin.from('platform_connections').select('api_key,api_secret,extra,seller_id')
-        .eq('platform','openrouter').eq('is_active',true).maybeSingle()
-      apiKey = data ? (await resolveSecretPayload(data)).api_key || '' : ''
-    }
-    if (apiKey) for (let start=0; start<missing.length; start+=25) {
-      const batch = missing.slice(start,start+25)
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method:'POST', headers:{ Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','HTTP-Referer':'https://sellpert.com','X-Title':'Sellpert Product Translation' },
-          body:JSON.stringify({
-            model:Deno.env.get('OPENROUTER_TRANSLATION_MODEL') || 'google/gemini-2.5-flash',
-            temperature:0, max_tokens:2500,
-            messages:[
-              { role:'system', content:'ترجم أسماء المنتجات التالية إلى العربية التجارية الواضحة. حافظ على العلامة التجارية والأوزان والمقاسات والأكواد دون تغيير. أعد فقط JSON array من كائنات source وarabic وبنفس الترتيب.' },
-              { role:'user', content:JSON.stringify(batch) },
-            ],
-          }),
-        })
-        if (!response.ok) throw new Error(`translation HTTP ${response.status}`)
-        const data = await response.json()
-        const content = String(data?.choices?.[0]?.message?.content || '')
-        const jsonText = content.match(/\[[\s\S]*\]/)?.[0] || '[]'
-        const translated = JSON.parse(jsonText)
-        for (const item of translated) if (item?.source && item?.arabic) translations.set(String(item.source),String(item.arabic))
-      } catch (error:any) {
-        console.warn('[trendyol:translate]',error?.message || error)
-      }
-    }
-  }
   for (const row of rows) {
     const original = String(row.product_name || '')
     row.product_name_ar = /[ء-ي]/.test(original) ? original : translations.get(original) || null
-    row.translation_source = row.product_name_ar ? (row.product_name_ar === original ? 'trendyol' : 'ai') : null
+    row.translation_source = row.product_name_ar ? (row.product_name_ar === original ? 'trendyol' : 'catalog') : null
   }
 }
 

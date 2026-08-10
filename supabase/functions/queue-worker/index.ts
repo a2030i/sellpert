@@ -11,8 +11,6 @@ const JOB_TIMEOUT  = 55000
 const PLATFORM_FUNCTION: Record<string, string> = {
   salla:    'salla-sync',
   trendyol: 'sync-trendyol',
-  noon:     'sync-noon',
-  amazon:   'sync-amazon',
 }
 
 Deno.serve(async (req) => {
@@ -70,7 +68,7 @@ Deno.serve(async (req) => {
 
 async function sealLegacyCredentials(admin: any) {
   let sealed = 0
-  for (const table of ['platform_connections', 'platform_credentials']) {
+  for (const table of ['platform_credentials']) {
     const { data: rows, error } = await admin.from(table)
       .select('id,api_key,api_secret,extra,updated_at')
     if (error) throw error
@@ -115,10 +113,9 @@ async function processJob(admin: any, job: any): Promise<{ success: boolean; err
     if (platform === 'salla') {
       body = { merchant_code, job_type: job_type || 'sync_all', payload: payload || {} }
     } else {
-      // trendyol / noon / amazon — pass date range from payload if present
+      // Trendyol — pass date range from payload if present
       body = {
         merchant_code,
-        mapping_id: payload?.mapping_id || null,
         date_from: payload?.date_from || null,
         date_to:   payload?.date_to   || null,
       }

@@ -14,7 +14,6 @@ type StockRow = { sku:string; product_name:string|null; platform:string; quantit
 type ReturnRow = { sku:string|null; product_name:string|null; platform:string; quantity:number|null; return_amount:number|null; return_date:string }
 
 const STATUS_PENDING = new Set(['pending', 'processing', 'new', 'confirmed', 'ready_to_ship'])
-const PLAN_LIMITS: Record<string, number> = { free: 250, starter: 1000, basic: 1000, growth: 10000, pro: 50000, business: 50000, enterprise: 100000 }
 
 function money(value:number) { return new Intl.NumberFormat('ar-SA-u-nu-latn', { style:'currency', currency:'SAR', maximumFractionDigits:0 }).format(value || 0) }
 function number(value:number) { return new Intl.NumberFormat('ar-SA-u-nu-latn').format(value || 0) }
@@ -109,10 +108,6 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     return [...values.values()].sort((a,b)=>b.qty-a.qty).slice(0,5)
   }, [selectedReturns])
 
-  const monthlyOrders = new Set(orders.filter(o => { const d=new Date(o.order_date); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() }).map(o=>o.order_id)).size
-  const plan = String(merchant?.subscription_plan || 'starter').toLowerCase()
-  const quota = PLAN_LIMITS[plan] || PLAN_LIMITS.starter
-  const quotaPct = Math.min(100, Math.round(monthlyOrders / quota * 100))
   const connected = credentials.filter(c => c.is_active)
   const syncDates = connected.map(c => c.last_sync_at).filter((value): value is string => Boolean(value)).sort()
   const lastSync = syncDates[syncDates.length - 1]
@@ -142,8 +137,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
       </div></article>
     </section>
 
-    <section className="health-grid">
-      <article className="panel quota"><PanelHead title="استهلاك باقة الطلبات" subtitle={`باقة ${merchant?.subscription_plan || 'Starter'}`}/><button type="button" className="quota-link" onClick={()=>onNavigate('orders')}><div className="quota-numbers"><strong>{number(monthlyOrders)}</strong><span>من أصل {number(quota)} طلب هذا الشهر</span><b>{quotaPct}%</b></div><div className="progress"><i style={{width:`${quotaPct}%`}}/></div></button><p>{quotaPct>=80?'اقتربت من حد الباقة، ننصح بالترقية لتجنب توقف المزامنة.':'استهلاكك ضمن الحد المتاح في الباقة.'}</p></article>
+    <section className="health-grid single">
       <article className="panel sync"><PanelHead title="حالة المزامنة" subtitle={`${number(connected.length)} قنوات متصلة`}/><div className="sync-state">{lastSync?<CheckCircle2/>:<AlertTriangle/>}<div><strong>{lastSync?'المزامنة تعمل بنجاح':'لم يتم ربط قناة بعد'}</strong><span>{lastSync?`آخر تحديث ${relativeTime(lastSync)}`:'اربط أول قناة لاستقبال البيانات تلقائيًا'}</span></div></div><button onClick={()=>onNavigate('integrations')}><RefreshCw size={15}/> إدارة الربط والمزامنة</button></article>
     </section>
 

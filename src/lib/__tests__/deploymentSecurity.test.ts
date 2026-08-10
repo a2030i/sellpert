@@ -43,7 +43,6 @@ describe('deployment browser security', () => {
     expect(smokeScript).toContain('production is not serving expected release')
     expect(smokeScript).toContain("'sync-trendyol'")
     expect(smokeScript).toContain("'trendyol-actions'")
-    expect(smokeScript).toContain("'admin-integration-settings'")
     expect(smokeWorkflow).toContain('Determine whether this commit changes the web release')
     expect(smokeWorkflow).toContain('fetch-depth: 2')
     expect(smokeWorkflow).toContain('$webReleasePattern')

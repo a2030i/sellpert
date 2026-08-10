@@ -20,12 +20,12 @@ Deno.test('timingSafeEqual accepts only the exact configured secret', () => {
 
 Deno.test('stableWebhookEventKey prefers provider identity and hashes fallback payloads', async () => {
   assert(
-    await stableWebhookEventKey('respondly', 'evt-123', '{"message":1}') === 'respondly:evt-123',
+    await stableWebhookEventKey('trendyol', 'evt-123', '{"message":1}') === 'trendyol:evt-123',
     'provider event identity was not preserved',
   )
-  const first = await stableWebhookEventKey('respondly', '', '{"message":1}')
-  const second = await stableWebhookEventKey('respondly', null, '{"message":1}')
-  const different = await stableWebhookEventKey('respondly', '', '{"message":2}')
+  const first = await stableWebhookEventKey('trendyol', '', '{"message":1}')
+  const second = await stableWebhookEventKey('trendyol', null, '{"message":1}')
+  const different = await stableWebhookEventKey('trendyol', '', '{"message":2}')
   assert(first === second, 'fallback fingerprint is not deterministic')
   assert(first !== different, 'different payloads produced the same fingerprint')
   assert(first.endsWith(await sha256Hex('{"message":1}')), 'fallback fingerprint has the wrong digest')

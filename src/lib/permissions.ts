@@ -11,7 +11,7 @@ export type PermKey =
   // Finance
   | 'view_finance' | 'edit_billing'
   // Operations
-  | 'tasks' | 'crm' | 'whatsapp_send' | 'whatsapp_bulk' | 'manage_inbound' | 'manage_ads'
+  | 'tasks' | 'crm' | 'manage_inbound' | 'manage_ads'
   // System
   | 'view_audit' | 'view_db_health' | 'create_staff'
 
@@ -37,8 +37,6 @@ export const ALL_PERMISSIONS: { key: PermKey; label: string; category: string }[
   // Operations
   { key: 'tasks',              label: 'إدارة المهام والمتابعات',     category: 'تشغيلي' },
   { key: 'crm',                label: 'ملاحظات على التجار',        category: 'تشغيلي' },
-  { key: 'whatsapp_send',      label: 'واتساب لتاجر واحد',         category: 'تشغيلي' },
-  { key: 'whatsapp_bulk',      label: 'واتساب جماعي',              category: 'تشغيلي' },
   { key: 'manage_inbound',     label: 'إدارة الإرساليات والشحن',    category: 'تشغيلي' },
   { key: 'manage_ads',         label: 'إدارة الإعلانات والحملات',   category: 'تشغيلي' },
 
@@ -53,10 +51,10 @@ export const PERM_CATEGORIES = ['تجار', 'ملفات', 'مالية', 'تشغ�
 // Department starter templates — admin can customize after applying
 export const DEPT_TEMPLATES: Record<Department, PermKey[]> = {
   manager:    ALL_PERMISSIONS.map(p => p.key),  // all
-  finance:    ['view_merchants', 'impersonate', 'view_finance', 'edit_billing', 'crm', 'whatsapp_send'],
+  finance:    ['view_merchants', 'impersonate', 'view_finance', 'edit_billing', 'crm'],
   data_entry: ['view_merchants', 'edit_merchants', 'create_merchants', 'impersonate', 'view_files', 'upload_files', 'delete_files', 'crm'],
-  support:    ['view_merchants', 'impersonate', 'tasks', 'crm', 'whatsapp_send'],
-  marketing:  ['view_merchants', 'impersonate', 'crm', 'whatsapp_send', 'whatsapp_bulk', 'manage_ads', 'view_files'],
+  support:    ['view_merchants', 'impersonate', 'tasks', 'crm'],
+  marketing:  ['view_merchants', 'impersonate', 'crm', 'manage_ads', 'view_files'],
   operations: ['view_merchants', 'impersonate', 'view_files', 'upload_files', 'crm', 'tasks', 'manage_inbound'],
   custom:     [],
 }

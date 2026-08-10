@@ -7,7 +7,6 @@ export const PLATFORM_MAP: Record<string, string> = {
   shopify:   'شوبيفاي',
   other:     'أخرى',
   warehouse: 'مستودع',
-  respondly: 'Respondly واتساب',
 }
 
 export const PLATFORM_COLORS: Record<string, string> = {
@@ -19,7 +18,6 @@ export const PLATFORM_COLORS: Record<string, string> = {
   shopify:   '#96bf48',
   other:     '#5a5a7a',
   warehouse: '#4cc9f0',
-  respondly: '#25D366',
 }
 
 export const CHART_COLORS = [

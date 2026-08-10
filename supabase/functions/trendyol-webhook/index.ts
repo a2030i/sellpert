@@ -71,13 +71,7 @@ Deno.serve(async (req) => {
       .eq('is_active', true)
       .maybeSingle()
 
-    let merchantCode = directCredential?.merchant_code || null
-    if (!merchantCode) {
-      const { data: mapping } = await admin.from('merchant_platform_mappings')
-        .select('merchant_code').eq('platform', 'trendyol').eq('seller_id', supplierId)
-        .eq('is_active', true).maybeSingle()
-      merchantCode = mapping?.merchant_code || null
-    }
+    const merchantCode = directCredential?.merchant_code || null
 
     const orderPayload = body.order || body.content || body
     const providerEventId = String(body.eventId || body.event_id || body.id || '')

@@ -42,10 +42,10 @@ DECLARE
 BEGIN
   INSERT INTO public.merchants (
     id, merchant_code, name, email, role, owner_merchant_code,
-    permissions, subscription_plan, subscription_status, is_active
+    permissions, workspace_status, is_active
   ) VALUES (
     '00000000-0000-4000-8000-000000009982', 'E-CLOSURE', 'Closure Employee',
-    'closure-employee@test.invalid', 'employee', v_code, '{}', 'free', 'active', true
+    'closure-employee@test.invalid', 'employee', v_code, '{}', 'active', true
   );
 
   INSERT INTO public.account_closure_requests (

@@ -12,8 +12,6 @@ const FeesView            = lazy(() => import('./FeesView'))
 const OverviewView        = lazy(() => import('./admin/OverviewView'))
 const MerchantsView       = lazy(() => import('./admin/MerchantsView'))
 const PerformanceView     = lazy(() => import('./admin/PerformanceView'))
-const ConnectionsView     = lazy(() => import('./admin/ConnectionsView'))
-const AiView              = lazy(() => import('./admin/AiView'))
 const EntryView           = lazy(() => import('./admin/EntryView'))
 const ImportFilesView     = lazy(() => import('./admin/ImportFilesView'))
 const UploadsLogView      = lazy(() => import('./admin/UploadsLogView'))
@@ -21,7 +19,6 @@ const InboundView         = lazy(() => import('./admin/InboundView'))
 const AdsView             = lazy(() => import('./admin/AdsView'))
 const OperationsView      = lazy(() => import('./admin/OperationsView'))
 const TasksBoardView      = lazy(() => import('./admin/TasksBoardView'))
-const WhatsAppManagerView = lazy(() => import('./admin/WhatsAppManagerView'))
 const AuditLogView        = lazy(() => import('./admin/AuditLogView'))
 const AdminProductsView   = lazy(() => import('./admin/AdminProductsView'))
 const SallaView           = lazy(() => import('./admin/SallaView'))
@@ -35,15 +32,15 @@ import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../
 import {
   LayoutDashboard, Users, Tag, PenLine, Upload, Truck, Megaphone, History,
   Percent, ShoppingBag,
-  BarChart2, Key, Sparkles, Activity, LogOut,
+  BarChart2, Key, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
-  ClipboardList, PackageCheck, MessageCircle, FileInput,
+  ClipboardList, PackageCheck, FileInput,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'connections' | 'ai' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'whatsapp' | 'audit' | 'products' | 'fees' | 'salla' | 'health'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'audit' | 'products' | 'fees' | 'salla' | 'health'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'connections', 'ai', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'whatsapp', 'audit', 'products', 'fees', 'salla', 'health']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'audit', 'products', 'fees', 'salla', 'health']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -112,7 +109,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'performance', Icon: BarChart2, label: 'أداء التجار',      perm: 'view_merchants' },
       { key: 'ads',         Icon: Megaphone, label: 'أداء الإعلانات',   perm: 'manage_ads' },
-      { key: 'ai',          Icon: Sparkles,  label: 'التحليل الذكي',    perm: 'view_merchants' },
     ],
   },
   {
@@ -130,12 +126,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'communication', label: 'التواصل', Icon: MessageCircle,
-    items: [
-      { key: 'whatsapp', Icon: MessageCircle, label: 'إدارة الواتساب', perm: ['whatsapp_send', 'whatsapp_bulk'] },
-    ],
-  },
-  {
     key: 'finance', label: 'المالية', Icon: Wallet,
     items: [
       { key: 'fees',    Icon: Percent,    label: 'الرسوم والعمولات', perm: 'view_finance' },
@@ -144,7 +134,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'integrations', label: 'الربط والتكاملات', Icon: Key,
     items: [
-      { key: 'connections', Icon: Key,         label: 'المفاتيح والاتصالات', adminOnly: true },
       { key: 'salla',       Icon: ShoppingBag, label: 'تكامل سلة',           adminOnly: true },
     ],
   },
@@ -512,15 +501,12 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         )}
         {view === 'employees'   && <EmployeesView merchants={merchants} currentUser={adminMerchant} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
         {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
-        {view === 'connections' && <ConnectionsView merchants={merchantOnly} onRefresh={() => loadAll(true)} />}
-        {view === 'ai'          && <AiView merchants={merchantOnly} canManageKey={Boolean(adminMerchant && ['admin', 'super_admin'].includes(adminMerchant.role))} />}
         {view === 'entry'       && <EntryView merchants={merchantOnly} />}
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
         {view === 'uploads'     && <UploadsLogView merchants={merchants} />}
         {view === 'inbound'     && <InboundView merchants={merchantOnly} />}
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'operations'  && <OperationsView merchants={merchantOnly} />}
-        {view === 'whatsapp'    && <WhatsAppManagerView merchants={merchantOnly} />}
         {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}

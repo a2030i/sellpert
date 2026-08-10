@@ -154,21 +154,13 @@ $protectedFunctions = @(
   'queue-worker',
   'salla-sync',
   'sync-trendyol',
-  'sync-amazon',
-  'sync-noon',
   'create-merchant',
   'create-employee',
   'manage-platform-credentials',
-  'admin-integration-settings',
   'test-platform-connection',
   'trendyol-actions',
   'impersonate-merchant',
-  'daily-report',
   'manual-entry',
-  'respondly-info',
-  'ai-chat',
-  'analyze-merchant',
-  'notify-whatsapp',
   'account-lifecycle',
   'activity-feed',
   'mfa-recovery'
@@ -179,13 +171,6 @@ foreach ($functionName in $protectedFunctions) {
   }
   Assert-Status "$functionName anonymous boundary" $status @(401)
 }
-
-# OAuth callbacks and provider webhooks intentionally bypass the gateway, so
-# their handler-level authentication must be exercised separately.
-$oauthStatus = Invoke-WithRetry {
-  Get-HttpStatus "$SupabaseUrl/functions/v1/marketplace-oauth" 'POST' '{}'
-}
-Assert-Status 'marketplace-oauth anonymous boundary' $oauthStatus @(401)
 
 foreach ($webhookName in @('salla-webhook', 'trendyol-webhook')) {
   $status = Invoke-WithRetry {

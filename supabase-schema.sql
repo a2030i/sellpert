@@ -12,7 +12,7 @@ CREATE TABLE merchants (
   currency text DEFAULT 'SAR',
   logo_url text,
   role text DEFAULT 'merchant' CHECK (role IN ('merchant', 'admin', 'super_admin')),
-  subscription_plan text DEFAULT 'free' CHECK (subscription_plan IN ('free', 'pro', 'elite')),
+  workspace_status text NOT NULL DEFAULT 'active',
   created_at timestamptz DEFAULT now()
 );
 
@@ -55,9 +55,9 @@ CREATE POLICY "admin_select_all_data" ON performance_data
   );
 
 -- بيانات تجريبية (اختياري)
-INSERT INTO merchants (merchant_code, name, email, currency, role, subscription_plan) VALUES
-('ADMIN-001', 'مدير النظام', 'admin@sellpert.com', 'SAR', 'admin', 'elite'),
-('M-101', 'متجر النور', 'merchant@example.com', 'SAR', 'merchant', 'pro');
+INSERT INTO merchants (merchant_code, name, email, currency, role, workspace_status) VALUES
+('ADMIN-001', 'مدير النظام', 'admin@sellpert.com', 'SAR', 'admin', 'active'),
+('M-101', 'متجر النور', 'merchant@example.com', 'SAR', 'merchant', 'active');
 
 INSERT INTO performance_data (merchant_code, created_at, platform, total_sales, order_count, margin, ad_spend, platform_fees) VALUES
 ('M-101', now() - interval '1 day', 'salla', 5200, 43, 22.5, 800, 260),

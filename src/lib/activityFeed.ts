@@ -36,11 +36,9 @@ export function parseActivityResponse(payload: unknown, page: number, limit: num
 export const ACTIVITY_ENTITIES: Record<string, string> = {
   merchants: 'إعدادات الحساب والفريق',
   platform_credentials: 'ربط منصات البيع',
-  platform_connections: 'اتصالات المنصات',
   merchant_account_links: 'المتاجر المرتبطة',
   platform_file_uploads: 'ملفات البيانات',
   merchant_requests: 'طلبات المتجر',
-  payment_requests: 'التحويلات',
   account_closure_requests: 'دورة حياة الحساب',
   merchant_data_export: 'نسخ بيانات المتجر',
   auth_security: 'أمان الحساب',

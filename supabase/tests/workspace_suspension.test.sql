@@ -19,11 +19,11 @@ DECLARE
 BEGIN
   INSERT INTO public.merchants (
     id, merchant_code, name, email, role, owner_merchant_code,
-    permissions, currency, subscription_plan, subscription_status, is_active
+    permissions, currency, workspace_status, is_active
   ) VALUES (
     '00000000-0000-4000-8000-000000009972', 'E-SUSPENDED', 'Suspended Employee',
     'suspended-employee@test.invalid', 'employee', owner_code,
-    '{"orders":true}'::jsonb, 'SAR', 'free', 'active', true
+    '{"orders":true}'::jsonb, 'SAR', 'active', true
   );
 
   INSERT INTO public.orders (merchant_code, platform, order_id, total_amount)
