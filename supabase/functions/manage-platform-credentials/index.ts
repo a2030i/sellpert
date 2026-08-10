@@ -106,11 +106,15 @@ async function saveCredential(admin: any, body: any) {
   let serverVerified = false
   let webhook: Record<string, unknown> | null = null
   let webhookWarning = ''
+  let trendyolApiKey = ''
+  let trendyolApiSecret = ''
   if (platform === 'trendyol') {
+    trendyolApiKey = String(credentials.secret.api_key || '')
+    trendyolApiSecret = String(credentials.secret.api_secret || '')
     await verifyTrendyolCredentials(
       credentials.sellerId,
-      credentials.secret.api_key,
-      credentials.secret.api_secret,
+      trendyolApiKey,
+      trendyolApiSecret,
     )
     serverVerified = true
     const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
@@ -142,8 +146,8 @@ async function saveCredential(admin: any, body: any) {
       const webhookSecret = await resolveTrendyolWebhookSecret(admin)
       webhook = await ensureTrendyolWebhook(
         credentials.sellerId,
-        credentials.secret.api_key,
-        credentials.secret.api_secret,
+        trendyolApiKey,
+        trendyolApiSecret,
         webhookSecret,
         `${SUPABASE_URL}/functions/v1/trendyol-webhook`,
       )
