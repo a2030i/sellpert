@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as XLSX from 'xlsx'
-import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseAmazonCampaigns, parseAmazonSalesDashboard, parseAmazonBusinessReport, parseNoonAsn, parseAmazonSettlement, parseCommerceOrders } from '../platformParsers'
+import { n, s, normalize, xlsxDate, xlsxDateOnly, detectFileKind, parseNoonSales, parseNoonAds, parseAmazonCampaigns, parseAmazonSalesDashboard, parseAmazonBusinessReport, parseNoonAsn, parseAmazonSettlement, parseCommerceOrders } from '../platformParsers'
 
 describe('n (تحويل رقمي متسامح)', () => {
   it('يحلل الأرقام داخل نصوص بعملات وفواصل', () => {
@@ -97,6 +97,35 @@ describe('parseNoonSales (تحليل مبيعات نون)', () => {
   it('يتجاهل الصفوف الفارغة ويرفض الملف الفارغ', () => {
     const r = parseNoonSales('item_nr,gmv_lcy\n', 'M-TEST')
     expect(r.error).toBeTruthy()
+  })
+})
+
+describe('تقريرا إعلانات نون', () => {
+  const headers = ['Campaign Name', 'Sku', 'Query', 'Views', 'Clicks', 'Orders', 'ATC', 'Spends', 'Revenue', 'CTR', 'ROAS', 'CPC', 'CPS', 'CVR']
+
+  it('يتعرف على Brand Queries كنوع مستقل ويقرأ أرقامه', () => {
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      headers,
+      ['Rheef Brand Ads Jan', 'SKU-1', 'مخده', 2644, 58, 1, 10, 113, 219, 2.19, 1.94, 1.95, 113, 1.72],
+    ]), '(Brand) Queries')
+
+    expect(detectFileKind({ name: 'BRAND_Queries_Report.xlsx', isCsv: false, workbook: wb, platform: 'noon' }))
+      .toBe('noon_ads_brand_queries')
+
+    const parsed = parseNoonAds(wb, 'M-TEST', '2026-08-10', 'noon_ads_brand_queries')
+    expect(parsed.kind).toBe('noon_ads_brand_queries')
+    expect(parsed.payloads[0].rows[0]).toMatchObject({
+      campaign_name: 'Rheef Brand Ads Jan', sku: 'SKU-1', search_query: 'مخده',
+      impressions: 2644, clicks: 58, orders: 1, spend: 113, revenue: 219,
+      ad_group_name: 'brand_queries',
+    })
+  })
+
+  it('يبقي Product Queries ضمن نوع تقرير المنتجات الحالي', () => {
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ['Campaign', 'SKU-2', 'وسادة', 10, 1, 0, 0, 2, 0, 10, 0, 2, 0, 0]]), 'Product Queries')
+    expect(detectFileKind({ name: 'Product_Queries.xlsx', isCsv: false, workbook: wb, platform: 'noon' })).toBe('noon_ads')
   })
 })
 
@@ -286,5 +315,19 @@ describe('parseAmazonCampaigns', () => {
     expect(row.ad_group_name).toBe('')
     expect(row.sku).toBe('')
     expect(row.search_query).toBe('')
+  })
+
+  it('يحافظ على خانة الآلاف داخل مبالغ Amazon المقتبسة', () => {
+    const amazonCsv = [
+      'اسم الحملة,الحالة,مرات الظهور,النقرات,إجمالي التكلفة,المشتريات,المبيعات,ACOS,عائد الإنفاق على الإعلانات (ROAS)',
+      '"حملة أبريل",نشط,0,1016,"‏156.82 ر.س.‏",49,"‏1,558.14 ر.س.‏",10.0648%,9.93585',
+    ].join('\n')
+
+    const result = parseAmazonCampaigns(amazonCsv, 'M-TEST', '2026-08-10')
+    const row = result.payloads[0].rows[0]
+    expect(row).toMatchObject({ clicks: 1016, orders: 49, impressions: 0 })
+    expect(row.spend).toBeCloseTo(156.82)
+    expect(row.revenue).toBeCloseTo(1558.14)
+    expect(row.roas).toBeCloseTo(9.93585)
   })
 })

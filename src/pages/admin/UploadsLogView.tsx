@@ -28,7 +28,8 @@ const PAGE_SIZE = 25
 
 const FILE_TYPE_LABELS: Record<string, string> = {
   noon_sales: 'مبيعات نون', noon_products: 'كاتالوج نون', noon_asn: 'إرسالية نون (ASN)',
-  noon_grn: 'استلام نون (GRN)', noon_ads: 'إعلانات نون',
+  noon_grn: 'استلام نون (GRN)', noon_ads: 'إعلانات نون — المنتجات',
+  noon_ads_brand_queries: 'إعلانات نون — الماركة',
   amazon_transactions: 'معاملات أمازون', amazon_inventory: 'مخزون أمازون',
   amazon_business_report: 'تقرير أعمال أمازون', amazon_settlement: 'تسوية أمازون',
   amazon_ads: 'إعلانات أمازون', amazon_campaigns: 'حملات أمازون',

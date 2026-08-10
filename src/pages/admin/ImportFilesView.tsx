@@ -32,7 +32,8 @@ const FILE_GUIDES: Record<string, FileGuide[]> = {
     { kind: 'noon_products', label: 'تقرير الأصناف Live',     desc: 'كاتالوج المنتجات + الأسعار + المخزون FBN/Xdock', importance: 'critical' },
     { kind: 'noon_asn',      label: 'إرسالية للمستودع (ASN)', desc: 'ما أرسلته إلى مستودع نون قبل استلامه', importance: 'recommended' },
     { kind: 'noon_grn',      label: 'تقرير الاستلام (GRN)',   desc: 'ما استلمه نون فعلياً + الأصناف المرفوضة من الجودة', importance: 'recommended', dependsOn: 'noon_asn', dependsNote: 'يُفضّل رفع ASN قبله ليربط بياناته' },
-    { kind: 'noon_ads',      label: 'تقرير الإعلانات',         desc: 'أداء حملات الإعلانات (Campaign × SKU × Query)', importance: 'optional' },
+    { kind: 'noon_ads',      label: 'إعلانات Product Queries', desc: 'أداء حملات المنتجات (Campaign × SKU × Query)', importance: 'optional' },
+    { kind: 'noon_ads_brand_queries', label: 'إعلانات Brand Queries', desc: 'استعلامات حملات الماركة؛ تُجمع مع تقرير المنتجات دون أن تستبدله', importance: 'optional' },
   ],
   trendyol: [
     { kind: 'trendyol_sales',     label: 'مبيعات حسب المنتج (Sales by Product)', desc: 'لقطة دورية للمنتجات + أسباب الإلغاءات والمرتجعات', importance: 'critical' },
@@ -310,6 +311,7 @@ const CRITICAL_FIELDS: Record<string, CritField[]> = {
   noon_asn:                   [{ table: 'inbound_shipment_items', field: 'sku', label: 'SKU', kind: 'id' }],
   noon_grn:                   [{ table: 'goods_received', field: 'sku', label: 'SKU', kind: 'id' }],
   noon_ads:                   [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الحملة (Campaign Name)', kind: 'id' }],
+  noon_ads_brand_queries:     [{ table: 'ad_metrics', field: 'campaign_name', label: 'اسم الحملة (Campaign Name)', kind: 'id' }],
   trendyol_sales:             [{ table: 'product_performance_snapshots', field: 'sku', label: 'الباركود/رمز الموديل', kind: 'id' }],
   trendyol_statement:         [{ table: 'account_transactions', field: 'transaction_no', label: 'Transaction No', kind: 'id' }],
   trendyol_products:          [{ table: 'products', field: 'sku', label: 'رمز الموديل/الباركود', kind: 'id' }],

@@ -8,6 +8,43 @@ import * as XLSX from 'xlsx'
 export const n = (v: any): number => parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')) || 0
 export const s = (v: any): string => String(v ?? '').trim()
 
+// قراءة CSV مع احترام الحقول المقتبسة والفواصل والأسطر الموجودة داخلها.
+// تقارير Amazon تضع مبالغ مثل "1,558.14 ر.س" داخل علامات اقتباس؛ التقسيم
+// المباشر على الفاصلة كان يزيح بقية أعمدة الصف ويُسقط خانة الآلاف.
+function parseCsvRows(csv: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i]
+    if (char === '"') {
+      if (quoted && csv[i + 1] === '"') {
+        field += '"'
+        i++
+      } else {
+        quoted = !quoted
+      }
+    } else if (char === ',' && !quoted) {
+      row.push(field.trim())
+      field = ''
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && csv[i + 1] === '\n') i++
+      row.push(field.trim())
+      if (row.some(cell => cell !== '')) rows.push(row)
+      row = []
+      field = ''
+    } else {
+      field += char
+    }
+  }
+
+  row.push(field.trim())
+  if (row.some(cell => cell !== '')) rows.push(row)
+  return rows
+}
+
 // تطبيع العناوين: يجعل المطابقة صامدة أمام إعادة التسمية الطفيفة واختلاف اللغة/التشكيل.
 // يزيل: التطويل (ـ)، التشكيل، علامات الاتجاه (RTL/LTR)، يوحّد المسافات، يحوّل
 // الفواصل/الأقواس/الشرطات إلى مسافة، ويصغّر الأحرف اللاتينية.
@@ -270,7 +307,16 @@ export function detectFileKind(input: FileInput): string {
   if (sheets.includes('GRN_Details') || sheets.includes('Summary') && sheets.includes('QC_Fail_Details')) return 'noon_grn'
 
   // --- Noon Ads ---
-  if (sheets.some(n => n.toLowerCase().includes('product') && n.toLowerCase().includes('quer'))) return 'noon_ads'
+  // لدى نون تقريران منفصلان للاستعلامات: Product Queries و Brand Queries.
+  // نتعرّف عليهما من اسم الورقة ومن بصمة الأعمدة، لأن اسم الملف يتغير مع الفترة.
+  for (const sn of sheets) {
+    const normalizedSheet = normalize(sn)
+    const headers = findHeaderRow(wb.Sheets[sn])
+    const isQueriesReport = ['campaign name', 'sku', 'query', 'views', 'clicks', 'orders', 'spends', 'revenue']
+      .every(header => headers.includes(header))
+    if (!isQueriesReport) continue
+    return normalizedSheet.includes('brand') ? 'noon_ads_brand_queries' : 'noon_ads'
+  }
 
   // --- Trendyol Sales report (3 sheets) ---
   if (sheets.some(n => n.includes('sales-by-product'))) return 'trendyol_sales'
@@ -552,7 +598,12 @@ export function parseNoonGrn(wb: XLSX.WorkBook, merchantCode: string): ParseResu
 }
 
 // === NOON: Ads ===
-export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
+export function parseNoonAds(
+  wb: XLSX.WorkBook,
+  merchantCode: string,
+  reportDate = new Date().toISOString().split('T')[0],
+  reportKind: 'noon_ads' | 'noon_ads_brand_queries' = 'noon_ads',
+): ParseResult {
   const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('quer')) || wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
   const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
@@ -565,6 +616,9 @@ export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string, reportDate
     rows.push({
       merchant_code: merchantCode, platform: 'noon', report_date: reportDate,
       campaign_name: s(r[idx('campaign name')]),
+      // يحافظ على صفوف Brand Queries منفصلة عن Product Queries عند تطابق
+      // الحملة وSKU والاستعلام؛ ad_group_name جزء من مفتاح إزالة التكرار.
+      ad_group_name: reportKind === 'noon_ads_brand_queries' ? 'brand_queries' : '',
       sku: s(r[idx('sku')]),
       search_query: s(r[idx('query')]),
       impressions: parseInt(s(r[idx('views')])) || 0,
@@ -583,7 +637,8 @@ export function parseNoonAds(wb: XLSX.WorkBook, merchantCode: string, reportDate
   const totSpend = rows.reduce((a, r) => a + r.spend, 0)
   const totRev   = rows.reduce((a, r) => a + r.revenue, 0)
   return {
-    kind: 'noon_ads', platform: 'noon', label: 'إعلانات نون',
+    kind: reportKind, platform: 'noon',
+    label: reportKind === 'noon_ads_brand_queries' ? 'إعلانات نون — استعلامات الماركة' : 'إعلانات نون — استعلامات المنتجات',
     summary: { rows: rows.length, spend: Math.round(totSpend), revenue: Math.round(totRev), roas: totSpend > 0 ? +(totRev/totSpend).toFixed(2) : 0 },
     payloads: [{ table: 'ad_metrics', rows: rows.map(adKeyDefaults), conflict: AD_CONFLICT }],
   }
@@ -884,14 +939,13 @@ export function parseTrendyolSales(wb: XLSX.WorkBook, merchantCode: string, snap
 // عناوين عربية: الولاية(=المحفظة), اسم الحملة, الحالة, النوع, الاستهداف, إستراتيجية عرض أسعار الحملة,
 // تاريخ بداية الحملة, تاريخ انتهاء الحملة, مبلغ ميزانية الحملة, مرات الظهور, النقرات, إجمالي التكلفة, المشتريات, المبيعات, ACOS, ROAS
 export function parseAmazonCampaigns(csv: string, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
-  const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
-  if (lines.length < 2) return errResult('amazon_campaigns','amazon','حملات أمازون','الملف فارغ')
-  const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
-  const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
+  const data = parseCsvRows(csv)
+  if (data.length < 2) return errResult('amazon_campaigns','amazon','حملات أمازون','الملف فارغ')
+  const h = data[0].map(x => x.replace(/^﻿/, '').toLowerCase())
   const idx = (...k: string[]) => ci(h, ...k)
   const rows: any[] = []
-  for (let i = 1; i < lines.length; i++) {
-    const c = parseLine(lines[i])
+  for (let i = 1; i < data.length; i++) {
+    const c = data[i]
     if (c.every(x => !x)) continue
     const name = c[idx('اسم الحملة')] || ''
     if (!name) continue
@@ -1293,14 +1347,13 @@ export function parseAmazonInventory(wb: XLSX.WorkBook, merchantCode: string): P
 
 // === AMAZON: Sponsored Products Ads CSV ===
 export function parseAmazonAds(csv: string, merchantCode: string, reportDate = new Date().toISOString().split('T')[0]): ParseResult {
-  const lines = csv.trim().split(/\r?\n/).filter(l => l.trim())
-  if (lines.length < 2) return errResult('amazon_ads','amazon','إعلانات أمازون','الملف فارغ')
-  const parseLine = (l: string) => l.split(',').map(c => c.trim().replace(/^["']+|["']+$/g, ''))
-  const h = parseLine(lines[0]).map(x => x.replace(/^﻿/, '').toLowerCase())
+  const data = parseCsvRows(csv)
+  if (data.length < 2) return errResult('amazon_ads','amazon','إعلانات أمازون','الملف فارغ')
+  const h = data[0].map(x => x.replace(/^﻿/, '').toLowerCase())
   const idx = (...k: string[]) => ci(h, ...k)
   const rows: any[] = []
-  for (let i = 1; i < lines.length; i++) {
-    const c = parseLine(lines[i])
+  for (let i = 1; i < data.length; i++) {
+    const c = data[i]
     if (c.every(x => !x)) continue
     rows.push({
       merchant_code: merchantCode, platform: 'amazon', report_date: reportDate,
@@ -1473,6 +1526,7 @@ export async function parsePlatformFile(
       case 'noon_asn':             return parseNoonAsn(workbook!, merchantCode, file.name)
       case 'noon_grn':             return parseNoonGrn(workbook!, merchantCode)
       case 'noon_ads':             return parseNoonAds(workbook!, merchantCode, sd)
+      case 'noon_ads_brand_queries': return parseNoonAds(workbook!, merchantCode, sd, 'noon_ads_brand_queries')
       case 'trendyol_sales':       return parseTrendyolSales(workbook!, merchantCode, sd)
       case 'trendyol_statement':   return parseTrendyolStatement(workbook!, merchantCode)
       case 'trendyol_products':    return parseTrendyolProducts(workbook!, merchantCode)

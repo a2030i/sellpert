@@ -17,7 +17,7 @@ interface AdGroupRow {
 }
 
 type AdTotals = { rows:number; spend:number; revenue:number; impressions:number; clicks:number; orders:number }
-type AdUpload = { id:string; file_name:string; platform:string; uploaded_at:string; rows_inserted:number }
+type AdUpload = { id:string; file_name:string; file_type:string; platform:string; uploaded_at:string; rows_inserted:number }
 const EMPTY_TOTALS: AdTotals = { rows:0, spend:0, revenue:0, impressions:0, clicks:0, orders:0 }
 
 export default function AdsView({ merchants }: { merchants: Merchant[] }) {
@@ -39,9 +39,9 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
     let cancelled = false
     setLoading(true); setError(''); setGroups([]); setTotals(EMPTY_TOTALS); setReports([]); setReportId('')
     supabase.from('platform_file_uploads')
-      .select('id,file_name,platform,uploaded_at,rows_inserted')
+      .select('id,file_name,file_type,platform,uploaded_at,rows_inserted')
       .eq('merchant_code', merchantCode).eq('status', 'success')
-      .in('file_type', ['noon_ads', 'amazon_ads', 'amazon_campaigns', 'trendyol_ads'])
+      .in('file_type', ['noon_ads', 'noon_ads_brand_queries', 'amazon_ads', 'amazon_campaigns', 'trendyol_ads'])
       .order('uploaded_at', { ascending: false })
       .then(({ data, error: reportError }) => {
         if (cancelled) return
@@ -66,9 +66,10 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
     setLoading(true)
     setError('')
     const latestReportIds = reportId === 'latest'
-      ? Array.from(reports.reduce((byPlatform, report) => {
-          if (!byPlatform.has(report.platform)) byPlatform.set(report.platform, report.id)
-          return byPlatform
+      ? Array.from(reports.reduce((byReportType, report) => {
+          const key = `${report.platform}:${report.file_type}`
+          if (!byReportType.has(key)) byReportType.set(key, report.id)
+          return byReportType
         }, new Map<string, string>()).values())
       : []
     const reportIds = latestReportIds.length ? latestReportIds : [reportId === 'all' ? null : reportId]
