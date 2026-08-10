@@ -30,6 +30,8 @@ describe('remaining provider payload access', () => {
     expect(source).toContain("rpc('admin_ad_performance'")
     expect(source).toContain('p_upload_id')
     expect(source).toContain('تقرير الإعلانات')
+    expect(source).toContain("'amazon_campaigns'")
+    expect(source).toContain('أحدث تقرير من كل منصة')
     expect(source).not.toContain("from('ad_metrics')")
     expect(source).not.toContain('.limit(5000)')
   })

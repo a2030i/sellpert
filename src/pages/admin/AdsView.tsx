@@ -41,14 +41,14 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
     supabase.from('platform_file_uploads')
       .select('id,file_name,platform,uploaded_at,rows_inserted')
       .eq('merchant_code', merchantCode).eq('status', 'success')
-      .in('file_type', ['noon_ads', 'amazon_ads', 'trendyol_ads'])
+      .in('file_type', ['noon_ads', 'amazon_ads', 'amazon_campaigns', 'trendyol_ads'])
       .order('uploaded_at', { ascending: false })
       .then(({ data, error: reportError }) => {
         if (cancelled) return
         if (reportError) { setError(reportError.message); setLoading(false); return }
         const next = (data || []) as AdUpload[]
         setReports(next)
-        setReportId(next[0]?.id || 'all')
+        setReportId(next.length ? 'latest' : 'all')
         if (!next.length) setLoading(false)
       })
     return () => { cancelled = true }
@@ -65,13 +65,20 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
     const requestId = ++requestSequence.current
     setLoading(true)
     setError('')
-    const { data, error: queryError } = await supabase.rpc('admin_ad_performance', {
-      p_merchant_code: merchantCode,
-      p_upload_id: reportId === 'all' ? null : reportId,
+    const latestReportIds = reportId === 'latest'
+      ? Array.from(reports.reduce((byPlatform, report) => {
+          if (!byPlatform.has(report.platform)) byPlatform.set(report.platform, report.id)
+          return byPlatform
+        }, new Map<string, string>()).values())
+      : []
+    const reportIds = latestReportIds.length ? latestReportIds : [reportId === 'all' ? null : reportId]
+    const responses = await Promise.all(reportIds.map(uploadId => supabase.rpc('admin_ad_performance', {
+      p_merchant_code: merchantCode, p_upload_id: uploadId,
       p_platform: platformFilter === 'all' ? null : platformFilter,
-      p_group_by: groupBy,
-      p_search: search.trim() || null,
-    })
+      p_group_by: groupBy, p_search: search.trim() || null,
+    })))
+    const queryError = responses.find(response => response.error)?.error
+    const data = queryError ? null : mergeAdResults(responses.map(response => response.data))
     if (requestId !== requestSequence.current) return
     if (queryError) {
       setError(queryError.message); setGroups([]); setTotals(EMPTY_TOTALS)
@@ -106,6 +113,7 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
         {merchantCode && reports.length > 0 && <>
           <label style={{ ...S.label, marginTop: 12 }}>تقرير الإعلانات</label>
           <select aria-label="اختيار تقرير الإعلانات" value={reportId} onChange={e => { setReportId(e.target.value); setPlatformFilter('all') }} style={{ ...S.input, fontSize: 13 }}>
+            <option value="latest">أحدث تقرير من كل منصة</option>
             {reports.map(report => <option key={report.id} value={report.id}>{reportLabel(report)}</option>)}
             <option value="all">كل التقارير المرفوعة</option>
           </select>
@@ -219,6 +227,27 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
       )}
     </div>
   )
+}
+
+function mergeAdResults(results: any[]) {
+  const totals = { ...EMPTY_TOTALS }
+  const groups = new Map<string, AdGroupRow>()
+  const platforms = new Set<string>()
+  for (const result of results) {
+    const current = result?.totals || EMPTY_TOTALS
+    for (const key of Object.keys(totals) as (keyof AdTotals)[]) totals[key] += Number(current[key] || 0)
+    for (const platform of result?.platforms || []) platforms.add(platform)
+    for (const row of (result?.groups || []) as AdGroupRow[]) {
+      const id = `${row.platform}\u0000${row.key}`
+      const previous = groups.get(id)
+      groups.set(id, previous ? {
+        ...previous, impressions:previous.impressions+row.impressions, clicks:previous.clicks+row.clicks,
+        orders:previous.orders+row.orders, spend:previous.spend+Number(row.spend||0),
+        revenue:previous.revenue+Number(row.revenue||0), rows:previous.rows+row.rows,
+      } : { ...row, spend:Number(row.spend||0), revenue:Number(row.revenue||0) })
+    }
+  }
+  return { totals, platforms:Array.from(platforms), groups:Array.from(groups.values()).sort((a,b)=>b.spend-a.spend).slice(0,200) }
 }
 
 function reportLabel(report: AdUpload) {
