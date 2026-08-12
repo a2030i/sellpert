@@ -198,7 +198,44 @@ $$;
 reset role;
 
 do $$
+declare
+  merchant_a text := (
+    select merchant_code from public.merchants
+    where id = '00000000-0000-4000-8000-000000008801'
+  );
+  rows_payload jsonb;
+  affected integer;
 begin
+  select jsonb_agg(jsonb_build_object(
+    'platform', 'noon',
+    'report_date', '2099-01-01',
+    'campaign_name', 'ATOMIC CHUNK TEST',
+    'ad_group_name', 'brand_queries',
+    'sku', 'SKU-' || row_number,
+    'search_query', 'QUERY-' || row_number,
+    'impressions', row_number
+  ))
+  into rows_payload
+  from generate_series(1, 30001) row_number;
+
+  affected := security.upsert_merchant_import_rows(
+    'ad_metrics',
+    rows_payload,
+    '00000000-0000-4000-a000-000000008812',
+    merchant_a
+  );
+
+  if affected <> 30001 then
+    raise exception 'chunked import returned the wrong affected row count: %', affected;
+  end if;
+  if (
+    select count(*) from public.ad_metrics
+    where upload_id = '00000000-0000-4000-a000-000000008812'
+      and campaign_name = 'ATOMIC CHUNK TEST'
+  ) <> 30001 then
+    raise exception 'chunked import did not persist every row';
+  end if;
+
   if has_function_privilege('anon', 'public.commit_my_file_import(uuid,jsonb)', 'execute') then
     raise exception 'anonymous role can execute atomic import';
   end if;
