@@ -86,12 +86,12 @@ begin
       'merchant_payouts', 'my_employees', 'my_linked_merchants',
       'my_owner_merchant', 'rebuild_all_derived_data', 'team_dashboard_kpis',
       'update_employee', 'update_my_store_profile', 'wipe_merchant_data',
-      'report_client_incident', 'update_client_incident_status'
+      'reactivate_merchant', 'report_client_incident', 'update_client_incident_status'
     )
     and has_function_privilege('authenticated', p.oid, 'execute')
     and not has_function_privilege('anon', p.oid, 'execute');
 
-  if auth_wrappers <> 18 then
+  if auth_wrappers <> 19 then
     raise exception 'authenticated wrapper grants are incomplete: %', auth_wrappers;
   end if;
 
@@ -105,14 +105,14 @@ begin
       'derive_orders_from_account_tx', 'derive_product_platform_prices',
       'derive_returns_from_account_tx', 'derive_returns_from_snapshots',
       'enqueue_daily_salla_sync', 'get_db_health_internal',
-      'reactivate_merchant', 'rebuild_performance_data', 'suspend_merchant',
+      'rebuild_performance_data', 'suspend_merchant',
       'trigger_queue_worker'
     )
     and has_function_privilege('service_role', p.oid, 'execute')
     and not has_function_privilege('authenticated', p.oid, 'execute')
     and not has_function_privilege('anon', p.oid, 'execute');
 
-  if service_wrappers <> 15 then
+  if service_wrappers <> 14 then
     raise exception 'service-only wrapper grants are incomplete: %', service_wrappers;
   end if;
 
