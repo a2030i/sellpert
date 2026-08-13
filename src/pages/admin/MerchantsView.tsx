@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from '../../lib/passwordPolicy'
 import { S, fmt } from './adminShared'
@@ -6,6 +6,10 @@ import type { Merchant, PlatformCredential } from '../../lib/supabase'
 import BulkOpsBar from '../../components/BulkOpsBar'
 import { Activity } from 'lucide-react'
 import { hasPermission } from '../../lib/permissions'
+
+type SellpertFeeType = 'none' | 'percentage' | 'fixed'
+type ContractTerm = { merchant_code:string; sellpert_fee_type:SellpertFeeType; sellpert_fee_value:number }
+type ContractEditor = { merchant:Merchant; feeType:SellpertFeeType; feeValue:string }
 
 export default function MerchantsView({ currentUser, merchants, gmvByMerchant, credentials, onRefresh, onImpersonate, onOpenTimeline }: any) {
   const [search, setSearch] = useState('')
@@ -15,6 +19,8 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [editRole, setEditRole] = useState<{ id: string; role: string } | null>(null)
+  const [contractTerms, setContractTerms] = useState<Record<string,ContractTerm>>({})
+  const [contractEditor, setContractEditor] = useState<ContractEditor|null>(null)
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
   const canCreate = hasPermission(currentUser, 'create_merchants')
   const canEdit = hasPermission(currentUser, 'edit_merchants')
@@ -22,6 +28,18 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
   const canImpersonate = hasPermission(currentUser, 'impersonate')
   const canUseCrm = hasPermission(currentUser, 'crm')
   const canBulkOperate = canEdit || canDelete
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('merchant_contract_terms').select('merchant_code,sellpert_fee_type,sellpert_fee_value').then(({data,error}) => {
+      if (cancelled) return
+      if (error) { console.error('load Sellpert contract terms', error); return }
+      const byMerchant:Record<string,ContractTerm> = {}
+      for (const term of (data||[]) as ContractTerm[]) byMerchant[term.merchant_code] = term
+      setContractTerms(byMerchant)
+    })
+    return () => { cancelled = true }
+  }, [merchants.length])
 
   function toggleSelect(code: string) {
     setSelectedCodes(s => {
@@ -92,6 +110,30 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
   async function updateRole(id: string, role: string) {
     await supabase.from('merchants').update({ role }).eq('id', id)
     setEditRole(null); onRefresh()
+  }
+
+  function editContract(merchant:Merchant) {
+    const current = contractTerms[merchant.merchant_code]
+    setContractEditor({ merchant, feeType:current?.sellpert_fee_type||'none', feeValue:String(current?.sellpert_fee_value||0) })
+    setMsg(null)
+  }
+
+  async function saveContractTerm() {
+    if (!contractEditor || !canEdit) return
+    const value = contractEditor.feeType === 'none' ? 0 : Number(contractEditor.feeValue)
+    if (!Number.isFinite(value) || value < 0 || (contractEditor.feeType === 'percentage' && value > 100)) {
+      setMsg({ type:'err', text:'أدخل قيمة عمولة صحيحة؛ النسبة يجب أن تكون بين 0% و100% والمبلغ الثابت صفرًا أو أكثر.' })
+      return
+    }
+    setSaving(true)
+    const payload = { merchant_code:contractEditor.merchant.merchant_code, sellpert_fee_type:contractEditor.feeType, sellpert_fee_value:value, updated_at:new Date().toISOString() }
+    const {data,error} = await supabase.from('merchant_contract_terms').upsert(payload,{onConflict:'merchant_code'}).select('merchant_code,sellpert_fee_type,sellpert_fee_value').maybeSingle()
+    setSaving(false)
+    if (error || !data) { setMsg({ type:'err', text:error?.message||'تعذر حفظ عمولة Sellpert' }); return }
+    const saved = data as ContractTerm
+    setContractTerms(current=>({...current,[saved.merchant_code]:saved}))
+    setContractEditor(null)
+    setMsg({ type:'ok', text:`تم حفظ عمولة Sellpert لمتجر ${contractEditor.merchant.name}: ${contractLabel(saved)}` })
   }
 
   function impersonate(merchant: Merchant) {
@@ -201,12 +243,12 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                     onChange={() => toggleSelectAll(filtered.map((m: Merchant) => m.merchant_code))}
                   />}
                 </th>
-                {['التاجر', 'البريد الإلكتروني', 'الكود', 'الدور', 'العملة', 'تكاملات', 'GMV الكلي', 'تاريخ الانضمام', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                {['التاجر', 'البريد الإلكتروني', 'الكود', 'الدور', 'العملة', 'عمولة Sellpert', 'تكاملات', 'GMV الكلي', 'تاريخ الانضمام', 'إجراءات'].map(h => <th key={h} style={S.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد نتائج</td></tr>
+                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'var(--text3)' }}>لا توجد نتائج</td></tr>
               ) : filtered.map((m: Merchant) => (
                 <tr key={m.id} style={S.tr}>
                   <td style={S.td}>
@@ -242,6 +284,17 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                     )}
                   </td>
                   <td style={{ ...S.td, fontSize: 12 }}>{m.currency}</td>
+                  <td style={S.td}>
+                    <button
+                      type="button"
+                      aria-label={`تعديل عمولة Sellpert لمتجر ${m.name}`}
+                      style={{ ...S.miniBtn, color:contractTerms[m.merchant_code]?.sellpert_fee_type === 'none' || !contractTerms[m.merchant_code] ? 'var(--text3)' : 'var(--accent-strong)', cursor:canEdit?'pointer':'default' }}
+                      onClick={() => canEdit && editContract(m)}
+                      disabled={!canEdit}
+                    >
+                      {contractLabel(contractTerms[m.merchant_code])}
+                    </button>
+                  </td>
                   <td style={{ ...S.td, textAlign: 'center' }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: credCount(m.merchant_code) > 0 ? 'var(--accent2)' : 'var(--text3)' }}>{credCount(m.merchant_code)} / 3</span>
                   </td>
@@ -292,6 +345,39 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
           </table>
         </div>
       </div>
+      {contractEditor && (
+        <div role="dialog" aria-modal="true" aria-label={`عمولة Sellpert لمتجر ${contractEditor.merchant.name}`} style={{ position:'fixed', inset:0, zIndex:1600, display:'grid', placeItems:'center', padding:20, background:'rgba(7,27,43,.42)', backdropFilter:'blur(3px)' }} onMouseDown={event=>{if(event.currentTarget===event.target&&!saving)setContractEditor(null)}}>
+          <div style={{ width:'min(460px,100%)', padding:24, border:'1px solid var(--border)', borderRadius:16, background:'var(--surface)', boxShadow:'0 24px 70px rgba(7,27,43,.24)' }}>
+            <div style={{ fontSize:17, fontWeight:800 }}>عمولة Sellpert</div>
+            <div style={{ marginTop:5, color:'var(--text3)', fontSize:12 }}>{contractEditor.merchant.name} · تطبّق على جميع منتجات التاجر حسب العقد.</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:20 }}>
+              <div>
+                <label style={S.label}>طريقة الاحتساب</label>
+                <select aria-label="طريقة احتساب عمولة Sellpert" style={S.input} value={contractEditor.feeType} onChange={event=>setContractEditor(current=>current?{...current,feeType:event.target.value as SellpertFeeType,feeValue:event.target.value==='none'?'0':current.feeValue}:current)}>
+                  <option value="none">بدون عمولة — صفر</option>
+                  <option value="percentage">نسبة من سعر المنتج</option>
+                  <option value="fixed">مبلغ ثابت لكل منتج</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>{contractEditor.feeType==='percentage'?'النسبة %':contractEditor.feeType==='fixed'?'المبلغ الثابت':'القيمة'}</label>
+                <input aria-label="قيمة عمولة Sellpert" style={S.input} type="number" min="0" max={contractEditor.feeType==='percentage'?100:undefined} step="0.01" disabled={contractEditor.feeType==='none'} value={contractEditor.feeValue} onChange={event=>setContractEditor(current=>current?{...current,feeValue:event.target.value}:current)}/>
+              </div>
+            </div>
+            <div style={{ marginTop:12, padding:10, borderRadius:9, background:'var(--surface2)', color:'var(--text3)', fontSize:11, lineHeight:1.7 }}>القيمة تُخصم كما هي وفق العقد، ولا يضيف النظام ضريبة عليها تلقائيًا. التاجر يستطيع رؤيتها في حساب الربحية ولا يستطيع تعديلها.</div>
+            <div style={{ display:'flex', gap:9, marginTop:18 }}>
+              <button style={S.saveBtn} disabled={saving} onClick={saveContractTerm}>{saving?'جارٍ الحفظ…':'حفظ العقد'}</button>
+              <button style={S.miniBtn} disabled={saving} onClick={()=>setContractEditor(null)}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function contractLabel(term?:ContractTerm) {
+  if (!term || term.sellpert_fee_type === 'none' || Number(term.sellpert_fee_value) === 0) return 'بدون عمولة'
+  const value = Number(term.sellpert_fee_value).toLocaleString('en-US',{maximumFractionDigits:2})
+  return term.sellpert_fee_type === 'percentage' ? `${value}%` : `${value} ر.س`
 }

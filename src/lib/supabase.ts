@@ -233,6 +233,8 @@ export interface Product {
   image_url?: string
   images?: Array<{ url?: string } | string> | null
   brand?: string
+  commission_rate?: number | null
+  vat_rate?: number | null
   sale_price?: number | null
   msrp?: number | null
   upload_id?: string | null
@@ -263,6 +265,8 @@ export interface ProductPlatformPrice {
   platform: OrderPlatform
   selling_price: number
   commission_rate: number
+  category_key?: string | null
+  commission_source?: 'platform_api' | 'category' | 'manual' | 'unknown' | null
   is_active: boolean
   override_price?: number
   notes?: string

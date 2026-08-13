@@ -737,7 +737,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
   const [data, setData] = useState<any[]>([])
   const [orderCount, setOrderCount] = useState(0)
   const [allTimeRevenue, setAllTimeRevenue] = useState(0)
-  const [commissionByPlatform, setCommissionByPlatform] = useState<Record<string, number>>({})
+  const [commissionByProduct, setCommissionByProduct] = useState<Map<string, number>>(() => new Map())
   const [shippingByPlatform, setShippingByPlatform] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
 
@@ -745,20 +745,30 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
   async function load() {
     if (!merchant) return
     setLoading(true)
-    const [rows, { count }, { data: rates }, perfRows] = await Promise.all([
+    const [rows, { count }, { data: shippingRates }, perfRows, { data: products }, { data: productRates }] = await Promise.all([
       fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }).order('id').range(f, t), 'المرتجعات'),
       supabase.rpc('list_order_operating_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }, { count: 'exact', head: true }),
-      supabase.from('platform_commission_rates').select('platform, rate, shipping_fee'),
+      supabase.from('platform_commission_rates').select('platform, shipping_fee'),
       // إيراد كل الفترات: المرتجعات هنا تاريخية كاملة، فيجب أن يكون مقام النسبة تاريخياً كاملاً أيضاً
       // (كانت تُقسم على إيراد الشهر المعروض فقط → نسب عبثية مثل 911%)
       fetchAll<any>((f, t) => supabase.from('performance_data').select('total_sales').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'الإيراد الكلي'),
+      supabase.from('products').select('id,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,commission_rate').eq('merchant_code', merchant.merchant_code),
+      supabase.from('product_platform_prices').select('product_id,platform,commission_rate').eq('merchant_code', merchant.merchant_code),
     ])
     setData(rows)
     setOrderCount(count || 0)
     setAllTimeRevenue(perfRows.reduce((a: number, r: any) => a + (Number(r.total_sales) || 0), 0))
-    const cm: Record<string, number> = {}, sh: Record<string, number> = {}
-    for (const r of (rates || [])) { cm[r.platform] = Number(r.rate) || 0; sh[r.platform] = Number(r.shipping_fee) || 0 }
-    setCommissionByPlatform(cm); setShippingByPlatform(sh)
+    const productById = new Map((products || []).map(product => [product.id, product]))
+    const cm = new Map<string, number>(), sh: Record<string, number> = {}
+    const addAliases = (platform:string, product:any, rate:number) => {
+      for (const alias of [product?.sku,product?.barcode,product?.psku_code,product?.noon_sku_child,product?.asin,product?.external_id,product?.supplier_sku]) {
+        const key=String(alias||'').trim().toLowerCase(); if (key) cm.set(`${platform}:${key}`,rate)
+      }
+    }
+    for (const rate of (productRates || [])) addAliases(rate.platform, productById.get(rate.product_id), Number(rate.commission_rate) || 0)
+    for (const product of (products || [])) if (Number(product.commission_rate || 0) > 0) addAliases('trendyol', product, Number(product.commission_rate))
+    for (const rate of (shippingRates || [])) sh[rate.platform] = Number(rate.shipping_fee) || 0
+    setCommissionByProduct(cm); setShippingByPlatform(sh)
     setLoading(false)
   }
 
@@ -773,7 +783,8 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
     // الخسائر المتكبدة = العمولات + الشحن على القيم المرتجعة
     let lossFees = 0, lossShipping = 0
     for (const r of data) {
-      const cmRate = commissionByPlatform[r.platform] || 12  // افتراضي 12%
+      const sku = String(r.sku || '').trim().toLowerCase()
+      const cmRate = commissionByProduct.get(`${r.platform}:${sku}`) || 0
       const shFee  = shippingByPlatform[r.platform] || 0
       const ret    = Number(r.return_amount) || 0
       const qty    = Number(r.quantity) || 1
@@ -782,7 +793,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
     }
     const lossTotal = lossFees + lossShipping
     return { total, count, refunded, pending, rateOfRevenue, rateOfOrders, lossFees, lossShipping, lossTotal }
-  }, [data, allTimeRevenue, orderCount, commissionByPlatform, shippingByPlatform])
+  }, [data, allTimeRevenue, orderCount, commissionByProduct, shippingByPlatform])
 
   const byPlatform = useMemo(() => {
     const m: Record<string, { count: number; amount: number }> = {}
