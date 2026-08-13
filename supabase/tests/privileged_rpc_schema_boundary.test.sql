@@ -66,14 +66,14 @@ begin
       'derive_orders_from_account_tx', 'derive_product_platform_prices',
       'derive_returns_from_account_tx', 'derive_returns_from_snapshots',
       'enqueue_daily_salla_sync', 'get_db_health_internal',
-      'handle_self_service_merchant_signup', 'notify_order_whatsapp',
+      'handle_self_service_merchant_signup',
       'reactivate_merchant', 'rebuild_performance_data', 'suspend_merchant',
       'trigger_queue_worker', 'report_client_incident',
       'update_client_incident_status', 'prune_client_incidents'
     );
 
-  if private_implementations <> 36 then
-    raise exception 'expected 36 private privileged implementations, found %', private_implementations;
+  if private_implementations <> 35 then
+    raise exception 'expected 35 private privileged implementations, found %', private_implementations;
   end if;
 
   select count(*) into auth_wrappers
@@ -121,7 +121,7 @@ begin
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'security'
-      and p.proname in ('handle_self_service_merchant_signup', 'notify_order_whatsapp')
+      and p.proname = 'handle_self_service_merchant_signup'
       and p.prorettype <> 'trigger'::regtype
   ) then
     raise exception 'moved trigger functions lost their trigger return type';
