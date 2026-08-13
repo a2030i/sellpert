@@ -94,16 +94,15 @@ test.beforeEach(async ({ page }) => {
   await mockPhaseOneMerchant(page)
 })
 
-test('phase-one home renders useful operations without the decision center', async ({ page }) => {
+test('phase-one dashboard renders the multi-channel operating summary', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
   await page.goto('/')
 
-  await expect(page.getByRole('heading', { name: 'الرئيسية', level: 1 })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Trendyol', level: 2 })).toBeVisible()
-  await expect(page.getByText('متصل', { exact: true })).toBeVisible()
-  await expect(page.getByText('طلبات اليوم', { exact: true })).toBeVisible()
-  await expect(page.getByText('11344951785')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'مرحبًا متجر المرحلة الأولى', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'المبيعات عبر الزمن', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'حالة المزامنة', level: 2 })).toBeVisible()
+  await expect(page.getByText('إجمالي الطلبات', { exact: true })).toBeVisible()
   await expect(page.locator('body')).not.toContainText(/[\u0660-\u0669\u06F0-\u06F9]/)
   await expect(page.locator('body')).not.toContainText('\u0635\u0641\u0631')
   await expect(page.getByText('مركز قرارات المتجر')).toHaveCount(0)
@@ -111,11 +110,14 @@ test('phase-one home renders useful operations without the decision center', asy
   expect(runtimeErrors).toEqual([])
 })
 
-test('phase-one navigation contains only the five launch destinations', async ({ page }) => {
+test('phase-one navigation contains the launch destinations', async ({ page }, testInfo) => {
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'التنقل الرئيسي' }).or(page.locator('nav').last())
   for (const label of ['الرئيسية', 'الطلبات', 'المنتجات', 'المخزون', 'الربط']) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible()
+  }
+  if (testInfo.project.name === 'desktop-chromium') {
+    await expect(nav.getByText('دليل المنتجات', { exact: true })).toBeVisible()
   }
   for (const hidden of ['الأرباح والتحصيل', 'خطة العمل', 'مركز المتابعة', 'الفريق والصلاحيات']) {
     await expect(page.getByText(hidden, { exact: true })).toHaveCount(0)
@@ -124,6 +126,6 @@ test('phase-one navigation contains only the five launch destinations', async ({
 
 test('advanced merchant URLs return safely to the phase-one home', async ({ page }) => {
   await page.goto('/statement')
-  await expect(page.getByRole('heading', { name: 'الرئيسية', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'مرحبًا متجر المرحلة الأولى', level: 1 })).toBeVisible()
   await expect(page.getByText('الأرباح والتحصيل', { exact: true })).toHaveCount(0)
 })
