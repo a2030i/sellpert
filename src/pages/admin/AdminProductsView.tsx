@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { PRODUCT_SAFE_COLUMNS, supabase } from '../../lib/supabase'
 import { PLATFORM_MAP as PLT_NAMES, PLATFORM_COLORS as PLT_COLORS } from '../../lib/constants'
 import type { Merchant } from '../../lib/supabase'
+import { categoryCommission } from '../../lib/commission'
 
 const PLATFORMS_LIST = ['trendyol', 'noon', 'amazon'] as const
 
@@ -11,8 +12,6 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
   const [rates, setRates]         = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
   const [selMerchant, setSelMerchant] = useState('all')
-  const [editRate, setEditRate]   = useState<any | null>(null)
-  const [rateSaving, setRateSaving] = useState(false)
   const [msg, setMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => { load() }, [])
@@ -22,7 +21,7 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
     const [{ data: prods }, { data: prics }, { data: rts }] = await Promise.all([
       supabase.from('products').select(PRODUCT_SAFE_COLUMNS).order('created_at', { ascending: false }),
       supabase.from('product_platform_prices').select('*'),
-      supabase.from('platform_commission_rates').select('*').order('platform'),
+      supabase.from('platform_fee_categories').select('platform,category_key,category_ar,commission_rate,commission_fbn_fba,min_fee_sar').order('platform,sort_order'),
     ])
     setProducts(prods || [])
     setPrices(prics || [])
@@ -30,26 +29,18 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
     setLoading(false)
   }
 
-  async function saveRate() {
-    if (!editRate) return
-    setRateSaving(true)
-    const { error } = await supabase.from('platform_commission_rates')
-      .update({ rate: editRate.rate, vat_rate: editRate.vat_rate, shipping_fee: editRate.shipping_fee, other_fees: editRate.other_fees, notes: editRate.notes, updated_at: new Date().toISOString() })
-      .eq('id', editRate.id)
-    if (error) setMsg({ type: 'err', text: error.message })
-    else { setMsg({ type: 'ok', text: 'تم حفظ النسبة' }); setEditRate(null); load() }
-    setRateSaving(false)
-  }
-
   async function recalcAllPrices(platform: string) {
-    const rate = rates.find(r => r.platform === platform && r.category === 'default')
-    if (!rate) return
-    const totalFeeRate = (rate.rate + rate.vat_rate) / 100
     const prodsToUpdate = products.filter(p => selMerchant === 'all' || p.merchant_code === selMerchant)
-    const updates = prodsToUpdate.map(p => {
-      const selling_price = Math.ceil((p.target_net_price + rate.shipping_fee + rate.other_fees) / (1 - totalFeeRate))
-      return { product_id: p.id, merchant_code: p.merchant_code, platform, selling_price, commission_rate: rate.rate }
+    const updates = prodsToUpdate.flatMap(p => {
+      const exactRate = platform === 'trendyol' && Number(p.commission_rate || 0) > 0 ? Number(p.commission_rate) : null
+      const categoryRate = exactRate == null ? categoryCommission(rates, platform, p.category) : null
+      const commissionRate = exactRate ?? categoryRate?.rate
+      if (!commissionRate) return []
+      const totalFeeRate = commissionRate / 100 * 1.15
+      const selling_price = Math.ceil(Number(p.target_net_price || 0) / (1 - totalFeeRate))
+      return [{ product_id:p.id, merchant_code:p.merchant_code, platform, selling_price, commission_rate:commissionRate, category_key:categoryRate?.categoryKey || null, commission_source:exactRate != null ? 'platform_api' : 'category' }]
     })
+    if (!updates.length) { setMsg({ type:'err', text:'لا توجد منتجات بتصنيف معروف لإعادة الحساب.' }); return }
     // upsert واحد دفعة واحدة بدل طلب لكل منتج
     const { error: upsertErr } = await supabase.from('product_platform_prices')
       .upsert(updates, { onConflict: 'product_id,platform' })
@@ -78,25 +69,23 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
       )}
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 24 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>نسب العمولات</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>نسب العمولات حسب التصنيف</div>
+        <div style={{ fontSize:11, color:'var(--text3)', marginBottom:16 }}>تُستخدم عمولة المنتج الواردة من المنصة أولًا، ثم نسبة تصنيفه. لا توجد نسبة موحدة لكل المنصة.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
-          {rates.filter(r => r.category === 'default').map(r => (
-            <div key={r.id} style={{ background: 'var(--bg)', border: `1px solid ${PLT_COLORS[r.platform] || '#5a5a7a'}33`, borderRadius: 12, padding: '14px 18px' }}>
+          {PLATFORMS_LIST.map(platform => {
+            const platformRates = rates.filter(rate => rate.platform === platform)
+            const values = platformRates.map(rate => Number(rate.commission_rate || 0)).filter(Boolean)
+            return <div key={platform} style={{ background: 'var(--bg)', border: `1px solid ${PLT_COLORS[platform] || '#5a5a7a'}33`, borderRadius: 12, padding: '14px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontWeight: 700, color: PLT_COLORS[r.platform] }}>{PLT_NAMES[r.platform] || r.platform}</div>
-                <button style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--accent)', padding: '4px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' }} onClick={() => setEditRate({ ...r })}>تعديل</button>
+                <div style={{ fontWeight: 700, color: PLT_COLORS[platform] }}>{PLT_NAMES[platform] || platform}</div>
+                <span style={{fontSize:10,color:'var(--text3)'}}>{platformRates.length} تصنيف</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
-                <div><span style={{ color: 'var(--text3)' }}>عمولة: </span><strong>{r.rate}%</strong></div>
-                <div><span style={{ color: 'var(--text3)' }}>ضريبة: </span><strong>{r.vat_rate}%</strong></div>
-                <div><span style={{ color: 'var(--text3)' }}>شحن: </span><strong>{r.shipping_fee} ر.س</strong></div>
-                <div><span style={{ color: 'var(--text3)' }}>رسوم أخرى: </span><strong>{r.other_fees} ر.س</strong></div>
-              </div>
-              <button style={{ marginTop: 10, width: '100%', background: PLT_COLORS[r.platform] + '22', border: `1px solid ${PLT_COLORS[r.platform]}44`, color: PLT_COLORS[r.platform], padding: '6px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }} onClick={() => recalcAllPrices(r.platform)}>
-                ⟳ إعادة حساب جميع الأسعار
+              <div style={{fontSize:12}}><span style={{color:'var(--text3)'}}>النطاق: </span><strong>{values.length ? `${Math.min(...values)}% – ${Math.max(...values)}%` : '—'}</strong></div>
+              <button style={{ marginTop: 10, width: '100%', background: PLT_COLORS[platform] + '22', border: `1px solid ${PLT_COLORS[platform]}44`, color: PLT_COLORS[platform], padding: '6px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }} onClick={() => recalcAllPrices(platform)}>
+                ⟳ إعادة الحساب حسب تصنيف كل منتج
               </button>
             </div>
-          ))}
+          })}
         </div>
       </div>
 
@@ -141,35 +130,6 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
         )}
       </div>
 
-      {editRate && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18, padding: '24px 28px', width: '100%', maxWidth: 420 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 20 }}>تعديل نسبة {PLT_NAMES[editRate.platform] || editRate.platform}</div>
-            {[
-              { label: 'عمولة المنصة %', key: 'rate' },
-              { label: 'ضريبة القيمة المضافة %', key: 'vat_rate' },
-              { label: 'رسوم الشحن (ر.س)', key: 'shipping_fee' },
-              { label: 'رسوم أخرى (ر.س)', key: 'other_fees' },
-            ].map(f => (
-              <div key={f.key} style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>{f.label}</label>
-                <input type="number" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 9, padding: '9px 12px', color: 'var(--text)', fontSize: 14, width: '100%', outline: 'none', boxSizing: 'border-box' as const }}
-                  value={editRate[f.key]} onChange={e => setEditRate((r: any) => ({ ...r, [f.key]: parseFloat(e.target.value) || 0 }))} />
-              </div>
-            ))}
-            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
-              <div style={{ color: 'var(--text3)', marginBottom: 4 }}>معاينة: لو الصافي المستهدف = 200 ر.س</div>
-              <div style={{ fontWeight: 800, color: PLT_COLORS[editRate.platform], fontSize: 16 }}>
-                سعر البيع = {Math.ceil((200 + (editRate.shipping_fee || 0) + (editRate.other_fees || 0)) / (1 - (editRate.rate + editRate.vat_rate) / 100))} ر.س
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button style={{ background: 'var(--accent2)', color: '#111', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={saveRate} disabled={rateSaving}>{rateSaving ? 'جاري الحفظ' : 'حفظ'}</button>
-              <button style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', padding: '10px 18px', borderRadius: 10, fontSize: 13, cursor: 'pointer' }} onClick={() => setEditRate(null)}>إلغاء</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

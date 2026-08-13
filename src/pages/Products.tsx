@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
-import type { Merchant, Product, ProductPlatformPrice, CommissionRate } from '../lib/supabase'
+import type { Merchant, Product, ProductPlatformPrice } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
 import { Pagination } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
@@ -14,6 +14,7 @@ import { friendlyDeliveryError } from '../lib/productDelivery'
 import { trendyolCatalogReadiness, type TrendyolCatalogReadiness } from '../lib/trendyolCatalog'
 import { productDataLineage, type LineageUpload } from '../lib/dataLineage'
 import { productDataQuality } from '../lib/productQuality'
+import { categoryCommission, normalizeFeeCategory, type FeeCategory } from '../lib/commission'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
@@ -34,16 +35,18 @@ const QUALITY_TONE = {
   danger: { background: 'var(--danger-bg)', color: 'var(--danger-text)' },
 } as const
 
-function calcSellingPrice(netTarget: number, rate: CommissionRate): number {
+type EffectiveCommission = { rate:number; vat_rate:number; shipping_fee:number; other_fees:number; categoryKey?:string|null; source:'platform_api'|'category' }
+
+function calcSellingPrice(netTarget: number, rate: EffectiveCommission): number {
   if (!netTarget || netTarget <= 0) return 0
-  const totalFeeRate = (rate.rate + rate.vat_rate) / 100
+  const totalFeeRate = rate.rate / 100 * (1 + rate.vat_rate / 100)
   return Math.ceil((netTarget + rate.shipping_fee + rate.other_fees) / (1 - totalFeeRate))
 }
 
 export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [products, setProducts]         = useState<Product[]>([])
   const [prices, setPrices]             = useState<ProductPlatformPrice[]>([])
-  const [rates, setRates]               = useState<CommissionRate[]>([])
+  const [feeCategories, setFeeCategories] = useState<FeeCategory[]>([])
   const [trendyolInventory, setTrendyolInventory] = useState<TrendyolInventoryRow[]>([])
   const [trendyolListings, setTrendyolListings] = useState<TrendyolListingRow[]>([])
   const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
@@ -82,7 +85,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       const [productResult, priceResult, rateResult, inventoryResult, listingResult, uploadRows] = await Promise.all([
         supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
         supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
-        supabase.from('platform_commission_rates').select('*'),
+        supabase.from('platform_fee_categories').select('platform,category_key,commission_rate,commission_fbn_fba,min_fee_sar'),
         supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
         supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id,catalog_status,catalog_error').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
         fetchAll<LineageUpload>((from, to) =>
@@ -93,7 +96,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       if (error) throw error
       setProducts(productResult.data || [])
       setPrices(priceResult.data || [])
-      setRates(rateResult.data || [])
+      setFeeCategories((rateResult.data || []) as FeeCategory[])
       setTrendyolInventory((inventoryResult.data || []) as TrendyolInventoryRow[])
       setTrendyolListings((listingResult.data || []) as TrendyolListingRow[])
       setSourceUploads(new Map(uploadRows.map(upload => [upload.id, upload])))
@@ -110,13 +113,14 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  const getRate = useCallback((platform: string, category?: string): CommissionRate | undefined => {
-    if (category) {
-      const specific = rates.find(r => r.platform === platform && r.category.toLowerCase() === category.toLowerCase())
-      if (specific) return specific
+  const getRate = useCallback((platform: string, product?: Pick<Product,'category'|'commission_rate'> | null): EffectiveCommission | undefined => {
+    if (platform === 'trendyol' && Number(product?.commission_rate || 0) > 0) {
+      return { rate:Number(product!.commission_rate), vat_rate:15, shipping_fee:0, other_fees:0, categoryKey:normalizeFeeCategory(product?.category), source:'platform_api' }
     }
-    return rates.find(r => r.platform === platform && r.category === 'default')
-  }, [rates])
+    const categoryRate = categoryCommission(feeCategories, platform, product?.category)
+    if (!categoryRate) return undefined
+    return { rate:categoryRate.rate, vat_rate:15, shipping_fee:0, other_fees:0, categoryKey:categoryRate.categoryKey, source:'category' }
+  }, [feeCategories])
 
   function getPrices(productId: string): Record<string, number> {
     const result: Record<string, number> = {}
@@ -126,7 +130,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       if (existing) {
         result[p] = existing.override_price ?? existing.selling_price
       } else {
-        const rate = getRate(p, prod?.category)
+        const rate = getRate(p, prod)
         if (prod && rate) result[p] = calcSellingPrice(prod.target_net_price, rate)
       }
     }
@@ -149,7 +153,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
     // Auto-calculate and insert prices for each platform
     const priceInserts = PLATFORMS.map(p => {
-      const rate = getRate(p)
+      const rate = getRate(p, prod)
       if (!rate) return null
       return {
         product_id: prod.id,
@@ -157,6 +161,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         platform: p,
         selling_price: calcSellingPrice(parseFloat(form.target_net_price), rate),
         commission_rate: rate.rate,
+        category_key: rate.categoryKey || null,
+        commission_source: rate.source,
       }
     }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
@@ -188,9 +194,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
     // Recalculate platform prices
     const priceUpserts = PLATFORMS.map(p => {
-      const rate = getRate(p, editProduct.category || undefined)
+      const rate = getRate(p, editProduct)
       if (!rate) return null
-      return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate }
+      return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate, category_key:rate.categoryKey || null, commission_source:rate.source }
     }).filter((row): row is NonNullable<typeof row> => row !== null)
     if (priceUpserts.length) {
       const { error: priceError } = await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
@@ -256,7 +262,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const result = new Map<string, TrendyolCatalogReadiness>()
     for (const product of products) {
       const platformPrice = priceByProductPlatform.get(`${product.id}:trendyol`)
-      const rate = getRate('trendyol', product.category)
+      const rate = getRate('trendyol', product)
       const calculatedPrice = platformPrice?.override_price ?? platformPrice?.selling_price ?? (rate ? calcSellingPrice(product.target_net_price, rate) : null)
       const stock = inventory.get(String(product.sku || '')) || inventory.get(String(product.supplier_sku || '')) || inventory.get(String(product.barcode || ''))
       result.set(product.id, trendyolCatalogReadiness(product, stock, listings.get(product.id), calculatedPrice))
@@ -287,7 +293,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const net = parseFloat(form.target_net_price) || 0
     if (!net || !form.category.trim()) return null
     return PLATFORMS.map(p => {
-      const rate = getRate(p, form.category)
+      const rate = getRate(p, { category:form.category, commission_rate:null })
       return { p, price: rate ? calcSellingPrice(net, rate) : 0, ratePct: rate?.rate }
     })
   }, [form.target_net_price, form.category, getRate])
@@ -686,41 +692,6 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         </div>
       )}
 
-      {/* Commission rates info — filtered by category if form is open */}
-      {rates.length > 0 && (() => {
-        const activeCategory = showAdd && form.category.trim() ? form.category.trim().toLowerCase() : null
-        const categoryRates = activeCategory
-          ? rates.filter(r => r.category.toLowerCase() === activeCategory)
-          : []
-        const defaultRates = rates.filter(r => r.category === 'default')
-        const displayRates = categoryRates.length > 0 ? categoryRates : defaultRates
-        const label = categoryRates.length > 0
-          ? `نسب عمولات قسم "${form.category}"`
-          : 'نسب العمولات الافتراضية (محدّثة من الفريق)'
-
-        return (
-          <div style={S.ratesCard}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-              <div style={S.ratesTitle}>{label}</div>
-              {categoryRates.length === 0 && showAdd && form.category.trim() && (
-                <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '3px 9px', borderRadius: 20 }}>
-                  لا يوجد نسب خاصة بهذا القسم — يُستخدم الافتراضي
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-              {displayRates.map(r => (
-                <div key={`${r.platform}-${r.category}`} style={{ ...S.rateChip, borderColor: (PLATFORM_COLORS[r.platform] || '#5a5a7a') + '44' }}>
-                  <span style={{ fontWeight: 700, color: PLATFORM_COLORS[r.platform] || 'var(--text)' }}>{PLATFORM_NAMES[r.platform] || r.platform}</span>
-                  <span style={{ color: 'var(--text2)' }}>{r.rate}% + ضريبة {r.vat_rate}%</span>
-                  {r.shipping_fee > 0 && <span style={{ color: 'var(--text3)', fontSize: 11 }}>شحن: {r.shipping_fee} ر.س</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })()}
-
       {/* Edit Price Modal */}
       {editProduct && (
         <div style={S.overlay} onClick={() => setEditProduct(null)}>
@@ -743,7 +714,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>معاينة الأسعار بعد الحفظ</div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   {PLATFORMS.map(p => {
-                    const rate = getRate(p, editProduct.category || undefined)
+                    const rate = getRate(p, editProduct)
                     const price = rate ? calcSellingPrice(parseFloat(editForm.target_net_price) || 0, rate) : 0
                     return (
                       <div key={p} style={{ flex: 1, textAlign: 'center', background: 'var(--surface)', borderRadius: 8, padding: '8px 4px', border: `1px solid ${PLATFORM_COLORS[p]}33` }}>
@@ -818,9 +789,6 @@ const S: Record<string, React.CSSProperties> = {
   badgeOff:    { background: 'var(--surface2)', color: 'var(--text3)' },
   reqBtn:     { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   mobileCard: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' },
-  ratesCard:  { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' },
-  ratesTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text2)' },
-  rateChip:   { background: 'var(--bg)', border: '1px solid', borderRadius: 10, padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12 },
   overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modal:      { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18, padding: '24px 28px', width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 14 },
   modalTitle: { fontSize: 16, fontWeight: 800 },

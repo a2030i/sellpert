@@ -15,6 +15,7 @@ import { buildOrderOperationQueue, type OperationalPackage, type OrderOperationT
 import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
 import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
 import { buildOrderPlatformComparison } from '../lib/orderComparison'
+import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -76,6 +77,8 @@ const SOURCE_TONE = {
 
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orders, setOrders] = useState<Order[]>([])
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProductIdentity[]>([])
+  const [catalogMappings, setCatalogMappings] = useState<CatalogChannelMapping[]>([])
   const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
   const [operationalPackages, setOperationalPackages] = useState<OperationalPackage[]>([])
   const [pendingReturnCount, setPendingReturnCount] = useState(0)
@@ -109,6 +112,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [operationKind, setOperationKind] = useState<'all' | OrderOperationTaskKind>('all')
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
+  const resolveCatalogProduct = useMemo(() => createCatalogResolver(catalogProducts, catalogMappings), [catalogProducts, catalogMappings])
 
   useEffect(() => {
     localStorage.setItem(FK, JSON.stringify({ platform, status, search, preset, tab }))
@@ -129,21 +133,32 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       fetchAll<LineageUpload>((f, t) =>
         supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
           .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).range(f, t), 'سجل ملفات المصادر'),
-    ]).then(([o, packageRows, returnResult, uploads]) => {
+      fetchAll<CatalogProductIdentity>((f,t) => supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', merchantCode).order('id').range(f,t), 'دليل أسماء الطلبات'),
+      fetchAll<CatalogChannelMapping>((f,t) => supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', merchantCode).order('id').range(f,t), 'روابط أسماء الطلبات'),
+    ]).then(([sourceOrders, packageRows, returnResult, uploads, products, mappings]) => {
       if (returnResult.error) throw returnResult.error
-      setOrders(o)
+      const resolve = createCatalogResolver(products, mappings)
+      const unifiedOrders = sourceOrders.map(order => {
+        const product = resolve({ platform:order.platform, identifiers:[order.sku], sourceName:order.product_name })
+        return product ? { ...order, product_name:product.name } : order
+      })
+      setCatalogProducts(products)
+      setCatalogMappings(mappings)
+      setOrders(unifiedOrders)
       setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
       setOperationalPackages(packageRows)
       setPendingReturnCount(returnResult.count || 0)
       const orderRef = new URLSearchParams(window.location.search).get('order')
-      const linkedOrder = orderRef ? o.find(order => order.id === orderRef || order.order_id === orderRef) : null
-      if (linkedOrder) void openOrder(linkedOrder)
+      const linkedOrder = orderRef ? unifiedOrders.find(order => order.id === orderRef || order.order_id === orderRef) : null
+      if (linkedOrder) void openOrder(linkedOrder, resolve)
       setLoading(false)
     }).catch(error => {
       console.error('load orders', error)
       setLoadError(userErrorMessage(error, 'تعذّر تحميل الطلبات الآن.'))
       setLoading(false)
     })
+    // openOrder is a local event handler; adding it would restart this data load on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merchantCode, loadVersion])
 
   const filtered = useMemo(() => {
@@ -302,7 +317,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     } finally { setBulkPickingLoading(false) }
   }
 
-  async function openOrder(order: Order) {
+  async function openOrder(order: Order, catalogResolver = resolveCatalogProduct) {
     setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setSelectedProductCosts(new Map()); setInvoiceFile(null); setPackageForm(current => ({ ...current, invoiceNumber:'', invoiceLink:'' })); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at,gross_amount').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
@@ -315,12 +330,16 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
     const packageRows = packages.data || []
     const initialPackageId = String(packageRows[0]?.shipment_package_id || order.shipment_package_id || '')
-    setSelectedItems(items.data || [])
+    const unifiedItems = (items.data || []).map(item => {
+      const product = catalogResolver({ platform:order.platform, identifiers:[item.barcode,item.sku], sourceName:item.product_name })
+      return product ? { ...item, product_name_ar:product.name } : item
+    })
+    setSelectedItems(unifiedItems)
     setSelectedPackages(packageRows)
     setActivePackageId(initialPackageId)
     setPackageForm(current => ({ ...current, invoiceNumber:String(packageRows[0]?.invoice_number || ''), invoiceLink:'' }))
     setSelectedActions(actions.data || [])
-    const detailItems = items.data || []
+    const detailItems = unifiedItems
     const skus = [...new Set([order.sku, ...detailItems.map(item => item.sku)].filter(Boolean).map(String))]
     const barcodes = [...new Set(detailItems.map(item => item.barcode).filter(Boolean).map(String))]
     const [skuCosts, barcodeCosts] = await Promise.all([

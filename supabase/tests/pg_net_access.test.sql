@@ -18,9 +18,9 @@ BEGIN
      OR has_function_privilege('authenticated','security.trigger_queue_worker()','EXECUTE') THEN
     RAISE EXCEPTION 'browser roles can invoke the queue worker network wrapper';
   END IF;
-  IF has_function_privilege('anon','security.notify_order_whatsapp()','EXECUTE')
-     OR has_function_privilege('authenticated','security.notify_order_whatsapp()','EXECUTE') THEN
-    RAISE EXCEPTION 'browser roles can invoke the WhatsApp network trigger';
+  IF to_regprocedure('security.notify_order_whatsapp()') IS NOT NULL
+     OR to_regprocedure('public.notify_order_whatsapp()') IS NOT NULL THEN
+    RAISE EXCEPTION 'retired WhatsApp network trigger still exists';
   END IF;
   IF NOT has_function_privilege('service_role','security.trigger_queue_worker()','EXECUTE') THEN
     RAISE EXCEPTION 'trusted backend lost queue worker wrapper access';

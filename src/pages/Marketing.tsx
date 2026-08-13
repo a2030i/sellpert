@@ -5,6 +5,7 @@ import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
 import { Pagination, Tooltip } from '../components/UI'
 import BudgetAlertsPanel from '../components/BudgetAlertsPanel'
+import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
 
 interface AdRow {
   id: string
@@ -28,12 +29,15 @@ interface AdRow {
 
 export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const [rows, setRows] = useState<AdRow[]>([])
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProductIdentity[]>([])
+  const [catalogMappings, setCatalogMappings] = useState<CatalogChannelMapping[]>([])
   const [loading, setLoading] = useState(true)
   const [platformFilter, setPlatformFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [groupBy, setGroupBy] = useState<'campaign' | 'sku' | 'query'>('campaign')
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 50
+  const resolveCatalogProduct = useMemo(() => createCatalogResolver(catalogProducts, catalogMappings), [catalogProducts, catalogMappings])
 
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
 
@@ -44,12 +48,14 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   async function load() {
     if (!merchant) return
     setLoading(true)
-    const [{ data }, ...sums] = await Promise.all([
+    const [{ data }, { data:products }, { data:mappings }, ...sums] = await Promise.all([
       supabase.from('ad_metrics')
         .select(AD_METRIC_SAFE_COLUMNS)
         .eq('merchant_code', merchant.merchant_code)
         .order('spend', { ascending: false })
         .limit(5000),
+      supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', merchant.merchant_code),
+      supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', merchant.merchant_code),
       ...['all', 'amazon', 'noon', 'trendyol'].map(p =>
         supabase.rpc('ad_kpi_summary', { p_merchant_code: merchant.merchant_code, p_days: 36500, p_platform: p === 'all' ? null : p })),
     ])
@@ -59,6 +65,8 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       st[p] = { spend: +s.spend || 0, revenue: +s.revenue || 0, clicks: +s.clicks || 0, impressions: +s.impressions || 0, orders: +s.orders || 0 }
     })
     setServerTotals(st)
+    setCatalogProducts((products as CatalogProductIdentity[]) || [])
+    setCatalogMappings((mappings as CatalogChannelMapping[]) || [])
     setRows((data as AdRow[]) || [])
     setLoading(false)
   }
@@ -71,11 +79,12 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
       r = r.filter(x =>
         (x.campaign_name || '').toLowerCase().includes(q) ||
         (x.sku || '').toLowerCase().includes(q) ||
+        (resolveCatalogProduct({platform:x.platform,identifiers:[x.sku]})?.name || '').toLowerCase().includes(q) ||
         (x.search_query || '').toLowerCase().includes(q)
       )
     }
     return r
-  }, [rows, platformFilter, search])
+  }, [rows, platformFilter, search, resolveCatalogProduct])
 
   // المؤشرات العلوية من إجماليات الخادم الكاملة (دقيقة)؛ البحث النصي يرجع لتجميع الصفوف المحمّلة
   const totals = useMemo(() => {
@@ -97,16 +106,18 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const grouped = useMemo(() => {
     const map: Record<string, { key: string; impressions: number; clicks: number; orders: number; spend: number; revenue: number; platform: string }> = {}
     for (const r of filteredRows) {
-      const key = groupBy === 'campaign' ? (r.campaign_name || r.ad_group_name || 'بلا اسم') : groupBy === 'sku' ? (r.sku || '—') : (r.search_query || '—')
-      if (!map[key]) map[key] = { key, impressions: 0, clicks: 0, orders: 0, spend: 0, revenue: 0, platform: r.platform }
-      map[key].impressions += r.impressions
-      map[key].clicks      += r.clicks
-      map[key].orders      += r.orders
-      map[key].spend       += Number(r.spend) || 0
-      map[key].revenue     += Number(r.revenue) || 0
+      const sourceKey = groupBy === 'campaign' ? (r.campaign_name || r.ad_group_name || 'بلا اسم') : groupBy === 'sku' ? (r.sku || '—') : (r.search_query || '—')
+      const product = groupBy === 'sku' ? resolveCatalogProduct({platform:r.platform,identifiers:[r.sku]}) : undefined
+      const aggregationKey = product?.id || sourceKey
+      if (!map[aggregationKey]) map[aggregationKey] = { key:product?.name || sourceKey, impressions: 0, clicks: 0, orders: 0, spend: 0, revenue: 0, platform: r.platform }
+      map[aggregationKey].impressions += r.impressions
+      map[aggregationKey].clicks      += r.clicks
+      map[aggregationKey].orders      += r.orders
+      map[aggregationKey].spend       += Number(r.spend) || 0
+      map[aggregationKey].revenue     += Number(r.revenue) || 0
     }
     return Object.values(map).sort((a, b) => b.spend - a.spend)
-  }, [filteredRows, groupBy])
+  }, [filteredRows, groupBy, resolveCatalogProduct])
   const pagedGrouped = useMemo(() => grouped.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [grouped, page])
 
   const platforms = useMemo(() => Array.from(new Set(rows.map(r => r.platform))), [rows])

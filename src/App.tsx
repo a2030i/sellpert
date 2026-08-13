@@ -478,7 +478,12 @@ export default function App() {
             <div style={S.logoIconSm}>S</div>
             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Sellpert</span>
           </div>
-          <span style={{ maxWidth: '48vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
+          <div style={S.mobileAccountActions}>
+            <span style={{ maxWidth: '32vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
+            <button type="button" style={S.mobileLogoutBtn} onClick={impersonating ? stopImpersonate : signOut} aria-label={impersonating ? 'العودة إلى الإدارة' : 'تسجيل الخروج'} title={impersonating ? 'العودة إلى الإدارة' : 'تسجيل الخروج'}>
+              <LogOut size={15}/><span>{impersonating ? 'عودة' : 'خروج'}</span>
+            </button>
+          </div>
         </header>
       )}
 
@@ -553,6 +558,15 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 16px', zIndex: 100,
     boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+  },
+  mobileAccountActions: {
+    display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minWidth: 0,
+  },
+  mobileLogoutBtn: {
+    display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+    height: 32, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 8,
+    background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'inherit',
+    fontSize: 11, fontWeight: 700, cursor: 'pointer',
   },
   bottomNav: {
     position: 'fixed', bottom: 0, left: 0, right: 0, height: 60,

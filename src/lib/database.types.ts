@@ -1296,6 +1296,66 @@ export type Database = {
           },
         ]
       }
+      merchant_contract_terms: {
+        Row: {
+          created_at: string
+          id: string
+          merchant_code: string
+          sellpert_fee_type: string
+          sellpert_fee_value: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merchant_code: string
+          sellpert_fee_type?: string
+          sellpert_fee_value?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merchant_code?: string
+          sellpert_fee_type?: string
+          sellpert_fee_value?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      merchant_platform_finance_settings: {
+        Row: {
+          created_at: string
+          id: string
+          merchant_code: string
+          platform: string
+          shipping_cost_tax_inclusive: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merchant_code: string
+          platform: string
+          shipping_cost_tax_inclusive?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merchant_code?: string
+          platform?: string
+          shipping_cost_tax_inclusive?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       platform_commission_rates: {
         Row: {
           category: string
@@ -2020,7 +2080,9 @@ export type Database = {
       }
       product_platform_prices: {
         Row: {
+          category_key: string | null
           commission_rate: number
+          commission_source: string | null
           id: string
           is_active: boolean
           merchant_code: string
@@ -2033,7 +2095,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          category_key?: string | null
           commission_rate?: number
+          commission_source?: string | null
           id?: string
           is_active?: boolean
           merchant_code: string
@@ -2046,7 +2110,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          category_key?: string | null
           commission_rate?: number
+          commission_source?: string | null
           id?: string
           is_active?: boolean
           merchant_code?: string
