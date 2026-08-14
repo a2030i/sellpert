@@ -145,6 +145,10 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   }
   expect(runtimeErrors).toEqual([])
 
+  if (testInfo.project.name === 'mobile-chromium') {
+    await platformControl.locator('summary').click()
+    await page.getByRole('button', { name:'المزيد' }).click()
+  }
   await page.getByRole('button', { name:'تسجيل الخروج' }).click()
   await expect(page.getByRole('button', { name:'تسجيل الدخول', exact:true }).last()).toBeVisible()
 })

@@ -15,3 +15,30 @@
 .kpi small{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .chart-data{margin:0 22px 18px;border-top:1px solid var(--border);padding-top:10px}.chart-data summary{min-height:44px;display:flex;align-items:center;color:var(--accent);font-size:11px;font-weight:800;cursor:pointer}.chart-data>div{max-height:230px;overflow:auto}.chart-data table{width:100%;border-collapse:collapse;font-size:11px}.chart-data th,.chart-data td{padding:8px;border-bottom:1px solid var(--border);text-align:right}.chart-data th{position:sticky;top:0;background:var(--surface);color:var(--text3)}
 .date-control,.platform-control summary,.sync button,.rank-list>button{min-height:44px}.kpi:focus-visible,.rank-list>button:focus-visible,.sync button:focus-visible,.platform-control summary:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:2px}
+
+/* Figma SaaS dashboard */
+.merchant-dashboard{width:min(1280px,calc(100% - 64px));padding:28px 0 64px}
+.dashboard-header{display:block;margin-bottom:24px}
+.dashboard-header h1{font-size:32px;letter-spacing:-.025em}
+.dashboard-header p,.panel-head p{font-size:12px}
+.dashboard-controls{display:flex;align-items:center;width:100%;margin-top:22px;padding:13px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+.dashboard-controls:before{content:"تُطبّق الفلاتر على جميع الأرقام والمخططات والجداول";margin-left:auto;color:var(--text3);font-size:10px}
+.date-control,.platform-control summary{height:42px;border-color:var(--border2);border-radius:8px}
+.date-control select,.platform-control summary{font-family:var(--font-body);font-size:12px;font-weight:600}
+.platform-control summary{min-width:190px}
+.kpi,.panel{border-radius:12px;box-shadow:var(--shadow)}
+.kpi{min-height:130px;transition:border-color .16s ease,transform .16s ease}
+.kpi.clickable:hover{transform:translateY(-1px)}
+.kpi-icon{width:38px;height:38px;border-radius:8px}
+.kpi-icon svg{width:18px}
+.kpi span{font-size:11px}.kpi strong{font-family:var(--font-data);font-size:24px}.kpi small{font-size:10px}
+.chart-wrap{height:320px}
+
+@media(max-width:680px){
+  .merchant-dashboard{width:calc(100% - 28px);padding:26px 0 36px}
+  .dashboard-header h1{font-size:26px}
+  .dashboard-controls{display:grid;grid-template-columns:1fr 1fr;padding:10px}
+  .dashboard-controls:before{display:none}
+  .platform-control summary{min-width:0}
+  .chart-wrap{height:260px}
+}

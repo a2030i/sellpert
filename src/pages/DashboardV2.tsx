@@ -215,7 +215,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
 
   return <main className="merchant-dashboard" dir="rtl">
     <header className="dashboard-header">
-      <div><span className="eyebrow">ملخص صحة المتجر</span><h1>مرحبًا {merchant?.name || 'بك'}</h1><p>راقب مبيعاتك وطلباتك ومخزونك عبر جميع قنوات البيع من مكان واحد.</p></div>
+      <div><span className="eyebrow">ملخص صحة المتجر</span><h1>صحة متجرك في نظرة واحدة</h1><p>كل أرقام {merchant?.name || 'متجرك'} من Amazon وNoon وTrendyol ضمن الفترة المحددة.</p></div>
       <div className="dashboard-controls">
         <div className="date-control"><CalendarDays size={17}/><select value={preset} onChange={e=>setPreset(e.target.value as DatePreset)} aria-label="الفترة الزمنية"><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></div>
         <details className="platform-control">
@@ -231,10 +231,10 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     {partial && !loading && <div className="quiet-notice">تعذر تحديث بعض البيانات الآن، وتم عرض أحدث بيانات متاحة.</div>}
 
     <section className="kpi-grid">
-      <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>navigate('orders')}/>
-      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="خلال الفترة المحددة" onClick={()=>navigate('orders')}/>
-      <Kpi icon={<Clock3/>} label="قيد المعالجة الآن" value={loading?'—':number(pending)} hint={pending?'جميع الطلبات المفتوحة حاليًا':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
       <Kpi icon={<Boxes/>} label="منتجات نافدة الآن" value={loading?'—':number(outStock)} hint={selectedStock.length?`${number(outStock)} من ${number(selectedStock.length)} · ${outStockRate.toFixed(1)}%`:'لا توجد بيانات مخزون'} tone={outStock?'red':'green'} onClick={()=>navigate('inventory',{stock:'out'})}/>
+      <Kpi icon={<Clock3/>} label="قيد المعالجة الآن" value={loading?'—':number(pending)} hint={pending?'جميع الطلبات المفتوحة حاليًا':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
+      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="خلال الفترة المحددة" onClick={()=>navigate('orders')}/>
+      <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>navigate('orders')}/>
     </section>
 
     <section className="analytics-grid single">

@@ -14,6 +14,7 @@ import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import {
   LayoutDashboard, Tags, Package, Link2, LogOut, Boxes, Eye, BookOpen,
+  Megaphone, Settings2, MoreHorizontal, X,
   type LucideIcon,
 } from 'lucide-react'
 import type { EmailOtpType, Session } from '@supabase/supabase-js'
@@ -58,7 +59,7 @@ const PageFallback = () => (
 export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'product-catalog' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
 const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'product-catalog', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
-const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-catalog', 'product-detail', 'quick-inventory'])
+const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-catalog', 'product-detail', 'quick-inventory', 'marketing', 'settings'])
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -70,7 +71,9 @@ const NAV_GROUPS: NavGroup[] = [
     { Icon: Tags, label: 'المنتجات', key: 'products', permission: 'products' },
     { Icon: BookOpen, label: 'دليل المنتجات', key: 'product-catalog', permission: 'products' },
     { Icon: Boxes, label: 'المخزون', key: 'inventory', permission: 'inventory' },
-    { Icon: Link2, label: 'الربط', key: 'integrations', permission: 'integrations' },
+    { Icon: Megaphone, label: 'أداء الإعلانات', key: 'marketing', permission: 'marketing' },
+    { Icon: Link2, label: 'الربط والتكاملات', key: 'integrations', permission: 'integrations' },
+    { Icon: Settings2, label: 'الإعدادات', key: 'settings', permission: 'settings' },
   ]},
 ]
 
@@ -110,7 +113,7 @@ function visibleMerchantNav(account: Merchant | null): NavGroup[] {
   })).filter(group => group.items.length > 0)
 }
 
-const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'product-catalog', 'inventory', 'integrations']
+const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'product-catalog', 'integrations']
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
@@ -130,6 +133,7 @@ export default function App() {
   const [view, setView]                     = useState<View>(readView)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(() => window.location.pathname === '/auth/recovery')
+  const [mobileMore, setMobileMore]         = useState(false)
   const [passwordSetupMode, setPasswordSetupMode] = useState<'recovery' | 'invite'>(() =>
     new URLSearchParams(window.location.search).get('flow') === 'invite' ? 'invite' : 'recovery',
   )
@@ -141,6 +145,8 @@ export default function App() {
   const merchantNavGroups                   = visibleMerchantNav(activeMerchant)
   const visibleNavItems                     = merchantNavGroups.flatMap(group => group.items)
   const visibleMobilePrimary                = MOBILE_PRIMARY.filter(key => visibleNavItems.some(item => item.key === key))
+  const currentNavItem                      = visibleNavItems.find(item => view === item.key || NAV_PARENT[view] === item.key)
+  const currentLabel                        = currentNavItem?.label || 'الرئيسية'
 
   function startImpersonate(m: Merchant) {
     setImpersonating(m)
@@ -299,6 +305,7 @@ export default function App() {
     const suffix = params.toString() ? `?${params.toString()}` : ''
     window.history.pushState(null, '', '/' + (destination === 'dashboard' ? '' : destination) + suffix)
     window.scrollTo(0, 0)
+    setMobileMore(false)
   }
 
   async function signOut() {
@@ -361,7 +368,7 @@ export default function App() {
   const BANNER_H = 44
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="merchant-shell" style={{ display: 'flex', minHeight: '100vh' }}>
 
       {/* ── Impersonation Banner ── */}
       {impersonating && (
@@ -443,7 +450,13 @@ export default function App() {
       )}
 
       {/* ── Main Content ── */}
-      <main style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 220, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 68 : 0, background: 'var(--bg)' }}>
+      <main className="merchant-main" style={{ flex: 1, minWidth: 0, minHeight: '100vh', marginRight: isMobile ? 0 : 240, paddingTop: isMobile ? 52 + (impersonating ? BANNER_H : 0) : (impersonating ? BANNER_H : 0), paddingBottom: isMobile ? 72 : 0, background: 'var(--bg)' }}>
+        {!isMobile && (
+          <header className="merchant-context-bar">
+            <div className="merchant-breadcrumb"><span>{activeMerchant?.name || 'المتجر'}</span><b>/</b><strong>{currentLabel}</strong></div>
+            <div className="merchant-live-status"><span aria-hidden="true" /> بيانات الحساب المباشرة</div>
+          </header>
+        )}
         <PageErrorBoundary resetKey={view} onGoHome={() => goTo('dashboard')}>
           <Suspense fallback={<PageFallback />}>
             {view === 'dashboard'    && <Dashboard merchant={activeMerchant} onNavigate={goTo} />}
@@ -482,28 +495,41 @@ export default function App() {
           </div>
           <div style={S.mobileAccountActions}>
             <span style={{ maxWidth: '32vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text3)' }}>{activeMerchant?.name}</span>
-            <button type="button" style={S.mobileLogoutBtn} onClick={impersonating ? stopImpersonate : signOut} aria-label={impersonating ? 'العودة إلى الإدارة' : 'تسجيل الخروج'} title={impersonating ? 'العودة إلى الإدارة' : 'تسجيل الخروج'}>
-              <LogOut size={15}/><span>{impersonating ? 'عودة' : 'خروج'}</span>
-            </button>
           </div>
         </header>
       )}
 
       {/* ── Mobile Bottom Nav: phase-one destinations only ── */}
       {isMobile && (
-        <nav style={S.bottomNav}>
+        <nav style={S.bottomNav} aria-label="التنقل الرئيسي">
           {visibleMobilePrimary.map(key => {
             const item = visibleNavItems.find(n => n.key === key)
             if (!item) return null
             const Icon = item.Icon
             return (
-              <button key={item.key} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text2)' }}>
+              <button key={item.key} aria-label={item.key === 'integrations' ? 'الربط' : item.label} onClick={() => goTo(item.key)} style={{ ...S.bottomNavBtn, color: isActiveNav(item.key) ? 'var(--accent)' : 'var(--text2)' }}>
                 <Icon size={20} />
                 <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>{item.label}</span>
               </button>
             )
           })}
+          <button type="button" onClick={() => setMobileMore(value => !value)} style={{ ...S.bottomNavBtn, color: mobileMore ? 'var(--accent)' : 'var(--text2)' }} aria-expanded={mobileMore}>
+            <MoreHorizontal size={20} />
+            <span style={{ fontSize: 11, marginTop: 2, fontWeight: 500 }}>المزيد</span>
+          </button>
         </nav>
+      )}
+      {isMobile && mobileMore && (
+        <div className="merchant-mobile-more" role="dialog" aria-label="المزيد والحساب">
+          <div className="merchant-mobile-more__head"><div><strong>{activeMerchant?.name}</strong><span>حساب المتجر</span></div><button type="button" onClick={() => setMobileMore(false)} aria-label="إغلاق"><X size={19}/></button></div>
+          <div className="merchant-mobile-more__links">
+            {visibleNavItems.filter(item => !visibleMobilePrimary.includes(item.key)).map(item => {
+              const Icon = item.Icon
+              return <button type="button" key={item.key} onClick={() => goTo(item.key)}><Icon size={18}/><span>{item.label}</span></button>
+            })}
+          </div>
+          <button type="button" className="merchant-mobile-more__logout" onClick={impersonating ? stopImpersonate : signOut}><LogOut size={18}/>{impersonating ? 'العودة إلى الإدارة' : 'تسجيل الخروج'}</button>
+        </div>
       )}
     </div>
   )
@@ -512,12 +538,12 @@ export default function App() {
 const S: Record<string, React.CSSProperties> = {
   sidebar: {
     display: 'flex', flexDirection: 'column',
-    position: 'fixed', right: 0, top: 0, bottom: 0, width: 220, zIndex: 100,
+    position: 'fixed', right: 0, top: 0, bottom: 0, width: 240, zIndex: 100,
     background: '#071c2c',
     borderLeft: '1px solid #1d3b4d',
   },
   sidebarTop: {
-    padding: '18px 16px',
+    padding: '22px 20px',
     borderBottom: '1px solid #1d3b4d',
     flexShrink: 0,
   },
@@ -535,8 +561,8 @@ const S: Record<string, React.CSSProperties> = {
   },
   navItem: {
     display: 'flex', alignItems: 'center', gap: 11,
-    padding: '10px 12px', cursor: 'pointer',
-    fontSize: 14.25, fontWeight: 500, lineHeight: 1.75,
+    padding: '11px 14px', cursor: 'pointer',
+    fontSize: 13.5, fontWeight: 500, lineHeight: 1.75,
     color: '#b8c9d2', width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'inherit', textAlign: 'right',
   },

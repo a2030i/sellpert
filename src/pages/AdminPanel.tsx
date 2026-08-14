@@ -186,7 +186,7 @@ const S: Record<string, React.CSSProperties> = {
   sidebar: {
     background: 'var(--surface)', borderLeft: '1px solid var(--border)',
     display: 'flex', flexDirection: 'column',
-    position: 'fixed', right: 0, top: 0, bottom: 0, width: 230, zIndex: 100,
+    position: 'fixed', right: 0, top: 0, bottom: 0, width: 240, zIndex: 100,
     overflowY: 'auto', overflowX: 'hidden',
   },
   sidebarLogo: {
@@ -399,7 +399,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
   )
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className="admin-shell" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
 
       {/* ── SIDEBAR (desktop) ── */}
       {!isMobile && (
@@ -466,8 +466,9 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
       )}
 
       {/* ── MAIN ── */}
-      <main style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 230, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
+      <main className="admin-main" style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 240, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
+        {!isMobile && <div className="admin-context-bar"><span>كل المتاجر</span><b>/</b><strong>المملكة العربية السعودية</strong></div>}
+        <div className="admin-page-heading" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
           <div>
             <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{currentLabel}</h2>
             {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}

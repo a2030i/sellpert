@@ -168,8 +168,8 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
   }, [merchant?.merchant_code])
 
   return (
-    <div style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
-      <PageHeader title="الربط ورفع الملفات" description="اربط منصات البيع، ارفع الملفات المدعومة، وتابع حالة تحديث بيانات متجرك." icon={Plug} />
+    <div className="integrations-page" style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
+      <PageHeader title="الربط والاستيراد" description="Amazon وNoon عبر ملفات Excel المعتمدة، وTrendyol عبر الاتصال المباشر API." icon={Plug} />
 
       {merchant ? (
         <MarketplaceConnections

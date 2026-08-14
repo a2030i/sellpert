@@ -13,17 +13,17 @@
 /* ── Light theme (main content) ──────────────────────────────────── */
 :root {
   color-scheme: light;
-  --bg:       #f0f3f9;
-  --bg2:      #e6eaf4;
+  --bg:       #f4f7fa;
+  --bg2:      #edf2f6;
   --surface:  #ffffff;
-  --surface2: #f5f7fc;
-  --surface3: #edf0f7;
-  --border:   #e2e8f2;
-  --border2:  #cdd5e8;
+  --surface2: #f7f9fb;
+  --surface3: #eef3f6;
+  --border:   #dce5ec;
+  --border2:  #c8d5de;
 
-  --accent:        #08766f; /* نص وروابط العلامة — يمر AA على الأسطح الفاتحة */
-  --accent-soft:   #42918c;
-  --accent-strong: #065d58; /* تعبئة الأزرار — تباين مرتفع مع النص الأبيض */
+  --accent:        #087e76; /* نص وروابط العلامة — يمر AA على الأسطح الفاتحة */
+  --accent-soft:   #3d9891;
+  --accent-strong: #066b65; /* تعبئة الأزرار — تباين مرتفع مع النص الأبيض */
   --accent-glow:   rgba(8,118,111,0.3);
   --accent-12:     rgba(8,118,111,0.12); /* تظليل خفيف للعنصر النشط */
   --on-accent:     #ffffff;
@@ -45,10 +45,10 @@
   --info:         #2563eb; --info-text:  #2563eb; --info-bg: rgba(37,99,235,0.12);
   --overlay:      rgba(8,10,20,0.55);
 
-  --text:       #1a1e30;
-  --text2:      #5a6480;
-  --text3:      #5a6b78; /* 5.27:1 على السطح الثانوي الفاتح — يمر AA للنص الصغير */
-  --text-faint: #94a0b8; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
+  --text:       #142033;
+  --text2:      #4f6272;
+  --text3:      #6c7f8f; /* يمر AA للنص الصغير */
+  --text-faint: #96a5b1; /* للزخرفة/المعطّل فقط — ليس نصاً للقراءة */
 
   /* مقاييس الأبعاد — قيمها = القيم السائدة حالياً (تبنٍّ بلا تغيير بصري) */
   --font-body: 'Noto Sans Arabic Variable', 'Segoe UI', Tahoma, system-ui, sans-serif;
@@ -63,8 +63,8 @@
   --radius-sm: 10px;
   --r-sm:8px; --r-md:10px; --r-lg:14px; --r-pill:999px;
 
-  --shadow:    0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.07);
-  --shadow-md: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.04);
+  --shadow:    0 1px 2px rgba(14,35,50,0.03), 0 8px 24px rgba(14,35,50,0.035);
+  --shadow-md: 0 12px 32px rgba(14,35,50,0.10), 0 1px 3px rgba(14,35,50,0.04);
   --e-1: var(--shadow); --e-2: var(--shadow-md);
   --e-3: 0 24px 64px rgba(0,0,0,0.18); --e-accent: 0 4px 16px var(--accent-glow);
 }
@@ -123,6 +123,74 @@ body {
   text-rendering: optimizeLegibility;
   font-synthesis: none;
   font-optical-sizing: auto;
+}
+
+/* ── Sellpert SaaS shell — Figma production system ───────────────── */
+.merchant-context-bar {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.merchant-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text3);
+  font-size: 12px;
+}
+
+.merchant-breadcrumb strong {
+  overflow: hidden;
+  color: var(--text2);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merchant-breadcrumb b { color: var(--border2); font-weight: 400; }
+.merchant-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  direction: rtl;
+  color: var(--success-text);
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.merchant-live-status span { width: 7px; height: 7px; border-radius: 50%; background: #20a37a; box-shadow: 0 0 0 4px rgba(32,163,122,.11); }
+
+.merchant-mobile-more {
+  position: fixed;
+  inset: auto 0 60px;
+  z-index: 190;
+  max-height: calc(100dvh - 112px);
+  overflow-y: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -24px 60px rgba(7,28,44,.16);
+}
+.merchant-mobile-more__head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 2px 16px; border-bottom:1px solid var(--border); }
+.merchant-mobile-more__head div { display:flex; flex-direction:column; gap:2px; }
+.merchant-mobile-more__head strong { font-size:14px; }
+.merchant-mobile-more__head span { color:var(--text3); font-size:11px; }
+.merchant-mobile-more__head button { width:40px; height:40px; display:grid; place-items:center; border:1px solid var(--border); border-radius:10px; background:var(--surface2); color:var(--text2); }
+.merchant-mobile-more__links { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:14px 0; }
+.merchant-mobile-more__links button { min-height:48px; display:flex; align-items:center; gap:9px; padding:0 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text2); text-align:right; }
+.merchant-mobile-more__logout { width:100%; min-height:48px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid #f0d4d4; border-radius:10px; background:#fff7f7; color:var(--danger-text); }
+
+@media (max-width: 680px) {
+  .merchant-main { padding-bottom: 72px !important; }
 }
 
 /* حالة الاتصال العامة: مرئية في جميع الصفحات من دون حجب المحتوى أو النماذج. */
@@ -614,25 +682,25 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 
 /* Sellpert Enterprise SaaS visual system */
 :root {
-  --bg: #f5f7f9;
-  --bg2: #eef2f5;
+  --bg: #f4f7fa;
+  --bg2: #edf2f6;
   --surface: #ffffff;
-  --surface2: #f8fafb;
-  --surface3: #f0f4f6;
-  --border: #dfe6ea;
-  --border2: #cbd6dc;
-  --accent: #08766f;
-  --accent-soft: #42918c;
-  --accent-strong: #065d58;
-  --accent-glow: rgba(8,118,111,0.16);
-  --accent-12: rgba(8,118,111,0.10);
-  --accent2: #08766f;
+  --surface2: #f7f9fb;
+  --surface3: #eef3f6;
+  --border: #dce5ec;
+  --border2: #c8d5de;
+  --accent: #087e76;
+  --accent-soft: #4ab2aa;
+  --accent-strong: #066b65;
+  --accent-glow: rgba(8,126,118,0.16);
+  --accent-12: rgba(8,126,118,0.10);
+  --accent2: #087e76;
   --grad-brand: var(--accent-strong);
   --grad-accent: var(--accent-strong);
-  --text: #132432;
-  --text2: #526575;
-  --text3: #5a6b78;
-  --text-faint: #9ba9b3;
+  --text: #142033;
+  --text2: #4f6272;
+  --text3: #6c7f8f;
+  --text-faint: #96a5b1;
   --radius: 12px;
   --radius-sm: 8px;
   --r-sm: 6px;
@@ -670,19 +738,55 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 }
 
 .app-sidebar .nav-item {
-  border-radius: 7px;
-  margin-inline: 10px;
+  border-radius: 10px;
+  margin-inline: 12px;
   font-family: var(--font-body) !important;
   font-size: 14px !important;
   font-weight: 600 !important;
   line-height: 1.6 !important;
-  min-height: 42px;
+  min-height: 46px;
 }
 
 .app-sidebar .nav-item.active {
-  background: rgba(15,149,140,0.20);
-  color: #d9fffb;
+  background: #086b64;
+  color: #ffffff;
   font-weight: 600 !important;
+}
+
+.admin-context-bar {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -28px -32px 28px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text3);
+  font-size: 12px;
+}
+.admin-context-bar b{color:var(--border2);font-weight:400}.admin-context-bar strong{color:var(--text2);font-weight:600}
+.admin-page-heading h2{font-family:var(--font-heading);font-size:30px!important;letter-spacing:-.02em!important}
+.integrations-page{width:min(1280px,calc(100% - 64px))!important;max-width:none!important;padding:28px 0 64px!important}
+
+.product-catalog{max-width:1280px;padding:28px 32px 64px}
+.catalog-header h1{font-family:var(--font-heading);font-size:30px;letter-spacing:-.02em}
+.catalog-header h1 svg{display:none}
+.catalog-stats{gap:14px;margin:28px 0 48px}
+.catalog-stats button{min-height:128px;padding:20px;border-radius:12px;box-shadow:var(--shadow)}
+.catalog-stats button:before{inset:auto 18px auto auto;top:16px;width:22px;height:22px;border-radius:6px;opacity:.12}
+.catalog-stats strong{margin-top:24px;font-family:var(--font-data);font-size:24px}
+.catalog-stats svg{display:none}
+.catalog-profitability-section{border-radius:12px 12px 0 0;overflow:hidden}
+.catalog-profitability-head{padding:16px 18px;background:var(--surface)}
+.catalog-table th{height:48px;background:#f7f9fb}
+.catalog-table tbody tr:nth-child(even){background:#f8fafb}
+
+@media(max-width:900px){
+  .integrations-page{width:calc(100% - 28px)!important;padding:24px 0 42px!important}
+  .product-catalog{padding:24px 14px 42px}
+  .catalog-stats{margin:20px 0 24px}
+  .catalog-stats button{min-height:110px}
 }
 
 /* Unified product catalog */
