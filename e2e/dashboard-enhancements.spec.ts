@@ -109,8 +109,12 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
 
   const chart = page.locator('.sales-panel')
   await expect(chart.getByRole('heading', { name: 'المبيعات عبر الزمن' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'أداء قنوات البيع' })).toHaveCount(0)
+  await expect(chart.getByText('مقارنة بالفترة السابقة')).toHaveCount(0)
+  await expect(chart.locator('[data-name="الفترة السابقة"]')).toHaveCount(0)
   const platformControl = page.locator('.platform-control')
   await expect(platformControl.locator('summary')).toContainText('كل المنصات')
+  await expect(chart.locator('.panel-head p')).toContainText('كل المنصات')
   await platformControl.locator('summary').click()
   await expect(platformControl.getByRole('checkbox')).toHaveCount(4)
 
@@ -124,6 +128,7 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   await platformControl.getByRole('checkbox', { name:'نون' }).uncheck()
   await expect(platformControl.locator('summary')).toContainText('أمازون')
   await expect(page).toHaveURL(/platforms=amazon/)
+  await expect(chart.locator('.panel-head p')).toContainText('أمازون')
   await expect(chart.locator('.panel-head p')).toContainText('1 طلبًا')
   await expect(chart.locator('.panel-head p')).toContainText('100')
 
