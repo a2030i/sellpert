@@ -152,7 +152,10 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
 test('product catalog deducts the merchant-wide Sellpert contract fee and saves tax-inclusive shipping', async ({ page }, testInfo) => {
   await mockDashboard(page)
   await page.goto('/product-catalog')
-  await page.getByLabel('اختيار منصة حساب الربحية').selectOption('noon')
+  const platformSelect=page.getByLabel('اختيار منصة حساب الربحية')
+  await expect(platformSelect).toHaveValue('noon')
+  await expect(page.getByRole('heading',{name:'تحليل التسعير والربحية'})).toBeVisible()
+  await expect(page).toHaveURL(/platform=noon/)
 
   await expect(page.getByRole('columnheader', {name:'سعر البيع'})).toBeVisible()
   await expect(page.getByRole('columnheader', {name:'قيمة عمولة المنصة'})).toBeVisible()
@@ -168,6 +171,12 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
   await expect(row).toContainText('79.75')
   await expect(row).toContainText('29.75')
   await expect(row).toContainText('مربح')
+
+  await platformSelect.selectOption('all')
+  await expect(page.getByRole('heading',{name:'تحليل التسعير والربحية'})).toHaveCount(0)
+  await expect(page.getByRole('columnheader',{name:'سعر البيع'})).toHaveCount(0)
+  await platformSelect.selectOption('noon')
+  await expect(page.getByRole('heading',{name:'تحليل التسعير والربحية'})).toBeVisible()
 
   await page.getByLabel('تكلفة الشحن شاملة الضريبة').fill('15')
   await page.getByRole('button',{name:'حفظ'}).click()
