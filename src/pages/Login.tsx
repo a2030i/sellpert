@@ -143,211 +143,68 @@ export default function Login() {
     setLoading(false)
   }
 
+  const switchMode = (next:'login'|'register') => {
+    setMode(next); setError(''); setSuccess(''); setVerificationPending(false)
+  }
+
   return (
-    <div className="auth-page" style={styles.wrap} dir="rtl">
-      <div style={styles.grid} />
-      <div style={styles.glow} />
-
-      <div className="auth-card" style={styles.card}>
-        <div style={styles.logo}>
-          <div style={styles.logoIcon}>S</div>
-          <h1 style={styles.logoText}>Sellpert</h1>
-          <p style={styles.logoSub}>إدارة موحدة لعمليات متجرك وقنوات البيع</p>
+    <main className="auth-page" dir="rtl">
+      <aside className="auth-brand-panel" aria-label="عن Sellpert">
+        <div className="auth-brand-mark"><span>S</span><strong>Sellpert</strong></div>
+        <div className="auth-brand-copy">
+          <h1>كل قرارات متجرك<br/>في مكان واحد</h1>
+          <p>
+            تابع المبيعات والطلبات وربحية المنتجات ببيانات موحدة وواضحة.
+            <bdi className="auth-channel-list" dir="ltr">Amazon · Noon · Trendyol</bdi>
+          </p>
         </div>
+        <dl className="auth-brand-facts">
+          <div><dt>قنوات بيع في لوحة واحدة</dt><dd>3</dd></div>
+          <div><dt>دليل منتجات موحد</dt><dd>1</dd></div>
+          <div><dt>وضوح لحالة المزامنة</dt><dd>24/7</dd></div>
+        </dl>
+      </aside>
 
-        <div style={styles.tabs}>
-          <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess(''); setVerificationPending(false) }} style={{ ...styles.tab, ...(mode === 'login' ? styles.tabActive : {}) }}>تسجيل الدخول</button>
-          <button type="button" onClick={() => { setMode('register'); setError(''); setSuccess(''); setVerificationPending(false) }} style={{ ...styles.tab, ...(mode === 'register' ? styles.tabActive : {}) }}>إنشاء متجر</button>
-        </div>
+      <section className="auth-form-area">
+        <form className={`auth-card ${mode === 'register' ? 'auth-card--register' : ''}`} onSubmit={event => { event.preventDefault(); void (mode === 'login' ? handleLogin() : handleRegister()) }}>
+          <div className="auth-mobile-brand"><span>S</span><strong>Sellpert</strong></div>
+          <span className="auth-kicker">الدخول إلى مساحة العمل</span>
+          <h2>{mode === 'login' ? 'مرحبًا بعودتك' : 'أنشئ مساحة متجرك'}</h2>
+          <p className="auth-intro">{mode === 'login' ? 'أدخل بيانات الحساب وسيتعرّف النظام على صلاحياتك تلقائيًا.' : 'أنشئ حساب التاجر ثم ابدأ بإضافة بيانات قنوات البيع.'}</p>
 
-        {mode === 'register' && <>
-          <div style={styles.field}>
-            <label htmlFor="store-name" style={styles.label}>اسم المتجر</label>
-            <input id="store-name" name="store-name" autoComplete="organization" style={styles.input} value={name} onChange={e => setName(e.target.value)} placeholder="مثال: متجر النخبة" />
+          <div className="auth-tabs" role="tablist" aria-label="نوع العملية">
+            <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>تسجيل الدخول</button>
+            <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>إنشاء متجر</button>
           </div>
-          <div style={styles.field}>
-            <label htmlFor="store-phone" style={styles.label}>رقم الجوال (اختياري)</label>
-            <input id="store-phone" name="phone" autoComplete="tel" style={styles.input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="05xxxxxxxx" inputMode="tel" />
-          </div>
-        </>}
 
-        <div style={styles.field}>
-          <label htmlFor="auth-email" style={styles.label}>البريد الإلكتروني</label>
-          <input
-            id="auth-email"
-            name="email"
-            autoComplete="email"
-            style={styles.input}
-            type="email"
-            placeholder="merchant@example.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (mode === 'login' ? handleLogin() : handleRegister())}
-          />
-        </div>
+          {mode === 'register' && <div className="auth-two-columns">
+            <label className="auth-field" htmlFor="store-name"><span>اسم المتجر</span><input id="store-name" name="store-name" autoComplete="organization" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: متجر النخبة" /></label>
+            <label className="auth-field" htmlFor="store-phone"><span>رقم الجوال (اختياري)</span><input id="store-phone" name="phone" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="05xxxxxxxx" inputMode="tel" /></label>
+          </div>}
 
-        <div style={styles.field}>
-          <label htmlFor="auth-password" style={styles.label}>كلمة المرور</label>
-          <input
-            id="auth-password"
-            name="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            style={styles.input}
-            type={showPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (mode === 'login' ? handleLogin() : handleRegister())}
-          />
-          <button type="button" aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onClick={() => setShowPassword(v => !v)} style={styles.passwordToggle}>
-            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-          </button>
-        </div>
-
-        {mode === 'register' && <>
-          <div style={styles.field}>
-            <label htmlFor="auth-password-confirmation" style={styles.label}>تأكيد كلمة المرور</label>
-            <input
-              id="auth-password-confirmation"
-              name="password-confirmation"
-              autoComplete="new-password"
-              style={styles.input}
-              type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleRegister()}
-            />
-          </div>
-          <div style={styles.securityNote}>
-            <ShieldCheck size={17} />
-            <span>حساب مستقل ومجاني. تُعزل طلباتك ومنتجاتك وملفاتك عن جميع المتاجر الأخرى.</span>
-          </div>
-          <div style={styles.passwordRules}>
-            {passwordChecks(password).map(check => <span key={check.key} style={{ color: check.passed ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> {check.label}</span>)}
-            <span style={{ color: confirmPassword && password === confirmPassword ? 'var(--success-text)' : 'var(--text2)' }}><CheckCircle2 size={13} /> كلمتا المرور متطابقتان</span>
-          </div>
-          <label style={styles.legalConsent}>
-            <input
-              type="checkbox"
-              checked={legalAccepted}
-              onChange={event => setLegalAccepted(event.target.checked)}
-              style={styles.legalCheckbox}
-            />
-            <span>
-              قرأت وأوافق على{' '}
-              <a href="/terms" target="_blank" rel="noreferrer" style={styles.footerLink}>شروط الاستخدام</a>
-              {' '}و{' '}
-              <a href="/privacy" target="_blank" rel="noreferrer" style={styles.footerLink}>سياسة الخصوصية</a>
-              {' '}— الإصدار {LEGAL_DOCUMENT_VERSION}
-            </span>
+          <label className="auth-field" htmlFor="auth-email"><span>البريد الإلكتروني</span><input id="auth-email" name="email" autoComplete="email" type="email" placeholder="merchant@example.com" value={email} onChange={e => setEmail(e.target.value)} /></label>
+          <label className="auth-field auth-password" htmlFor="auth-password">
+            <span>كلمة المرور</span>
+            <input id="auth-password" name="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+            <button type="button" aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onClick={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
           </label>
-        </>}
 
-        {mode === 'login' && (
-          <button type="button" onClick={handleForgotPassword} disabled={loading || recoverCooldown > 0} style={{ ...styles.forgot, opacity: recoverCooldown > 0 ? .55 : 1 }}>
-            {recoverCooldown > 0 ? `يمكن طلب رابط جديد بعد ${recoverCooldown} ث` : 'نسيت كلمة المرور؟'}
-          </button>
-        )}
+          {mode === 'register' && <>
+            <label className="auth-field" htmlFor="auth-password-confirmation"><span>تأكيد كلمة المرور</span><input id="auth-password-confirmation" name="password-confirmation" autoComplete="new-password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></label>
+            <div className="auth-security-note"><ShieldCheck size={17}/><span>بيانات كل متجر معزولة بالكامل عن المتاجر الأخرى.</span></div>
+            <div className="auth-password-rules">{passwordChecks(password).map(check => <span key={check.key} className={check.passed ? 'passed' : ''}><CheckCircle2 size={13}/>{check.label}</span>)}<span className={confirmPassword && password === confirmPassword ? 'passed' : ''}><CheckCircle2 size={13}/>كلمتا المرور متطابقتان</span></div>
+            <label className="auth-legal"><input type="checkbox" checked={legalAccepted} onChange={event => setLegalAccepted(event.target.checked)}/><span>قرأت وأوافق على <a href="/terms" target="_blank" rel="noreferrer">شروط الاستخدام</a> و<a href="/privacy" target="_blank" rel="noreferrer">سياسة الخصوصية</a> — الإصدار {LEGAL_DOCUMENT_VERSION}</span></label>
+          </>}
 
-        {error && <div role="alert" style={styles.error}>{error}</div>}
-        {success && <div role="status" style={styles.success}>{success}</div>}
-        {mode === 'register' && verificationPending ? <button type="button" onClick={handleResendVerification} disabled={loading || resendCooldown > 0} style={{ ...styles.forgot, width:'100%', textAlign:'center', opacity: resendCooldown > 0 ? .55 : 1 }}>
-          {resendCooldown > 0 ? `يمكن إعادة إرسال التحقق بعد ${resendCooldown} ث` : 'لم تصل الرسالة؟ إعادة إرسال التحقق'}
-        </button> : null}
+          {mode === 'login' && <button type="button" className="auth-forgot" onClick={handleForgotPassword} disabled={loading || recoverCooldown > 0}>{recoverCooldown > 0 ? `يمكن طلب رابط جديد بعد ${recoverCooldown} ث` : 'نسيت كلمة المرور؟'}</button>}
+          {error && <div role="alert" className="auth-message error">{error}</div>}
+          {success && <div role="status" className="auth-message success">{success}</div>}
+          {mode === 'register' && verificationPending ? <button type="button" className="auth-forgot auth-resend" onClick={handleResendVerification} disabled={loading || resendCooldown > 0}>{resendCooldown > 0 ? `يمكن إعادة إرسال التحقق بعد ${resendCooldown} ث` : 'لم تصل الرسالة؟ إعادة إرسال التحقق'}</button> : null}
 
-        <button
-          style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}
-          onClick={mode === 'login' ? handleLogin : handleRegister}
-          disabled={loading || (mode === 'register' && registerCooldown > 0)}
-        >
-          {loading
-            ? 'جاري التنفيذ...'
-            : mode === 'login'
-              ? 'تسجيل الدخول'
-              : registerCooldown > 0
-                ? `إعادة المحاولة بعد ${registerCooldown} ث`
-                : 'إنشاء المتجر والبدء'}
-        </button>
-
-        {mode === 'login' && <p style={styles.footer}>
-          <a href="/privacy" style={styles.footerLink}>سياسة الخصوصية</a> و<a href="/terms" style={styles.footerLink}>شروط الاستخدام</a>
-        </p>}
-      </div>
-    </div>
+          <button className="auth-submit" type="submit" disabled={loading || (mode === 'register' && registerCooldown > 0)}>{loading ? 'جاري التنفيذ...' : mode === 'login' ? 'تسجيل الدخول' : registerCooldown > 0 ? `إعادة المحاولة بعد ${registerCooldown} ث` : 'إنشاء المتجر والبدء'}</button>
+          <div className="auth-footer"><span>اتصال آمن · بيانات كل متجر معزولة بالكامل</span><p><a href="/privacy">سياسة الخصوصية</a><span> · </span><a href="/terms">شروط الاستخدام</a></p></div>
+        </form>
+      </section>
+    </main>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'var(--bg)', position: 'relative', overflow: 'hidden',
-  },
-  grid: {
-    position: 'fixed', inset: 0,
-    backgroundImage: 'linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)',
-    backgroundSize: '48px 48px', opacity: 0.25, pointerEvents: 'none',
-  },
-  glow: {
-    position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)',
-    width: 600, height: 300,
-    background: 'radial-gradient(ellipse, rgba(15,149,140,0.12) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  card: {
-    position: 'relative', zIndex: 1,
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 24, padding: '40px 36px',
-    width: '100%', maxWidth: 420,
-    boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
-  },
-  logo: { textAlign: 'center', marginBottom: 32 },
-  logoIcon: {
-    width: 56, height: 56, borderRadius: 16,
-    background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 24, fontWeight: 800, color: '#fff',
-    margin: '0 auto 12px',
-    boxShadow: '0 8px 24px rgba(15,149,140,0.4)',
-  },
-  logoText: {
-    fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px',
-    background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-  },
-  logoSub: { fontSize: 13, color: 'var(--text3)', marginTop: 4 },
-  tabs: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 4, background: 'var(--bg2)', borderRadius: 11, marginBottom: 22 },
-  tab: { border: 0, borderRadius: 8, padding: '9px 8px', background: 'transparent', color: 'var(--text3)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-  tabActive: { background: 'var(--surface)', color: 'var(--accent)', boxShadow: 'var(--shadow)' },
-  field: { marginBottom: 16, position: 'relative' },
-  label: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 },
-  input: {
-    width: '100%', padding: '12px 14px',
-    background: 'var(--bg2)', border: '1px solid var(--border)',
-    borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
-    transition: 'border-color 0.2s',
-  },
-  passwordToggle: { position: 'absolute', left: 10, bottom: 9, width: 32, height: 32, border: 0, background: 'transparent', color: 'var(--text3)', display: 'grid', placeItems: 'center', cursor: 'pointer' },
-  securityNote: { display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 12px', borderRadius: 9, background: 'rgba(15,149,140,.07)', color: 'var(--text2)', fontSize: 12, lineHeight: 1.7, marginBottom: 10 },
-  passwordRules: { display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, marginBottom: 14 },
-  legalConsent: { display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 12px', marginBottom: 14, border: '1px solid var(--border)', borderRadius: 9, color: 'var(--text2)', fontSize: 12, lineHeight: 1.8, cursor: 'pointer' },
-  legalCheckbox: { width: 17, height: 17, marginTop: 3, flexShrink: 0, accentColor: 'var(--accent)' },
-  forgot: { display: 'block', margin: '-6px 0 14px auto', padding: 0, border: 0, background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' },
-  error: {
-    background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)',
-    color: 'var(--red)', borderRadius: 8, padding: '10px 14px',
-    fontSize: 12, marginBottom: 12,
-  },
-  success: { background: 'var(--success-bg)', border: '1px solid rgba(15,149,140,.2)', color: 'var(--success-text)', borderRadius: 8, padding: '10px 14px', fontSize: 12, marginBottom: 12, lineHeight: 1.6 },
-  btn: {
-    width: '100%', padding: '13px',
-    background: 'linear-gradient(135deg, var(--accent), #55bdb5)',
-    border: 'none', borderRadius: 10, color: '#fff',
-    fontSize: 14, fontWeight: 700, transition: 'opacity 0.2s',
-    boxShadow: '0 8px 24px rgba(15,149,140,0.35)',
-    marginTop: 4,
-  },
-  footer: { fontSize: 12, color: 'var(--text2)', textAlign: 'center', marginTop: 20 },
-  footerLink: { color: 'var(--accent)', fontWeight: 700, textDecoration: 'none' },
 }

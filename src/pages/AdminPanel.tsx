@@ -468,7 +468,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
       {/* ── MAIN ── */}
       <main className="admin-main" style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 240, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
         {!isMobile && <div className="admin-context-bar"><span>كل المتاجر</span><b>/</b><strong>المملكة العربية السعودية</strong></div>}
-        <div className="admin-page-heading" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
+        <div className={`admin-page-heading${view === 'overview' ? ' admin-page-heading--overview' : ''}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
           <div>
             <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{currentLabel}</h2>
             {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}

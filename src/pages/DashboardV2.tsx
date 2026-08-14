@@ -7,6 +7,7 @@ import { PLATFORM_MAP } from '../lib/constants'
 import { supabase, type Merchant, type PlatformCredential } from '../lib/supabase'
 import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
 import './DashboardV2.css'
+import './DashboardV2.next.css'
 
 type PhaseOneView = 'orders' | 'products' | 'product-catalog' | 'inventory' | 'integrations'
 type DatePreset = '7' | '30' | '90' | 'month' | 'custom'
@@ -215,11 +216,11 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
 
   return <main className="merchant-dashboard" dir="rtl">
     <header className="dashboard-header">
-      <div><span className="eyebrow">ملخص صحة المتجر</span><h1>صحة متجرك في نظرة واحدة</h1><p>كل أرقام {merchant?.name || 'متجرك'} من Amazon وNoon وTrendyol ضمن الفترة المحددة.</p></div>
+      <div><h1>صباح الخير، {merchant?.name || 'تاجر Sellpert'}</h1><p>هذه هي القرارات والإجراءات التي تؤثر على متجرك الآن.</p></div>
       <div className="dashboard-controls">
-        <div className="date-control"><CalendarDays size={17}/><select value={preset} onChange={e=>setPreset(e.target.value as DatePreset)} aria-label="الفترة الزمنية"><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></div>
+        <label className="date-control"><span>الفترة الزمنية</span><span className="control-box"><CalendarDays size={16}/><select value={preset} onChange={e=>setPreset(e.target.value as DatePreset)} aria-label="الفترة الزمنية"><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></span></label>
         <details className="platform-control">
-          <summary aria-label={`منصات البيع: ${platformFilterLabel}`}><Layers3 size={17}/><span>{platformFilterLabel}</span><ChevronDown size={15}/></summary>
+          <summary aria-label={`منصات البيع: ${platformFilterLabel}`}><span className="control-label">منصات البيع</span><span className="control-box"><Layers3 size={16}/><b>{platformFilterLabel}</b><ChevronDown size={14}/></span></summary>
           <div className="platform-menu" role="group" aria-label="تصفية جميع بيانات اللوحة حسب المنصة">
             <label className="platform-option all"><input type="checkbox" checked={selectedPlatforms.length === 0} onChange={()=>setSelectedPlatforms([])}/><span>كل المنصات</span><small>بيانات مجمعة</small></label>
             {availablePlatforms.map(platform => <label className="platform-option" key={platform}><input type="checkbox" checked={!activePlatformSet || activePlatformSet.has(platform)} onChange={()=>togglePlatform(platform)}/><span>{platformName(platform)}</span></label>)}
@@ -230,11 +231,24 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     {preset === 'custom' && <div className="custom-range"><label>من <input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)}/></label><label>إلى <input type="date" value={to} min={from} onChange={e=>setTo(e.target.value)}/></label></div>}
     {partial && !loading && <div className="quiet-notice">تعذر تحديث بعض البيانات الآن، وتم عرض أحدث بيانات متاحة.</div>}
 
-    <section className="kpi-grid">
-      <Kpi icon={<Boxes/>} label="منتجات نافدة الآن" value={loading?'—':number(outStock)} hint={selectedStock.length?`${number(outStock)} من ${number(selectedStock.length)} · ${outStockRate.toFixed(1)}%`:'لا توجد بيانات مخزون'} tone={outStock?'red':'green'} onClick={()=>navigate('inventory',{stock:'out'})}/>
-      <Kpi icon={<Clock3/>} label="قيد المعالجة الآن" value={loading?'—':number(pending)} hint={pending?'جميع الطلبات المفتوحة حاليًا':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
-      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="خلال الفترة المحددة" onClick={()=>navigate('orders')}/>
+    <section className="dashboard-command-grid">
+      <article className="decision-panel">
+        <header><h2>ما الذي يحتاج انتباهك الآن؟</h2><p>مرتبة حسب أثر الإجراء على التشغيل والمبيعات</p></header>
+        <DecisionItem tone="critical" title="طلبات تحتاج معالجة الآن" detail={`${number(pending)} طلبًا مفتوحًا يحتاج متابعة`} value={loading?'—':number(pending)} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
+        <DecisionItem tone="warning" title="منتجات نفدت من المخزون" detail={`${number(outStock)} منتجات توقف بيعها في قناة واحدة أو أكثر`} value={loading?'—':number(outStock)} onClick={()=>navigate('inventory',{stock:'out'})}/>
+      </article>
+      <article className="quick-panel">
+        <header><h2>إجراءات سريعة</h2></header>
+        <QuickAction icon={<Package size={19}/>} title="رفع تقرير Amazon / Noon" detail="استيراد ملف مبيعات أو إعلانات" onClick={()=>navigate('integrations')}/>
+        <QuickAction icon={<RefreshCw size={19}/>} title="مزامنة Trendyol" detail="سحب أحدث الطلبات والمنتجات" onClick={()=>navigate('integrations')}/>
+      </article>
+    </section>
+
+    <section className="kpi-grid" aria-label="ملخص الأداء">
       <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>navigate('orders')}/>
+      <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="من كل القنوات المحددة" onClick={()=>navigate('orders')}/>
+      <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'طلبات تحتاج متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
+      <Kpi icon={<Boxes/>} label="منتجات نافدة الآن" value={loading?'—':number(outStock)} hint={selectedStock.length?`${number(outStock)} من ${number(selectedStock.length)} · ${outStockRate.toFixed(1)}%`:'لا توجد بيانات مخزون'} tone={outStock?'red':'green'} onClick={()=>navigate('inventory',{stock:'out'})}/>
     </section>
 
     <section className="analytics-grid single">
@@ -254,7 +268,9 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
   </main>
 }
 
-function Kpi({icon,label,value,hint,tone='',onClick}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:string;onClick?:()=>void}) { return <button type="button" className={`kpi ${tone} ${onClick?'clickable':''}`} onClick={onClick}>{<span className="kpi-icon">{icon}</span>}<div><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></button> }
+function DecisionItem({tone,title,detail,value,onClick}:{tone:'critical'|'warning';title:string;detail:string;value:string;onClick:()=>void}) { return <button type="button" className={`decision-item ${tone}`} onClick={onClick}><span><strong>{title}</strong><small>{detail}</small></span><b>{value}</b></button> }
+function QuickAction({icon,title,detail,onClick}:{icon:React.ReactNode;title:string;detail:string;onClick:()=>void}) { return <button type="button" className="quick-action" onClick={onClick}><span><strong>{title}</strong><small>{detail}</small></span><i>{icon}</i></button> }
+function Kpi({icon,label,value,hint,tone='',onClick}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:string;onClick?:()=>void}) { return <button type="button" className={`kpi ${tone} ${onClick?'clickable':''}`} onClick={onClick}><span className="kpi-accent"/><span className="kpi-icon">{icon}</span><div><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></button> }
 function PanelHead({title,subtitle,action}:{title:string;subtitle:string;action?:React.ReactNode}) { return <header className="panel-head"><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</header> }
 function Empty({text}:{text:string}) { return <div className="empty"><Package size={22}/><span>{text}</span></div> }
 function RankList({items,empty,danger=false,onClick}:{items:{name:string;value:string;detail:string}[];empty:string;danger?:boolean;onClick?:()=>void}) { return items.length?<div className={`rank-list ${danger?'danger':''}`}>{items.map((x,i)=><button type="button" onClick={onClick} key={`${x.name}-${i}`}><b>{i+1}</b><span><strong>{x.name}</strong><small>{x.detail}</small></span><em>{x.value}</em></button>)}</div>:<Empty text={empty}/> }
