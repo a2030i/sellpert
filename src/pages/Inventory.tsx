@@ -25,6 +25,14 @@ const FRESHNESS_TONE = {
 } as const
 
 export default function Inventory({ merchant }: { merchant: Merchant | null }) {
+  const linkedFilters = useMemo(() => {
+    const params = new URLSearchParams(window.location.search)
+    const stock = params.get('stock')
+    return {
+      stock: ['all','low','out','stale'].includes(stock || '') ? stock as 'all'|'low'|'out'|'stale' : 'all',
+      platform: params.get('platform') || 'all',
+    }
+  }, [])
   const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
@@ -32,8 +40,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'stale'>('all')
-  const [platformFilter, setPlatformFilter] = useState('all')
+  const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'stale'>(linkedFilters.stock)
+  const [platformFilter, setPlatformFilter] = useState(linkedFilters.platform)
   const [sort, setSort] = useState<'attention' | 'name' | 'quantity'>('attention')
   const [editId, setEditId] = useState<string | null>(null)
   const [editQty, setEditQty] = useState(0)

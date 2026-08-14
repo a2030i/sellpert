@@ -76,6 +76,15 @@ const SOURCE_TONE = {
 } as const
 
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
+  const linkedFilters = useMemo(() => {
+    const params = new URLSearchParams(window.location.search)
+    const period = params.get('period')
+    const mappedPeriod = period === '7' ? 'last7' : period === '30' ? 'last30' : period === 'month' ? 'thisMonth' : period === '90' ? 'all' : period
+    return {
+      platform: params.get('platform'), status: params.get('status'), preset: params.get('preset') || mappedPeriod,
+      from: params.get('from'), to: params.get('to'),
+    }
+  }, [])
   const [orders, setOrders] = useState<Order[]>([])
   const [catalogProducts, setCatalogProducts] = useState<CatalogProductIdentity[]>([])
   const [catalogMappings, setCatalogMappings] = useState<CatalogChannelMapping[]>([])
@@ -88,10 +97,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   // Filter persistence — حفظ الفلاتر في localStorage
   const FK = 'sellpert-orders-filters:v2'
   const saved = (() => { try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
-  const [platform, setPlatform] = useState(saved.platform || 'all')
-  const [status, setStatus]     = useState(saved.status   || 'all')
+  const [platform, setPlatform] = useState(linkedFilters.platform || saved.platform || 'all')
+  const [status, setStatus]     = useState(linkedFilters.status || saved.status   || 'all')
   const [search, setSearch]     = useState(saved.search   || '')
-  const [preset, setPreset]     = useState(saved.preset   || 'all')
+  const [preset, setPreset]     = useState(linkedFilters.preset || saved.preset   || 'all')
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -183,8 +192,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       d = d.filter(o => new Date(o.order_date) >= s)
     } else if (preset === 'needsAction') d = d.filter(orderNeedsAction)
     else if (preset === 'financialReview') d = d.filter(o => Boolean(orderFinancialIssue(o)))
+    if (linkedFilters.from) d = d.filter(o => o.order_date.slice(0, 10) >= linkedFilters.from!)
+    if (linkedFilters.to) d = d.filter(o => o.order_date.slice(0, 10) <= linkedFilters.to!)
     return d
-  }, [orders, platform, status, search, preset])
+  }, [orders, platform, status, search, preset, linkedFilters])
 
   useEffect(() => { setOrderPage(0) }, [platform, status, search, preset])
 

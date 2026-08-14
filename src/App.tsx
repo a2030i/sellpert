@@ -110,7 +110,7 @@ function visibleMerchantNav(account: Merchant | null): NavGroup[] {
   })).filter(group => group.items.length > 0)
 }
 
-const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'inventory', 'integrations']
+const MOBILE_PRIMARY: View[] = ['dashboard', 'orders', 'products', 'product-catalog', 'inventory', 'integrations']
 
 function readView(): View {
   const path = window.location.pathname.replace(/^\//, '').split('/')[0] as View
@@ -288,14 +288,16 @@ export default function App() {
   }
   continueSessionRef.current = continueAuthenticatedSession
 
-  function goTo(v: View) {
+  function goTo(v: View, query?: Record<string, string>) {
     const destination = PHASE_ONE_VIEWS.has(v) ? v : 'dashboard'
     if (!canAccessMerchantView(activeMerchant, destination)) {
       toastErr('ليس لديك صلاحية لفتح هذا القسم')
       return
     }
     setView(destination)
-    window.history.pushState(null, '', '/' + (destination === 'dashboard' ? '' : destination))
+    const params = new URLSearchParams(query)
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    window.history.pushState(null, '', '/' + (destination === 'dashboard' ? '' : destination) + suffix)
     window.scrollTo(0, 0)
   }
 
@@ -564,7 +566,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   mobileLogoutBtn: {
     display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
-    height: 32, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 8,
+    height: 44, padding: '0 11px', border: '1px solid var(--border)', borderRadius: 8,
     background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'inherit',
     fontSize: 11, fontWeight: 700, cursor: 'pointer',
   },

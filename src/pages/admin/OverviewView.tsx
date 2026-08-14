@@ -1,269 +1,91 @@
-import { useState, useEffect } from 'react'
-import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS, CHART_COLORS } from './adminShared'
+import { useEffect, useMemo, useState } from 'react'
+import { S, fmt, relativeTime, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import type { Merchant, PerformanceData, SyncLog } from '../../lib/supabase'
 import { supabase } from '../../lib/supabase'
-import { filterPerformanceRows, localDateKey, performanceDateKey, summarizePerformance } from '../../lib/adminPerformance'
-import { Activity, AlertTriangle, CheckCircle2, PackageCheck, TrendingUp, Trophy, Users, Wallet } from 'lucide-react'
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
+import { localDateKey, performanceDateKey } from '../../lib/adminPerformance'
+import { Activity, AlertTriangle, CalendarDays, CheckCircle2, ChevronDown, Layers3, PackageCheck, TrendingUp, Trophy, Users, Wallet } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
-export default function OverviewView({ merchantOnly, totalGMV, activeIntegrations, totalIntegrations, openTaskCount, gmvTrend, gmvByPlatform, topMerchants, syncLogs, perfData, onNavigate }: any) {
-  const now = new Date()
-  const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const prevMonthKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`
+type Preset = '7' | '30' | 'month' | 'custom'
+type MetricPayload = {
+  range:{start:string;end:string;previous_start:string;previous_end:string}
+  totals:{gmv:number;orders:number;fees:number;active_merchants:number;rows:number;first_date:string|null;last_date:string|null;updated_at:string|null}
+  previous:{gmv:number;orders:number;active_merchants:number}
+  trend:Array<{date:string;gmv:number;orders:number}>
+  platforms:Array<{platform:string;gmv:number;orders:number}>
+  merchants:Array<{merchant_code:string;name:string;gmv:number;orders:number}>
+}
 
-  const thisMonthRows = perfData.filter((r: PerformanceData) => performanceDateKey(r).startsWith(thisMonthKey))
-  const lastMonthRows = perfData.filter((r: PerformanceData) => performanceDateKey(r).startsWith(prevMonthKey))
-  const thisMonth = summarizePerformance(thisMonthRows)
-  const lastMonth = summarizePerformance(lastMonthRows)
-  const gmvThisMonth = thisMonth.sales
-  const gmvLastMonth = lastMonth.sales
-  const gmvDelta = gmvLastMonth > 0 ? ((gmvThisMonth - gmvLastMonth) / gmvLastMonth) * 100 : null
-  const ordersThisMonth = thisMonth.volume
-  const ordersLastMonth = lastMonth.volume
-  const ordersDelta = ordersLastMonth > 0 ? ((ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100 : null
-  const activeMerchantCodes = new Set(filterPerformanceRows(perfData, 'last30', now).map((r: PerformanceData) => r.merchant_code))
-  const avgGMVPerMerchant = activeMerchantCodes.size > 0 ? gmvThisMonth / activeMerchantCodes.size : 0
-  const latestByMerchant: Record<string, string> = {}
-  for (const row of perfData as PerformanceData[]) {
-    const date = performanceDateKey(row)
-    if (date && (!latestByMerchant[row.merchant_code] || date > latestByMerchant[row.merchant_code])) latestByMerchant[row.merchant_code] = date
-  }
-  const staleCutoff = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7))
-  const staleMerchants = merchantOnly.filter((m: Merchant) => !latestByMerchant[m.merchant_code] || latestByMerchant[m.merchant_code] < staleCutoff).length
-  const failedImports = syncLogs.filter((log: SyncLog) => log.status === 'error' || log.status === 'stalled').length
-  const inactiveIntegrations = Math.max(0, totalIntegrations - activeIntegrations)
-  const topGMV = topMerchants[0]?.gmv || 1
+function pct(current:number, previous:number) { return previous ? (current - previous) / previous * 100 : current ? null : 0 }
+function dateBounds(preset:Preset, from:string, to:string) {
+  const end = new Date(); let start = new Date(end)
+  if (preset === 'custom') return [from,to] as const
+  if (preset === 'month') start = new Date(end.getFullYear(), end.getMonth(), 1)
+  else start.setDate(end.getDate() - Number(preset) + 1)
+  return [localDateKey(start),localDateKey(end)] as const
+}
+function buildFallback(rows:PerformanceData[], start:string, end:string, platforms:string[], merchantCode:string):MetricPayload {
+  const days = Math.max(1, Math.round((new Date(`${end}T00:00:00`).getTime() - new Date(`${start}T00:00:00`).getTime()) / 86400000) + 1)
+  const previousEndDate = new Date(`${start}T00:00:00`); previousEndDate.setDate(previousEndDate.getDate() - 1)
+  const previousStartDate = new Date(previousEndDate); previousStartDate.setDate(previousStartDate.getDate() - days + 1)
+  const previousStart = localDateKey(previousStartDate); const previousEnd = localDateKey(previousEndDate)
+  const inScope = (row:PerformanceData) => (!platforms.length || platforms.includes(row.platform)) && (!merchantCode || row.merchant_code === merchantCode)
+  const current = rows.filter(row => inScope(row) && performanceDateKey(row) >= start && performanceDateKey(row) <= end)
+  const previous = rows.filter(row => inScope(row) && performanceDateKey(row) >= previousStart && performanceDateKey(row) <= previousEnd)
+  const total = (source:PerformanceData[]) => ({ gmv:source.reduce((s,r)=>s+Number(r.total_sales||0),0), orders:source.reduce((s,r)=>s+Number(r.order_count||0),0), active_merchants:new Set(source.map(r=>r.merchant_code)).size })
+  const totals = total(current); const previousTotals = total(previous)
+  const trendMap = new Map<string,{gmv:number;orders:number}>(); const cursor = new Date(`${start}T12:00:00`); const last = new Date(`${end}T12:00:00`)
+  while(cursor<=last){trendMap.set(localDateKey(cursor),{gmv:0,orders:0});cursor.setDate(cursor.getDate()+1)}
+  const platformMap = new Map<string,{gmv:number;orders:number}>(); const merchantMap = new Map<string,{gmv:number;orders:number}>()
+  current.forEach(row=>{const d=trendMap.get(performanceDateKey(row));if(d){d.gmv+=Number(row.total_sales||0);d.orders+=Number(row.order_count||0)};const p=platformMap.get(row.platform)||{gmv:0,orders:0};p.gmv+=Number(row.total_sales||0);p.orders+=Number(row.order_count||0);platformMap.set(row.platform,p);const m=merchantMap.get(row.merchant_code)||{gmv:0,orders:0};m.gmv+=Number(row.total_sales||0);m.orders+=Number(row.order_count||0);merchantMap.set(row.merchant_code,m)})
+  return {range:{start,end,previous_start:previousStart,previous_end:previousEnd},totals:{...totals,fees:current.reduce((s,r)=>s+Number(r.platform_fees||0),0),rows:current.length,first_date:current.length?current.map(performanceDateKey).sort()[0]:null,last_date:current.length?current.map(performanceDateKey).sort().slice(-1)[0]||null:null,updated_at:current.length?current.map(r=>r.created_at).sort().slice(-1)[0]||null:null},previous:previousTotals,trend:[...trendMap].map(([date,v])=>({date,...v})),platforms:[...platformMap].map(([platform,v])=>({platform,...v})).sort((a,b)=>b.gmv-a.gmv),merchants:[...merchantMap].map(([merchant_code,v])=>({merchant_code,name:merchant_code,...v})).sort((a,b)=>b.gmv-a.gmv).slice(0,10)}
+}
 
-  function Delta({ v }: { v: number | null }) {
-    if (v === null) return <span style={{ fontSize: 11, color: 'var(--text3)' }}>—</span>
-    const up = v >= 0
-    return (
-      <span style={{ fontSize: 11, fontWeight: 700, color: up ? 'var(--accent2)' : 'var(--red)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', padding: '2px 7px', borderRadius: 20 }}>
-        {up ? '▲' : '▼'} {Math.abs(v).toFixed(1)}%
-      </span>
-    )
-  }
+export default function OverviewView({ merchantOnly, activeIntegrations, totalIntegrations, openTaskCount, syncLogs, perfData, onNavigate }: {merchantOnly:Merchant[];activeIntegrations:number;totalIntegrations:number;openTaskCount:number;syncLogs:SyncLog[];perfData:PerformanceData[];onNavigate:(target:string)=>void}) {
+  const params = useMemo(()=>new URLSearchParams(window.location.search),[])
+  const [preset,setPreset]=useState<Preset>(()=>['7','30','month','custom'].includes(params.get('period')||'')?params.get('period') as Preset:'30')
+  const [platforms,setPlatforms]=useState<string[]>(()=>(params.get('platforms')||'').split(',').filter(Boolean))
+  const [merchantCode,setMerchantCode]=useState(params.get('merchant')||'')
+  const today=new Date(); const [from,setFrom]=useState(params.get('from')||localDateKey(new Date(today.getFullYear(),today.getMonth(),1))); const [to,setTo]=useState(params.get('to')||localDateKey(today))
+  const [start,end]=dateBounds(preset,from,to)
+  const [remote,setRemote]=useState<MetricPayload|null>(null); const [metricsError,setMetricsError]=useState(''); const [metricsLoading,setMetricsLoading]=useState(false)
+  const availablePlatforms=useMemo(()=>[...new Set(['amazon','noon','trendyol','salla','zid','shopify',...perfData.map(row=>row.platform)])].filter(platform=>platform!=='other').sort(),[perfData])
+  const fallback=useMemo(()=>buildFallback(perfData,start,end,platforms,merchantCode),[perfData,start,end,platforms,merchantCode])
+  const metrics=remote||fallback
 
-  const kpis = [
-    { label: 'تجار نشطون خلال 30 يوم', value: activeMerchantCodes.size, Icon: Users, color: '#0f958c', sub: `من أصل ${merchantOnly.length} تاجر`, target: 'merchants' },
-    { label: 'GMV هذا الشهر', value: fmt(gmvThisMonth), Icon: Wallet, color: '#00e5b0', sub: 'الشهر الماضي: ' + fmt(gmvLastMonth), delta: gmvDelta, target: 'performance' },
-    { label: 'الوحدات / الطلبات هذا الشهر', value: ordersThisMonth.toLocaleString('ar-SA-u-nu-latn'), Icon: PackageCheck, color: '#ff9900', sub: 'الشهر الماضي: ' + ordersLastMonth.toLocaleString('ar-SA-u-nu-latn'), delta: ordersDelta, target: 'performance' },
-    { label: 'متوسط GMV / تاجر نشط', value: fmt(avgGMVPerMerchant), Icon: TrendingUp, color: '#4cc9f0', sub: 'لنفس الشهر الحالي', target: 'performance' },
-  ]
+  useEffect(()=>{const next=new URLSearchParams(window.location.search);next.set('period',preset);if(platforms.length)next.set('platforms',platforms.join(','));else next.delete('platforms');if(merchantCode)next.set('merchant',merchantCode);else next.delete('merchant');if(preset==='custom'){next.set('from',from);next.set('to',to)}else{next.delete('from');next.delete('to')}window.history.replaceState(null,'',`${window.location.pathname}?${next.toString()}`)},[preset,platforms,merchantCode,from,to])
+  useEffect(()=>{let cancelled=false;setMetricsLoading(true);setMetricsError('');supabase.rpc('admin_overview_metrics',{p_start_date:start,p_end_date:end,p_platforms:platforms.length?platforms:null,p_merchant_code:merchantCode||null}).then(({data,error})=>{if(cancelled)return;if(error){setRemote(null);setMetricsError('تعذر تشغيل التجميع السريع؛ تم عرض البيانات المحلية المتاحة.')}else setRemote(data as MetricPayload);setMetricsLoading(false)});return()=>{cancelled=true}},[start,end,platforms,merchantCode])
 
-  const actions = [
-    { label: 'استيرادات متعثرة', value: failedImports, detail: 'فشل أو تجاوز 30 دقيقة ضمن آخر 20 عملية', attention: failedImports > 0, target: 'uploads' },
-    { label: 'بيانات تحتاج تحديثاً', value: staleMerchants, detail: 'أكثر من 7 أيام أو بلا بيانات', attention: staleMerchants > 0, target: 'merchants' },
-    { label: 'مهام مفتوحة', value: openTaskCount, detail: 'تحتاج متابعة الفريق', attention: openTaskCount > 0, target: 'tasks' },
-    { label: 'اتصالات غير نشطة', value: inactiveIntegrations, detail: `${activeIntegrations} اتصال نشط`, attention: inactiveIntegrations > 0, target: 'connections' },
-  ]
+  const currentGMV=Number(metrics.totals.gmv||0), currentOrders=Number(metrics.totals.orders||0), active=Number(metrics.totals.active_merchants||0)
+  const avg=active?currentGMV/active:0, gmvDelta=pct(currentGMV,Number(metrics.previous.gmv||0)), orderDelta=pct(currentOrders,Number(metrics.previous.orders||0))
+  const failedImports=syncLogs.filter(log=>log.status==='error'||log.status==='stalled').length, inactiveIntegrations=Math.max(0,totalIntegrations-activeIntegrations)
+  const oldestDate=metrics.totals.first_date, latestDate=metrics.totals.last_date
+  const scopeLabel=`${new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'}).format(new Date(`${start}T00:00:00`))} – ${new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short',year:'numeric'}).format(new Date(`${end}T00:00:00`))}`
+  const actions=[{label:'استيرادات متعثرة',value:failedImports,detail:'ضمن آخر 20 عملية',attention:failedImports>0,target:'uploads'},{label:'مهام مفتوحة',value:openTaskCount,detail:'تحتاج متابعة الفريق',attention:openTaskCount>0,target:'tasks'},{label:'اتصالات غير نشطة',value:inactiveIntegrations,detail:`${activeIntegrations} اتصال نشط`,attention:inactiveIntegrations>0,target:'connections'}]
+  function togglePlatform(platform:string){setPlatforms(current=>current.includes(platform)?current.filter(value=>value!==platform):[...current,platform].sort())}
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-        {kpis.map((k, i) => (
-          <button key={i} type="button" onClick={() => onNavigate(k.target)} style={{ ...S.kpiCard, padding: 18, textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer', width: '100%' }}>
-            <div style={{ ...S.kpiBar, background: k.color }} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{k.label}</span>
-              <span style={{ width: 32, height: 32, borderRadius: 8, background: k.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><k.Icon size={16} color={k.color} /></span>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: k.color, letterSpacing: '-0.5px', lineHeight: 1 }}>{k.value}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-              <span style={{ fontSize: 10, color: 'var(--text3)', flex: 1 }}>{k.sub}</span>
-              {k.delta !== undefined && <Delta v={k.delta} />}
-            </div>
-          </button>
-        ))}
-      </div>
-
-      <section style={{ ...S.chartCard, padding: 16 }} aria-labelledby="admin-action-center-title">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Activity size={17} color="var(--accent)" />
-          <div>
-            <div id="admin-action-center-title" style={S.chartTitle}>مركز الإجراءات</div>
-            <div style={S.chartSub}>الموضوعات التي تحتاج قراراً أو متابعة الآن</div>
-          </div>
-        </div>
-        <div className="grid-mobile-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
-          {actions.map(action => (
-            <button type="button" key={action.label} onClick={() => onNavigate(action.target)} style={{ border: `1px solid ${action.attention ? 'rgba(232,64,64,.25)' : 'var(--border)'}`, borderRadius: 10, padding: 12, background: action.attention ? 'var(--danger-bg)' : 'var(--surface2)', textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 700 }}>{action.label}</span>
-                {action.attention ? <AlertTriangle size={14} color="var(--red)" /> : <CheckCircle2 size={14} color="var(--accent2)" />}
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: action.attention ? 'var(--red)' : 'var(--accent2)' }}>{action.value}</div>
-              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{action.detail}</div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="grid-mobile-1" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
-        <div style={S.chartCard}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div>
-              <div style={S.chartTitle}>اتجاه الإيرادات — آخر 30 يوم</div>
-              <div style={S.chartSub}>جميع التجار والمنصات مجتمعة</div>
-            </div>
-            <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '4px 10px', borderRadius: 20 }}>GMV الكلي: {fmt(totalGMV)}</span>
-          </div>
-          {gmvTrend.length === 0 ? (
-            <div style={S.emptyChart}>لا توجد بيانات بعد</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={230}>
-              <AreaChart data={gmvTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="adminGmvGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'var(--text3)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v} />
-                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)', fontSize: 12 }} formatter={(v: number) => [fmt(v), 'الإيرادات']} />
-                <Area type="monotone" dataKey="gmv" stroke="var(--accent)" strokeWidth={2.5} fill="url(#adminGmvGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div style={S.chartCard}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={S.chartTitle}>توزيع المنصات</div>
-            <div style={S.chartSub}>حصة كل منصة من GMV الكلي</div>
-          </div>
-          {gmvByPlatform.length === 0 ? (
-            <div style={S.emptyChart}>لا توجد بيانات</div>
-          ) : (
-            <div>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie data={gmvByPlatform} dataKey="gmv" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={4} startAngle={90} endAngle={-270}>
-                    {gmvByPlatform.map((_: any, i: number) => (
-                      <Cell key={i} fill={Object.values(PLATFORM_COLORS)[i] || CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, color: 'var(--text)', fontSize: 12 }} formatter={(v: number, _: any, props: any) => [fmt(v), props.payload.name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {gmvByPlatform.map((p: any, i: number) => {
-                  const pct = totalGMV > 0 ? (p.gmv / totalGMV * 100) : 0
-                  const color = Object.values(PLATFORM_COLORS)[i] || CHART_COLORS[i % CHART_COLORS.length]
-                  return (
-                    <div key={i}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{p.name}</span>
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>{pct.toFixed(1)}%</span>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 4, background: 'var(--surface2)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.6s ease' }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid-mobile-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <div style={S.chartCard}>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Trophy size={16} color="var(--warning-text)" /> أفضل التجار — GMV الكلي</div>
-            <div style={S.chartSub}>مرتبون تنازلياً</div>
-          </div>
-          {topMerchants.length === 0 ? (
-            <div style={S.emptyChart}>لا يوجد تجار بعد</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {topMerchants.map((m: any, i: number) => {
-                const pct = topGMV > 0 ? (m.gmv / topGMV * 100) : 0
-                const rankColors = ['#ffd700', '#c0c0c0', '#cd7f32', '#0f958c', '#00e5b0']
-                const rc = rankColors[i] || '#0f958c'
-                return (
-                  <div key={m.id}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-                      <span style={{ width: 22, height: 22, borderRadius: 6, background: rc + '22', color: rc, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.name}</span>
-                      <HealthScoreBadge merchantCode={m.merchant_code} />
-                      <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text3)' }}>{m.merchant_code}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: rc }}>{fmt(m.gmv)}</span>
-                    </div>
-                    <div style={{ height: 5, borderRadius: 4, background: 'var(--surface2)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${rc},${rc}99)`, borderRadius: 4, transition: 'width 0.8s ease' }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <div style={S.chartCard}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ ...S.chartTitle, display: 'flex', alignItems: 'center', gap: 7 }}><Activity size={16} color="var(--accent)" /> آخر النشاطات</div>
-            <div style={S.chartSub}>آخر عمليات إدخال ومزامنة</div>
-          </div>
-          {syncLogs.length === 0 ? (
-            <div style={S.emptyChart}>لا توجد نشاطات</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {syncLogs.map((l: SyncLog, i: number) => {
-                const isSuccess = l.status === 'success'
-                const isError = l.status === 'error' || l.status === 'stalled'
-                const isStalled = l.status === 'stalled'
-                const dotColor = isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--gold)'
-                return (
-                  <div key={l.id} style={{ display: 'flex', gap: 12, paddingBottom: i < syncLogs.length - 1 ? 12 : 0, marginBottom: i < syncLogs.length - 1 ? 12 : 0, borderBottom: i < syncLogs.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flexShrink: 0 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor }} />
-                      {i < syncLogs.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border)', marginTop: 4 }} />}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{l.merchant_code}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>·</span>
-                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>{PLATFORM_MAP[l.platform] || l.platform}</span>
-                        <span style={{ marginRight: 'auto', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: isSuccess ? 'var(--success-bg)' : isError ? 'var(--danger-bg)' : 'var(--warning-bg)', color: isSuccess ? 'var(--accent2)' : isError ? 'var(--red)' : 'var(--warning-text)' }}>
-                          {isSuccess ? 'نجح' : isStalled ? 'متعطل' : isError ? 'خطأ' : 'جاري'}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{relativeTime(l.started_at)}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+  return <div style={{display:'flex',flexDirection:'column',gap:20}}>
+    <section className="admin-overview-filters" aria-label="فلاتر جميع بيانات نظرة عامة" style={{...S.chartCard,padding:14,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'center',gap:7,color:'var(--accent)',fontWeight:800,fontSize:12}}><CalendarDays size={16}/><select aria-label="الفترة الزمنية لجميع بيانات نظرة عامة" value={preset} onChange={event=>setPreset(event.target.value as Preset)} style={S.filterSelect}><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></div>
+      <details style={{position:'relative'}}><summary style={{...S.filterSelect,listStyle:'none',display:'flex',alignItems:'center',gap:7,cursor:'pointer',minHeight:44}}><Layers3 size={15}/>{platforms.length?`${platforms.length} منصات`:'كل المنصات'}<ChevronDown size={14}/></summary><div style={{position:'absolute',zIndex:20,top:'calc(100% + 6px)',right:0,minWidth:210,padding:8,border:'1px solid var(--border)',borderRadius:10,background:'var(--surface)',boxShadow:'0 16px 40px rgba(19,43,58,.14)'}}><label style={{display:'flex',gap:8,padding:8}}><input type="checkbox" checked={!platforms.length} onChange={()=>setPlatforms([])}/>كل المنصات</label>{availablePlatforms.map(platform=><label key={platform} style={{display:'flex',gap:8,padding:8}}><input type="checkbox" checked={platforms.includes(platform)} onChange={()=>togglePlatform(platform)}/>{PLATFORM_MAP[platform]||platform}</label>)}</div></details>
+      <select aria-label="التاجر لجميع بيانات نظرة عامة" value={merchantCode} onChange={event=>setMerchantCode(event.target.value)} style={{...S.filterSelect,minHeight:44}}><option value="">كل التجار</option>{merchantOnly.map(merchant=><option key={merchant.id} value={merchant.merchant_code}>{merchant.name}</option>)}</select>
+      {preset==='custom'&&<><label style={{fontSize:11,color:'var(--text3)'}}>من <input type="date" value={from} max={to} onChange={event=>setFrom(event.target.value)} style={S.filterSelect}/></label><label style={{fontSize:11,color:'var(--text3)'}}>إلى <input type="date" value={to} min={from} onChange={event=>setTo(event.target.value)} style={S.filterSelect}/></label></>}
+      <span style={{marginRight:'auto',fontSize:11,color:'var(--text3)'}}>{metricsLoading?'جارٍ التحديث…':`${scopeLabel}${metrics.totals.updated_at?` · آخر تجميع ${relativeTime(metrics.totals.updated_at)}`:''}`}</span>
+    </section>
+    {metricsError&&<div role="status" style={{padding:'9px 12px',borderRadius:8,background:'var(--warning-bg)',color:'var(--warning-text)',fontSize:11}}>{metricsError}</div>}
+    <div data-kpi-grid style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
+      <Kpi label="التجار النشطون" value={active.toLocaleString('ar-SA-u-nu-latn')} sub={`ضمن النطاق المحدد · من ${merchantOnly.length}`} Icon={Users} color="#0f958c" onClick={()=>onNavigate('merchants')}/>
+      <Kpi label="GMV في النطاق" value={fmt(currentGMV)} sub={`الفترة السابقة: ${fmt(Number(metrics.previous.gmv||0))}`} delta={gmvDelta} Icon={Wallet} color="#00a884" onClick={()=>onNavigate('performance')}/>
+      <Kpi label="الوحدات / الطلبات" value={currentOrders.toLocaleString('ar-SA-u-nu-latn')} sub={`الفترة السابقة: ${Number(metrics.previous.orders||0).toLocaleString('ar-SA-u-nu-latn')}`} delta={orderDelta} Icon={PackageCheck} color="#d18400" onClick={()=>onNavigate('performance')}/>
+      <Kpi label="متوسط GMV / تاجر نشط" value={fmt(avg)} sub="البسط والمقام من النطاق نفسه" Icon={TrendingUp} color="#2788a8" onClick={()=>onNavigate('performance')}/>
     </div>
-  )
+    <section style={{...S.chartCard,padding:16}}><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}><Activity size={17} color="var(--accent)"/><div><div style={S.chartTitle}>مركز الإجراءات — الآن</div><div style={S.chartSub}>مؤشرات تشغيلية حالية لا تتأثر بالفترة التاريخية</div></div></div><div className="grid-mobile-2" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>{actions.map(action=><button type="button" key={action.label} onClick={()=>onNavigate(action.target)} style={{border:`1px solid ${action.attention?'rgba(232,64,64,.25)':'var(--border)'}`,borderRadius:10,padding:12,minHeight:96,background:action.attention?'var(--danger-bg)':'var(--surface2)',textAlign:'right',fontFamily:'inherit',cursor:'pointer'}}><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,fontWeight:700}}>{action.label}</span>{action.attention?<AlertTriangle size={14} color="var(--red)"/>:<CheckCircle2 size={14} color="var(--accent2)"/>}</div><strong style={{display:'block',fontSize:22,color:action.attention?'var(--red)':'var(--accent2)',marginTop:6}}>{action.value.toLocaleString('ar-SA-u-nu-latn')}</strong><small style={{color:'var(--text3)'}}>{action.detail}</small></button>)}</div></section>
+    <div className="grid-mobile-1" style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:14}}>
+      <section style={S.chartCard}><div style={{display:'flex',justifyContent:'space-between',gap:10,marginBottom:14,flexWrap:'wrap'}}><div><div style={S.chartTitle}>اتجاه الإيرادات</div><div style={S.chartSub}>{scopeLabel} · جميع الفلاتر أعلاه مطبقة</div></div><span style={{fontSize:10,color:'var(--text3)'}}>تغطية البيانات: {oldestDate||'—'} إلى {latestDate||'—'}</span></div>{metrics.trend.length?<><div aria-label={`إجمالي GMV ${fmt(currentGMV)}`}><ResponsiveContainer width="100%" height={230}><AreaChart data={metrics.trend.map(row=>({...row,label:new Date(`${row.date}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'})}))}><defs><linearGradient id="adminGmvGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--accent)" stopOpacity={.35}/><stop offset="95%" stopColor="var(--accent)" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="var(--border)"/><XAxis dataKey="label" tick={{fill:'var(--text3)',fontSize:10}} axisLine={false}/><YAxis tick={{fill:'var(--text3)',fontSize:10}} axisLine={false} tickFormatter={value=>value>=1000?`${(value/1000).toFixed(0)}k`:value}/><Tooltip formatter={(value:number)=>[fmt(value),'GMV']}/><Area type="monotone" dataKey="gmv" stroke="var(--accent)" strokeWidth={2.5} fill="url(#adminGmvGrad)" dot={false}/></AreaChart></ResponsiveContainer></div><details className="chart-data"><summary>عرض القيم كجدول</summary><div><table><thead><tr><th>التاريخ</th><th>GMV</th><th>الطلبات</th></tr></thead><tbody>{metrics.trend.map(row=><tr key={row.date}><td>{row.date}</td><td>{fmt(Number(row.gmv))}</td><td>{Number(row.orders).toLocaleString('ar-SA-u-nu-latn')}</td></tr>)}</tbody></table></div></details></>:<div style={S.emptyChart}>لا توجد بيانات في النطاق</div>}</section>
+      <section style={S.chartCard}><div style={S.chartTitle}>توزيع المنصات</div><div style={S.chartSub}>من GMV النطاق المحدد</div>{metrics.platforms.length>1?<ResponsiveContainer width="100%" height={170}><PieChart><Pie data={metrics.platforms} dataKey="gmv" nameKey="platform" innerRadius={42} outerRadius={67} paddingAngle={4}>{metrics.platforms.map(row=><Cell key={row.platform} fill={PLATFORM_COLORS[row.platform]||'#64748b'}/>)}</Pie><Tooltip formatter={(value:number,_name,props)=>[fmt(value),PLATFORM_MAP[props.payload.platform]||props.payload.platform]}/></PieChart></ResponsiveContainer>:metrics.platforms.length===1?<div style={{padding:'34px 0',textAlign:'center'}}><strong style={{display:'block',fontSize:18,color:PLATFORM_COLORS[metrics.platforms[0].platform]||'var(--accent)'}}>{PLATFORM_MAP[metrics.platforms[0].platform]||metrics.platforms[0].platform}</strong><span style={{display:'block',marginTop:8}}>{fmt(Number(metrics.platforms[0].gmv))}</span></div>:<div style={S.emptyChart}>لا توجد بيانات</div>}<div style={{display:'grid',gap:8}}>{metrics.platforms.map(row=>{const share=currentGMV?Number(row.gmv)/currentGMV*100:0;return <div key={row.platform} style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span><i style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:PLATFORM_COLORS[row.platform]||'#64748b',marginLeft:6}}/>{PLATFORM_MAP[row.platform]||row.platform}</span><b>{share.toFixed(1)}%</b></div>})}</div></section>
+    </div>
+    <div className="grid-mobile-1" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}><section style={S.chartCard}><div style={{...S.chartTitle,display:'flex',gap:7}}><Trophy size={16} color="var(--warning-text)"/>أفضل التجار ضمن النطاق</div><div style={{display:'grid',gap:11,marginTop:15}}>{metrics.merchants.length?metrics.merchants.slice(0,5).map((row,index)=><div key={row.merchant_code} style={{display:'grid',gridTemplateColumns:'24px 1fr auto',gap:8,alignItems:'center'}}><b style={{color:'var(--text3)'}}>{index+1}</b><span style={{fontSize:12}}>{merchantOnly.find(m=>m.merchant_code===row.merchant_code)?.name||row.name}</span><strong style={{fontSize:12,color:'var(--accent)'}}>{fmt(Number(row.gmv))}</strong></div>):<div style={S.emptyChart}>لا توجد بيانات</div>}</div></section><section style={S.chartCard}><div style={S.chartTitle}>آخر النشاطات — الآن</div><div style={{display:'grid',gap:10,marginTop:15}}>{syncLogs.length?syncLogs.slice(0,6).map(log=><div key={log.id} style={{display:'flex',justifyContent:'space-between',gap:10,paddingBottom:9,borderBottom:'1px solid var(--border)',fontSize:11}}><span><b>{log.merchant_code}</b> · {PLATFORM_MAP[log.platform]||log.platform}</span><span style={{color:log.status==='success'?'var(--success-text)':'var(--danger-text)'}}>{relativeTime(log.started_at)}</span></div>):<div style={S.emptyChart}>لا توجد نشاطات</div>}</div></section></div>
+  </div>
 }
 
-
-function HealthScoreBadge({ merchantCode }: { merchantCode: string }) {
-  const [score, setScore] = useState<{ score: number; rating: string } | null>(null)
-  useEffect(() => {
-    supabase.rpc('merchant_health_score', { p_merchant_code: merchantCode })
-      .then(({ data }) => setScore(data))
-  }, [merchantCode])
-  if (!score) return <span style={{ width: 50 }} />
-  const c = score.score >= 80 ? '#00b894' : score.score >= 60 ? '#4cc9f0' : score.score >= 40 ? '#ff9900' : '#e84040'
-  return (
-    <span title={score.rating} style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 12, background: c + '20', color: c, border: `1px solid ${c}40` }}>
-      {score.score}/100
-    </span>
-  )
-}
+function Kpi({label,value,sub,delta,Icon,color,onClick}:{label:string;value:string;sub:string;delta?:number|null;Icon:any;color:string;onClick:()=>void}){return <button type="button" onClick={onClick} style={{...S.kpiCard,padding:18,textAlign:'right',fontFamily:'inherit',cursor:'pointer',width:'100%',minHeight:132}}><div style={{...S.kpiBar,background:color}}/><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,color:'var(--text3)',fontWeight:700}}>{label}</span><Icon size={16} color={color}/></div><strong style={{display:'block',fontSize:22,color,marginTop:10,direction:'ltr',textAlign:'right'}}>{value}</strong><div style={{display:'flex',gap:7,alignItems:'center',marginTop:7}}><small style={{color:'var(--text3)',flex:1}}>{sub}</small>{delta!==undefined&&<span style={{fontSize:10,fontWeight:800,color:delta===null?'var(--text2)':delta>=0?'var(--success-text)':'var(--danger-text)'}}>{delta===null?'جديد':`${delta>=0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}%`}</span>}</div></button>}
