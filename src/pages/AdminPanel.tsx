@@ -1,10 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
-import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
-import { PLATFORM_MAP } from '../lib/constants'
-import { performanceDateKey } from '../lib/adminPerformance'
 import { uploadDisplayStatus } from '../lib/uploadStatus'
 // كل الشاشات الإدارية lazy: الاستيراد المباشر كان يحمّل 24 شاشة (459KB +
 // سلسلة xlsx 424KB) لكل مستخدم حتى لو كانت صلاحياته شاشتين فقط
@@ -307,6 +304,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
 
   const [merchants, setMerchants] = useState<Merchant[]>([])
   const [perfData, setPerfData]   = useState<PerformanceData[]>([])
+  const [performanceLoaded, setPerformanceLoaded] = useState(false)
   const [credentials, setCredentials] = useState<PlatformCredential[]>([])
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([])
   const [openTaskCount, setOpenTaskCount] = useState(0)
@@ -318,13 +316,8 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
   async function loadAll(silent = false) {
     if (!silent) setLoading(true)
     else setRefreshing(true)
-    const [m, p, c, uploads, tasks] = await Promise.all([
+    const [m, c, uploads, tasks] = await Promise.all([
       supabase.from('merchants').select('*').order('created_at', { ascending: false }),
-      // fetchAll: GMV الكلي يُجمع من هذا الاستعلام — اقتطاع PostgREST عند
-      // 1000 صف كان يعني أرقام نظرة عامة ناقصة بصمت
-      fetchAll<PerformanceData>((f, t) =>
-        supabase.from('performance_data').select('*')
-          .order('data_date', { ascending: false }).order('merchant_code').order('platform').range(f, t), 'بيانات الأداء'),
       listPlatformCredentials(),
       supabase.from('platform_file_uploads')
         .select('id,merchant_code,platform,status,rows_inserted,error_message,uploaded_at,finished_at')
@@ -332,7 +325,6 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
       supabase.from('merchant_requests').select('status'),
     ])
     setMerchants(m.data || [])
-    setPerfData(p)
     setCredentials(c || [])
     setSyncLogs(((uploads.data || []) as AdminUpload[]).map(upload => {
       const displayStatus = uploadDisplayStatus(upload.status, upload.uploaded_at)
@@ -352,9 +344,29 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
     setRefreshing(false)
   }
 
+  async function loadPerformance() {
+    if (performanceLoaded) return
+    const pageSize = 1000
+    const rows: PerformanceData[] = []
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase.from('performance_data').select('*')
+        .order('data_date', { ascending:false }).order('merchant_code').order('platform').range(from, from + pageSize - 1)
+      if (error) { console.error('load administration performance', error); break }
+      rows.push(...(data || []) as PerformanceData[])
+      if (!data || data.length < pageSize) break
+    }
+    setPerfData(rows)
+    setPerformanceLoaded(true)
+  }
+
+  useEffect(() => {
+    if (view === 'performance' || view === 'merchants') void loadPerformance()
+    // loadPerformance is intentionally gated by a stable loaded flag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, performanceLoaded])
+
   const merchantOnly = useMemo(() => merchants.filter(m => m.role === 'merchant'), [merchants])
 
-  const totalGMV = useMemo(() => perfData.reduce((s, r) => s + r.total_sales, 0), [perfData])
   const activeIntegrations = useMemo(() => credentials.filter(c => c.is_active).length, [credentials])
 
   const gmvByMerchant = useMemo(() => {
@@ -362,32 +374,6 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
     for (const r of perfData) map[r.merchant_code] = (map[r.merchant_code] || 0) + r.total_sales
     return map
   }, [perfData])
-
-  const gmvTrend = useMemo(() => {
-    const map: Record<string, number> = {}
-    const cutoff = Date.now() - 30 * 86400000
-    for (const r of perfData) {
-      const d = performanceDateKey(r)
-      if (!d) continue
-      if (new Date(d).getTime() < cutoff) continue
-      map[d] = (map[d] || 0) + r.total_sales
-    }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, gmv]) => ({
-      date: new Date(date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' }),
-      gmv: Math.round(gmv),
-    }))
-  }, [perfData])
-
-  const gmvByPlatform = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const r of perfData) map[r.platform] = (map[r.platform] || 0) + r.total_sales
-    return Object.entries(map).map(([platform, gmv]) => ({ platform, name: PLATFORM_MAP[platform] || platform, gmv: Math.round(gmv) }))
-  }, [perfData])
-
-  const topMerchants = useMemo(() =>
-    merchantOnly.map(m => ({ ...m, gmv: gmvByMerchant[m.merchant_code] || 0 })).sort((a, b) => b.gmv - a.gmv).slice(0, 5),
-    [merchantOnly, gmvByMerchant]
-  )
 
   const currentLabel = visibleNavFlat.find(n => n.key === view)?.label || NAV_FLAT.find(n => n.key === view)?.label || ''
 
@@ -492,7 +478,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         </div>
 
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}><div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}>
-        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} totalGMV={totalGMV} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} gmvTrend={gmvTrend} gmvByPlatform={gmvByPlatform} topMerchants={topMerchants} syncLogs={syncLogs} perfData={perfData} onNavigate={setView} />}
+        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} syncLogs={syncLogs} perfData={perfData} onNavigate={target => navTo(target as AdminView)} />}
         {view === 'team'        && <TeamDashboardView />}
         {view === 'merchants'   && (
           timelineCode

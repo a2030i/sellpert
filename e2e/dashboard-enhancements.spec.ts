@@ -56,6 +56,7 @@ async function mockDashboard(page: Page, actor=merchant) {
     }
     if (table === 'merchants') body = url.searchParams.has('id') ? [actor] : actor.role === 'admin' ? [actor,merchant] : [actor]
     if (table === 'orders') body = [
+      { order_id:'AMZ-OLD-PENDING', platform:'amazon', status:'processing', product_name:'RAW-AMAZON-CODE', sku:'AMZ-SKU-1', quantity:1, total_amount:50, currency:'SAR', order_date:'2026-06-01T08:00:00Z' },
       { order_id:'AMZ-1', platform:'amazon', status:'delivered', product_name:'RAW-AMAZON-CODE', sku:'AMZ-SKU-1', quantity:1, total_amount:100, currency:'SAR', order_date:'2026-08-12T08:00:00Z' },
       { order_id:'NOON-1', platform:'noon', status:'delivered', product_name:'RAW-NOON-CODE', sku:'NOON-SKU-1', quantity:2, total_amount:200, currency:'SAR', order_date:'2026-08-12T10:00:00Z' },
       { order_id:'TY-1', platform:'trendyol', status:'delivered', product_name:'RAW-TRENDYOL-CODE', sku:'TY-SKU-1', quantity:3, total_amount:300, currency:'SAR', order_date:'2026-08-13T10:00:00Z' },
@@ -81,6 +82,14 @@ async function mockDashboard(page: Page, actor=merchant) {
       const posted=route.request().postDataJSON() as {merchant_code?:string;sellpert_fee_type?:'none'|'percentage'|'fixed';sellpert_fee_value?:number}|null
       if (posted?.merchant_code) sellpertTerm={merchant_code:posted.merchant_code,sellpert_fee_type:posted.sellpert_fee_type||'none',sellpert_fee_value:posted.sellpert_fee_value||0}
       body=[sellpertTerm]
+    }
+    if (table === 'admin_overview_metrics') body = {
+      range:{start:'2026-07-16',end:'2026-08-14',previous_start:'2026-06-16',previous_end:'2026-07-15'},
+      totals:{gmv:600,orders:6,fees:75,active_merchants:1,rows:3,first_date:'2026-08-12',last_date:'2026-08-13',updated_at:'2026-08-14T08:00:00Z'},
+      previous:{gmv:500,orders:5,active_merchants:1},
+      trend:[{date:'2026-08-12',gmv:300,orders:3},{date:'2026-08-13',gmv:300,orders:3}],
+      platforms:[{platform:'trendyol',gmv:300,orders:3},{platform:'noon',gmv:200,orders:2},{platform:'amazon',gmv:100,orders:1}],
+      merchants:[{merchant_code:merchant.merchant_code,name:merchant.name,gmv:600,orders:6}],
     }
     if (table === 'product_channel_mappings') body = [
       { product_id:'product-1', platform:'amazon', identifier_value:'AMZ-SKU-1', source_sku:'AMZ-SKU-1', source_barcode:null, source_name:'RAW-AMAZON-CODE', match_status:'linked' },
@@ -109,10 +118,12 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   await expect(platformControl.locator('summary')).toContainText('2 منصات')
   await expect(chart.locator('.panel-head p')).toContainText('2 طلبًا')
   await expect(chart.locator('.panel-head p')).toContainText('300')
-  await expect(page.getByText('منتجات نافدة', { exact:true }).locator('..').locator('strong')).toHaveText('1')
+  await expect(page.getByText('منتجات نافدة الآن', { exact:true }).locator('..').locator('strong')).toHaveText('1')
+  await expect(page.getByText('قيد المعالجة الآن', { exact:true }).locator('..').locator('strong')).toHaveText('1')
 
   await platformControl.getByRole('checkbox', { name:'نون' }).uncheck()
   await expect(platformControl.locator('summary')).toContainText('أمازون')
+  await expect(page).toHaveURL(/platforms=amazon/)
   await expect(chart.locator('.panel-head p')).toContainText('1 طلبًا')
   await expect(chart.locator('.panel-head p')).toContainText('100')
 
@@ -123,6 +134,10 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
 
   await expect(page.getByText('خلطة القهوة الموحدة', { exact:true })).toBeVisible()
   await expect(page.getByText('RAW-TRENDYOL-CODE', { exact:true })).toHaveCount(0)
+  if (testInfo.project.name === 'mobile-chromium') {
+    await expect(page.getByRole('button',{name:'دليل المنتجات'})).toBeVisible()
+    await expect(page.getByRole('button',{name:'الربط',exact:true})).toBeVisible()
+  }
   expect(runtimeErrors).toEqual([])
 
   await page.getByRole('button', { name:'تسجيل الخروج' }).click()
@@ -168,4 +183,20 @@ test('admin sets one Sellpert contract commission for the whole merchant', async
   await expect(page.getByText('تم حفظ عمولة Sellpert لمتجر متجر الاختبار: 4 ر.س')).toBeVisible()
   await expect(page.getByRole('button',{name:'تعديل عمولة Sellpert لمتجر متجر الاختبار'})).toHaveText('4 ر.س')
   await page.screenshot({path:testInfo.outputPath('admin-sellpert-contract-fee.png'),fullPage:true})
+})
+
+test('admin overview uses one shared date, platform and merchant scope', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chromium', 'تغطية الهاتف للوحة الإدارة موجودة في اختبارات التنقل العامة')
+  await mockDashboard(page,adminMerchant)
+  await page.goto('/')
+  await expect(page.getByText('GMV في النطاق', {exact:true})).toBeVisible()
+  await expect(page.getByText('البسط والمقام من النطاق نفسه', {exact:true})).toBeVisible()
+  await page.getByLabel('الفترة الزمنية لجميع بيانات نظرة عامة').selectOption('7')
+  await page.locator('.admin-overview-filters details summary').click()
+  await page.getByRole('checkbox',{name:'أمازون'}).check()
+  await expect(page).toHaveURL(/period=7/)
+  await expect(page).toHaveURL(/platforms=amazon/)
+  await expect(page.getByText('مركز الإجراءات — الآن', {exact:true})).toBeVisible()
+  await expect(page.getByText('جميع الفلاتر أعلاه مطبقة', {exact:false})).toBeVisible()
+  await page.screenshot({path:testInfo.outputPath('admin-overview-shared-scope.png'),fullPage:true})
 })
