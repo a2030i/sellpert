@@ -24,5 +24,8 @@ verify_jwt = false
 [functions.salla-sync]
 verify_jwt = true
 
+[functions.admin-reset-merchant-password]
+verify_jwt = true
+
 [functions.impersonate-merchant]
 verify_jwt = true

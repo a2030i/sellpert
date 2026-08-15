@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from '../../lib/passwordPolicy'
+import { isStrongPassword, passwordChecks, PASSWORD_POLICY_MESSAGE } from '../../lib/passwordPolicy'
 import { S, fmt } from './adminShared'
 import type { Merchant, PlatformCredential } from '../../lib/supabase'
 import BulkOpsBar from '../../components/BulkOpsBar'
-import { Activity } from 'lucide-react'
+import { Activity, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { hasPermission } from '../../lib/permissions'
 
 type SellpertFeeType = 'none' | 'percentage' | 'fixed'
 type ContractTerm = { merchant_code:string; sellpert_fee_type:SellpertFeeType; sellpert_fee_value:number }
 type ContractEditor = { merchant:Merchant; feeType:SellpertFeeType; feeValue:string }
+type PasswordEditor = { merchant:Merchant; password:string; confirmation:string; show:boolean }
 
 export default function MerchantsView({ currentUser, merchants, gmvByMerchant, credentials, onRefresh, onImpersonate, onOpenTimeline }: any) {
   const [search, setSearch] = useState('')
@@ -21,12 +22,14 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
   const [editRole, setEditRole] = useState<{ id: string; role: string } | null>(null)
   const [contractTerms, setContractTerms] = useState<Record<string,ContractTerm>>({})
   const [contractEditor, setContractEditor] = useState<ContractEditor|null>(null)
+  const [passwordEditor, setPasswordEditor] = useState<PasswordEditor|null>(null)
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
   const canCreate = hasPermission(currentUser, 'create_merchants')
   const canEdit = hasPermission(currentUser, 'edit_merchants')
   const canDelete = hasPermission(currentUser, 'delete_merchants')
   const canImpersonate = hasPermission(currentUser, 'impersonate')
   const canUseCrm = hasPermission(currentUser, 'crm')
+  const canResetPassword = canEdit && ['admin', 'super_admin'].includes(currentUser?.role)
   const canBulkOperate = canEdit || canDelete
 
   useEffect(() => {
@@ -134,6 +137,51 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
     setContractTerms(current=>({...current,[saved.merchant_code]:saved}))
     setContractEditor(null)
     setMsg({ type:'ok', text:`تم حفظ عمولة Sellpert لمتجر ${contractEditor.merchant.name}: ${contractLabel(saved)}` })
+  }
+
+  function editPassword(merchant:Merchant) {
+    setPasswordEditor({ merchant, password:'', confirmation:'', show:false })
+    setMsg(null)
+  }
+
+  async function saveMerchantPassword() {
+    if (!passwordEditor || !canResetPassword) return
+    if (!isStrongPassword(passwordEditor.password)) {
+      setMsg({ type:'err', text:PASSWORD_POLICY_MESSAGE })
+      return
+    }
+    if (passwordEditor.password !== passwordEditor.confirmation) {
+      setMsg({ type:'err', text:'كلمتا المرور غير متطابقتين.' })
+      return
+    }
+
+    setSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('انتهت جلسة الدخول. سجّل الدخول من جديد.')
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-reset-merchant-password`, {
+        method:'POST',
+        headers:{
+          Authorization:`Bearer ${session.access_token}`,
+          apikey:import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type':'application/json',
+        },
+        body:JSON.stringify({ merchant_id:passwordEditor.merchant.id, password:passwordEditor.password }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.error) throw new Error(data.error || 'تعذر تغيير كلمة المرور.')
+
+      const merchantName = passwordEditor.merchant.name
+      setPasswordEditor(null)
+      setMsg({
+        type:'ok',
+        text:`تم تغيير كلمة مرور متجر ${merchantName}. يستطيع التاجر تسجيل الدخول بها فورًا.`,
+      })
+    } catch (error) {
+      setMsg({ type:'err', text:error instanceof Error ? error.message : 'تعذر تغيير كلمة المرور.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   function impersonate(merchant: Merchant) {
@@ -326,6 +374,16 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                             عرض
                           </button>
                         ) : null}
+                        {canResetPassword && (
+                          <button
+                            type="button"
+                            style={{ ...S.miniBtn, background:'rgba(8,130,120,.09)', color:'var(--accent-strong)', border:'1px solid rgba(8,130,120,.22)' }}
+                            onClick={() => editPassword(m)}
+                            title="تغيير كلمة مرور التاجر مباشرة"
+                          >
+                            <KeyRound size={11} style={{ display:'inline-block', verticalAlign:'middle' }}/> كلمة المرور
+                          </button>
+                        )}
                         {m.role === 'merchant' && canDelete && (
                           <button
                             style={{ ...S.miniBtn, background: 'rgba(232,64,64,0.08)', color: 'var(--red)', border: '1px solid rgba(232,64,64,0.25)' }}
@@ -370,6 +428,45 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
               <button style={S.miniBtn} disabled={saving} onClick={()=>setContractEditor(null)}>إلغاء</button>
             </div>
           </div>
+        </div>
+      )}
+      {passwordEditor && (
+        <div role="dialog" aria-modal="true" aria-label={`تغيير كلمة مرور متجر ${passwordEditor.merchant.name}`} style={{ position:'fixed', inset:0, zIndex:1700, display:'grid', placeItems:'center', padding:20, background:'rgba(7,27,43,.48)', backdropFilter:'blur(3px)' }} onMouseDown={event=>{if(event.currentTarget===event.target&&!saving)setPasswordEditor(null)}}>
+          <form onSubmit={event=>{event.preventDefault();void saveMerchantPassword()}} style={{ width:'min(470px,100%)', padding:24, border:'1px solid var(--border)', borderRadius:16, background:'var(--surface)', boxShadow:'0 24px 70px rgba(7,27,43,.28)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ width:36, height:36, borderRadius:10, display:'grid', placeItems:'center', background:'rgba(8,130,120,.1)', color:'var(--accent-strong)' }}><KeyRound size={18}/></span>
+              <div>
+                <div style={{ fontSize:17, fontWeight:800 }}>تغيير كلمة مرور التاجر</div>
+                <div style={{ marginTop:3, color:'var(--text3)', fontSize:11 }}>{passwordEditor.merchant.name} · {passwordEditor.merchant.email}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop:18, padding:10, borderRadius:9, background:'rgba(245,158,11,.09)', color:'var(--text2)', fontSize:11, lineHeight:1.8 }}>
+              سيتم تطبيق كلمة المرور مباشرة دون إرسال بريد. شاركها مع التاجر عبر قناة آمنة ولا تحتفظ بها بعد التسليم.
+            </div>
+
+            <div style={{ marginTop:16 }}>
+              <label style={S.label}>كلمة المرور الجديدة</label>
+              <div style={{ position:'relative' }}>
+                <input autoFocus autoComplete="new-password" aria-label="كلمة المرور الجديدة للتاجر" style={{ ...S.input, direction:'ltr', paddingLeft:42 }} type={passwordEditor.show?'text':'password'} value={passwordEditor.password} onChange={event=>setPasswordEditor(current=>current?{...current,password:event.target.value}:current)}/>
+                <button type="button" aria-label={passwordEditor.show?'إخفاء كلمة المرور':'إظهار كلمة المرور'} onClick={()=>setPasswordEditor(current=>current?{...current,show:!current.show}:current)} style={{ position:'absolute', left:6, top:5, width:32, height:32, display:'grid', placeItems:'center', border:0, background:'transparent', color:'var(--text3)', cursor:'pointer' }}>{passwordEditor.show?<EyeOff size={16}/>:<Eye size={16}/>}</button>
+              </div>
+            </div>
+            <div style={{ marginTop:12 }}>
+              <label style={S.label}>تأكيد كلمة المرور</label>
+              <input autoComplete="new-password" aria-label="تأكيد كلمة المرور الجديدة للتاجر" style={{ ...S.input, direction:'ltr' }} type={passwordEditor.show?'text':'password'} value={passwordEditor.confirmation} onChange={event=>setPasswordEditor(current=>current?{...current,confirmation:event.target.value}:current)}/>
+            </div>
+
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'7px 12px', marginTop:12, fontSize:9 }}>
+              {passwordChecks(passwordEditor.password).map(check=><span key={check.key} style={{ color:check.passed?'var(--accent-strong)':'var(--text3)' }}>{check.passed?'✓':'○'} {check.label}</span>)}
+              <span style={{ color:passwordEditor.confirmation&&passwordEditor.password===passwordEditor.confirmation?'var(--accent-strong)':'var(--text3)' }}>{passwordEditor.confirmation&&passwordEditor.password===passwordEditor.confirmation?'✓':'○'} كلمتا المرور متطابقتان</span>
+            </div>
+
+            <div style={{ display:'flex', gap:9, marginTop:20 }}>
+              <button type="submit" style={S.saveBtn} disabled={saving}>{saving?'جارٍ التغيير…':'تغيير كلمة المرور'}</button>
+              <button type="button" style={S.miniBtn} disabled={saving} onClick={()=>setPasswordEditor(null)}>إلغاء</button>
+            </div>
+          </form>
         </div>
       )}
     </div>
