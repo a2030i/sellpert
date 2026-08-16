@@ -20,3 +20,25 @@ where match_status = 'matched_excel';
 alter table public.omniful_order_observations
   add constraint omniful_order_observations_match_status_check
   check (match_status in ('matched_existing', 'new_shadow', 'filtered', 'invalid'));
+
+-- Preserve the system-wide opt-in MFA boundary for both server-only tables.
+-- Browser roles remain denied by grants and the explicit server-only policies.
+drop policy if exists sellpert_require_mfa_if_enrolled
+  on public.omniful_connections;
+create policy sellpert_require_mfa_if_enrolled
+  on public.omniful_connections
+  as restrictive
+  for all
+  to authenticated
+  using ((select security.mfa_access_allowed()))
+  with check ((select security.mfa_access_allowed()));
+
+drop policy if exists sellpert_require_mfa_if_enrolled
+  on public.omniful_order_observations;
+create policy sellpert_require_mfa_if_enrolled
+  on public.omniful_order_observations
+  as restrictive
+  for all
+  to authenticated
+  using ((select security.mfa_access_allowed()))
+  with check ((select security.mfa_access_allowed()));

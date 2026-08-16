@@ -164,7 +164,8 @@ async function connectionStatus(admin: any, connections: any[]) {
   if (trendyolResult.error) throw trendyolResult.error
   const uploadCounts = { amazon: 0, noon: 0 }
   for (const upload of uploadsResult.data || []) {
-    if (upload.platform === 'amazon' || upload.platform === 'noon') uploadCounts[upload.platform]++
+    const platform = String(upload.platform)
+    if (platform === 'amazon' || platform === 'noon') uploadCounts[platform]++
   }
   return {
     available: true,
