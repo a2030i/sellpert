@@ -81,7 +81,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
       ? <div style={{ ...S.tableCard, padding: 30, textAlign: 'center', color: 'var(--text3)' }}>أضف تاجرًا أولًا لبدء الربط.</div>
       : <>
           <TrendyolCard merchantCode={merchantCode} credential={credential} onChanged={loadCredentials} setNotice={setNotice} merchantMode={Boolean(lockedMerchantCode)} />
-          <OmnifulAmazonTrialCard merchantCode={merchantCode} />
+          <OmnifulAmazonTrialCard merchantCode={merchantCode} merchantMode={Boolean(lockedMerchantCode)} />
         </>}
   </section>
 }

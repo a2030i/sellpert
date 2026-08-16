@@ -40,6 +40,10 @@ Deno.serve(async req => {
     const connections = await getConnections(admin, merchantCode)
     const action = String(body?.action || 'status')
     if (action === 'status') return json(await connectionStatus(admin, connections), 200, corsHeaders)
+    if (action === 'configure_portal') {
+      await requirePortalAdmin(req, admin)
+      return json(await configurePortal(admin, merchantCode, body), 200, corsHeaders)
+    }
     if (action !== 'sync') throw new HttpError(400, 'Unsupported action')
     const enabledConnections = connections.filter((connection: any) => connection.status !== 'disabled')
     if (enabledConnections.length === 0) throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
@@ -143,6 +147,19 @@ Deno.serve(async req => {
   }
 })
 
+async function requirePortalAdmin(req: Request, admin: any) {
+  const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
+  if (token === SERVICE_KEY) return
+  const { data: { user }, error } = await admin.auth.getUser(token)
+  if (error || !user) throw new HttpError(401, 'Unauthorized')
+  const { data: caller, error: callerError } = await admin.from('merchants')
+    .select('role,is_active').eq('id', user.id).maybeSingle()
+  if (callerError) throw callerError
+  if (!caller || caller.is_active === false || !['admin', 'super_admin'].includes(caller.role)) {
+    throw new HttpError(403, 'إعداد رابط Omniful متاح للإدارة فقط')
+  }
+}
+
 async function getConnections(admin: any, merchantCode: string) {
   const { data, error } = await admin.from('omniful_connections')
     .select('id,merchant_code,platform,mode,status,scope_strategy,omniful_seller_ref,omniful_store_ref,is_enabled,last_sync_at,last_error,records_seen,records_matched,records_new,updated_at')
@@ -154,14 +171,17 @@ async function getConnections(admin: any, merchantCode: string) {
 
 async function connectionStatus(admin: any, connections: any[]) {
   const merchantCode = connections[0].merchant_code
-  const [uploadsResult, trendyolResult] = await Promise.all([
+  const [uploadsResult, trendyolResult, portalResult] = await Promise.all([
     admin.from('platform_file_uploads').select('platform')
       .eq('merchant_code', merchantCode).in('platform', ['amazon', 'noon']).eq('status', 'success'),
     admin.from('platform_credentials').select('is_active,last_sync_at')
       .eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle(),
+    admin.from('omniful_merchant_portals').select('portal_url,seller_scope_label,updated_at')
+      .eq('merchant_code', merchantCode).maybeSingle(),
   ])
   if (uploadsResult.error) throw uploadsResult.error
   if (trendyolResult.error) throw trendyolResult.error
+  if (portalResult.error) throw portalResult.error
   const uploadCounts = { amazon: 0, noon: 0 }
   for (const upload of uploadsResult.data || []) {
     const platform = String(upload.platform)
@@ -170,6 +190,12 @@ async function connectionStatus(admin: any, connections: any[]) {
   return {
     available: true,
     token_configured: Boolean(resolveAccessToken(merchantCode).token),
+    portal: {
+      configured: Boolean(portalResult.data?.portal_url),
+      url: portalResult.data?.portal_url || null,
+      seller_scope_label: portalResult.data?.seller_scope_label || null,
+      updated_at: portalResult.data?.updated_at || null,
+    },
     connections: connections.map(connection => ({
       platform: connection.platform,
       mode: connection.mode,
@@ -192,6 +218,43 @@ async function connectionStatus(admin: any, connections: any[]) {
         : null,
     })),
   }
+}
+
+async function configurePortal(admin: any, merchantCode: string, body: any) {
+  const portalUrl = normalizePortalUrl(body?.portal_url)
+  const sellerScopeLabel = clean(body?.seller_scope_label).slice(0, 160) || null
+  const now = new Date().toISOString()
+  const { data, error } = await admin.from('omniful_merchant_portals').upsert({
+    merchant_code: merchantCode,
+    portal_url: portalUrl,
+    seller_scope_label: sellerScopeLabel,
+    updated_at: now,
+  }, { onConflict: 'merchant_code' }).select('portal_url,seller_scope_label,updated_at').single()
+  if (error) throw error
+  return {
+    ok: true,
+    portal: {
+      configured: Boolean(data.portal_url),
+      url: data.portal_url,
+      seller_scope_label: data.seller_scope_label,
+      updated_at: data.updated_at,
+    },
+  }
+}
+
+function normalizePortalUrl(value: unknown): string | null {
+  const raw = clean(value)
+  if (!raw) return null
+  let parsed: URL
+  try { parsed = new URL(raw) } catch { throw new HttpError(400, 'رابط مساحة Omniful غير صالح') }
+  const hostname = parsed.hostname.toLowerCase()
+  const officialHost = hostname === 'omniful.com' || hostname.endsWith('.omniful.com')
+    || hostname === 'omniful.ai' || hostname.endsWith('.omniful.ai')
+  if (parsed.protocol !== 'https:' || !officialHost || parsed.username || parsed.password) {
+    throw new HttpError(400, 'استخدم رابط HTTPS رسميًا من نطاق Omniful فقط')
+  }
+  parsed.hash = ''
+  return parsed.toString()
 }
 
 async function fetchMarketplaceOrders(token: string, from: Date, to: Date, connections: any[]) {
