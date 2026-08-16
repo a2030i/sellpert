@@ -3,6 +3,7 @@ import {
   isAmazonOmnifulOrder,
   normalizeOmnifulObservation,
   omnifulNextCursor,
+  omnifulOrderPlatform,
   omnifulOrderRows,
 } from './omnifulOrders.ts'
 
@@ -39,4 +40,11 @@ Deno.test('normalizes an Amazon seller order without changing its payload', () =
 Deno.test('rejects rows that cannot be safely deduplicated', () => {
   assertEquals(normalizeOmnifulObservation({ omniful_order_id: 'omni-1' }), null)
   assertEquals(isAmazonOmnifulOrder({ sales_channel: { name: 'Noon' } }), false)
+})
+
+Deno.test('classifies every marketplace in the Shomool shadow trial', () => {
+  assertEquals(omnifulOrderPlatform({ sales_channel: { tag: 'amazon_sa' } }), 'amazon')
+  assertEquals(omnifulOrderPlatform({ sales_channel: { name: 'Noon KSA' } }), 'noon')
+  assertEquals(omnifulOrderPlatform({ channel_name: 'Trendyol Gulf' }), 'trendyol')
+  assertEquals(omnifulOrderPlatform({ sales_channel: { name: 'Salla' } }), null)
 })

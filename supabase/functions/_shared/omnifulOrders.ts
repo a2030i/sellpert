@@ -9,6 +9,8 @@ export type OmnifulObservation = {
   raw: Record<string, unknown>
 }
 
+export type OmnifulMarketplace = 'amazon' | 'noon' | 'trendyol'
+
 export function omnifulOrderRows(payload: unknown): Record<string, unknown>[] {
   if (!payload || typeof payload !== 'object') return []
   const body = payload as Record<string, unknown>
@@ -68,6 +70,10 @@ export function normalizeOmnifulObservation(row: Record<string, unknown>): Omnif
 }
 
 export function isAmazonOmnifulOrder(row: Record<string, unknown>): boolean {
+  return omnifulOrderPlatform(row) === 'amazon'
+}
+
+export function omnifulOrderPlatform(row: Record<string, unknown>): OmnifulMarketplace | null {
   const channel = isRecord(row.sales_channel) ? row.sales_channel : {}
   const values = [
     channel.tag,
@@ -77,8 +83,11 @@ export function isAmazonOmnifulOrder(row: Record<string, unknown>): boolean {
     row.sales_channel_name,
     row.channel,
     row.channel_name,
-  ].map(value => String(value ?? '').toLowerCase())
-  return values.some(value => value.includes('amazon'))
+  ].map(value => String(value ?? '').trim().toLowerCase())
+  if (values.some(value => value.includes('amazon'))) return 'amazon'
+  if (values.some(value => value.includes('noon'))) return 'noon'
+  if (values.some(value => value.includes('trendyol') || value.includes('trendy ol'))) return 'trendyol'
+  return null
 }
 
 function firstString(...values: unknown[]): string {

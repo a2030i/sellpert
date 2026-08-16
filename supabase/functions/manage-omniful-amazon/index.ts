@@ -7,10 +7,11 @@ import {
   parseSyncRange,
 } from '../_shared/sync.ts'
 import {
-  isAmazonOmnifulOrder,
   normalizeOmnifulObservation,
   omnifulNextCursor,
+  omnifulOrderPlatform,
   omnifulOrderRows,
+  type OmnifulMarketplace,
   type OmnifulObservation,
 } from '../_shared/omnifulOrders.ts'
 
@@ -21,7 +22,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DEFAULT_BASE_URL = 'https://prodapi.omniful.com'
-const TRIAL_PLATFORM = 'amazon'
+const TRIAL_PLATFORMS: OmnifulMarketplace[] = ['amazon', 'noon', 'trendyol']
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -36,22 +37,28 @@ Deno.serve(async req => {
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations'])
 
-    const connection = await getConnection(admin, merchantCode)
+    const connections = await getConnections(admin, merchantCode)
     const action = String(body?.action || 'status')
-    if (action === 'status') return json(await connectionStatus(admin, connection), 200, corsHeaders)
+    if (action === 'status') return json(await connectionStatus(admin, connections), 200, corsHeaders)
     if (action !== 'sync') throw new HttpError(400, 'Unsupported action')
-    if (connection.status === 'disabled') throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
+    const enabledConnections = connections.filter((connection: any) => connection.status !== 'disabled')
+    if (enabledConnections.length === 0) throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
 
-    const token = resolveAccessToken(merchantCode)
-    if (!token) {
-      await markConnectionError(admin, connection.id, 'لم يُضبط رمز وصول Omniful الآمن بعد')
+    const tokenContext = resolveAccessToken(merchantCode)
+    if (!tokenContext.token) {
+      await markConnectionsError(admin, merchantCode, 'لم يُضبط رمز وصول Omniful الآمن بعد')
       throw new HttpError(409, 'يلزم إكمال إعداد حساب Omniful المركزي قبل أول مزامنة')
+    }
+    if (tokenContext.source === 'central' && enabledConnections.some((connection: any) => (
+      !connection.omniful_seller_ref && !connection.omniful_store_ref
+    ))) {
+      throw new HttpError(409, 'يجب تحديد معرف بائع أو متجر Omniful لكل منصة قبل استخدام الرمز المركزي')
     }
 
     const { from, to } = parseSyncRange(body, 30)
     const { data: log, error: logError } = await admin.from('sync_logs').insert({
       merchant_code: merchantCode,
-      platform: 'omniful_amazon',
+      platform: 'omniful_marketplaces',
       status: 'running',
       records_synced: 0,
       details: { source: 'omniful', mode: 'shadow', canonical_write: false },
@@ -59,40 +66,63 @@ Deno.serve(async req => {
     if (logError) throw logError
     logId = log.id
 
-    const result = await fetchAmazonOrders(token, from, to, connection)
-    const comparison = await compareAndPersist(admin, merchantCode, result.amazonOrders)
+    const result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
+    const comparisons: Record<string, { matched: number; newShadow: number; duplicates: number }> = {}
+    for (const platform of TRIAL_PLATFORMS) {
+      const connection = enabledConnections.find((item: any) => item.platform === platform)
+      if (!connection) continue
+      comparisons[platform] = await compareAndPersist(
+        admin,
+        merchantCode,
+        platform,
+        result.ordersByPlatform[platform],
+      )
+    }
     const now = new Date().toISOString()
+    const platformDetails = Object.fromEntries(TRIAL_PLATFORMS.map(platform => {
+      const comparison = comparisons[platform] || { matched: 0, newShadow: 0, duplicates: 0 }
+      return [platform, {
+        records: result.ordersByPlatform[platform].length,
+        matched_existing: comparison.matched,
+        new_shadow: comparison.newShadow,
+        duplicate_provider_records: comparison.duplicates,
+      }]
+    }))
     const details = {
       source: 'omniful',
       mode: 'shadow',
       canonical_write: false,
       excel_preserved: true,
+      trendyol_api_preserved: true,
       pages: result.pages,
       provider_records: result.providerRecords,
-      amazon_records: result.amazonOrders.length,
+      platforms: platformDetails,
       filtered_other_channels: result.filteredOtherChannels,
       invalid_records: result.invalidRecords,
-      duplicate_provider_records: comparison.duplicates,
-      matched_excel: comparison.matched,
-      new_shadow: comparison.newShadow,
+      matched_existing: Object.values(comparisons).reduce((sum, item) => sum + item.matched, 0),
+      new_shadow: Object.values(comparisons).reduce((sum, item) => sum + item.newShadow, 0),
     }
 
-    const { error: connectionError } = await admin.from('omniful_connections').update({
-      status: 'active',
-      is_enabled: true,
-      last_sync_at: now,
-      last_cursor: result.lastCursor || null,
-      last_error: null,
-      records_seen: result.amazonOrders.length,
-      records_matched: comparison.matched,
-      records_new: comparison.newShadow,
-      updated_at: now,
-    }).eq('id', connection.id)
-    if (connectionError) throw connectionError
+    for (const connection of enabledConnections) {
+      const platform = connection.platform as OmnifulMarketplace
+      const comparison = comparisons[platform] || { matched: 0, newShadow: 0 }
+      const { error: connectionError } = await admin.from('omniful_connections').update({
+        status: 'active',
+        is_enabled: true,
+        last_sync_at: now,
+        last_cursor: result.lastCursor || null,
+        last_error: null,
+        records_seen: result.ordersByPlatform[platform].length,
+        records_matched: comparison.matched,
+        records_new: comparison.newShadow,
+        updated_at: now,
+      }).eq('id', connection.id)
+      if (connectionError) throw connectionError
+    }
 
     await admin.from('sync_logs').update({
       status: 'success',
-      records_synced: result.amazonOrders.length,
+      records_synced: TRIAL_PLATFORMS.reduce((sum, platform) => sum + result.ordersByPlatform[platform].length, 0),
       details,
       finished_at: now,
     }).eq('id', logId)
@@ -107,47 +137,67 @@ Deno.serve(async req => {
     if (merchantCode) {
       await admin.from('omniful_connections').update({
         status: 'error', last_error: message.slice(0, 1000), updated_at: new Date().toISOString(),
-      }).eq('merchant_code', merchantCode).eq('platform', TRIAL_PLATFORM)
+      }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).neq('status', 'disabled')
     }
     return json({ error: message }, status, corsHeaders)
   }
 })
 
-async function getConnection(admin: any, merchantCode: string) {
+async function getConnections(admin: any, merchantCode: string) {
   const { data, error } = await admin.from('omniful_connections')
     .select('id,merchant_code,platform,mode,status,scope_strategy,omniful_seller_ref,omniful_store_ref,is_enabled,last_sync_at,last_error,records_seen,records_matched,records_new,updated_at')
-    .eq('merchant_code', merchantCode).eq('platform', TRIAL_PLATFORM).maybeSingle()
+    .eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).order('platform')
   if (error) throw error
-  if (!data) throw new HttpError(404, 'تجربة Omniful غير مفعلة لهذا المتجر')
+  if (!data?.length) throw new HttpError(404, 'تجربة Omniful غير مفعلة لهذا المتجر')
   return data
 }
 
-async function connectionStatus(admin: any, connection: any) {
-  const { count, error } = await admin.from('platform_file_uploads')
-    .select('id', { count: 'exact', head: true })
-    .eq('merchant_code', connection.merchant_code).eq('platform', 'amazon').eq('status', 'success')
-  if (error) throw error
+async function connectionStatus(admin: any, connections: any[]) {
+  const merchantCode = connections[0].merchant_code
+  const [uploadsResult, trendyolResult] = await Promise.all([
+    admin.from('platform_file_uploads').select('platform')
+      .eq('merchant_code', merchantCode).in('platform', ['amazon', 'noon']).eq('status', 'success'),
+    admin.from('platform_credentials').select('is_active,last_sync_at')
+      .eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle(),
+  ])
+  if (uploadsResult.error) throw uploadsResult.error
+  if (trendyolResult.error) throw trendyolResult.error
+  const uploadCounts = { amazon: 0, noon: 0 }
+  for (const upload of uploadsResult.data || []) {
+    if (upload.platform === 'amazon' || upload.platform === 'noon') uploadCounts[upload.platform]++
+  }
   return {
     available: true,
-    connection: {
+    token_configured: Boolean(resolveAccessToken(merchantCode).token),
+    connections: connections.map(connection => ({
       platform: connection.platform,
       mode: connection.mode,
       status: connection.status,
       is_enabled: connection.is_enabled,
-      token_configured: Boolean(resolveAccessToken(connection.merchant_code)),
       last_sync_at: connection.last_sync_at,
       last_error: connection.last_error,
       records_seen: connection.records_seen,
       records_matched: connection.records_matched,
       records_new: connection.records_new,
-      excel_files_preserved: count || 0,
-    },
+      current_source: connection.platform === 'trendyol' ? 'direct_api' : 'excel',
+      current_source_active: connection.platform === 'trendyol'
+        ? Boolean(trendyolResult.data?.is_active)
+        : uploadCounts[connection.platform as 'amazon' | 'noon'] > 0,
+      current_source_items: connection.platform === 'trendyol'
+        ? null
+        : uploadCounts[connection.platform as 'amazon' | 'noon'],
+      current_source_last_sync_at: connection.platform === 'trendyol'
+        ? trendyolResult.data?.last_sync_at || null
+        : null,
+    })),
   }
 }
 
-async function fetchAmazonOrders(token: string, from: Date, to: Date, connection: any) {
+async function fetchMarketplaceOrders(token: string, from: Date, to: Date, connections: any[]) {
   const baseUrl = String(Deno.env.get('OMNIFUL_BASE_URL') || DEFAULT_BASE_URL).replace(/\/$/, '')
-  const amazonOrders: OmnifulObservation[] = []
+  const ordersByPlatform: Record<OmnifulMarketplace, OmnifulObservation[]> = {
+    amazon: [], noon: [], trendyol: [],
+  }
   let searchAfter = ''
   let pages = 0
   let providerRecords = 0
@@ -169,13 +219,15 @@ async function fetchAmazonOrders(token: string, from: Date, to: Date, connection
     const rows = omnifulOrderRows(payload)
     providerRecords += rows.length
     for (const row of rows) {
-      if (!matchesConnectionScope(row, connection)) continue
-      if (!isAmazonOmnifulOrder(row)) {
+      const platform = omnifulOrderPlatform(row)
+      if (!platform) {
         filteredOtherChannels++
         continue
       }
+      const connection = connections.find((item: any) => item.platform === platform)
+      if (!connection || !matchesConnectionScope(row, connection)) continue
       const normalized = normalizeOmnifulObservation(row)
-      if (normalized) amazonOrders.push(normalized)
+      if (normalized) ordersByPlatform[platform].push(normalized)
       else invalidRecords++
     }
     pages++
@@ -187,10 +239,11 @@ async function fetchAmazonOrders(token: string, from: Date, to: Date, connection
     searchAfter = next
   }
   if (pages >= 50 && searchAfter) throw new HttpError(502, 'تجاوز رد Omniful حد الصفحات الآمن')
-  if (providerRecords > 0 && amazonOrders.length === 0) {
-    throw new HttpError(409, 'رمز Omniful لا يعرض قناة Amazon الخاصة بعطارة شمول؛ راجع ربط البائع داخل Omniful')
+  const supportedRecords = TRIAL_PLATFORMS.reduce((sum, platform) => sum + ordersByPlatform[platform].length, 0)
+  if (providerRecords > 0 && supportedRecords === 0) {
+    throw new HttpError(409, 'رمز Omniful لا يعرض Amazon أو Noon أو Trendyol الخاصة بعطارة شمول؛ راجع ربط البائع داخل Omniful')
   }
-  return { amazonOrders, pages, providerRecords, filteredOtherChannels, invalidRecords, lastCursor: searchAfter }
+  return { ordersByPlatform, pages, providerRecords, filteredOtherChannels, invalidRecords, lastCursor: searchAfter }
 }
 
 function matchesConnectionScope(row: Record<string, unknown>, connection: any) {
@@ -211,13 +264,18 @@ function scopeCandidates(row: Record<string, unknown>) {
   }
 }
 
-async function compareAndPersist(admin: any, merchantCode: string, observations: OmnifulObservation[]) {
+async function compareAndPersist(
+  admin: any,
+  merchantCode: string,
+  platform: OmnifulMarketplace,
+  observations: OmnifulObservation[],
+) {
   const unique = new Map(observations.map(row => [row.omnifulOrderId, row]))
   const externalIds = [...new Set([...unique.values()].map(row => row.externalOrderId))]
   const canonical = new Map<string, string>()
   for (let index = 0; index < externalIds.length; index += 200) {
     const { data, error } = await admin.from('orders').select('id,order_id')
-      .eq('merchant_code', merchantCode).eq('platform', 'amazon')
+      .eq('merchant_code', merchantCode).eq('platform', platform)
       .in('order_id', externalIds.slice(index, index + 200))
     if (error) throw error
     for (const order of data || []) canonical.set(String(order.order_id), String(order.id))
@@ -228,14 +286,14 @@ async function compareAndPersist(admin: any, merchantCode: string, observations:
     const canonicalOrderId = canonical.get(order.externalOrderId) || null
     return {
       merchant_code: merchantCode,
-      platform: 'amazon',
+      platform,
       omniful_order_id: order.omnifulOrderId,
       external_order_id: order.externalOrderId,
       canonical_order_id: canonicalOrderId,
       sales_channel_tag: order.salesChannelTag || null,
       sales_channel_name: order.salesChannelName || null,
       store_name: order.storeName || null,
-      match_status: canonicalOrderId ? 'matched_excel' : 'new_shadow',
+      match_status: canonicalOrderId ? 'matched_existing' : 'new_shadow',
       source_created_at: order.sourceCreatedAt,
       source_updated_at: order.sourceUpdatedAt,
       last_seen_at: now,
@@ -248,19 +306,24 @@ async function compareAndPersist(admin: any, merchantCode: string, observations:
     })
     if (error) throw error
   }
-  const matched = rows.filter(row => row.match_status === 'matched_excel').length
+  const matched = rows.filter(row => row.match_status === 'matched_existing').length
   return { matched, newShadow: rows.length - matched, duplicates: observations.length - unique.size }
 }
 
 function resolveAccessToken(merchantCode: string) {
   const suffix = merchantCode.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
-  return String(Deno.env.get(`OMNIFUL_ACCESS_TOKEN_${suffix}`) || Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim()
+  const merchantToken = String(Deno.env.get(`OMNIFUL_ACCESS_TOKEN_${suffix}`) || '').trim()
+  if (merchantToken) return { token: merchantToken, source: 'merchant' as const }
+  return {
+    token: String(Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim(),
+    source: 'central' as const,
+  }
 }
 
-async function markConnectionError(admin: any, id: string, message: string) {
+async function markConnectionsError(admin: any, merchantCode: string, message: string) {
   await admin.from('omniful_connections').update({
     status: 'error', last_error: message, updated_at: new Date().toISOString(),
-  }).eq('id', id)
+  }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).neq('status', 'disabled')
 }
 
 function dateOnly(date: Date) { return date.toISOString().slice(0, 10) }
