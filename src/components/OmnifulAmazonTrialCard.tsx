@@ -1,186 +1,168 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CheckCircle2, CloudCog, Database, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Loader2, RefreshCw, Save, ShieldCheck, Store, Wrench } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type TrialPlatform = 'amazon' | 'noon' | 'trendyol'
 type TrialConnection = {
   platform: TrialPlatform
-  mode: 'shadow' | 'live'
   status: 'pending' | 'active' | 'error' | 'disabled'
-  is_enabled: boolean
   last_sync_at: string | null
   last_error: string | null
   records_seen: number
   records_matched: number
   records_new: number
-  current_source: 'excel' | 'direct_api'
-  current_source_active: boolean
-  current_source_items: number | null
-  current_source_last_sync_at: string | null
+}
+type OmnifulPortal = {
+  configured: boolean
+  url: string | null
+  seller_scope_label: string | null
+  updated_at: string | null
 }
 
 const PLATFORM_META: Record<TrialPlatform, { label: string; color: string }> = {
   amazon: { label: 'Amazon', color: '#ff9900' },
-  noon: { label: 'Noon', color: '#e6c900' },
+  noon: { label: 'Noon', color: '#c7ab00' },
   trendyol: { label: 'Trendyol', color: '#f56600' },
 }
 
-export default function OmnifulAmazonTrialCard({ merchantCode }: { merchantCode: string }) {
+export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = false }: { merchantCode: string; merchantMode?: boolean }) {
   const [connections, setConnections] = useState<TrialConnection[]>([])
+  const [portal, setPortal] = useState<OmnifulPortal | null>(null)
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'sync' | 'save' | null>(null)
   const [notice, setNotice] = useState('')
+  const [portalUrl, setPortalUrl] = useState('')
+  const [sellerScopeLabel, setSellerScopeLabel] = useState('')
 
   const load = useCallback(async () => {
     try {
       const result = await callOmniful({ action: 'status', merchant_code: merchantCode })
+      const nextPortal = result.portal as OmnifulPortal
       setConnections(result.connections || [])
+      setPortal(nextPortal)
+      setPortalUrl(nextPortal?.url || '')
+      setSellerScopeLabel(nextPortal?.seller_scope_label || '')
       setTokenConfigured(Boolean(result.token_configured))
       setAvailable(Boolean(result.available))
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       if (message.includes('غير مفعلة') || message.includes('404')) setAvailable(false)
-      else setNotice(message || 'تعذر قراءة حالة تجربة Omniful')
+      else setNotice(message || 'تعذر قراءة حالة بوابة Omniful')
     }
   }, [merchantCode])
 
   useEffect(() => { void load() }, [load])
 
+  const detected = useMemo(() => connections.filter(connection => connection.records_seen > 0), [connections])
+  const totals = useMemo(() => connections.reduce((sum, connection) => ({
+    seen: sum.seen + Number(connection.records_seen || 0),
+    matched: sum.matched + Number(connection.records_matched || 0),
+    fresh: sum.fresh + Number(connection.records_new || 0),
+  }), { seen: 0, matched: 0, fresh: 0 }), [connections])
+  const latestSync = useMemo(() => {
+    const dates = connections.map(connection => connection.last_sync_at)
+      .filter((value): value is string => Boolean(value)).sort()
+    return dates[dates.length - 1] || null
+  }, [connections])
+
   async function sync() {
-    setBusy(true)
-    setNotice('')
+    setBusy('sync'); setNotice('')
     try {
       const result = await callOmniful({ action: 'sync', merchant_code: merchantCode })
-      setNotice(`اكتملت المقارنة: ${formatNumber(result.matched_existing)} مطابق و${formatNumber(result.new_shadow)} جديد للمراجعة.`)
+      setNotice(`تم فحص القنوات: ${formatNumber(result.matched_existing)} طلب مطابق و${formatNumber(result.new_shadow)} طلب جديد للمراجعة.`)
       await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر تشغيل تجربة Omniful')
-    } finally {
-      setBusy(false)
-    }
+      setNotice(error instanceof Error ? error.message : 'تعذر سحب القنوات من Omniful')
+    } finally { setBusy(null) }
+  }
+
+  async function savePortal() {
+    setBusy('save'); setNotice('')
+    try {
+      const result = await callOmniful({ action: 'configure_portal', merchant_code: merchantCode, portal_url: portalUrl, seller_scope_label: sellerScopeLabel })
+      setPortal(result.portal)
+      setNotice(portalUrl ? 'تم حفظ بوابة Omniful الخاصة بالتاجر.' : 'تم حذف رابط بوابة Omniful.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'تعذر حفظ رابط Omniful')
+    } finally { setBusy(null) }
   }
 
   if (available === false || (available === null && !notice)) return null
   if (connections.length === 0) return notice ? <div style={styles.error}>{notice}</div> : null
 
-  const ready = tokenConfigured && connections.some(connection => connection.status !== 'disabled')
-  const syncDates = connections.map(connection => connection.last_sync_at).filter((value): value is string => Boolean(value)).sort()
-  const latestSync = syncDates[syncDates.length - 1] || null
+  const readyToPull = tokenConfigured && connections.some(connection => connection.status !== 'disabled')
   return <article style={styles.card}>
     <div style={styles.topLine} />
     <div style={styles.body}>
       <div style={styles.header}>
         <div style={styles.titleGroup}>
-          <div style={styles.logo}><CloudCog size={22} /></div>
-          <div>
-            <div style={styles.title}>تجربة القنوات عبر Omniful</div>
-            <div style={styles.subtitle}>Amazon وNoon وTrendyol · عطارة شمول</div>
-          </div>
+          <div style={styles.logo}><Store size={22} /></div>
+          <div><div style={styles.title}>ربط المتاجر عبر Omniful</div><div style={styles.subtitle}>بوابة واحدة لربط أي قناة متاحة داخل مساحة التاجر</div></div>
         </div>
-        <div style={styles.badges}>
-          <span style={styles.shadowBadge}>Shadow</span>
-          <span style={styles.protectedBadge}><ShieldCheck size={12} /> المصادر الحالية مستمرة</span>
+        <span style={styles.protectedBadge}><ShieldCheck size={13} /> تجربة معزولة وآمنة</span>
+      </div>
+
+      <div style={styles.flow}>
+        <FlowStep number="1" title="افتح Omniful" detail="مساحة مقيدة لهذا التاجر فقط" active={Boolean(portal?.configured)} />
+        <FlowStep number="2" title="اربط القنوات" detail="من شاشة Sales Channel Apps" active={Boolean(portal?.configured)} />
+        <FlowStep number="3" title="اسحب إلى Sellpert" detail="نرصد القناة من الطلبات الفعلية" active={totals.seen > 0} />
+      </div>
+
+      <div style={styles.actionsPanel}>
+        <div><strong style={{ display: 'block', fontSize: 13 }}>{portal?.seller_scope_label || 'مساحة عطارة شمول'}</strong><span style={styles.helperText}>{portal?.configured ? 'رابط مساحة Omniful جاهز' : 'بانتظار إضافة رابط مساحة Omniful من الإدارة'}</span></div>
+        <div style={styles.actionButtons}>
+          <button type="button" onClick={() => portal?.url && window.open(portal.url, '_blank', 'noopener,noreferrer')} disabled={!portal?.url} style={{ ...styles.primaryButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> فتح Omniful وربط المتاجر</button>
+          <button type="button" onClick={() => void sync()} disabled={busy !== null || !readyToPull} style={{ ...styles.secondaryButton, opacity: busy !== null || !readyToPull ? 0.5 : 1 }}>{busy === 'sync' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق واسحب القنوات</button>
         </div>
       </div>
 
-      <div style={styles.safetyBox}>
-        <Database size={18} color="var(--accent)" />
-        <div>
-          <strong style={{ display: 'block' }}>لا تغيير على أي ربط يعمل الآن</strong>
-          <span style={{ display: 'block' }}>Amazon وNoon يبقيان على Excel، وTrendyol يبقى على API المباشر. Omniful يقارن فقط ولا يكتب فوق الطلبات أو يضاعف المبيعات.</span>
+      {!merchantMode ? <details style={styles.adminSettings} open={!portal?.configured}>
+        <summary style={styles.settingsSummary}><Wrench size={14} /> إعداد الإدارة للتجربة</summary>
+        <div style={styles.settingsGrid}>
+          <label style={styles.fieldLabel}>رابط مساحة Omniful المقيدة<input dir="ltr" type="url" value={portalUrl} onChange={event => setPortalUrl(event.target.value)} placeholder="https://...omniful.com/..." style={styles.input} /></label>
+          <label style={styles.fieldLabel}>اسم نطاق البائع<input value={sellerScopeLabel} onChange={event => setSellerScopeLabel(event.target.value)} placeholder="عطارة شمول" style={styles.input} /></label>
+          <button type="button" onClick={() => void savePortal()} disabled={busy !== null} style={styles.saveButton}>{busy === 'save' ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ البوابة</button>
         </div>
+        <p style={styles.adminNote}>لا تضع رابط الحساب المركزي بصلاحية مدير. أنشئ مستخدمًا أو مساحة Seller مقيدة بعطارة شمول ثم الصق رابطها هنا.</p>
+      </details> : null}
+
+      <div style={styles.discoveryRow}>
+        <div><span style={styles.sectionLabel}>القنوات المرصودة من Omniful</span><div style={styles.channelChips}>
+          {detected.length > 0 ? detected.map(connection => <span key={connection.platform} style={{ ...styles.channelChip, borderColor: `${PLATFORM_META[connection.platform].color}66` }}><i style={{ ...styles.dot, background: PLATFORM_META[connection.platform].color }} />{PLATFORM_META[connection.platform].label} · {formatNumber(connection.records_seen)}</span>) : <span style={styles.emptyChannels}>لم نرصد طلبات من قناة بعد</span>}
+        </div></div>
+        {latestSync ? <span style={styles.lastSync}><CheckCircle2 size={14} /> آخر فحص {formatDate(latestSync)}</span> : null}
       </div>
 
-      <div style={styles.platformGrid}>
-        {connections.map(connection => <PlatformTrial key={connection.platform} connection={connection} />)}
-      </div>
-
-      {notice ? <div style={notice.startsWith('اكتملت') ? styles.success : styles.error}>{notice}</div> : null}
-
-      <div style={styles.footer}>
-        <div style={styles.statusText}>
-          {latestSync
-            ? <><CheckCircle2 size={15} color="var(--success-text)" /> آخر مقارنة {formatDate(latestSync)}</>
-            : ready ? 'جاهز لأول مقارنة للقنوات الثلاث' : 'بانتظار إكمال إعداد Omniful المركزي'}
-        </div>
-        <button type="button" onClick={() => void sync()} disabled={busy || !ready} style={{ ...styles.button, opacity: busy || !ready ? 0.55 : 1 }}>
-          {busy ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />}
-          {busy ? 'جاري جلب القنوات…' : 'مقارنة القنوات الثلاث'}
-        </button>
-      </div>
+      {totals.seen > 0 ? <div style={styles.metrics}><Metric label="طلبات Omniful" value={totals.seen} /><Metric label="مطابقة للمصادر الحالية" value={totals.matched} /><Metric label="جديدة للمراجعة" value={totals.fresh} /></div> : null}
+      <div style={styles.safetyBox}><ShieldCheck size={17} /><span><strong>المصادر الحالية لن تتعطل:</strong> Amazon وNoon يستمران عبر Excel، وTrendyol يستمر عبر API المباشر. بيانات Omniful للمقارنة فقط حتى اعتمادها.</span></div>
+      {notice ? <div style={notice.startsWith('تم') ? styles.success : styles.error}>{notice}</div> : null}
     </div>
   </article>
 }
 
-function PlatformTrial({ connection }: { connection: TrialConnection }) {
-  const meta = PLATFORM_META[connection.platform]
-  const sourceLabel = connection.current_source === 'direct_api'
-    ? `API المباشر ${connection.current_source_active ? 'يعمل' : 'غير مفعّل'}`
-    : `${formatNumber(connection.current_source_items)} ملفات Excel محفوظة`
-  return <section style={{ ...styles.platformCard, borderTop: `3px solid ${meta.color}` }}>
-    <div style={styles.platformHeader}>
-      <strong>{meta.label}</strong>
-      <span style={{ ...styles.sourceBadge, color: connection.current_source_active ? 'var(--success-text)' : 'var(--text3)' }}>{sourceLabel}</span>
-    </div>
-    <div style={styles.metrics}>
-      <Metric label="Omniful" value={connection.records_seen} />
-      <Metric label="متطابق" value={connection.records_matched} />
-      <Metric label="جديد" value={connection.records_new} />
-    </div>
-    {connection.last_error ? <div style={styles.inlineError}>{connection.last_error}</div> : null}
-  </section>
+function FlowStep({ number, title, detail, active }: { number: string; title: string; detail: string; active: boolean }) {
+  return <div style={styles.flowStep}><span style={{ ...styles.stepNumber, background: active ? 'var(--accent)' : 'var(--surface3)', color: active ? '#fff' : 'var(--text3)' }}>{number}</span><div><strong>{title}</strong><small>{detail}</small></div></div>
 }
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return <div style={styles.metric}><span>{label}</span><strong>{formatNumber(value)}</strong></div>
-}
+function Metric({ label, value }: { label: string; value: number }) { return <div style={styles.metric}><span>{label}</span><strong>{formatNumber(value)}</strong></div> }
 
 async function callOmniful(body: Record<string, unknown>) {
   const { data: { session } } = await supabase.auth.getSession()
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-omniful-amazon`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session?.access_token || ''}`,
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-omniful-amazon`, { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token || ''}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
   if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`)
   return result
 }
 
 function formatNumber(value: unknown) { return Number(value || 0).toLocaleString('en-US') }
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short', timeStyle: 'short' })
-}
+function formatDate(value: string) { return new Date(value).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) }
 
 const styles: Record<string, CSSProperties> = {
-  card: { maxWidth: 760, marginTop: 14, background: 'var(--surface)', border: '1px solid rgba(255,153,0,.35)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' },
-  topLine: { height: 3, background: 'linear-gradient(90deg,#ff9900,#e6c900,#f56600,#192a3e)' },
-  body: { padding: 18 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' },
-  titleGroup: { display: 'flex', alignItems: 'center', gap: 12 },
-  logo: { width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: 'rgba(255,153,0,.12)', color: '#c87300' },
-  title: { fontSize: 15, fontWeight: 850, color: 'var(--text)' },
-  subtitle: { marginTop: 3, fontSize: 11, color: 'var(--text3)' },
-  badges: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  shadowBadge: { borderRadius: 20, padding: '4px 9px', fontSize: 10, fontWeight: 800, background: 'rgba(25,42,62,.09)', color: 'var(--text2)' },
-  protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 20, padding: '4px 9px', fontSize: 10, fontWeight: 800, background: 'var(--success-bg)', color: 'var(--success-text)' },
-  safetyBox: { display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 16, padding: 12, borderRadius: 11, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', fontSize: 11, lineHeight: 1.7 },
-  platformGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(205px,1fr))', gap: 9, marginTop: 12 },
-  platformCard: { padding: 12, borderRadius: 11, border: '1px solid var(--border)', background: 'var(--surface2)' },
-  platformHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 12 },
-  sourceBadge: { fontSize: 9, fontWeight: 750 },
-  metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 5 },
-  metric: { padding: '7px 6px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--text3)', fontSize: 9 },
-  inlineError: { marginTop: 8, fontSize: 9, color: 'var(--danger-text)', lineHeight: 1.5 },
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 },
-  statusText: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' },
-  button: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 14px', border: 0, borderRadius: 9, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
-  success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 },
-  error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
+  card: { maxWidth: 760, marginTop: 14, background: 'var(--surface)', border: '1px solid rgba(25,42,62,.2)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }, topLine: { height: 3, background: 'linear-gradient(90deg,#192a3e,#0e8177)' }, body: { padding: 18 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, titleGroup: { display: 'flex', alignItems: 'center', gap: 12 }, logo: { width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: 'rgba(14,129,119,.11)', color: 'var(--accent)' }, title: { fontSize: 15, fontWeight: 850, color: 'var(--text)' }, subtitle: { marginTop: 3, fontSize: 11, color: 'var(--text3)' }, protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 20, padding: '5px 10px', fontSize: 10, fontWeight: 800, background: 'var(--success-bg)', color: 'var(--success-text)' },
+  flow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8, alignItems: 'center', marginTop: 18, padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface2)' }, flowStep: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontSize: 11 }, stepNumber: { flex: '0 0 auto', width: 25, height: 25, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 },
+  actionsPanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,rgba(14,129,119,.08),rgba(25,42,62,.04))', border: '1px solid rgba(14,129,119,.2)' }, helperText: { display: 'block', marginTop: 4, fontSize: 10, color: 'var(--text3)' }, actionButtons: { display: 'flex', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
+  adminSettings: { marginTop: 12, padding: 12, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)' }, settingsSummary: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, settingsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, alignItems: 'end', marginTop: 12 }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11 }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, adminNote: { margin: '9px 0 0', color: 'var(--warning-text)', fontSize: 9, lineHeight: 1.6 },
+  discoveryRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }, sectionLabel: { display: 'block', marginBottom: 7, color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelChips: { display: 'flex', gap: 6, flexWrap: 'wrap' }, channelChip: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 9px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: 10, fontWeight: 750 }, dot: { width: 7, height: 7, borderRadius: 99 }, emptyChannels: { color: 'var(--text3)', fontSize: 10 }, lastSync: { display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success-text)', fontSize: 10 }, metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12 }, metric: { padding: 10, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9 }, safetyBox: { display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 14, padding: 11, borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
 }
