@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, KeyRound, Loader2, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import TrendyolActionCenter from '../../components/TrendyolActionCenter'
+import OmnifulAmazonTrialCard from '../../components/OmnifulAmazonTrialCard'
 import { supabase, type Merchant } from '../../lib/supabase'
 import { S } from './adminShared'
 
@@ -78,7 +79,10 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
 
     {!merchantCode
       ? <div style={{ ...S.tableCard, padding: 30, textAlign: 'center', color: 'var(--text3)' }}>أضف تاجرًا أولًا لبدء الربط.</div>
-      : <TrendyolCard merchantCode={merchantCode} credential={credential} onChanged={loadCredentials} setNotice={setNotice} merchantMode={Boolean(lockedMerchantCode)} />}
+      : <>
+          <TrendyolCard merchantCode={merchantCode} credential={credential} onChanged={loadCredentials} setNotice={setNotice} merchantMode={Boolean(lockedMerchantCode)} />
+          <OmnifulAmazonTrialCard merchantCode={merchantCode} />
+        </>}
   </section>
 }
 
