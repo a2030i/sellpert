@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Calculator, ChevronLeft, Download, Link2, PackageSearch, Save, Search, Truck, Unlink, X } from 'lucide-react'
 import { supabase, type Merchant } from '../lib/supabase'
 import { toastErr, toastOk } from '../components/Toast'
@@ -15,7 +15,7 @@ type FinanceSetting = { platform:string; shipping_cost_tax_inclusive:number }
 type ContractTerm = { sellpert_fee_type:SellpertFeeType; sellpert_fee_value:number }
 type ExactProductRate = { id:string; commission_rate:number|null }
 const EMPTY_STATS: Stats = { total:0, linked:0, review:0, unknown:0 }
-const PAGE_SIZE = 50
+const PAGE_SIZE = 10
 const platformNames: Record<string,string> = { noon:'Noon', amazon:'Amazon', trendyol:'Trendyol', salla:'Salla', zid:'Zid', shopify:'Shopify', other:'أخرى' }
 const platformPriority = ['amazon','noon','trendyol','salla','zid','shopify']
 
@@ -36,6 +36,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   const [exactRates,setExactRates] = useState<ExactProductRate[]>([]), [financeSettings,setFinanceSettings] = useState<FinanceSetting[]>([])
   const [contractTerm,setContractTerm] = useState<ContractTerm|null>(null)
   const [shippingInput,setShippingInput] = useState('0'), [savingShipping,setSavingShipping] = useState(false)
+  const topScrollRef=useRef<HTMLDivElement|null>(null), tableScrollRef=useRef<HTMLDivElement|null>(null), tableRef=useRef<HTMLTableElement|null>(null), scrollSpacerRef=useRef<HTMLDivElement|null>(null)
 
   useEffect(() => { setPage(1) }, [status,platform,deferredSearch])
   useEffect(() => {
@@ -113,6 +114,23 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
     window.history.replaceState(null,'',`${window.location.pathname}${query?`?${query}`:''}`)
   },[platform])
 
+  useEffect(()=>{
+    const table=tableRef.current, spacer=scrollSpacerRef.current
+    if (!table || !spacer) return
+    const updateWidth=()=>{ spacer.style.width=`${table.scrollWidth}px` }
+    updateWidth()
+    const observer=new ResizeObserver(updateWidth)
+    observer.observe(table)
+    return ()=>observer.disconnect()
+  },[financialMode,items.length])
+
+  function syncHorizontalScroll(source:'top'|'table') {
+    const top=topScrollRef.current, table=tableScrollRef.current
+    if (!top || !table) return
+    if (source==='top' && table.scrollLeft!==top.scrollLeft) table.scrollLeft=top.scrollLeft
+    if (source==='table' && top.scrollLeft!==table.scrollLeft) top.scrollLeft=table.scrollLeft
+  }
+
   function profitabilityFor(item:CatalogItem): ProductProfitability | null {
     if (!financialMode || !item.id) return null
     const price=priceByProduct.get(item.id)
@@ -166,7 +184,9 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
     <section className="catalog-toolbar"><label className="catalog-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="البحث بالاسم أو SKU أو الباركود"/></label><select aria-label="اختيار منصة حساب الربحية" value={platform} onChange={e=>setPlatform(e.target.value)}>{!platform?<option value="" disabled>جاري تحديد المنصة…</option>:null}<option value="all">كل المنصات — عرض الربط</option>{Object.entries(platformNames).slice(0,-1).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><select aria-label="تصفية حسب حالة الربط" value={status} onChange={e=>setStatus(e.target.value as typeof status)}><option value="all">كل الحالات</option><option value="linked">مرتبط</option><option value="review">يحتاج مراجعة</option><option value="unknown">غير معروف</option></select></section>
     {financialMode?<section className="catalog-profitability-section" aria-labelledby="catalog-profitability-title"><header className="catalog-profitability-head"><div><Calculator size={18}/><span><h2 id="catalog-profitability-title">تحليل التسعير والربحية</h2><small>تتحدث جميع القيم حسب منصة {platformNames[platform]||platform}</small></span></div><em>تقدير أسوأ الأحوال</em></header><div className="catalog-shipping"><div><Truck size={18}/><span><strong>تكلفة الشحن في {platformNames[platform]||platform}</strong><small>أدخل أسوأ تكلفة متوقعة للطلب الواحد، شاملة ضريبة القيمة المضافة.</small></span></div><label><span>الشحن شامل الضريبة</span><input aria-label="تكلفة الشحن شاملة الضريبة" type="number" min="0" step="0.01" value={shippingInput} onChange={event=>setShippingInput(event.target.value)}/><em>ر.س</em></label><button disabled={savingShipping} onClick={saveShippingCost}><Save size={15}/>{savingShipping?'جارٍ الحفظ':'حفظ'}</button></div><div className="catalog-finance-hint">عمولة Sellpert المعروضة تفترض طلبًا ناجحًا يحتوي هذا المنتج فقط: النسبة على سعر البيع والشحن، والمبلغ الثابت مرة واحدة للطلب. لا تُستحق العمولة على الطلب الملغي أو المرتجع.</div></section>:<div className="catalog-finance-hint">عرض ربط المنتجات عبر كل المنصات. اختر منصة من الفلتر للعودة إلى تحليل التسعير والربحية.</div>}
     {error?<div className="catalog-error">تعذر تحميل دليل المنتجات: {error}</div>:null}
-    <section className={`catalog-table-wrap ${financialMode?'financial':''}`} aria-busy={loading}><table className="catalog-table"><thead>{!financialMode?<tr><th>المنتج الموحد</th><th>المعرّفات المرتبطة</th><th>حالة الربط</th><th>إجمالي المخزون</th><th></th></tr>:<tr><th>المنتج الموحد</th><th>سعر البيع</th><th>تكلفة المنتج</th><th>نسبة عمولة المنصة</th><th>قيمة عمولة المنصة<br/><small>شاملة الضريبة</small></th><th>تكلفة الشحن<br/><small>شاملة الضريبة</small></th><th>عمولة Sellpert<br/><small>للطلب الناجح فقط</small></th><th>صافي المبلغ الواصل</th><th>جدوى التسعير<br/><small>في أسوأ الأحوال</small></th><th></th></tr>}</thead><tbody>{!loading&&items.map((item,index)=>{const financial=profitabilityFor(item);return <tr key={item.id||item.mappings[0]?.id||index} className={selected===item?'selected':''} onClick={()=>setSelected(item)}><td><div className="catalog-product-cell">{item.image_url?<img src={item.image_url} alt=""/>:<span className="catalog-placeholder"><PackageSearch size={19}/></span>}<div><strong>{item.name||'منتج بلا اسم'}</strong><small>{item.sku||item.barcode||'—'}</small></div></div></td>{!financialMode?<><td><div className="catalog-mappings">{item.mappings.length?item.mappings.map(m=><span key={m.id}><b>{platformNames[m.platform]||m.platform}</b>{m.identifier_value}</span>):<span>لا توجد معرّفات</span>}</div></td><td><Status value={item.match_status}/></td><td><strong className="latin-number">{Number(item.inventory).toLocaleString('en-US')}</strong></td></>:<><MoneyCell value={financial?.salePrice}/><MoneyCell value={item.cost_price}/><td><strong className="latin-number">{financial?.commissionRate!=null?`${formatNumber(financial.commissionRate)}%`:'—'}</strong></td><MoneyCell value={financial?.commissionValue}/><MoneyCell value={financial?.shippingCost}/><MoneyCell value={financial?.sellpertCommissionValue}/><MoneyCell value={financial?.netReceived} strong tone={financial?.netReceived!=null&&financial.netReceived<0?'danger':undefined}/><td><Viability value={financial}/></td></>}<td><button className="catalog-row-action" aria-label={`عرض ${item.name}`}><ChevronLeft size={17}/></button></td></tr>})}</tbody></table>
+    <section className={`catalog-table-wrap ${financialMode?'financial':''}`} aria-busy={loading}>
+      {financialMode?<div ref={topScrollRef} className="catalog-table-top-scroll" role="region" aria-label="تمرير الجدول أفقيًا من الأعلى" tabIndex={0} onScroll={()=>syncHorizontalScroll('top')}><div ref={scrollSpacerRef}/></div>:null}
+      <div ref={tableScrollRef} className="catalog-table-scroll" onScroll={()=>syncHorizontalScroll('table')}><table ref={tableRef} className="catalog-table"><thead>{!financialMode?<tr><th>المنتج الموحد</th><th>المعرّفات المرتبطة</th><th>حالة الربط</th><th>إجمالي المخزون</th><th></th></tr>:<tr><th>المنتج الموحد</th><th>سعر البيع</th><th>تكلفة المنتج</th><th>نسبة عمولة المنصة</th><th>قيمة عمولة المنصة<br/><small>شاملة الضريبة</small></th><th>تكلفة الشحن<br/><small>شاملة الضريبة</small></th><th>عمولة Sellpert<br/><small>للطلب الناجح فقط</small></th><th>صافي المبلغ الواصل</th><th>جدوى التسعير<br/><small>في أسوأ الأحوال</small></th><th></th></tr>}</thead><tbody>{!loading&&items.map((item,index)=>{const financial=profitabilityFor(item);return <tr key={item.id||item.mappings[0]?.id||index} className={selected===item?'selected':''} onClick={()=>setSelected(item)}><td><div className="catalog-product-cell">{item.image_url?<img src={item.image_url} alt=""/>:<span className="catalog-placeholder"><PackageSearch size={19}/></span>}<div><strong>{item.name||'منتج بلا اسم'}</strong><small>{item.sku||item.barcode||'—'}</small></div></div></td>{!financialMode?<><td><div className="catalog-mappings">{item.mappings.length?item.mappings.map(m=><span key={m.id}><b>{platformNames[m.platform]||m.platform}</b>{m.identifier_value}</span>):<span>لا توجد معرّفات</span>}</div></td><td><Status value={item.match_status}/></td><td><strong className="latin-number">{Number(item.inventory).toLocaleString('en-US')}</strong></td></>:<><MoneyCell value={financial?.salePrice}/><MoneyCell value={item.cost_price}/><td><strong className="latin-number">{financial?.commissionRate!=null?`${formatNumber(financial.commissionRate)}%`:'—'}</strong></td><MoneyCell value={financial?.commissionValue}/><MoneyCell value={financial?.shippingCost}/><MoneyCell value={financial?.sellpertCommissionValue}/><MoneyCell value={financial?.netReceived} strong tone={financial?.netReceived!=null&&financial.netReceived<0?'danger':undefined}/><td><Viability value={financial}/></td></>}<td><button className="catalog-row-action" aria-label={`عرض ${item.name}`}><ChevronLeft size={17}/></button></td></tr>})}</tbody></table></div>
       {loading?<div className="catalog-empty">جاري تحميل دليل المنتجات…</div>:!items.length?<div className="catalog-empty"><PackageSearch size={34}/><strong>لا توجد نتائج ضمن هذا الفلتر</strong><span>غيّر البحث أو اعرض كل المنتجات.</span></div>:null}
       <footer className="catalog-pagination"><span>عرض {items.length?((page-1)*PAGE_SIZE+1):0}–{Math.min(page*PAGE_SIZE,filteredCount)} من {Number(filteredCount).toLocaleString('en-US')}</span><div><button disabled={page===1} onClick={()=>setPage(p=>p-1)}>السابق</button><b>{page} / {pageCount}</b><button disabled={page===pageCount} onClick={()=>setPage(p=>p+1)}>التالي</button></div></footer>
     </section>

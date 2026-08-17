@@ -799,6 +799,15 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 .catalog-profitability-head h2{margin:0;color:var(--text);font-size:13px}
 @media(max-width:900px){.catalog-profitability-head{align-items:flex-start}.catalog-profitability-head>em{margin-top:1px}.catalog-shipping{align-items:stretch;flex-wrap:wrap}.catalog-shipping>div{flex-basis:100%;min-width:0;margin-left:0}.catalog-shipping label{flex:1;min-width:210px}.catalog-shipping input{flex:1}.catalog-table-wrap.financial .catalog-table th:nth-child(2),.catalog-table-wrap.financial .catalog-table td:nth-child(2){display:table-cell}}
 
+/* Catalog table navigation: keep headers and horizontal controls within reach. */
+.catalog-table-wrap{overflow:hidden}
+.catalog-table-top-scroll{height:18px;overflow-x:auto;overflow-y:hidden;border-bottom:1px solid var(--border);background:var(--surface2);scrollbar-color:var(--text3) transparent;scrollbar-width:thin}
+.catalog-table-top-scroll>div{height:1px}
+.catalog-table-scroll{max-height:min(64vh,650px);overflow:auto;overscroll-behavior:contain;scrollbar-color:var(--text3) transparent;scrollbar-width:thin}
+.catalog-table thead{position:sticky;top:0;z-index:4}
+.catalog-table th{box-shadow:0 1px 0 var(--border)}
+@media(max-width:900px){.catalog-table-scroll{max-height:58vh}}
+
 /* وضوح متسق للنصوص التشغيلية الصغيرة عبر جميع الصفحات. */
 main :where(button, input, select, textarea) {
   font-family: var(--font-body) !important;
