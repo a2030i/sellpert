@@ -22,7 +22,7 @@ function unsignedToken(user=merchant) {
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user.id, role: 'authenticated', exp: 2_000_000_000 })}.e2e`
 }
 
-async function mockDashboard(page: Page, actor=merchant) {
+async function mockDashboard(page: Page, actor=merchant, catalogItemCount=1) {
   let sellpertTerm = actor.role === 'admin'
     ? {merchant_code:merchant.merchant_code,sellpert_fee_type:'none',sellpert_fee_value:0}
     : {merchant_code:merchant.merchant_code,sellpert_fee_type:'percentage',sellpert_fee_value:2.5}
@@ -50,9 +50,11 @@ async function mockDashboard(page: Page, actor=merchant) {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()
     let body: unknown = []
-    if (table === 'unified_product_catalog') body = {
-      items:[{ id:'product-1', name:'خلطة القهوة الموحدة', name_en:'Unified Coffee', sku:'MASTER-SKU-1', barcode:'6280000000011', brand:'Sellpert', category:'توابل أخرى', image_url:null, cost_price:50, sale_price:null, target_net_price:100, catalog_status:'active', inventory:12, mappings:[{id:'mapping-1',platform:'noon',identifier_type:'sku',identifier_value:'NOON-SKU-1',status:'linked'}], match_status:'linked' }],
-      stats:{total:1,linked:1,review:0,unknown:0}, filtered_count:1,
+    if (table === 'unified_product_catalog') {
+      const request=(route.request().postDataJSON()||{}) as {p_limit?:number;p_offset?:number}
+      const catalogItems=Array.from({length:catalogItemCount},(_,index)=>({ id:`product-${index+1}`, name:index===0?'خلطة القهوة الموحدة':`منتج موحد ${index+1}`, name_en:'Unified Coffee', sku:`MASTER-SKU-${index+1}`, barcode:`62800000000${String(index+11).padStart(2,'0')}`, brand:'Sellpert', category:'توابل أخرى', image_url:null, cost_price:50, sale_price:null, target_net_price:100, catalog_status:'active', inventory:12, mappings:[{id:`mapping-${index+1}`,platform:'noon',identifier_type:'sku',identifier_value:`NOON-SKU-${index+1}`,status:'linked'}], match_status:'linked' }))
+      const offset=Number(request.p_offset||0), limit=Number(request.p_limit||50)
+      body={items:catalogItems.slice(offset,offset+limit),stats:{total:catalogItemCount,linked:catalogItemCount,review:0,unknown:0},filtered_count:catalogItemCount}
     }
     if (table === 'merchants') body = url.searchParams.has('id') ? [actor] : actor.role === 'admin' ? [actor,merchant] : [actor]
     if (table === 'orders') body = [
@@ -154,7 +156,7 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
 })
 
 test('product catalog deducts the merchant-wide Sellpert contract fee and saves tax-inclusive shipping', async ({ page }, testInfo) => {
-  await mockDashboard(page)
+  await mockDashboard(page,merchant,12)
   await page.goto('/product-catalog')
   const platformSelect=page.getByLabel('اختيار منصة حساب الربحية')
   await expect(platformSelect).toHaveValue('noon')
@@ -165,6 +167,23 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
   await expect(page.getByRole('columnheader', {name:'قيمة عمولة المنصة'})).toBeVisible()
   await expect(page.getByRole('columnheader', {name:'عمولة Sellpert'})).toBeVisible()
   await expect(page.getByRole('columnheader', {name:'صافي المبلغ الواصل'})).toBeVisible()
+  await expect(page.locator('.catalog-table tbody tr')).toHaveCount(10)
+  await expect(page.locator('.catalog-pagination')).toContainText('عرض 1–10 من 12')
+  const topScroller=page.getByRole('region',{name:'تمرير الجدول أفقيًا من الأعلى'})
+  const tableScroller=page.locator('.catalog-table-scroll')
+  await expect(topScroller).toBeVisible()
+  await expect(page.locator('.catalog-table thead')).toHaveCSS('position','sticky')
+  await topScroller.evaluate(element=>{ element.scrollLeft=-120; element.dispatchEvent(new Event('scroll')) })
+  await expect.poll(async()=>tableScroller.evaluate(element=>element.scrollLeft)).toBe(-120)
+  const stickyHeader=await tableScroller.evaluate(element=>{
+    element.scrollTop=180
+    const header=element.querySelector('thead')!.getBoundingClientRect()
+    const container=element.getBoundingClientRect()
+    return {scrollTop:element.scrollTop,headerTop:Math.round(header.top),containerTop:Math.round(container.top)}
+  })
+  expect(stickyHeader.scrollTop).toBeGreaterThan(0)
+  expect(Math.abs(stickyHeader.headerTop-stickyHeader.containerTop)).toBeLessThanOrEqual(1)
+  await tableScroller.evaluate(element=>{ element.scrollTop=0 })
   const row=page.getByRole('row').filter({hasText:'خلطة القهوة الموحدة'})
   await expect(row).toContainText('100')
   await expect(row).toContainText('50')
@@ -187,6 +206,9 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
   await expect(row).toContainText('2.88')
   await expect(row).toContainText('76.38')
   await page.screenshot({path:testInfo.outputPath('catalog-profitability.png'),fullPage:true})
+  await page.getByRole('button',{name:'التالي'}).click()
+  await expect(page.locator('.catalog-table tbody tr')).toHaveCount(2)
+  await expect(page.locator('.catalog-pagination')).toContainText('عرض 11–12 من 12')
 })
 
 test('admin sets one Sellpert contract commission for the whole merchant', async ({ page }, testInfo) => {
