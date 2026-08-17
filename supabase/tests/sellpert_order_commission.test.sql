@@ -1,41 +1,37 @@
 BEGIN;
-SELECT plan(6);
 
-SELECT is(
-  security.sellpert_order_commission('delivered', 100, 15, 'percentage', 10),
-  11.5000::numeric,
-  'percentage uses successful order sales including customer shipping'
-);
+DO $$
+BEGIN
+  IF security.sellpert_order_commission('delivered', 100, 15, 'percentage', 10)
+      IS DISTINCT FROM 11.5000::numeric THEN
+    RAISE EXCEPTION 'percentage commission must use successful order sales including customer shipping';
+  END IF;
 
-SELECT is(
-  security.sellpert_order_commission('cancelled', 100, 15, 'percentage', 10),
-  0.0000::numeric,
-  'cancelled orders earn no Sellpert commission'
-);
+  IF security.sellpert_order_commission('cancelled', 100, 15, 'percentage', 10)
+      IS DISTINCT FROM 0.0000::numeric THEN
+    RAISE EXCEPTION 'cancelled orders must earn no Sellpert commission';
+  END IF;
 
-SELECT is(
-  security.sellpert_order_commission('returned', 100, 15, 'fixed', 10),
-  0.0000::numeric,
-  'returned orders earn no Sellpert commission'
-);
+  IF security.sellpert_order_commission('returned', 100, 15, 'fixed', 10)
+      IS DISTINCT FROM 0.0000::numeric THEN
+    RAISE EXCEPTION 'returned orders must earn no Sellpert commission';
+  END IF;
 
-SELECT is(
-  security.sellpert_order_commission('shipped', 100, 15, 'fixed', 10),
-  0.0000::numeric,
-  'orders not yet delivered earn no Sellpert commission'
-);
+  IF security.sellpert_order_commission('shipped', 100, 15, 'fixed', 10)
+      IS DISTINCT FROM 0.0000::numeric THEN
+    RAISE EXCEPTION 'orders not yet delivered must earn no Sellpert commission';
+  END IF;
 
-SELECT is(
-  security.sellpert_order_commission('delivered', 500, 0, 'fixed', 10),
-  10.0000::numeric,
-  'fixed commission is charged once for the whole order'
-);
+  IF security.sellpert_order_commission('delivered', 500, 0, 'fixed', 10)
+      IS DISTINCT FROM 10.0000::numeric THEN
+    RAISE EXCEPTION 'fixed commission must be charged once for the whole order';
+  END IF;
 
-SELECT is(
-  security.sellpert_order_commission('delivered', 500, 0, 'none', 0),
-  0.0000::numeric,
-  'zero contract earns no commission'
-);
+  IF security.sellpert_order_commission('delivered', 500, 0, 'none', 0)
+      IS DISTINCT FROM 0.0000::numeric THEN
+    RAISE EXCEPTION 'zero contract must earn no commission';
+  END IF;
+END
+$$;
 
-SELECT * FROM finish();
 ROLLBACK;
