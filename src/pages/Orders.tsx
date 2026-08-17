@@ -16,6 +16,7 @@ import { orderDataLineage, type LineageUpload } from '../lib/dataLineage'
 import { listMarketplaceOperationFacts } from '../lib/marketplaceOperations'
 import { buildOrderPlatformComparison } from '../lib/orderComparison'
 import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
+import { calculateSellpertOrderCommission, type SellpertContractTerm } from '../lib/sellpertCommission'
 
 const ORDER_PAGE_SIZE = 50
 const SA_CARRIERS = [
@@ -86,6 +87,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     }
   }, [])
   const [orders, setOrders] = useState<Order[]>([])
+  const [contractTerm, setContractTerm] = useState<SellpertContractTerm | null>(null)
   const [catalogProducts, setCatalogProducts] = useState<CatalogProductIdentity[]>([])
   const [catalogMappings, setCatalogMappings] = useState<CatalogChannelMapping[]>([])
   const [sourceUploads, setSourceUploads] = useState<Map<string, LineageUpload>>(() => new Map())
@@ -139,13 +141,14 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,invoice_rejected_reasons,modified_at,raw')
           .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
       supabase.from('returns').select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('status','pending'),
+      supabase.from('merchant_contract_terms').select('sellpert_fee_type,sellpert_fee_value').eq('merchant_code',merchantCode).limit(1).maybeSingle(),
       fetchAll<LineageUpload>((f, t) =>
         supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
           .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).range(f, t), 'سجل ملفات المصادر'),
       fetchAll<CatalogProductIdentity>((f,t) => supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', merchantCode).order('id').range(f,t), 'دليل أسماء الطلبات'),
       fetchAll<CatalogChannelMapping>((f,t) => supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', merchantCode).order('id').range(f,t), 'روابط أسماء الطلبات'),
-    ]).then(([sourceOrders, packageRows, returnResult, uploads, products, mappings]) => {
-      if (returnResult.error) throw returnResult.error
+    ]).then(([sourceOrders, packageRows, returnResult, contractResult, uploads, products, mappings]) => {
+      if (returnResult.error || contractResult.error) throw returnResult.error || contractResult.error
       const resolve = createCatalogResolver(products, mappings)
       const unifiedOrders = sourceOrders.map(order => {
         const product = resolve({ platform:order.platform, identifiers:[order.sku], sourceName:order.product_name })
@@ -153,6 +156,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       })
       setCatalogProducts(products)
       setCatalogMappings(mappings)
+      setContractTerm((contractResult.data as SellpertContractTerm | null) || null)
       setOrders(unifiedOrders)
       setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
       setOperationalPackages(packageRows)
@@ -612,8 +616,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       ? selectedItems.reduce((sum, item) => sum + Number(item.line_total || Number(item.unit_price || 0) * Number(item.quantity || 1)) * Number(item.commission_rate || 0) / 100 * 1.15, 0)
       : selectedOrder ? trendyolCommission(selectedOrder) : 0)
     : Number(selectedOrder?.platform_fee || 0)
+  const selectedSellpertCommission = selectedOrder
+    ? calculateSellpertOrderCommission(selectedOrder, contractTerm)
+    : 0
   const selectedOrderProfit = selectedOrder
-    ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees)
+    ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees, selectedSellpertCommission)
     : null
   const selectedSource = selectedOrder ? sourceFor(selectedOrder) : null
 
@@ -985,7 +992,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             </div> : null}
             {selectedOrderProfit ? <section style={{ marginBottom:16, padding:14, border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'flex-start', marginBottom:11 }}>
-                <div><div style={{ fontSize:12, fontWeight:850 }}>صافي الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3, lineHeight:1.6 }}>الإجمالي ناقص عمولة المنصة والشحن والخصومات وتكلفة المنتجات المسجلة.</div></div>
+                <div><div style={{ fontSize:12, fontWeight:850 }}>صافي الطلب</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3, lineHeight:1.6 }}>الإجمالي ناقص عمولة المنصة والشحن والخصومات وعمولة Sellpert المستحقة وتكلفة المنتجات المسجلة.</div></div>
                 <div style={{ textAlign:'left' }}>
                   <strong style={{ display:'block', fontSize:18, color:selectedOrderProfit.netProfit === null ? 'var(--warning-text)' : selectedOrderProfit.netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
                     {selectedOrderProfit.netProfit === null ? 'غير مكتمل' : fmtExact(selectedOrderProfit.netProfit)}
@@ -999,6 +1006,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   ['عمولة المنصة', -selectedOrderProfit.fees],
                   ['الشحن', -selectedOrderProfit.shipping],
                   ['الخصومات', -selectedOrderProfit.discounts],
+                  ['عمولة Sellpert', -selectedOrderProfit.sellpertCommission],
                   ['تكلفة المنتجات', selectedOrderProfit.costComplete ? -selectedOrderProfit.productCost : null],
                 ].map(([label,value]) => <div key={String(label)} style={{ padding:'8px 9px', border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)' }}>
                   <div style={{ fontSize:9, color:'var(--text3)', marginBottom:4 }}>{label}</div>

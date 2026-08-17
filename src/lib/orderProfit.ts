@@ -15,6 +15,7 @@ export interface OrderProfitSummary {
   fees: number
   shipping: number
   discounts: number
+  sellpertCommission: number
   productCost: number
   missingCostUnits: number
   costComplete: boolean
@@ -26,7 +27,7 @@ function key(kind: 'sku' | 'barcode', value: unknown) {
   return `${kind}:${String(value || '').trim().toLowerCase()}`
 }
 
-export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], costs: Map<string, number>, exactFees?: number): OrderProfitSummary {
+export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], costs: Map<string, number>, exactFees?: number, sellpertCommission = 0): OrderProfitSummary {
   const netOrderAmount = Number(order.total_amount || 0)
   const grossOrderAmount = Number(order.gross_amount || 0)
   const usesGrossAmount = grossOrderAmount > netOrderAmount
@@ -36,6 +37,7 @@ export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], co
   // Marketplace order totals are commonly already net of discounts. Subtract
   // discounts only when a distinct gross amount is available.
   const discounts = usesGrossAmount ? Number(order.discount_amount || Math.max(0, grossOrderAmount - netOrderAmount)) : 0
+  const normalizedSellpertCommission = Math.max(0, Number(sellpertCommission || 0))
   const lines = items.length ? items : [{ sku: order.sku, quantity: order.quantity }]
   let productCost = 0
   let missingCostUnits = 0
@@ -50,8 +52,8 @@ export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], co
 
   const costComplete = lines.length > 0 && missingCostUnits === 0
   return {
-    revenue, fees, shipping, discounts, productCost, missingCostUnits, costComplete, usesGrossAmount,
-    netProfit: costComplete ? revenue - fees - shipping - discounts - productCost : null,
+    revenue, fees, shipping, discounts, sellpertCommission:normalizedSellpertCommission, productCost, missingCostUnits, costComplete, usesGrossAmount,
+    netProfit: costComplete ? revenue - fees - shipping - discounts - normalizedSellpertCommission - productCost : null,
   }
 }
 

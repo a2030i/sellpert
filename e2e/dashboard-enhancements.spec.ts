@@ -171,9 +171,9 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
   await expect(row).toContainText('5%')
   await expect(row).toContainText('5.75')
   await expect(row).toContainText('12')
-  await expect(row).toContainText('2.5')
-  await expect(row).toContainText('79.75')
-  await expect(row).toContainText('29.75')
+  await expect(row).toContainText('2.8')
+  await expect(row).toContainText('79.45')
+  await expect(row).toContainText('29.45')
   await expect(row).toContainText('مربح')
 
   await platformSelect.selectOption('all')
@@ -184,7 +184,8 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
 
   await page.getByLabel('تكلفة الشحن شاملة الضريبة').fill('15')
   await page.getByRole('button',{name:'حفظ'}).click()
-  await expect(row).toContainText('76.75')
+  await expect(row).toContainText('2.88')
+  await expect(row).toContainText('76.38')
   await page.screenshot({path:testInfo.outputPath('catalog-profitability.png'),fullPage:true})
 })
 
@@ -195,6 +196,10 @@ test('admin sets one Sellpert contract commission for the whole merchant', async
   await page.getByRole('button',{name:'التجار والمنتجات'}).click()
   await page.getByRole('button',{name:'التجار',exact:true}).click()
   await page.getByRole('button',{name:'تعديل عمولة Sellpert لمتجر متجر الاختبار'}).click()
+  await expect(page.getByLabel('طريقة احتساب عمولة Sellpert')).toContainText('نسبة من إجمالي الطلب شامل الشحن')
+  await expect(page.getByLabel('طريقة احتساب عمولة Sellpert')).toContainText('مبلغ ثابت لكل طلب ناجح')
+  await expect(page.getByText('تستحق العمولة بعد تسليم الطلب بنجاح فقط', {exact:false})).toBeVisible()
+  await expect(page.getByText('وتصبح صفرًا عند الإلغاء أو الإرجاع', {exact:false})).toBeVisible()
   await page.getByLabel('طريقة احتساب عمولة Sellpert').selectOption('fixed')
   await page.getByLabel('قيمة عمولة Sellpert').fill('4')
   await page.getByRole('button',{name:'حفظ العقد'}).click()

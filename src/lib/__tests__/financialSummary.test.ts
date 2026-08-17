@@ -14,6 +14,7 @@ describe('financial summary', () => {
       knownCogs: 20,
       costedUnits: 2,
       missingCostUnits: 0,
+      sellpertCommission: 25,
     })
 
     expect(result.grossRevenue).toBe(4850)
@@ -21,7 +22,7 @@ describe('financial summary', () => {
     expect(result.source).toBe('mixed')
     expect(result.profitComplete).toBe(false)
     expect(result.estimatedProfit).toBeNull()
-    expect(result.provisionalNetAfterKnownCosts).toBeCloseTo(3985.55, 2)
+    expect(result.provisionalNetAfterKnownCosts).toBeCloseTo(3960.55, 2)
   })
 
   it('calculates profit only when sales details and product costs are complete', () => {
@@ -33,13 +34,15 @@ describe('financial summary', () => {
       knownCogs: 400,
       costedUnits: 10,
       missingCostUnits: 0,
+      sellpertCommission: 25,
     })
 
     expect(result.source).toBe('detailed_orders')
-    expect(result.netBeforeProductCost).toBe(825)
-    expect(result.provisionalNetAfterKnownCosts).toBe(425)
-    expect(result.estimatedProfit).toBe(425)
-    expect(result.margin).toBe(42.5)
+    expect(result.sellpertCommission).toBe(25)
+    expect(result.netBeforeProductCost).toBe(800)
+    expect(result.provisionalNetAfterKnownCosts).toBe(400)
+    expect(result.estimatedProfit).toBe(400)
+    expect(result.margin).toBe(40)
   })
 
   it('tolerates minor currency rounding while rejecting missing product costs', () => {
