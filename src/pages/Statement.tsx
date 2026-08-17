@@ -12,6 +12,7 @@ import { Landmark, RefreshCw } from 'lucide-react'
 import { financialTransactionMeta } from '../lib/trendyolFinance'
 import { hasMerchantPermission } from '../lib/merchantPermissions'
 import { buildFinancialSummary, type FinancialSummary } from '../lib/financialSummary'
+import { summarizeSellpertCommission, type SellpertCommissionSummary } from '../lib/sellpertCommission'
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
   amazon:   { label: 'أمازون',    color: '#ff9900' },
@@ -73,6 +74,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   const [refreshingFinance, setRefreshingFinance] = useState(false)
   const [financeMessage, setFinanceMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [costInfo, setCostInfo] = useState({ cogs: 0, costedUnits: 0, missingUnits: 0 })
+  const [sellpertCommissionInfo, setSellpertCommissionInfo] = useState<SellpertCommissionSummary>({ eligibleOrders:0, commissionableSales:0, commission:0, byPlatform:{} })
   const [qualityInfo, setQualityInfo] = useState({
     orders: 0, apiOrders: 0, uploadedOrders: 0, costCoverage: 0,
     detailedRevenue: 0,
@@ -116,7 +118,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [perf, rets, { data: tgts }, monthOrders, productCosts, monthTransactions, monthAds] = await Promise.all([
+    const [perf, rets, { data: tgts }, monthOrders, productCosts, monthTransactions, monthAds, contractResult] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', code)
@@ -139,7 +141,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       fetchAll<any>((f, t) => supabase.from('ad_metrics').select('id,platform,report_date,upload_id')
         .eq('merchant_code', code).gte('report_date', start).lte('report_date', end)
         .order('id').range(f, t), 'بيانات إعلانات الشهر'),
+      supabase.from('merchant_contract_terms').select('sellpert_fee_type,sellpert_fee_value').eq('merchant_code',code).limit(1).maybeSingle(),
     ])
+    if (contractResult.error) throw contractResult.error
     setPerfData(perf)
     setReturns(rets)
     setTargets(tgts || [])
@@ -149,6 +153,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     let cogs = 0, costedUnits = 0, missingUnits = 0
     const ledgerOrders = monthOrders.filter((row: any) => row.status !== 'cancelled')
     const activeOrders = ledgerOrders.filter((row: any) => row.status !== 'returned')
+    setSellpertCommissionInfo(summarizeSellpertCommission(monthOrders, contractResult.data))
     for (const order of activeOrders) {
       const units = Number(order.quantity || 1)
       const cost = order.sku ? costs.get(String(order.sku).toLowerCase()) : undefined
@@ -186,25 +191,30 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       knownCogs: costInfo.cogs,
       costedUnits: costInfo.costedUnits,
       missingCostUnits: costInfo.missingUnits,
+      sellpertCommission: sellpertCommissionInfo.commission,
     })
-  }, [perfData, returns, costInfo, qualityInfo.detailedRevenue, qualityInfo.orders])
+  }, [perfData, returns, costInfo, qualityInfo.detailedRevenue, qualityInfo.orders, sellpertCommissionInfo.commission])
 
   // Per-platform breakdown
   const byPlatform = useMemo(() => {
-    const map: Record<string, { revenue: number; fees: number; ad: number; orders: number; returns: number }> = {}
+    const map: Record<string, { revenue: number; fees: number; sellpert: number; ad: number; orders: number; returns: number }> = {}
     for (const r of perfData) {
-      if (!map[r.platform]) map[r.platform] = { revenue: 0, fees: 0, ad: 0, orders: 0, returns: 0 }
+      if (!map[r.platform]) map[r.platform] = { revenue: 0, fees: 0, sellpert:0, ad: 0, orders: 0, returns: 0 }
       map[r.platform].revenue += r.total_sales
       map[r.platform].fees   += r.platform_fees || 0
       map[r.platform].ad     += r.ad_spend || 0
       map[r.platform].orders += r.order_count
     }
     for (const r of returns) {
-      if (!map[r.platform]) map[r.platform] = { revenue: 0, fees: 0, ad: 0, orders: 0, returns: 0 }
+      if (!map[r.platform]) map[r.platform] = { revenue: 0, fees: 0, sellpert:0, ad: 0, orders: 0, returns: 0 }
       map[r.platform].returns += r.return_amount || 0
     }
+    for (const [platform, value] of Object.entries(sellpertCommissionInfo.byPlatform)) {
+      if (!map[platform]) map[platform] = { revenue:0, fees:0, sellpert:0, ad:0, orders:0, returns:0 }
+      map[platform].sellpert += value
+    }
     return map
-  }, [perfData, returns])
+  }, [perfData, returns, sellpertCommissionInfo.byPlatform])
 
   // Daily trend for chart
   const dailyTrend = useMemo(() => {
@@ -285,7 +295,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
       {stab === 'month' ? <>
       <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,1fr)', gap:10, marginBottom:20 }}>
         {[
-          ['ملخص الربحية','المبيعات ناقص رسوم المنصات والإعلانات والمرتجعات.'],
+          ['ملخص الربحية','المبيعات ناقص رسوم المنصات والإعلانات والمرتجعات وعمولة Sellpert المستحقة.'],
           ['التسويات المسجّلة','المبالغ والمواعيد التي تم تسجيلها أو تأكيدها في النظام.'],
           ['كشف المعاملات','تفاصيل المدين والدائن والخصومات لكل منصة.'],
         ].map(([title, desc]) => <div key={title} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'13px 15px' }}>
@@ -364,7 +374,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'إجمالي المبيعات',   value: fmt(summary.grossRevenue), color: '#0f958c', icon: '', sub: summary.salesDetailsComplete ? `${summary.detailedOrders} طلب بتفاصيل كاملة` : `${summary.reportedActivity} عملية/وحدة بحسب المصدر` },
-              { label: 'رسوم وإعلانات',      value: fmt(summary.platformFees + summary.adSpend), color: 'var(--danger-text)', icon: '', sub: `${((summary.platformFees + summary.adSpend) / (summary.grossRevenue || 1) * 100).toFixed(1)}% من الإيراد` },
+              { label: 'الرسوم والإعلانات', value: fmt(summary.platformFees + summary.adSpend + summary.sellpertCommission), color: 'var(--danger-text)', icon: '', sub: `منها عمولة Sellpert ${fmt(summary.sellpertCommission)} على ${sellpertCommissionInfo.eligibleOrders.toLocaleString('en-US')} طلب ناجح` },
               { label: 'المرتجعات', value: fmt(summary.totalReturns), color: 'var(--warning-text)', icon: '', sub: 'بحسب البيانات المستوردة' },
               { label: summary.profitComplete ? 'صافي الربح التقديري' : 'الصافي بعد التكاليف المعروفة', value: fmt(summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts), color: (summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts) >= 0 ? 'var(--success-text)' : 'var(--danger-text)', icon: '', sub: summary.profitComplete ? `${summary.margin?.toFixed(1)}% هامش تقديري` : 'رقم مؤقت لا يُعد ربحًا حتى تكتمل التفاصيل والتكاليف' },
             ].map((k, i) => (
@@ -391,9 +401,10 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 { label: 'رسوم المنصات',              value: -summary.platformFees, color: 'var(--danger-text)', sign: '−' },
                 { label: 'الإنفاق الإعلاني',          value: -summary.adSpend,      color: 'var(--danger-text)', sign: '−' },
                 { label: 'قيمة المرتجعات',            value: -summary.totalReturns, color: 'var(--warning-text)', sign: '−' },
+                { label: 'عمولة Sellpert — الطلبات الناجحة فقط', value: -summary.sellpertCommission, color: 'var(--danger-text)', sign: '−' },
                 { label: 'تكلفة المنتجات المسجّلة', value: -costInfo.cogs, color: 'var(--danger-text)', sign: '−' },
                 null, // divider
-                { label: 'الصافي بعد الرسوم والإعلانات والمرتجعات', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
+                { label: 'الصافي بعد الرسوم والإعلانات والمرتجعات وعمولة Sellpert', value: summary.afterFees, color: 'var(--text)', sign: '', bold: true },
                 null,
                 { label: summary.profitComplete ? 'صافي الربح التقديري' : 'الصافي بعد التكاليف المعروفة وقبل الناقصة', value: summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts, color: (summary.profitComplete ? Number(summary.estimatedProfit) : summary.provisionalNetAfterKnownCosts) >= 0 ? 'var(--accent2)' : 'var(--danger-text)', sign: '', bold: true, large: true },
               ].map((row, i) => row === null ? (
@@ -442,14 +453,14 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      {['المنصة', 'الإيرادات', 'رسوم المنصة', 'الإعلانات', 'المرتجعات', 'الطلبات', 'الصافي'].map(h => (
+                      {['المنصة', 'الإيرادات', 'رسوم المنصة', 'عمولة Sellpert', 'الإعلانات', 'المرتجعات', 'الطلبات', 'الصافي'].map(h => (
                         <th key={h} style={S.th}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {Object.entries(byPlatform).map(([p, d]) => {
-                      const net = d.revenue - d.fees - d.ad - d.returns
+                      const net = d.revenue - d.fees - d.sellpert - d.ad - d.returns
                       const meta = PLATFORM_META[p]
                       const isMismatched = d.ad > 0 && d.revenue === 0
                       return (
@@ -464,6 +475,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
                           </td>
                           <td style={{ ...S.td, color: 'var(--accent)', fontWeight: 700 }}>{fmt(d.revenue)}</td>
                           <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.fees > 0 ? fmt(d.fees) : '—'}</td>
+                          <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.sellpert > 0 ? fmt(d.sellpert) : '—'}</td>
                           <td style={{ ...S.td, color: 'var(--danger-text)' }}>{d.ad > 0 ? fmt(d.ad) : '—'}</td>
                           <td style={{ ...S.td, color: 'var(--warning-text)' }}>{d.returns > 0 ? fmt(d.returns) : '—'}</td>
                           <td style={S.td}>{d.orders.toLocaleString()}</td>
@@ -1218,6 +1230,7 @@ function PnLPanel({ summary, knownCogs }: { summary: FinancialSummary; knownCogs
     { label: 'الإيرادات', value: summary.grossRevenue, bold: true, color: 'var(--text)' },
     { label: summary.profitComplete ? 'تكلفة البضاعة المباعة' : 'تكلفة المنتجات المعروفة فقط', value: -knownCogs, color: 'var(--danger-text)' },
     { label: 'رسوم المنصات', value: -summary.platformFees, color: 'var(--danger-text)' },
+    { label: 'عمولة Sellpert على الطلبات الناجحة', value: -summary.sellpertCommission, color: 'var(--danger-text)' },
     { label: 'الإنفاق الإعلاني', value: -summary.adSpend, color: 'var(--danger-text)' },
     { label: 'المرتجعات', value: -summary.totalReturns, color: 'var(--warning-text)' },
     null,

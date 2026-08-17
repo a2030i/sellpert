@@ -407,14 +407,14 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
         <div role="dialog" aria-modal="true" aria-label={`عمولة Sellpert لمتجر ${contractEditor.merchant.name}`} style={{ position:'fixed', inset:0, zIndex:1600, display:'grid', placeItems:'center', padding:20, background:'rgba(7,27,43,.42)', backdropFilter:'blur(3px)' }} onMouseDown={event=>{if(event.currentTarget===event.target&&!saving)setContractEditor(null)}}>
           <div style={{ width:'min(460px,100%)', padding:24, border:'1px solid var(--border)', borderRadius:16, background:'var(--surface)', boxShadow:'0 24px 70px rgba(7,27,43,.24)' }}>
             <div style={{ fontSize:17, fontWeight:800 }}>عمولة Sellpert</div>
-            <div style={{ marginTop:5, color:'var(--text3)', fontSize:12 }}>{contractEditor.merchant.name} · تطبّق على جميع منتجات التاجر حسب العقد.</div>
+            <div style={{ marginTop:5, color:'var(--text3)', fontSize:12 }}>{contractEditor.merchant.name} · تُحتسب على الطلبات الناجحة حسب العقد.</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:20 }}>
               <div>
                 <label style={S.label}>طريقة الاحتساب</label>
                 <select aria-label="طريقة احتساب عمولة Sellpert" style={S.input} value={contractEditor.feeType} onChange={event=>setContractEditor(current=>current?{...current,feeType:event.target.value as SellpertFeeType,feeValue:event.target.value==='none'?'0':current.feeValue}:current)}>
                   <option value="none">بدون عمولة — صفر</option>
-                  <option value="percentage">نسبة من سعر المنتج</option>
-                  <option value="fixed">مبلغ ثابت لكل منتج</option>
+                  <option value="percentage">نسبة من إجمالي الطلب شامل الشحن</option>
+                  <option value="fixed">مبلغ ثابت لكل طلب ناجح</option>
                 </select>
               </div>
               <div>
@@ -422,7 +422,7 @@ export default function MerchantsView({ currentUser, merchants, gmvByMerchant, c
                 <input aria-label="قيمة عمولة Sellpert" style={S.input} type="number" min="0" max={contractEditor.feeType==='percentage'?100:undefined} step="0.01" disabled={contractEditor.feeType==='none'} value={contractEditor.feeValue} onChange={event=>setContractEditor(current=>current?{...current,feeValue:event.target.value}:current)}/>
               </div>
             </div>
-            <div style={{ marginTop:12, padding:10, borderRadius:9, background:'var(--surface2)', color:'var(--text3)', fontSize:11, lineHeight:1.7 }}>القيمة تُخصم كما هي وفق العقد، ولا يضيف النظام ضريبة عليها تلقائيًا. التاجر يستطيع رؤيتها في حساب الربحية ولا يستطيع تعديلها.</div>
+            <div style={{ marginTop:12, padding:10, borderRadius:9, background:'var(--surface2)', color:'var(--text3)', fontSize:11, lineHeight:1.7 }}>تستحق العمولة بعد تسليم الطلب بنجاح فقط، وتصبح صفرًا عند الإلغاء أو الإرجاع. النسبة تُحسب من إجمالي الطلب شامل الشحن، والمبلغ الثابت يُحتسب مرة واحدة للطلب مهما كان عدد منتجاته. لا يضيف النظام ضريبة عليها تلقائيًا.</div>
             <div style={{ display:'flex', gap:9, marginTop:18 }}>
               <button style={S.saveBtn} disabled={saving} onClick={saveContractTerm}>{saving?'جارٍ الحفظ…':'حفظ العقد'}</button>
               <button style={S.miniBtn} disabled={saving} onClick={()=>setContractEditor(null)}>إلغاء</button>

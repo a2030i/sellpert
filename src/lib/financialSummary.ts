@@ -17,6 +17,7 @@ export type FinancialSummaryInput = {
   knownCogs: number
   costedUnits: number
   missingCostUnits: number
+  sellpertCommission?: number
 }
 
 export type FinancialSummary = {
@@ -24,6 +25,7 @@ export type FinancialSummary = {
   platformFees: number
   adSpend: number
   totalReturns: number
+  sellpertCommission: number
   afterFees: number
   netBeforeProductCost: number
   provisionalNetAfterKnownCosts: number
@@ -49,6 +51,7 @@ export function buildFinancialSummary(input: FinancialSummaryInput): FinancialSu
   const platformFees = input.performanceRows.reduce((sum, row) => sum + amount(row.platform_fees), 0)
   const adSpend = input.performanceRows.reduce((sum, row) => sum + amount(row.ad_spend), 0)
   const totalReturns = input.returnRows.reduce((sum, row) => sum + amount(row.return_amount), 0)
+  const sellpertCommission = amount(input.sellpertCommission)
   const reportedActivity = input.performanceRows.reduce((sum, row) => sum + amount(row.order_count), 0)
   const detailedRevenue = Math.max(0, amount(input.detailedRevenue))
   const detailCoverage = grossRevenue > 0
@@ -61,7 +64,7 @@ export function buildFinancialSummary(input: FinancialSummaryInput): FinancialSu
     : input.detailedOrders === 0
   const productCostsComplete = input.missingCostUnits === 0 && input.costedUnits > 0
   const profitComplete = salesDetailsComplete && productCostsComplete
-  const afterFees = grossRevenue - platformFees - adSpend - totalReturns
+  const afterFees = grossRevenue - platformFees - adSpend - totalReturns - sellpertCommission
   const netBeforeProductCost = afterFees
   const provisionalNetAfterKnownCosts = netBeforeProductCost - amount(input.knownCogs)
   const estimatedProfit = profitComplete ? netBeforeProductCost - amount(input.knownCogs) : null
@@ -75,6 +78,7 @@ export function buildFinancialSummary(input: FinancialSummaryInput): FinancialSu
     platformFees,
     adSpend,
     totalReturns,
+    sellpertCommission,
     afterFees,
     netBeforeProductCost,
     provisionalNetAfterKnownCosts,

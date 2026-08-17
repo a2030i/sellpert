@@ -29,4 +29,12 @@ describe('order profit', () => {
     )
     expect(result).toMatchObject({ productCost: 20, missingCostUnits: 1, costComplete: false, netProfit: null })
   })
+
+  it('deducts the order-level Sellpert commission once', () => {
+    const result = calculateOrderProfit(
+      { total_amount:100, platform_fee:10, quantity:5, sku:'A' },
+      [{ sku:'A', quantity:5 }], new Map([['sku:a', 5]]), 10, 4,
+    )
+    expect(result).toMatchObject({ sellpertCommission:4, productCost:25, netProfit:61 })
+  })
 })

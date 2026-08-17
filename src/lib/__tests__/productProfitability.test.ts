@@ -23,14 +23,14 @@ describe('calculateProductProfitability', () => {
     expect(result.viability).toBe('missing')
   })
 
-  it('deducts a percentage Sellpert commission from every product sale', () => {
+  it('estimates a percentage Sellpert commission on a successful order including shipping', () => {
     const result = calculateProductProfitability({ salePrice:100, costPrice:50, commissionRate:10, shippingCostTaxInclusive:12, sellpertFeeType:'percentage', sellpertFeeValue:2.5 })
-    expect(result.sellpertCommissionValue).toBeCloseTo(2.5)
-    expect(result.netReceived).toBeCloseTo(74)
-    expect(result.netProfit).toBeCloseTo(24)
+    expect(result.sellpertCommissionValue).toBeCloseTo(2.8)
+    expect(result.netReceived).toBeCloseTo(73.7)
+    expect(result.netProfit).toBeCloseTo(23.7)
   })
 
-  it('deducts a fixed Sellpert commission and supports a zero contract fee', () => {
+  it('uses one fixed Sellpert order fee in the single-product worst-case estimate', () => {
     const fixed = calculateProductProfitability({ salePrice:100, costPrice:50, commissionRate:10, shippingCostTaxInclusive:12, sellpertFeeType:'fixed', sellpertFeeValue:4 })
     const none = calculateProductProfitability({ salePrice:100, costPrice:50, commissionRate:10, shippingCostTaxInclusive:12, sellpertFeeType:'none', sellpertFeeValue:0 })
     expect(fixed.sellpertCommissionValue).toBeCloseTo(4)
