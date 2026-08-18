@@ -12,6 +12,7 @@ type TrialConnection = {
   records_seen: number
   records_matched: number
   records_new: number
+  is_enabled: boolean
   scope_strategy: 'seller_token' | 'seller_ref' | 'store_ref'
   omniful_seller_ref: string | null
   omniful_store_ref: string | null
@@ -131,7 +132,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
   if (available === false && merchantMode) return null
   if (available === null && !notice) return null
 
-  const readyToPull = tokenConfigured && connections.some(connection => connection.status !== 'disabled')
+  const readyToPull = tokenConfigured && connections.some(connection => connection.is_enabled && connection.status !== 'disabled')
   return <article style={styles.card}>
     <div style={styles.topLine} />
     <div style={styles.body}>
@@ -150,7 +151,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
       </div>
 
       <div style={styles.actionsPanel}>
-        <div><strong style={{ display: 'block', fontSize: 13 }}>{portal?.seller_scope_label || 'مساحة عطارة شمول'}</strong><span style={styles.helperText}>{portal?.configured ? 'رابط مساحة Omniful جاهز' : 'بانتظار إضافة رابط مساحة Omniful من الإدارة'}</span></div>
+        <div><strong style={{ display: 'block', fontSize: 13 }}>{portal?.seller_scope_label || 'مساحة التاجر في Omniful'}</strong><span style={styles.helperText}>{portal?.configured ? 'رابط مساحة Omniful جاهز' : 'بانتظار إضافة رابط مساحة Omniful من الإدارة'}</span></div>
         <div style={styles.actionButtons}>
           <button type="button" onClick={() => portal?.url && window.open(portal.url, '_blank', 'noopener,noreferrer')} disabled={!portal?.url} style={{ ...styles.primaryButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> فتح Omniful وربط المتاجر</button>
           <button type="button" onClick={() => void sync()} disabled={busy !== null || !readyToPull} style={{ ...styles.secondaryButton, opacity: busy !== null || !readyToPull ? 0.5 : 1 }}>{busy === 'sync' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق واسحب القنوات</button>
@@ -161,7 +162,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
         <summary style={styles.settingsSummary}><Wrench size={14} /> إعداد الإدارة وعزل بيانات التاجر</summary>
         <div style={styles.settingsGrid}>
           <label style={styles.fieldLabel}>رابط مساحة Omniful المقيدة<input dir="ltr" type="url" value={portalUrl} onChange={event => setPortalUrl(event.target.value)} placeholder="https://...omniful.com/..." style={styles.input} /></label>
-          <label style={styles.fieldLabel}>اسم نطاق البائع<input value={sellerScopeLabel} onChange={event => setSellerScopeLabel(event.target.value)} placeholder="عطارة شمول" style={styles.input} /></label>
+          <label style={styles.fieldLabel}>اسم نطاق البائع<input value={sellerScopeLabel} onChange={event => setSellerScopeLabel(event.target.value)} placeholder="اسم التاجر" style={styles.input} /></label>
           <button type="button" onClick={() => void savePortal()} disabled={busy !== null} style={styles.saveButton}>{busy === 'save' ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ البوابة</button>
         </div>
         <p style={styles.adminNote}>لا تضع رابط الحساب المركزي بصلاحية مدير. أنشئ مستخدمًا أو مساحة Seller مقيدة بعطارة شمول ثم الصق رابطها هنا.</p>
@@ -172,11 +173,14 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
             {(Object.keys(PLATFORM_META) as TrialPlatform[]).map(platform => {
               const mapping = mappings[platform]
               const connection = connections.find(item => item.platform === platform)
+              const connectionConfigured = Boolean(connection?.is_enabled && (
+                connection.scope_strategy === 'store_ref' ? connection.omniful_store_ref : connection?.omniful_seller_ref
+              ))
               return <div key={platform} style={styles.mappingCard}>
                 <div style={styles.mappingHead}>
                   <span style={{ ...styles.dot, background: PLATFORM_META[platform].color }} />
                   <strong>{PLATFORM_META[platform].label}</strong>
-                  <span style={{ ...styles.mappingStatus, color: connection ? 'var(--success-text)' : 'var(--text3)' }}>{connection ? 'محفوظ' : 'غير مضاف'}</span>
+                  <span style={{ ...styles.mappingStatus, color: connectionConfigured ? 'var(--success-text)' : 'var(--text3)' }}>{connectionConfigured ? 'محفوظ' : 'غير مضاف'}</span>
                 </div>
                 <label style={styles.fieldLabel}>طريقة عزل البيانات
                   <select value={mapping.scope_strategy} onChange={event => updateMapping(platform, 'scope_strategy', event.target.value)} style={styles.input}>
