@@ -34,11 +34,15 @@ export function omnifulNextCursor(payload: unknown): string {
   const body = payload as Record<string, unknown>
   const meta = isRecord(body.meta) ? body.meta : {}
   const pagination = isRecord(meta.pagination) ? meta.pagination : {}
+  const hasNextPage = firstBoolean(meta.has_next_page, pagination.has_next_page)
+  if (hasNextPage === false) return ''
   return firstString(
     meta.next_cursor,
     meta.search_after,
+    meta.end_cursor,
     pagination.next_cursor,
     pagination.search_after,
+    pagination.end_cursor,
     body.next_cursor,
     body.search_after,
   )
@@ -96,6 +100,13 @@ function firstString(...values: unknown[]): string {
     if (text) return text
   }
   return ''
+}
+
+function firstBoolean(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value
+  }
+  return null
 }
 
 function isoDate(value: unknown): string | null {

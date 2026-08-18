@@ -10,10 +10,11 @@ import {
 Deno.test('extracts v2 Omniful rows and cursor', () => {
   const payload = {
     data: { orders: [{ omniful_order_id: 'omni-1', order_id: 'amazon-1' }] },
-    meta: { search_after: 'next-page' },
+    meta: { has_next_page: true, end_cursor: 'next-page' },
   }
   assertEquals(omnifulOrderRows(payload).length, 1)
   assertEquals(omnifulNextCursor(payload), 'next-page')
+  assertEquals(omnifulNextCursor({ meta: { has_next_page: false, end_cursor: 'last-page' } }), '')
 })
 
 Deno.test('normalizes an Amazon seller order without changing its payload', () => {

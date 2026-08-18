@@ -15,6 +15,13 @@ import {
   type OmnifulObservation,
 } from '../_shared/omnifulOrders.ts'
 import { decryptCredentialPayload, encryptCredentialPayload } from '../_shared/credentialVault.ts'
+import {
+  accessTokenExpiresSoon,
+  buildOmnifulCredentials,
+  credentialsAreComplete,
+  mergeOmnifulTokenResponse,
+  type OmnifulCredentials,
+} from '../_shared/omnifulCredentials.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,8 +46,8 @@ Deno.serve(async req => {
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations'])
 
     const action = String(body?.action || 'status')
-    if (action === 'save_account_token') {
-      return json(await saveMerchantAccountToken(admin, merchantCode, body), 200, corsHeaders)
+    if (action === 'save_account_credentials' || action === 'save_account_token') {
+      return json(await saveMerchantAccountCredentials(admin, merchantCode, body), 200, corsHeaders)
     }
     if (action === 'remove_account_token') {
       return json(await removeMerchantAccountToken(admin, merchantCode), 200, corsHeaders)
@@ -64,7 +71,7 @@ Deno.serve(async req => {
     const enabledConnections = connections.filter((connection: any) => connection.is_enabled && connection.status !== 'disabled')
     if (enabledConnections.length === 0) throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
 
-    const tokenContext = await resolveAccessToken(admin, merchantCode)
+    let tokenContext = await resolveAccessToken(admin, merchantCode, true)
     if (!tokenContext.token) {
       await markConnectionsError(admin, merchantCode, 'لم يُضبط رمز وصول Omniful الآمن بعد')
       throw new HttpError(409, 'اربط حساب Omniful لهذا التاجر قبل أول مزامنة')
@@ -91,7 +98,14 @@ Deno.serve(async req => {
     if (logError) throw logError
     logId = log.id
 
-    const result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
+    let result: Awaited<ReturnType<typeof fetchMarketplaceOrders>>
+    try {
+      result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 401 || tokenContext.source !== 'merchant' || !tokenContext.credentials) throw error
+      tokenContext = await refreshAndPersistMerchantCredentials(admin, merchantCode, tokenContext.credentials)
+      result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
+    }
     const comparisons: Record<string, { matched: number; newShadow: number; duplicates: number }> = {}
     for (const platform of TRIAL_PLATFORMS) {
       const connection = enabledConnections.find((item: any) => item.platform === platform)
@@ -274,20 +288,35 @@ async function configureMapping(admin: any, merchantCode: string, body: any) {
   return { ok: true, connection: data }
 }
 
-async function saveMerchantAccountToken(admin: any, merchantCode: string, body: any) {
-  const accessToken = normalizeAccessToken(body?.access_token)
-  if (accessToken.length < 20 || accessToken.length > 4096) {
-    throw new HttpError(400, 'رمز وصول Omniful غير صالح')
+async function saveMerchantAccountCredentials(admin: any, merchantCode: string, body: any) {
+  let credentials = buildOmnifulCredentials({
+    client_id: body?.client_id,
+    client_secret: body?.client_secret,
+    refresh_token: body?.refresh_token,
+    access_token: body?.access_token,
+  })
+  if (!credentialsAreComplete(credentials)) {
+    throw new HttpError(400, 'أدخل Client ID وClient Secret وRefresh Token وAccess Token من Omniful')
+  }
+  if ([credentials.client_id, credentials.client_secret, credentials.refresh_token, credentials.access_token]
+    .some(value => value.length > 4096)) {
+    throw new HttpError(400, 'إحدى بيانات اعتماد Omniful أطول من الحد المسموح')
   }
 
-  await testOmnifulToken(accessToken)
+  try {
+    await testOmnifulToken(credentials.access_token)
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 401) throw error
+    credentials = await refreshOmnifulCredentials(credentials)
+    await testOmnifulToken(credentials.access_token)
+  }
   const now = new Date().toISOString()
-  const secretBlob = await encryptCredentialPayload({ access_token: accessToken })
+  const secretBlob = await encryptCredentialPayload(credentials)
   const { error } = await admin.from('omniful_account_credentials').upsert({
     merchant_code: merchantCode,
     connection_mode: 'merchant_account',
     secret_blob: secretBlob,
-    token_hint: accessToken.slice(-4),
+    token_hint: credentials.access_token.slice(-4),
     last_tested_at: now,
     last_error: null,
     updated_at: now,
@@ -315,8 +344,11 @@ async function saveMerchantAccountToken(admin: any, merchantCode: string, body: 
     account: {
       mode: 'merchant_account',
       token_configured: true,
-      token_hint: accessToken.slice(-4),
+      credentials_configured: true,
+      token_hint: credentials.access_token.slice(-4),
       last_tested_at: now,
+      access_token_expires_at: credentials.access_token_expires_at,
+      refresh_token_expires_at: credentials.refresh_token_expires_at,
     },
   }
 }
@@ -359,12 +391,17 @@ async function useCentralAccount(admin: any, merchantCode: string) {
 }
 
 async function accountStatus(admin: any, merchantCode: string) {
-  const tokenContext = await resolveAccessToken(admin, merchantCode)
+  const tokenContext = await resolveAccessToken(admin, merchantCode, false)
   return {
     mode: tokenContext.mode,
     token_configured: Boolean(tokenContext.token),
+    credentials_configured: tokenContext.source === 'central'
+      ? Boolean(tokenContext.token)
+      : Boolean(tokenContext.credentials && credentialsAreComplete(tokenContext.credentials)),
     token_hint: tokenContext.tokenHint,
     last_tested_at: tokenContext.lastTestedAt,
+    access_token_expires_at: tokenContext.credentials?.access_token_expires_at || null,
+    refresh_token_expires_at: tokenContext.credentials?.refresh_token_expires_at || null,
   }
 }
 
@@ -532,7 +569,70 @@ async function compareAndPersist(
   return { matched, newShadow: rows.length - matched, duplicates: observations.length - unique.size }
 }
 
-async function resolveAccessToken(admin: any, merchantCode: string) {
+async function refreshOmnifulCredentials(credentials: OmnifulCredentials): Promise<OmnifulCredentials> {
+  const baseUrl = String(Deno.env.get('OMNIFUL_BASE_URL') || DEFAULT_BASE_URL).replace(/\/$/, '')
+  let lastStatus = 0
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch(`${baseUrl}/sales-channel/public/v1/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: credentials.refresh_token,
+        client_id: credentials.client_id,
+        client_secret: credentials.client_secret,
+        grant_type: 'refresh_token',
+      }),
+    })
+    lastStatus = response.status
+    if (response.ok) {
+      const payload = await response.json().catch(() => null)
+      const refreshed = mergeOmnifulTokenResponse(credentials, payload)
+      if (!refreshed) throw new HttpError(502, 'لم يُرجع Omniful رمز وصول جديدًا')
+      return refreshed
+    }
+    if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 2) break
+    const retryAfter = Number(response.headers.get('retry-after'))
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : 500 * (2 ** attempt) + Math.floor(Math.random() * 250)
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+  if (lastStatus === 400 || lastStatus === 401 || lastStatus === 403) {
+    throw new HttpError(409, 'انتهت صلاحية بيانات Omniful؛ انسخ بيانات اعتماد جديدة من صفحة التكامل')
+  }
+  throw new HttpError(502, `تعذر تجديد اتصال Omniful (${lastStatus || 'network'})`)
+}
+
+async function refreshAndPersistMerchantCredentials(admin: any, merchantCode: string, current: OmnifulCredentials) {
+  if (!credentialsAreComplete(current)) {
+    throw new HttpError(409, 'أعد حفظ Client ID وClient Secret وRefresh Token لتفعيل التجديد التلقائي')
+  }
+  const credentials = await refreshOmnifulCredentials(current)
+  const now = new Date().toISOString()
+  const secretBlob = await encryptCredentialPayload(credentials)
+  const { error } = await admin.from('omniful_account_credentials').update({
+    secret_blob: secretBlob,
+    token_hint: credentials.access_token.slice(-4),
+    last_tested_at: now,
+    last_error: null,
+    updated_at: now,
+  }).eq('merchant_code', merchantCode).eq('connection_mode', 'merchant_account')
+  if (error) throw error
+  return {
+    token: credentials.access_token,
+    source: 'merchant' as const,
+    mode: 'merchant_account' as const,
+    tokenHint: credentials.access_token.slice(-4),
+    lastTestedAt: now,
+    credentials,
+  }
+}
+
+async function resolveAccessToken(admin: any, merchantCode: string, refreshIfExpiring = false) {
   const { data, error } = await admin.from('omniful_account_credentials')
     .select('connection_mode,secret_blob,token_hint,last_tested_at')
     .eq('merchant_code', merchantCode).maybeSingle()
@@ -545,17 +645,23 @@ async function resolveAccessToken(admin: any, merchantCode: string) {
       mode: 'central_account' as const,
       tokenHint: null,
       lastTestedAt: data.last_tested_at || null,
+      credentials: null,
     }
   }
 
   if (data?.connection_mode === 'merchant_account' && data.secret_blob) {
     const secret = await decryptCredentialPayload(data.secret_blob)
+    const credentials = buildOmnifulCredentials(secret)
+    if (refreshIfExpiring && credentialsAreComplete(credentials) && accessTokenExpiresSoon(credentials)) {
+      return await refreshAndPersistMerchantCredentials(admin, merchantCode, credentials)
+    }
     return {
-      token: clean(secret.access_token),
+      token: credentials.access_token,
       source: 'merchant' as const,
       mode: 'merchant_account' as const,
       tokenHint: data.token_hint || null,
       lastTestedAt: data.last_tested_at || null,
+      credentials,
     }
   }
 
@@ -565,6 +671,7 @@ async function resolveAccessToken(admin: any, merchantCode: string) {
     mode: 'merchant_account' as const,
     tokenHint: null,
     lastTestedAt: null,
+    credentials: null,
   }
 }
 
@@ -576,9 +683,6 @@ async function markConnectionsError(admin: any, merchantCode: string, message: s
 
 function dateOnly(date: Date) { return date.toISOString().slice(0, 10) }
 function clean(value: unknown) { return String(value ?? '').trim() }
-function normalizeAccessToken(value: unknown) {
-  return clean(value).replace(/^Bearer\s+/i, '').trim()
-}
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
