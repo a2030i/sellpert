@@ -71,6 +71,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
   const [sellerScopeLabel, setSellerScopeLabel] = useState('')
   const [credentials, setCredentials] = useState<CredentialForm>(EMPTY_CREDENTIALS)
   const [mappings, setMappings] = useState<Record<TrialPlatform, MappingForm>>(EMPTY_MAPPINGS)
+  const [editingCredentials, setEditingCredentials] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +93,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
       setPortalUrl(nextPortal?.url || '')
       setSellerScopeLabel(nextPortal?.seller_scope_label || '')
       setTokenConfigured(Boolean(nextAccount.credentials_configured))
+      if (!nextAccount.credentials_configured) setEditingCredentials(false)
       setAvailable(Boolean(result.available))
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
@@ -141,6 +143,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     try {
       await callOmniful({ action: 'save_account_credentials', merchant_code: merchantCode, ...credentials })
       setCredentials(EMPTY_CREDENTIALS)
+      setEditingCredentials(false)
       setNotice('تم اختبار حساب Omniful وحفظ بيانات الاعتماد مشفرة مع تفعيل التجديد التلقائي.')
       await load()
     } catch (error) {
@@ -154,6 +157,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     try {
       await callOmniful({ action: 'remove_account_token', merchant_code: merchantCode })
       setCredentials(EMPTY_CREDENTIALS)
+      setEditingCredentials(false)
       setNotice('تم إلغاء ربط حساب Omniful الخاص.')
       await load()
     } catch (error) {
@@ -217,7 +221,17 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
           <div><strong style={{ display: 'block', fontSize: 12 }}>حساب Omniful المستخدم</strong><span style={styles.helperText}>{account.mode === 'central_account' ? 'حساب Sellpert المركزي — تديره الإدارة' : 'حساب خاص بهذا التاجر — لا يشارك بياناته مع أي متجر آخر'}</span></div>
           <span style={{ ...styles.accountBadge, background: tokenConfigured ? 'var(--success-bg)' : 'var(--warning-bg)', color: tokenConfigured ? 'var(--success-text)' : 'var(--warning-text)' }}>{tokenConfigured ? `متصل${account.token_hint ? ` · ••••${account.token_hint}` : ''}` : 'غير مربوط'}</span>
         </div>
-        {account.mode === 'merchant_account' ? <>
+        {account.mode === 'merchant_account' ? tokenConfigured && !editingCredentials ? <div style={styles.connectedAccount}>
+          <div>
+            <strong style={styles.connectedTitle}><CheckCircle2 size={15} /> الاتصال يعمل</strong>
+            <span style={styles.helperText}>بيانات الاعتماد محفوظة ومشفرة، ولا حاجة لإظهارها أثناء عمل الاتصال.</span>
+            {account.access_token_expires_at ? <span style={styles.expiryNote}>رمز الوصول صالح حتى {formatDate(account.access_token_expires_at)}{account.refresh_token_expires_at ? ` · رمز التحديث حتى ${formatDate(account.refresh_token_expires_at)}` : ''}</span> : null}
+          </div>
+          <div style={styles.tokenRowCompact}>
+            <button type="button" onClick={() => { setCredentials(EMPTY_CREDENTIALS); setEditingCredentials(true); setNotice('') }} disabled={busy !== null} style={styles.secondaryButton}><RefreshCw size={14} /> إعادة الاتصال</button>
+            <button type="button" aria-label="فصل اتصال حساب Omniful" onClick={() => void removeAccountToken()} disabled={busy !== null} style={styles.deleteButton}>{busy === 'remove-token' ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} فصل الاتصال</button>
+          </div>
+        </div> : <>
           <div style={styles.credentialsGrid}>
             <CredentialInput label="معرّف العميل — Client ID" value={credentials.client_id} onChange={value => updateCredential('client_id', value)} />
             <CredentialInput label="السر الخاص بالعميل — Client Secret" value={credentials.client_secret} onChange={value => updateCredential('client_secret', value)} secret />
@@ -226,10 +240,9 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
           </div>
           <div style={styles.tokenRow}>
             <button type="button" onClick={() => void saveAccountCredentials()} disabled={busy !== null || !credentialsReady} style={{ ...styles.saveButton, opacity: busy !== null || !credentialsReady ? 0.55 : 1 }}>{busy === 'token' ? <Loader2 size={14} className="spin" /> : <KeyRound size={14} />} اختبار وحفظ الربط</button>
-            {tokenConfigured ? <button type="button" aria-label="إلغاء ربط حساب Omniful" onClick={() => void removeAccountToken()} disabled={busy !== null} style={styles.deleteButton}>{busy === 'remove-token' ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} إلغاء الربط</button> : null}
+            {tokenConfigured ? <button type="button" onClick={() => { setCredentials(EMPTY_CREDENTIALS); setEditingCredentials(false); setNotice('') }} disabled={busy !== null} style={styles.secondaryButton}>إلغاء إعادة الاتصال</button> : null}
           </div>
           <p style={styles.tokenNote}>انسخ الحقول الأربعة من Omniful: Settings ← Apps &amp; Integrations ← Custom Apps ← Seller Custom Integration ← الإعدادات. لا نحتاج «مفتاح ويب هوك السري». تُحفظ البيانات مشفرة ويُجدد رمز الوصول تلقائيًا.</p>
-          {account.access_token_expires_at ? <p style={styles.expiryNote}>رمز الوصول الحالي حتى {formatDate(account.access_token_expires_at)}{account.refresh_token_expires_at ? ` · رمز التحديث حتى ${formatDate(account.refresh_token_expires_at)}` : ''}</p> : null}
         </> : <div style={styles.managedAccount}><ShieldCheck size={15} /><span>لا يحتاج التاجر إلى إدخال أي مفتاح. الإدارة تربط كل قناة بمعرّف Seller أو Store مستقل.</span></div>}
         {!merchantMode ? <div style={styles.modeActions}>
           <button type="button" onClick={() => setAccount(current => ({ ...current, mode: 'merchant_account', token_configured: false, credentials_configured: false, token_hint: null }))} disabled={busy !== null || account.mode === 'merchant_account'} style={styles.modeButton}>حساب التاجر الخاص</button>
@@ -346,7 +359,7 @@ function formatDate(value: string) { return new Date(value).toLocaleString('ar-S
 const styles: Record<string, CSSProperties> = {
   card: { maxWidth: 760, marginTop: 14, background: 'var(--surface)', border: '1px solid rgba(25,42,62,.2)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }, topLine: { height: 3, background: 'linear-gradient(90deg,#192a3e,#0e8177)' }, body: { padding: 18 },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, titleGroup: { display: 'flex', alignItems: 'center', gap: 12 }, logo: { width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: 'rgba(14,129,119,.11)', color: 'var(--accent)' }, title: { fontSize: 15, fontWeight: 850, color: 'var(--text)' }, subtitle: { marginTop: 3, fontSize: 11, color: 'var(--text3)' }, protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 20, padding: '5px 10px', fontSize: 10, fontWeight: 800, background: 'var(--success-bg)', color: 'var(--success-text)' },
-  accountPanel: { marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid rgba(14,129,119,.24)', background: 'linear-gradient(135deg,rgba(14,129,119,.07),rgba(255,255,255,.02))' }, accountHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, accountBadge: { display: 'inline-flex', alignItems: 'center', minHeight: 25, padding: '3px 9px', borderRadius: 20, fontSize: 9, fontWeight: 850, direction: 'ltr' }, credentialsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 9, marginTop: 12 }, tokenRow: { display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap', marginTop: 12 }, tokenNote: { margin: '8px 0 0', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, expiryNote: { margin: '6px 0 0', color: 'var(--success-text)', fontSize: 9, lineHeight: 1.7 }, deleteButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--danger-text)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, managedAccount: { display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, padding: 10, borderRadius: 9, background: 'var(--surface)', color: 'var(--text2)', fontSize: 10, lineHeight: 1.6 }, modeActions: { display: 'flex', gap: 7, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }, modeButton: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer' },
+  accountPanel: { marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid rgba(14,129,119,.24)', background: 'linear-gradient(135deg,rgba(14,129,119,.07),rgba(255,255,255,.02))' }, accountHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, accountBadge: { display: 'inline-flex', alignItems: 'center', minHeight: 25, padding: '3px 9px', borderRadius: 20, fontSize: 9, fontWeight: 850, direction: 'ltr' }, credentialsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 9, marginTop: 12 }, tokenRow: { display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap', marginTop: 12 }, tokenRowCompact: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }, tokenNote: { margin: '8px 0 0', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, expiryNote: { display: 'block', margin: '6px 0 0', color: 'var(--success-text)', fontSize: 9, lineHeight: 1.7 }, connectedAccount: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 12, borderRadius: 10, border: '1px solid rgba(14,129,119,.18)', background: 'var(--surface)' }, connectedTitle: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success-text)', fontSize: 11 }, deleteButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--danger-text)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, managedAccount: { display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, padding: 10, borderRadius: 9, background: 'var(--surface)', color: 'var(--text2)', fontSize: 10, lineHeight: 1.6 }, modeActions: { display: 'flex', gap: 7, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }, modeButton: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer' },
   flow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8, alignItems: 'center', marginTop: 18, padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface2)' }, flowStep: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontSize: 11 }, stepNumber: { flex: '0 0 auto', width: 25, height: 25, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 },
   actionsPanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,rgba(14,129,119,.08),rgba(25,42,62,.04))', border: '1px solid rgba(14,129,119,.2)' }, helperText: { display: 'block', marginTop: 4, fontSize: 10, color: 'var(--text3)' }, actionButtons: { display: 'flex', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
   adminSettings: { marginTop: 12, padding: 12, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)' }, settingsSummary: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, settingsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, alignItems: 'end', marginTop: 12 }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11 }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, adminNote: { margin: '9px 0 0', color: 'var(--warning-text)', fontSize: 9, lineHeight: 1.6 },
