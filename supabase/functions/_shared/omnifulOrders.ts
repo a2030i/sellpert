@@ -54,10 +54,13 @@ export function normalizeOmnifulObservation(row: Record<string, unknown>): Omnif
   const seller = isRecord(row.seller) ? row.seller : {}
   const omnifulOrderId = firstString(row.omniful_order_id, row.id, row.uuid)
   const externalOrderId = firstString(
-    row.order_id,
+    // Omniful's V2 API uses `order_id` for its channel-side internal ID and
+    // `order_alias` for the original marketplace order number. The alias is
+    // what Sellpert stores in `orders.order_id`, so it must win when present.
+    row.order_alias,
     row.sales_channel_order_id,
     row.seller_sales_channel_order_id,
-    row.order_alias,
+    row.order_id,
   )
   if (!omnifulOrderId || !externalOrderId) return null
 

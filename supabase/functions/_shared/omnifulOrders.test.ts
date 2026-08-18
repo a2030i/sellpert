@@ -38,6 +38,17 @@ Deno.test('normalizes an Amazon seller order without changing its payload', () =
   })
 })
 
+Deno.test('prefers the marketplace order alias over Omniful channel order id', () => {
+  const raw = {
+    omniful_order_id: '6a823da2c0b3b451ebe2d6c5',
+    order_id: '4082133648',
+    order_alias: '11512568650',
+    order_created_at: '2026-08-16T22:45:14.978Z',
+    sales_channel: { tag: 'trendyol', name: 'Trendyol MENA' },
+  }
+  assertEquals(normalizeOmnifulObservation(raw)?.externalOrderId, '11512568650')
+})
+
 Deno.test('rejects rows that cannot be safely deduplicated', () => {
   assertEquals(normalizeOmnifulObservation({ omniful_order_id: 'omni-1' }), null)
   assertEquals(isAmazonOmnifulOrder({ sales_channel: { name: 'Noon' } }), false)
