@@ -12,6 +12,14 @@ type TrialConnection = {
   records_seen: number
   records_matched: number
   records_new: number
+  scope_strategy: 'seller_token' | 'seller_ref' | 'store_ref'
+  omniful_seller_ref: string | null
+  omniful_store_ref: string | null
+}
+type MappingForm = {
+  scope_strategy: 'seller_ref' | 'store_ref'
+  omniful_seller_ref: string
+  omniful_store_ref: string
 }
 type OmnifulPortal = {
   configured: boolean
@@ -25,22 +33,36 @@ const PLATFORM_META: Record<TrialPlatform, { label: string; color: string }> = {
   noon: { label: 'Noon', color: '#c7ab00' },
   trendyol: { label: 'Trendyol', color: '#f56600' },
 }
+const EMPTY_MAPPING: MappingForm = { scope_strategy: 'store_ref', omniful_seller_ref: '', omniful_store_ref: '' }
+const EMPTY_MAPPINGS: Record<TrialPlatform, MappingForm> = {
+  amazon: { ...EMPTY_MAPPING }, noon: { ...EMPTY_MAPPING }, trendyol: { ...EMPTY_MAPPING },
+}
 
 export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = false }: { merchantCode: string; merchantMode?: boolean }) {
   const [connections, setConnections] = useState<TrialConnection[]>([])
   const [portal, setPortal] = useState<OmnifulPortal | null>(null)
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
-  const [busy, setBusy] = useState<'sync' | 'save' | null>(null)
+  const [busy, setBusy] = useState<'sync' | 'save' | TrialPlatform | null>(null)
   const [notice, setNotice] = useState('')
   const [portalUrl, setPortalUrl] = useState('')
   const [sellerScopeLabel, setSellerScopeLabel] = useState('')
+  const [mappings, setMappings] = useState<Record<TrialPlatform, MappingForm>>(EMPTY_MAPPINGS)
 
   const load = useCallback(async () => {
     try {
       const result = await callOmniful({ action: 'status', merchant_code: merchantCode })
       const nextPortal = result.portal as OmnifulPortal
-      setConnections(result.connections || [])
+      const nextConnections = (result.connections || []) as TrialConnection[]
+      setConnections(nextConnections)
+      setMappings(Object.fromEntries((Object.keys(PLATFORM_META) as TrialPlatform[]).map(platform => {
+        const connection = nextConnections.find(item => item.platform === platform)
+        return [platform, {
+          scope_strategy: connection?.scope_strategy === 'seller_ref' ? 'seller_ref' : 'store_ref',
+          omniful_seller_ref: connection?.omniful_seller_ref || '',
+          omniful_store_ref: connection?.omniful_store_ref || '',
+        }]
+      })) as Record<TrialPlatform, MappingForm>)
       setPortal(nextPortal)
       setPortalUrl(nextPortal?.url || '')
       setSellerScopeLabel(nextPortal?.seller_scope_label || '')
@@ -89,8 +111,25 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     } finally { setBusy(null) }
   }
 
-  if (available === false || (available === null && !notice)) return null
-  if (connections.length === 0) return notice ? <div style={styles.error}>{notice}</div> : null
+  function updateMapping(platform: TrialPlatform, field: keyof MappingForm, value: string) {
+    setMappings(current => ({ ...current, [platform]: { ...current[platform], [field]: value } }))
+  }
+
+  async function saveMapping(platform: TrialPlatform) {
+    setBusy(platform); setNotice('')
+    try {
+      await callOmniful({
+        action: 'configure_mapping', merchant_code: merchantCode, platform, ...mappings[platform],
+      })
+      setNotice(`تم حفظ عزل ${PLATFORM_META[platform].label} لهذا التاجر.`)
+      await load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'تعذر حفظ معرّفات Omniful')
+    } finally { setBusy(null) }
+  }
+
+  if (available === false && merchantMode) return null
+  if (available === null && !notice) return null
 
   const readyToPull = tokenConfigured && connections.some(connection => connection.status !== 'disabled')
   return <article style={styles.card}>
@@ -118,14 +157,44 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
         </div>
       </div>
 
-      {!merchantMode ? <details style={styles.adminSettings} open={!portal?.configured}>
-        <summary style={styles.settingsSummary}><Wrench size={14} /> إعداد الإدارة للتجربة</summary>
+      {!merchantMode ? <details style={styles.adminSettings} open={!portal?.configured || !available}>
+        <summary style={styles.settingsSummary}><Wrench size={14} /> إعداد الإدارة وعزل بيانات التاجر</summary>
         <div style={styles.settingsGrid}>
           <label style={styles.fieldLabel}>رابط مساحة Omniful المقيدة<input dir="ltr" type="url" value={portalUrl} onChange={event => setPortalUrl(event.target.value)} placeholder="https://...omniful.com/..." style={styles.input} /></label>
           <label style={styles.fieldLabel}>اسم نطاق البائع<input value={sellerScopeLabel} onChange={event => setSellerScopeLabel(event.target.value)} placeholder="عطارة شمول" style={styles.input} /></label>
           <button type="button" onClick={() => void savePortal()} disabled={busy !== null} style={styles.saveButton}>{busy === 'save' ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ البوابة</button>
         </div>
         <p style={styles.adminNote}>لا تضع رابط الحساب المركزي بصلاحية مدير. أنشئ مستخدمًا أو مساحة Seller مقيدة بعطارة شمول ثم الصق رابطها هنا.</p>
+        <div style={styles.mappingSection}>
+          <div style={styles.mappingTitle}>معرّفات القنوات داخل حساب Omniful المركزي</div>
+          <p style={styles.mappingHelp}>اختر Store ID عند وجود متجر مستقل لكل قناة. استخدم Seller ID فقط إذا كان Omniful يعزل جميع قنوات التاجر تحت بائع واحد.</p>
+          <div style={styles.mappingList}>
+            {(Object.keys(PLATFORM_META) as TrialPlatform[]).map(platform => {
+              const mapping = mappings[platform]
+              const connection = connections.find(item => item.platform === platform)
+              return <div key={platform} style={styles.mappingCard}>
+                <div style={styles.mappingHead}>
+                  <span style={{ ...styles.dot, background: PLATFORM_META[platform].color }} />
+                  <strong>{PLATFORM_META[platform].label}</strong>
+                  <span style={{ ...styles.mappingStatus, color: connection ? 'var(--success-text)' : 'var(--text3)' }}>{connection ? 'محفوظ' : 'غير مضاف'}</span>
+                </div>
+                <label style={styles.fieldLabel}>طريقة عزل البيانات
+                  <select value={mapping.scope_strategy} onChange={event => updateMapping(platform, 'scope_strategy', event.target.value)} style={styles.input}>
+                    <option value="store_ref">Store ID — موصى به</option>
+                    <option value="seller_ref">Seller ID</option>
+                  </select>
+                </label>
+                <div style={styles.mappingFields}>
+                  <label style={styles.fieldLabel}>Seller ID / Code<input dir="ltr" value={mapping.omniful_seller_ref} onChange={event => updateMapping(platform, 'omniful_seller_ref', event.target.value)} placeholder="Seller ID" style={styles.input} /></label>
+                  <label style={styles.fieldLabel}>Store ID / Code<input dir="ltr" value={mapping.omniful_store_ref} onChange={event => updateMapping(platform, 'omniful_store_ref', event.target.value)} placeholder="Store ID" style={styles.input} /></label>
+                </div>
+                <button type="button" onClick={() => void saveMapping(platform)} disabled={busy !== null || (mapping.scope_strategy === 'store_ref' ? !mapping.omniful_store_ref.trim() : !mapping.omniful_seller_ref.trim())} style={{ ...styles.saveButton, width: '100%', opacity: busy !== null ? 0.65 : 1 }}>
+                  {busy === platform ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ ربط {PLATFORM_META[platform].label}
+                </button>
+              </div>
+            })}
+          </div>
+        </div>
       </details> : null}
 
       <div style={styles.discoveryRow}>
@@ -164,5 +233,6 @@ const styles: Record<string, CSSProperties> = {
   flow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8, alignItems: 'center', marginTop: 18, padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface2)' }, flowStep: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontSize: 11 }, stepNumber: { flex: '0 0 auto', width: 25, height: 25, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 },
   actionsPanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,rgba(14,129,119,.08),rgba(25,42,62,.04))', border: '1px solid rgba(14,129,119,.2)' }, helperText: { display: 'block', marginTop: 4, fontSize: 10, color: 'var(--text3)' }, actionButtons: { display: 'flex', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
   adminSettings: { marginTop: 12, padding: 12, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)' }, settingsSummary: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, settingsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, alignItems: 'end', marginTop: 12 }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11 }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, adminNote: { margin: '9px 0 0', color: 'var(--warning-text)', fontSize: 9, lineHeight: 1.6 },
+  mappingSection: { marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }, mappingTitle: { color: 'var(--text)', fontSize: 12, fontWeight: 850 }, mappingHelp: { margin: '4px 0 10px', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, mappingList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(205px,1fr))', gap: 9 }, mappingCard: { display: 'grid', gap: 9, minWidth: 0, padding: 11, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' }, mappingHead: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11 }, mappingStatus: { marginInlineStart: 'auto', fontSize: 9, fontWeight: 750 }, mappingFields: { display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 7 },
   discoveryRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }, sectionLabel: { display: 'block', marginBottom: 7, color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelChips: { display: 'flex', gap: 6, flexWrap: 'wrap' }, channelChip: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 9px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: 10, fontWeight: 750 }, dot: { width: 7, height: 7, borderRadius: 99 }, emptyChannels: { color: 'var(--text3)', fontSize: 10 }, lastSync: { display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success-text)', fontSize: 10 }, metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12 }, metric: { padding: 10, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9 }, safetyBox: { display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 14, padding: 11, borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
 }

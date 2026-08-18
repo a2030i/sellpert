@@ -37,15 +37,20 @@ Deno.serve(async req => {
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations'])
 
-    const connections = await getConnections(admin, merchantCode)
     const action = String(body?.action || 'status')
-    if (action === 'status') return json(await connectionStatus(admin, connections), 200, corsHeaders)
+    if (action === 'configure_mapping') {
+      await requirePortalAdmin(req, admin)
+      return json(await configureMapping(admin, merchantCode, body), 200, corsHeaders)
+    }
     if (action === 'configure_portal') {
       await requirePortalAdmin(req, admin)
       return json(await configurePortal(admin, merchantCode, body), 200, corsHeaders)
     }
+    const connections = await getConnections(admin, merchantCode)
+    if (action === 'status') return json(await connectionStatus(admin, merchantCode, connections), 200, corsHeaders)
     if (action !== 'sync') throw new HttpError(400, 'Unsupported action')
-    const enabledConnections = connections.filter((connection: any) => connection.status !== 'disabled')
+    if (connections.length === 0) throw new HttpError(409, 'لم تُضبط خرائط Omniful لهذا المتجر بعد')
+    const enabledConnections = connections.filter((connection: any) => connection.is_enabled && connection.status !== 'disabled')
     if (enabledConnections.length === 0) throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
 
     const tokenContext = resolveAccessToken(merchantCode)
@@ -53,10 +58,15 @@ Deno.serve(async req => {
       await markConnectionsError(admin, merchantCode, 'لم يُضبط رمز وصول Omniful الآمن بعد')
       throw new HttpError(409, 'يلزم إكمال إعداد حساب Omniful المركزي قبل أول مزامنة')
     }
-    if (tokenContext.source === 'central' && enabledConnections.some((connection: any) => (
-      !connection.omniful_seller_ref && !connection.omniful_store_ref
-    ))) {
-      throw new HttpError(409, 'يجب تحديد معرف بائع أو متجر Omniful لكل منصة قبل استخدام الرمز المركزي')
+    if (tokenContext.source === 'central') {
+      const invalidScope = enabledConnections.find((connection: any) => (
+        connection.scope_strategy === 'seller_token'
+        || (connection.scope_strategy === 'seller_ref' && !connection.omniful_seller_ref)
+        || (connection.scope_strategy === 'store_ref' && !connection.omniful_store_ref)
+      ))
+      if (invalidScope) {
+        throw new HttpError(409, `يلزم تحديد عزل آمن لقناة ${invalidScope.platform} قبل استخدام توكن Omniful المركزي`)
+      }
     }
 
     const { from, to } = parseSyncRange(body, 30)
@@ -141,7 +151,7 @@ Deno.serve(async req => {
     if (merchantCode) {
       await admin.from('omniful_connections').update({
         status: 'error', last_error: message.slice(0, 1000), updated_at: new Date().toISOString(),
-      }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).neq('status', 'disabled')
+      }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).eq('is_enabled', true).neq('status', 'disabled')
     }
     return json({ error: message }, status, corsHeaders)
   }
@@ -165,12 +175,10 @@ async function getConnections(admin: any, merchantCode: string) {
     .select('id,merchant_code,platform,mode,status,scope_strategy,omniful_seller_ref,omniful_store_ref,is_enabled,last_sync_at,last_error,records_seen,records_matched,records_new,updated_at')
     .eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).order('platform')
   if (error) throw error
-  if (!data?.length) throw new HttpError(404, 'تجربة Omniful غير مفعلة لهذا المتجر')
-  return data
+  return data || []
 }
 
-async function connectionStatus(admin: any, connections: any[]) {
-  const merchantCode = connections[0].merchant_code
+async function connectionStatus(admin: any, merchantCode: string, connections: any[]) {
   const [uploadsResult, trendyolResult, portalResult] = await Promise.all([
     admin.from('platform_file_uploads').select('platform')
       .eq('merchant_code', merchantCode).in('platform', ['amazon', 'noon']).eq('status', 'success'),
@@ -188,7 +196,7 @@ async function connectionStatus(admin: any, connections: any[]) {
     if (platform === 'amazon' || platform === 'noon') uploadCounts[platform]++
   }
   return {
-    available: true,
+    available: connections.length > 0,
     token_configured: Boolean(resolveAccessToken(merchantCode).token),
     portal: {
       configured: Boolean(portalResult.data?.portal_url),
@@ -206,6 +214,9 @@ async function connectionStatus(admin: any, connections: any[]) {
       records_seen: connection.records_seen,
       records_matched: connection.records_matched,
       records_new: connection.records_new,
+      scope_strategy: connection.scope_strategy,
+      omniful_seller_ref: connection.omniful_seller_ref,
+      omniful_store_ref: connection.omniful_store_ref,
       current_source: connection.platform === 'trendyol' ? 'direct_api' : 'excel',
       current_source_active: connection.platform === 'trendyol'
         ? Boolean(trendyolResult.data?.is_active)
@@ -218,6 +229,38 @@ async function connectionStatus(admin: any, connections: any[]) {
         : null,
     })),
   }
+}
+
+async function configureMapping(admin: any, merchantCode: string, body: any) {
+  const platform = clean(body?.platform).toLowerCase() as OmnifulMarketplace
+  if (!TRIAL_PLATFORMS.includes(platform)) throw new HttpError(400, 'منصة Omniful غير مدعومة')
+
+  const scopeStrategy = clean(body?.scope_strategy) || 'store_ref'
+  if (!['seller_ref', 'store_ref'].includes(scopeStrategy)) {
+    throw new HttpError(400, 'اختر العزل بمعرّف البائع أو المتجر')
+  }
+  const sellerRef = clean(body?.omniful_seller_ref).slice(0, 240) || null
+  const storeRef = clean(body?.omniful_store_ref).slice(0, 240) || null
+  if (scopeStrategy === 'seller_ref' && !sellerRef) throw new HttpError(400, 'Seller ID مطلوب لطريقة العزل المختارة')
+  if (scopeStrategy === 'store_ref' && !storeRef) throw new HttpError(400, 'Store ID مطلوب لطريقة العزل المختارة')
+
+  const now = new Date().toISOString()
+  const { data, error } = await admin.from('omniful_connections').upsert({
+    merchant_code: merchantCode,
+    platform,
+    mode: 'shadow',
+    status: 'pending',
+    scope_strategy: scopeStrategy,
+    omniful_seller_ref: sellerRef,
+    omniful_store_ref: storeRef,
+    is_enabled: true,
+    last_error: null,
+    updated_at: now,
+  }, { onConflict: 'merchant_code,platform' })
+    .select('platform,mode,status,scope_strategy,omniful_seller_ref,omniful_store_ref,is_enabled,updated_at')
+    .single()
+  if (error) throw error
+  return { ok: true, connection: data }
 }
 
 async function configurePortal(admin: any, merchantCode: string, body: any) {
@@ -387,7 +430,7 @@ function resolveAccessToken(merchantCode: string) {
 async function markConnectionsError(admin: any, merchantCode: string, message: string) {
   await admin.from('omniful_connections').update({
     status: 'error', last_error: message, updated_at: new Date().toISOString(),
-  }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).neq('status', 'disabled')
+  }).eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).eq('is_enabled', true).neq('status', 'disabled')
 }
 
 function dateOnly(date: Date) { return date.toISOString().slice(0, 10) }

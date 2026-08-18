@@ -19,6 +19,7 @@ const TasksBoardView      = lazy(() => import('./admin/TasksBoardView'))
 const AuditLogView        = lazy(() => import('./admin/AuditLogView'))
 const AdminProductsView   = lazy(() => import('./admin/AdminProductsView'))
 const SallaView           = lazy(() => import('./admin/SallaView'))
+const OmnifulView         = lazy(() => import('./admin/OmnifulView'))
 const DBHealthView        = lazy(() => import('./admin/DBHealthView'))
 const TeamDashboardView   = lazy(() => import('./admin/TeamDashboardView'))
 const MerchantTimelineView = lazy(() => import('./admin/MerchantTimelineView'))
@@ -28,16 +29,16 @@ import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../lib/supabase'
 import {
   LayoutDashboard, Users, Tag, PenLine, Upload, Truck, Megaphone, History,
-  Percent, ShoppingBag,
+  Percent, ShoppingBag, Network,
   BarChart2, Key, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
   ClipboardList, PackageCheck, FileInput,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'audit' | 'products' | 'fees' | 'salla' | 'health'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'audit' | 'products' | 'fees' | 'salla' | 'omniful' | 'health'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'audit', 'products', 'fees', 'salla', 'health']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'audit', 'products', 'fees', 'salla', 'omniful', 'health']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -132,6 +133,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'integrations', label: 'الربط والتكاملات', Icon: Key,
     items: [
       { key: 'salla',       Icon: ShoppingBag, label: 'تكامل سلة',           adminOnly: true },
+      { key: 'omniful',     Icon: Network,     label: 'ربط Omniful',         adminOnly: true },
     ],
   },
   {
@@ -499,6 +501,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'fees'        && <FeesView />}
         {view === 'salla'       && <SallaView onRefresh={() => loadAll(true)} />}
+        {view === 'omniful'     && <OmnifulView merchants={merchantOnly} />}
         {view === 'health'      && <DBHealthView />}
         </Suspense>
       </main>
