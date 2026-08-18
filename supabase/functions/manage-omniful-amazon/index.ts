@@ -82,8 +82,9 @@ Deno.serve(async req => {
     const connections = await getConnections(admin, merchantCode)
     if (action === 'status') return json(await connectionStatus(admin, merchantCode, connections, actor.kind !== 'merchant' && actor.kind !== 'employee'), 200, corsHeaders)
     if (action !== 'sync') throw new HttpError(400, 'Unsupported action')
-    if (connections.length === 0) throw new HttpError(409, 'لم تُضبط خرائط Omniful لهذا المتجر بعد')
-    const enabledConnections = connections.filter((connection: any) => connection.is_enabled && connection.status !== 'disabled')
+    const syncConnections = await getSyncConnections(admin, merchantCode, connections)
+    if (syncConnections.length === 0) throw new HttpError(409, 'لم تُعيّن قنوات بيع لهذا المتجر بعد')
+    const enabledConnections = syncConnections.filter((connection: any) => connection.is_enabled && connection.status !== 'disabled')
     if (enabledConnections.length === 0) throw new HttpError(409, 'تجربة Omniful موقوفة لهذا المتجر')
 
     let tokenContext = await resolveAccessToken(admin, merchantCode, true)
@@ -172,7 +173,7 @@ Deno.serve(async req => {
         records_matched: comparison.matched,
         records_new: comparison.newShadow,
         updated_at: now,
-      }).eq('id', connection.id)
+      }).eq('merchant_code', merchantCode).eq('platform', platform)
       if (connectionError) throw connectionError
     }
 
@@ -219,6 +220,33 @@ async function getConnections(admin: any, merchantCode: string) {
     .eq('merchant_code', merchantCode).in('platform', TRIAL_PLATFORMS).order('platform')
   if (error) throw error
   return data || []
+}
+
+async function getSyncConnections(admin: any, merchantCode: string, legacyConnections: any[]) {
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  if (merchant?.omniful_connection_mode !== 'central_account') return legacyConnections
+
+  const { data, error } = await admin.from('omniful_channel_assignments')
+    .select('channel_id,mode,status,channel:omniful_channels!inner(platform_code,seller_ref,store_ref,status,identity_status)')
+    .eq('merchant_code', merchantCode).eq('status', 'active')
+  if (error) throw error
+  return (data || []).flatMap((row: any) => {
+    const channel = row.channel
+    if (!channel || !TRIAL_PLATFORMS.includes(channel.platform_code) || channel.status !== 'active' || channel.identity_status !== 'verified') return []
+    return [{
+      id: row.channel_id,
+      merchant_code: merchantCode,
+      platform: channel.platform_code,
+      mode: row.mode,
+      status: 'active',
+      scope_strategy: channel.store_ref ? 'store_ref' : 'seller_ref',
+      omniful_seller_ref: channel.seller_ref,
+      omniful_store_ref: channel.store_ref,
+      is_enabled: true,
+    }]
+  })
 }
 
 async function connectionStatus(admin: any, merchantCode: string, connections: any[], includeAdminDirectory = false) {
@@ -838,8 +866,8 @@ async function fetchMarketplaceOrders(token: string, from: Date, to: Date, conne
         filteredOtherChannels++
         continue
       }
-      const connection = connections.find((item: any) => item.platform === platform)
-      if (!connection || !matchesConnectionScope(row, connection)) continue
+      const platformConnections = connections.filter((item: any) => item.platform === platform)
+      if (platformConnections.length === 0 || !platformConnections.some((connection: any) => matchesConnectionScope(row, connection))) continue
       const normalized = normalizeOmnifulObservation(row)
       if (normalized) ordersByPlatform[platform].push(normalized)
       else invalidRecords++
