@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, ShieldCheck, Store, Trash2, Wrench } from 'lucide-react'
+import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, ShieldCheck, ShoppingBag, Store, Trash2, Wrench } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type TrialPlatform = 'amazon' | 'noon' | 'trendyol'
@@ -71,6 +71,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
   const [sellerScopeLabel, setSellerScopeLabel] = useState('')
   const [credentials, setCredentials] = useState<CredentialForm>(EMPTY_CREDENTIALS)
   const [mappings, setMappings] = useState<Record<TrialPlatform, MappingForm>>(EMPTY_MAPPINGS)
+  const [connectingPlatform, setConnectingPlatform] = useState<TrialPlatform | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -114,11 +115,17 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     return dates[dates.length - 1] || null
   }, [connections])
 
-  async function sync() {
+  async function sync(requestedPlatform: TrialPlatform | null = connectingPlatform) {
     setBusy('sync'); setNotice('')
     try {
       const result = await callOmniful({ action: 'sync', merchant_code: merchantCode })
-      setNotice(`تم فحص القنوات: ${formatNumber(result.matched_existing)} طلب مطابق و${formatNumber(result.new_shadow)} طلب جديد للمراجعة.`)
+      const requested = requestedPlatform ? result.platforms?.[requestedPlatform] : null
+      if (requestedPlatform && Number(requested?.records || 0) === 0) {
+        setNotice(`لم نرصد ${PLATFORM_META[requestedPlatform].label} بعد. أكمل التفويض في Omniful ثم أعد التحقق.`)
+      } else {
+        setNotice(`تم فحص القنوات: ${formatNumber(result.matched_existing)} طلب مطابق و${formatNumber(result.new_shadow)} طلب جديد للمراجعة.`)
+        setConnectingPlatform(null)
+      }
       await load()
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'تعذر سحب القنوات من Omniful')
@@ -181,6 +188,13 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     setCredentials(current => ({ ...current, [field]: value }))
   }
 
+  function openPortalFor(platform: TrialPlatform | null = null) {
+    if (!portal?.url) return
+    setConnectingPlatform(platform)
+    setNotice('')
+    window.open(portal.url, '_blank', 'noopener,noreferrer')
+  }
+
   async function saveMapping(platform: TrialPlatform) {
     setBusy(platform); setNotice('')
     try {
@@ -201,6 +215,8 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
     && credentials.refresh_token.trim().length >= 20
     && credentials.access_token.trim().length >= 20
   const readyToPull = tokenConfigured && connections.some(connection => connection.is_enabled && connection.status !== 'disabled')
+  const amazonConnection = connections.find(connection => connection.platform === 'amazon')
+  const amazonDetected = Number(amazonConnection?.records_seen || 0) > 0
   return <article style={styles.card}>
     <div style={styles.topLine} />
     <div style={styles.body}>
@@ -243,10 +259,36 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
         <FlowStep number="3" title="اسحب إلى Sellpert" detail="نرصد القناة من الطلبات الفعلية" active={totals.seen > 0} />
       </div>
 
+      <div style={styles.amazonQuickStart}>
+        <div style={styles.amazonQuickHeader}>
+          <div style={styles.amazonIdentity}>
+            <span style={styles.amazonLogo}><ShoppingBag size={19} /></span>
+            <div>
+              <strong style={{ display: 'block', fontSize: 13 }}>ربط Amazon Seller Central</strong>
+              <span style={styles.helperText}>ابدأ من Sellpert، فوّض Omniful داخل Amazon، ثم ارجع للتحقق</span>
+            </div>
+          </div>
+          <span style={{ ...styles.amazonStatus, background: amazonDetected ? 'var(--success-bg)' : 'var(--warning-bg)', color: amazonDetected ? 'var(--success-text)' : 'var(--warning-text)' }}>
+            {amazonDetected ? `مرصود · ${formatNumber(amazonConnection?.records_seen)}` : 'غير مربوط بعد'}
+          </span>
+        </div>
+        <div style={styles.amazonSteps}>
+          <QuickStep number="1" text="افتح Omniful" />
+          <QuickStep number="2" text="اختر Amazon Seller Central" />
+          <QuickStep number="3" text="سجّل دخول Amazon ووافق" />
+          <QuickStep number="4" text="عد إلى Sellpert وتحقق" />
+        </div>
+        <div style={styles.amazonActions}>
+          <button type="button" aria-label="ربط Amazon عبر Omniful" onClick={() => openPortalFor('amazon')} disabled={!portal?.url} style={{ ...styles.amazonButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> {amazonDetected ? 'فتح إعداد Amazon في Omniful' : 'ربط Amazon عبر Omniful'}</button>
+          <button type="button" aria-label="التحقق من ربط Amazon" onClick={() => { setConnectingPlatform('amazon'); void sync('amazon') }} disabled={busy !== null || !readyToPull} style={{ ...styles.secondaryButton, opacity: busy !== null || !readyToPull ? 0.5 : 1 }}>{busy === 'sync' && connectingPlatform === 'amazon' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق من ربط Amazon</button>
+        </div>
+        {connectingPlatform === 'amazon' ? <div style={styles.returnHint}><CheckCircle2 size={14} /> بعد إتمام التفويض في Amazon، ارجع لهذه الصفحة واضغط «تحقق من ربط Amazon».</div> : null}
+      </div>
+
       <div style={styles.actionsPanel}>
         <div><strong style={{ display: 'block', fontSize: 13 }}>{portal?.seller_scope_label || 'مساحة التاجر في Omniful'}</strong><span style={styles.helperText}>{portal?.configured ? 'رابط مساحة Omniful جاهز' : 'بانتظار إضافة رابط مساحة Omniful من الإدارة'}</span></div>
         <div style={styles.actionButtons}>
-          <button type="button" onClick={() => portal?.url && window.open(portal.url, '_blank', 'noopener,noreferrer')} disabled={!portal?.url} style={{ ...styles.primaryButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> فتح Omniful وربط المتاجر</button>
+          <button type="button" onClick={() => openPortalFor()} disabled={!portal?.url} style={{ ...styles.primaryButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> فتح Omniful لبقية القنوات</button>
           <button type="button" onClick={() => void sync()} disabled={busy !== null || !readyToPull} style={{ ...styles.secondaryButton, opacity: busy !== null || !readyToPull ? 0.5 : 1 }}>{busy === 'sync' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق واسحب القنوات</button>
         </div>
       </div>
@@ -303,7 +345,7 @@ export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = fa
 
       {totals.seen > 0 ? <div style={styles.metrics}><Metric label="طلبات Omniful" value={totals.seen} /><Metric label="مطابقة للمصادر الحالية" value={totals.matched} /><Metric label="جديدة للمراجعة" value={totals.fresh} /></div> : null}
       <div style={styles.safetyBox}><ShieldCheck size={17} /><span><strong>المصادر الحالية لن تتعطل:</strong> Amazon وNoon يستمران عبر Excel، وTrendyol يستمر عبر API المباشر. بيانات Omniful للمقارنة فقط حتى اعتمادها.</span></div>
-      {notice ? <div style={notice.startsWith('تم') ? styles.success : styles.error}>{notice}</div> : null}
+      {notice ? <div style={notice.startsWith('تم') ? styles.success : notice.startsWith('لم نرصد') ? styles.warning : styles.error}>{notice}</div> : null}
     </div>
   </article>
 }
@@ -330,6 +372,9 @@ function CredentialInput({ label, value, onChange, secret = false }: {
 function FlowStep({ number, title, detail, active }: { number: string; title: string; detail: string; active: boolean }) {
   return <div style={styles.flowStep}><span style={{ ...styles.stepNumber, background: active ? 'var(--accent)' : 'var(--surface3)', color: active ? '#fff' : 'var(--text3)' }}>{number}</span><div><strong>{title}</strong><small>{detail}</small></div></div>
 }
+function QuickStep({ number, text }: { number: string; text: string }) {
+  return <div style={styles.quickStep}><span>{number}</span><small>{text}</small></div>
+}
 function Metric({ label, value }: { label: string; value: number }) { return <div style={styles.metric}><span>{label}</span><strong>{formatNumber(value)}</strong></div> }
 
 async function callOmniful(body: Record<string, unknown>) {
@@ -348,8 +393,9 @@ const styles: Record<string, CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, titleGroup: { display: 'flex', alignItems: 'center', gap: 12 }, logo: { width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: 'rgba(14,129,119,.11)', color: 'var(--accent)' }, title: { fontSize: 15, fontWeight: 850, color: 'var(--text)' }, subtitle: { marginTop: 3, fontSize: 11, color: 'var(--text3)' }, protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 20, padding: '5px 10px', fontSize: 10, fontWeight: 800, background: 'var(--success-bg)', color: 'var(--success-text)' },
   accountPanel: { marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid rgba(14,129,119,.24)', background: 'linear-gradient(135deg,rgba(14,129,119,.07),rgba(255,255,255,.02))' }, accountHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, accountBadge: { display: 'inline-flex', alignItems: 'center', minHeight: 25, padding: '3px 9px', borderRadius: 20, fontSize: 9, fontWeight: 850, direction: 'ltr' }, credentialsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 9, marginTop: 12 }, tokenRow: { display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap', marginTop: 12 }, tokenNote: { margin: '8px 0 0', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, expiryNote: { margin: '6px 0 0', color: 'var(--success-text)', fontSize: 9, lineHeight: 1.7 }, deleteButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--danger-text)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, managedAccount: { display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, padding: 10, borderRadius: 9, background: 'var(--surface)', color: 'var(--text2)', fontSize: 10, lineHeight: 1.6 }, modeActions: { display: 'flex', gap: 7, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }, modeButton: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer' },
   flow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8, alignItems: 'center', marginTop: 18, padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface2)' }, flowStep: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontSize: 11 }, stepNumber: { flex: '0 0 auto', width: 25, height: 25, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 },
+  amazonQuickStart: { marginTop: 12, padding: 14, borderRadius: 13, border: '1px solid rgba(255,153,0,.38)', background: 'linear-gradient(135deg,rgba(255,153,0,.10),rgba(25,42,62,.035))' }, amazonQuickHeader: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }, amazonIdentity: { display: 'flex', alignItems: 'center', gap: 10 }, amazonLogo: { width: 38, height: 38, borderRadius: 10, display: 'grid', placeItems: 'center', color: '#8b4f00', background: 'rgba(255,153,0,.18)' }, amazonStatus: { display: 'inline-flex', alignItems: 'center', minHeight: 25, padding: '3px 9px', borderRadius: 20, fontSize: 9, fontWeight: 850 }, amazonSteps: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 7, marginTop: 12 }, quickStep: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, padding: '8px 9px', borderRadius: 9, border: '1px solid rgba(255,153,0,.22)', background: 'var(--surface)', color: 'var(--text2)' }, amazonActions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }, amazonButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: '#8b4f00', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 850, cursor: 'pointer' }, returnHint: { display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 10, padding: '9px 10px', borderRadius: 9, background: 'var(--surface)', color: 'var(--text2)', fontSize: 10, lineHeight: 1.6 },
   actionsPanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,rgba(14,129,119,.08),rgba(25,42,62,.04))', border: '1px solid rgba(14,129,119,.2)' }, helperText: { display: 'block', marginTop: 4, fontSize: 10, color: 'var(--text3)' }, actionButtons: { display: 'flex', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
   adminSettings: { marginTop: 12, padding: 12, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)' }, settingsSummary: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, settingsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, alignItems: 'end', marginTop: 12 }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11 }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, adminNote: { margin: '9px 0 0', color: 'var(--warning-text)', fontSize: 9, lineHeight: 1.6 },
   mappingSection: { marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }, mappingTitle: { color: 'var(--text)', fontSize: 12, fontWeight: 850 }, mappingHelp: { margin: '4px 0 10px', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, mappingList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(205px,1fr))', gap: 9 }, mappingCard: { display: 'grid', gap: 9, minWidth: 0, padding: 11, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' }, mappingHead: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11 }, mappingStatus: { marginInlineStart: 'auto', fontSize: 9, fontWeight: 750 }, mappingFields: { display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 7 },
-  discoveryRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }, sectionLabel: { display: 'block', marginBottom: 7, color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelChips: { display: 'flex', gap: 6, flexWrap: 'wrap' }, channelChip: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 9px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: 10, fontWeight: 750 }, dot: { width: 7, height: 7, borderRadius: 99 }, emptyChannels: { color: 'var(--text3)', fontSize: 10 }, lastSync: { display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success-text)', fontSize: 10 }, metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12 }, metric: { padding: 10, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9 }, safetyBox: { display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 14, padding: 11, borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
+  discoveryRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }, sectionLabel: { display: 'block', marginBottom: 7, color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelChips: { display: 'flex', gap: 6, flexWrap: 'wrap' }, channelChip: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 9px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: 10, fontWeight: 750 }, dot: { width: 7, height: 7, borderRadius: 99 }, emptyChannels: { color: 'var(--text3)', fontSize: 10 }, lastSync: { display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success-text)', fontSize: 10 }, metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12 }, metric: { padding: 10, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9 }, safetyBox: { display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 14, padding: 11, borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 }, warning: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: 11 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
 }
