@@ -1,349 +1,250 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, ShieldCheck, Store, Trash2, Wrench } from 'lucide-react'
+import {
+  Check, CheckCircle2, KeyRound, Loader2, LockKeyhole, RefreshCw,
+  Save, ShieldCheck, Store, Trash2, Unplug,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-type TrialPlatform = 'amazon' | 'noon' | 'trendyol'
-type TrialConnection = {
-  platform: TrialPlatform
-  status: 'pending' | 'active' | 'error' | 'disabled'
-  last_sync_at: string | null
-  last_error: string | null
-  records_seen: number
-  records_matched: number
-  records_new: number
-  is_enabled: boolean
-  scope_strategy: 'seller_token' | 'seller_ref' | 'store_ref'
-  omniful_seller_ref: string | null
-  omniful_store_ref: string | null
+type ConnectionMode = 'central_account' | 'merchant_account'
+type Channel = {
+  id: string
+  platform_code: string
+  platform_name: string
+  display_name: string
+  seller_ref: string | null
+  store_ref: string | null
+  status: string
+  connection_status?: string
+  identity_status?: 'verified' | 'needs_review'
+  assigned_merchant_code?: string | null
+  last_seen_at?: string | null
 }
-type MappingForm = {
-  scope_strategy: 'seller_ref' | 'store_ref'
-  omniful_seller_ref: string
-  omniful_store_ref: string
-}
-type OmnifulPortal = {
-  configured: boolean
-  url: string | null
-  seller_scope_label: string | null
-  updated_at: string | null
-}
-
-const PLATFORM_META: Record<TrialPlatform, { label: string; color: string }> = {
-  amazon: { label: 'Amazon', color: '#ff9900' },
-  noon: { label: 'Noon', color: '#c7ab00' },
-  trendyol: { label: 'Trendyol', color: '#f56600' },
-}
-type OmnifulAccount = {
-  mode: 'merchant_account' | 'central_account'
+type Account = {
+  mode: ConnectionMode
   token_configured: boolean
   credentials_configured: boolean
   token_hint: string | null
   last_tested_at: string | null
-  access_token_expires_at: string | null
-  refresh_token_expires_at: string | null
 }
-type CredentialForm = {
-  client_id: string
-  client_secret: string
-  refresh_token: string
-  access_token: string
+type CredentialForm = { client_id: string; client_secret: string; refresh_token: string; access_token: string }
+type CentralAccount = {
+  configured: boolean
+  status: string
+  token_hint: string | null
+  last_tested_at: string | null
+  last_discovered_at: string | null
+  last_error: string | null
 }
-const EMPTY_MAPPING: MappingForm = { scope_strategy: 'store_ref', omniful_seller_ref: '', omniful_store_ref: '' }
-const EMPTY_MAPPINGS: Record<TrialPlatform, MappingForm> = {
-  amazon: { ...EMPTY_MAPPING }, noon: { ...EMPTY_MAPPING }, trendyol: { ...EMPTY_MAPPING },
-}
+
 const EMPTY_CREDENTIALS: CredentialForm = { client_id: '', client_secret: '', refresh_token: '', access_token: '' }
-const EMPTY_ACCOUNT: OmnifulAccount = {
-  mode: 'merchant_account', token_configured: false, credentials_configured: false,
-  token_hint: null, last_tested_at: null, access_token_expires_at: null, refresh_token_expires_at: null,
+const EMPTY_ACCOUNT: Account = {
+  mode: 'central_account', token_configured: false, credentials_configured: false,
+  token_hint: null, last_tested_at: null,
 }
 
 export default function OmnifulAmazonTrialCard({ merchantCode, merchantMode = false }: { merchantCode: string; merchantMode?: boolean }) {
-  const [connections, setConnections] = useState<TrialConnection[]>([])
-  const [portal, setPortal] = useState<OmnifulPortal | null>(null)
-  const [account, setAccount] = useState<OmnifulAccount>(EMPTY_ACCOUNT)
-  const [tokenConfigured, setTokenConfigured] = useState(false)
-  const [available, setAvailable] = useState<boolean | null>(null)
-  const [busy, setBusy] = useState<'sync' | 'save' | 'token' | 'remove-token' | 'central' | TrialPlatform | null>(null)
-  const [notice, setNotice] = useState('')
-  const [portalUrl, setPortalUrl] = useState('')
-  const [sellerScopeLabel, setSellerScopeLabel] = useState('')
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>('central_account')
+  const [account, setAccount] = useState<Account>(EMPTY_ACCOUNT)
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [directory, setDirectory] = useState<Channel[]>([])
+  const [centralAccount, setCentralAccount] = useState<CentralAccount | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [credentials, setCredentials] = useState<CredentialForm>(EMPTY_CREDENTIALS)
-  const [mappings, setMappings] = useState<Record<TrialPlatform, MappingForm>>(EMPTY_MAPPINGS)
   const [editingCredentials, setEditingCredentials] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const result = await callOmniful({ action: 'status', merchant_code: merchantCode })
-      const nextPortal = result.portal as OmnifulPortal
-      const nextAccount = { ...EMPTY_ACCOUNT, ...(result.account || {}) } as OmnifulAccount
-      const nextConnections = (result.connections || []) as TrialConnection[]
-      setConnections(nextConnections)
-      setMappings(Object.fromEntries((Object.keys(PLATFORM_META) as TrialPlatform[]).map(platform => {
-        const connection = nextConnections.find(item => item.platform === platform)
-        return [platform, {
-          scope_strategy: connection?.scope_strategy === 'seller_ref' ? 'seller_ref' : 'store_ref',
-          omniful_seller_ref: connection?.omniful_seller_ref || '',
-          omniful_store_ref: connection?.omniful_store_ref || '',
-        }]
-      })) as Record<TrialPlatform, MappingForm>)
-      setPortal(nextPortal)
-      setAccount(nextAccount)
-      setPortalUrl(nextPortal?.url || '')
-      setSellerScopeLabel(nextPortal?.seller_scope_label || '')
-      setTokenConfigured(Boolean(nextAccount.credentials_configured))
-      if (!nextAccount.credentials_configured) setEditingCredentials(false)
-      setAvailable(Boolean(result.available))
+      const nextChannels = (result.channels || []) as Channel[]
+      setConnectionMode(result.connection_mode || 'central_account')
+      setAccount({ ...EMPTY_ACCOUNT, ...(result.account || {}) })
+      setChannels(nextChannels)
+      setDirectory((result.directory || []) as Channel[])
+      setCentralAccount(result.central_account || null)
+      setSelectedIds(nextChannels.map(channel => channel.id))
+      setLoaded(true)
     } catch (error) {
-      const message = error instanceof Error ? error.message : ''
-      if (message.includes('غير مفعلة') || message.includes('404')) setAvailable(false)
-      else setNotice(message || 'تعذر قراءة حالة بوابة Omniful')
+      setNotice({ kind: 'error', text: errorMessage(error, merchantMode) })
+      setLoaded(true)
     }
-  }, [merchantCode])
+  }, [merchantCode, merchantMode])
 
   useEffect(() => { void load() }, [load])
 
-  const detected = useMemo(() => connections.filter(connection => connection.records_seen > 0), [connections])
-  const totals = useMemo(() => connections.reduce((sum, connection) => ({
-    seen: sum.seen + Number(connection.records_seen || 0),
-    matched: sum.matched + Number(connection.records_matched || 0),
-    fresh: sum.fresh + Number(connection.records_new || 0),
-  }), { seen: 0, matched: 0, fresh: 0 }), [connections])
-  const latestSync = useMemo(() => {
-    const dates = connections.map(connection => connection.last_sync_at)
-      .filter((value): value is string => Boolean(value)).sort()
-    return dates[dates.length - 1] || null
-  }, [connections])
-
-  async function sync() {
-    setBusy('sync'); setNotice('')
+  async function changeMode(mode: ConnectionMode) {
+    if (mode === connectionMode) return
+    const warning = mode === 'merchant_account'
+      ? 'سيتم تحرير القنوات المركزية الحالية، وسيحتاج التاجر إلى ربط حسابه الخاص. متابعة؟'
+      : 'سيتم حذف بيانات الحساب الخاص وقنواته، ثم تستخدم الإدارة الحساب المركزي. متابعة؟'
+    if (!window.confirm(warning)) return
+    setBusy('mode'); setNotice(null)
     try {
-      const result = await callOmniful({ action: 'sync', merchant_code: merchantCode })
-      setNotice(`تم فحص القنوات: ${formatNumber(result.matched_existing)} طلب مطابق و${formatNumber(result.new_shadow)} طلب جديد للمراجعة.`)
+      await callOmniful({ action: 'set_connection_mode', merchant_code: merchantCode, connection_mode: mode })
+      setNotice({ kind: 'success', text: mode === 'central_account' ? 'تم تحويل التاجر إلى الربط المركزي.' : 'تم إتاحة الربط بحساب خاص للتاجر.' })
       await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر سحب القنوات من Omniful')
+      setNotice({ kind: 'error', text: errorMessage(error, false) })
     } finally { setBusy(null) }
   }
 
-  async function savePortal() {
-    setBusy('save'); setNotice('')
+  async function discover() {
+    setBusy('discover'); setNotice(null)
     try {
-      const result = await callOmniful({ action: 'configure_portal', merchant_code: merchantCode, portal_url: portalUrl, seller_scope_label: sellerScopeLabel })
-      setPortal(result.portal)
-      setNotice(portalUrl ? 'تم حفظ بوابة Omniful الخاصة بالتاجر.' : 'تم حذف رابط بوابة Omniful.')
+      const result = await callOmniful({ action: 'discover_channels', merchant_code: merchantCode })
+      setNotice({ kind: 'success', text: `تم تحديث دليل القنوات: ${formatNumber(result.discovered_count)} قناة مرصودة.` })
+      await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر حفظ رابط Omniful')
+      setNotice({ kind: 'error', text: errorMessage(error, merchantMode && connectionMode === 'central_account') })
     } finally { setBusy(null) }
   }
 
-  async function saveAccountCredentials() {
-    setBusy('token'); setNotice('')
+  async function assignChannels() {
+    setBusy('assign'); setNotice(null)
+    try {
+      await callOmniful({ action: 'assign_channels', merchant_code: merchantCode, channel_ids: selectedIds })
+      setNotice({ kind: 'success', text: `تم حفظ ${formatNumber(selectedIds.length)} قناة لهذا التاجر بوضع المراقبة الآمن.` })
+      await load()
+    } catch (error) {
+      setNotice({ kind: 'error', text: errorMessage(error, false) })
+    } finally { setBusy(null) }
+  }
+
+  async function savePrivateCredentials() {
+    setBusy('credentials'); setNotice(null)
     try {
       await callOmniful({ action: 'save_account_credentials', merchant_code: merchantCode, ...credentials })
       setCredentials(EMPTY_CREDENTIALS)
       setEditingCredentials(false)
-      setNotice('تم اختبار حساب Omniful وحفظ بيانات الاعتماد مشفرة مع تفعيل التجديد التلقائي.')
+      await callOmniful({ action: 'discover_channels', merchant_code: merchantCode })
+      setNotice({ kind: 'success', text: 'تم اختبار الحساب الخاص وحفظه، واستدعاء قنوات البيع.' })
       await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر ربط حساب Omniful')
+      setNotice({ kind: 'error', text: errorMessage(error, false) })
     } finally { setBusy(null) }
   }
 
-  async function removeAccountToken() {
-    if (!window.confirm('إلغاء ربط حساب Omniful الخاص بهذا التاجر؟')) return
-    setBusy('remove-token'); setNotice('')
+  async function disconnectPrivateAccount() {
+    if (!window.confirm('فصل الحساب الخاص وحذف القنوات المستدعاة منه؟')) return
+    setBusy('disconnect'); setNotice(null)
     try {
       await callOmniful({ action: 'remove_account_token', merchant_code: merchantCode })
-      setCredentials(EMPTY_CREDENTIALS)
-      setEditingCredentials(false)
-      setNotice('تم إلغاء ربط حساب Omniful الخاص.')
+      setNotice({ kind: 'success', text: 'تم فصل الحساب الخاص.' })
       await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر إلغاء ربط Omniful')
+      setNotice({ kind: 'error', text: errorMessage(error, false) })
     } finally { setBusy(null) }
   }
 
-  async function selectCentralAccount() {
-    setBusy('central'); setNotice('')
+  async function syncShadow() {
+    setBusy('sync'); setNotice(null)
     try {
-      await callOmniful({ action: 'use_central_account', merchant_code: merchantCode })
-      setCredentials(EMPTY_CREDENTIALS)
-      setNotice('تم اختيار حساب Sellpert المركزي. أكمل معرّفات القنوات بالأسفل.')
+      const result = await callOmniful({ action: 'sync', merchant_code: merchantCode })
+      setNotice({ kind: 'success', text: `اكتمل الفحص: ${formatNumber(result.matched_existing)} طلب مطابق و${formatNumber(result.new_shadow)} جديد للمراجعة.` })
       await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر اختيار الحساب المركزي')
+      setNotice({ kind: 'error', text: errorMessage(error, merchantMode) })
     } finally { setBusy(null) }
   }
-
-  function updateMapping(platform: TrialPlatform, field: keyof MappingForm, value: string) {
-    setMappings(current => ({ ...current, [platform]: { ...current[platform], [field]: value } }))
-  }
-
-  function updateCredential(field: keyof CredentialForm, value: string) {
-    setCredentials(current => ({ ...current, [field]: value }))
-  }
-
-  async function saveMapping(platform: TrialPlatform) {
-    setBusy(platform); setNotice('')
-    try {
-      await callOmniful({
-        action: 'configure_mapping', merchant_code: merchantCode, platform, ...mappings[platform],
-      })
-      setNotice(`تم حفظ عزل ${PLATFORM_META[platform].label} لهذا التاجر.`)
-      await load()
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'تعذر حفظ معرّفات Omniful')
-    } finally { setBusy(null) }
-  }
-
-  if (available === null && !notice) return null
 
   const credentialsReady = credentials.client_id.trim().length >= 4
     && credentials.client_secret.trim().length >= 8
     && credentials.refresh_token.trim().length >= 20
     && credentials.access_token.trim().length >= 20
-  const readyToPull = tokenConfigured && connections.some(connection => connection.is_enabled && connection.status !== 'disabled')
+
+  if (!loaded) return <div style={styles.loading}><Loader2 size={18} className="spin" /> جاري تحميل قنوات البيع…</div>
+
+  if (merchantMode && connectionMode === 'central_account') {
+    return <MerchantManagedChannels channels={channels} busy={busy} notice={notice} onRefresh={() => void load()} onSync={() => void syncShadow()} />
+  }
+
   return <article style={styles.card}>
     <div style={styles.topLine} />
     <div style={styles.body}>
-      <div style={styles.header}>
+      <header style={styles.header}>
         <div style={styles.titleGroup}>
-          <div style={styles.logo}><Store size={22} /></div>
-          <div><div style={styles.title}>ربط المتاجر عبر Omniful</div><div style={styles.subtitle}>بوابة واحدة لربط أي قناة متاحة داخل مساحة التاجر</div></div>
-        </div>
-        <span style={styles.protectedBadge}><ShieldCheck size={13} /> تجربة معزولة وآمنة</span>
-      </div>
-
-      <div style={styles.accountPanel}>
-        <div style={styles.accountHeader}>
-          <div><strong style={{ display: 'block', fontSize: 12 }}>حساب Omniful المستخدم</strong><span style={styles.helperText}>{account.mode === 'central_account' ? 'حساب Sellpert المركزي — تديره الإدارة' : 'حساب خاص بهذا التاجر — لا يشارك بياناته مع أي متجر آخر'}</span></div>
-          <span style={{ ...styles.accountBadge, background: tokenConfigured ? 'var(--success-bg)' : 'var(--warning-bg)', color: tokenConfigured ? 'var(--success-text)' : 'var(--warning-text)' }}>{tokenConfigured ? `متصل${account.token_hint ? ` · ••••${account.token_hint}` : ''}` : 'غير مربوط'}</span>
-        </div>
-        {account.mode === 'merchant_account' ? tokenConfigured && !editingCredentials ? <div style={styles.connectedAccount}>
+          <span style={styles.logo}>{connectionMode === 'central_account' ? <ShieldCheck size={21} /> : <KeyRound size={21} />}</span>
           <div>
-            <strong style={styles.connectedTitle}><CheckCircle2 size={15} /> الاتصال يعمل</strong>
-            <span style={styles.helperText}>بيانات الاعتماد محفوظة ومشفرة، ولا حاجة لإظهارها أثناء عمل الاتصال.</span>
-            {account.access_token_expires_at ? <span style={styles.expiryNote}>رمز الوصول صالح حتى {formatDate(account.access_token_expires_at)}{account.refresh_token_expires_at ? ` · رمز التحديث حتى ${formatDate(account.refresh_token_expires_at)}` : ''}</span> : null}
+            <h3 style={styles.title}>{merchantMode ? 'ربط حساب Omniful الخاص' : 'إدارة قنوات Omniful'}</h3>
+            <p style={styles.subtitle}>{connectionMode === 'central_account' ? 'الحساب المركزي تحت إدارة Sellpert والقنوات تُعيّن حصرياً' : 'حساب مستقل لهذا التاجر ولا يشارك قنواته مع أي متجر آخر'}</p>
           </div>
-          <div style={styles.tokenRowCompact}>
-            <button type="button" onClick={() => { setCredentials(EMPTY_CREDENTIALS); setEditingCredentials(true); setNotice('') }} disabled={busy !== null} style={styles.secondaryButton}><RefreshCw size={14} /> إعادة الاتصال</button>
-            <button type="button" aria-label="فصل اتصال حساب Omniful" onClick={() => void removeAccountToken()} disabled={busy !== null} style={styles.deleteButton}>{busy === 'remove-token' ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} فصل الاتصال</button>
-          </div>
-        </div> : <>
-          <div style={styles.credentialsGrid}>
-            <CredentialInput label="معرّف العميل — Client ID" value={credentials.client_id} onChange={value => updateCredential('client_id', value)} />
-            <CredentialInput label="السر الخاص بالعميل — Client Secret" value={credentials.client_secret} onChange={value => updateCredential('client_secret', value)} secret />
-            <CredentialInput label="تحديث الرمز — Refresh Token" value={credentials.refresh_token} onChange={value => updateCredential('refresh_token', value)} secret />
-            <CredentialInput label="رمز الوصول — Access Token" value={credentials.access_token} onChange={value => updateCredential('access_token', value)} secret />
-          </div>
-          <div style={styles.tokenRow}>
-            <button type="button" onClick={() => void saveAccountCredentials()} disabled={busy !== null || !credentialsReady} style={{ ...styles.saveButton, opacity: busy !== null || !credentialsReady ? 0.55 : 1 }}>{busy === 'token' ? <Loader2 size={14} className="spin" /> : <KeyRound size={14} />} اختبار وحفظ الربط</button>
-            {tokenConfigured ? <button type="button" onClick={() => { setCredentials(EMPTY_CREDENTIALS); setEditingCredentials(false); setNotice('') }} disabled={busy !== null} style={styles.secondaryButton}>إلغاء إعادة الاتصال</button> : null}
-          </div>
-          <p style={styles.tokenNote}>انسخ الحقول الأربعة من Omniful: Settings ← Apps &amp; Integrations ← Custom Apps ← Seller Custom Integration ← الإعدادات. لا نحتاج «مفتاح ويب هوك السري». تُحفظ البيانات مشفرة ويُجدد رمز الوصول تلقائيًا.</p>
-        </> : <div style={styles.managedAccount}><ShieldCheck size={15} /><span>لا يحتاج التاجر إلى إدخال أي مفتاح. الإدارة تربط كل قناة بمعرّف Seller أو Store مستقل.</span></div>}
-        {!merchantMode ? <div style={styles.modeActions}>
-          <button type="button" onClick={() => setAccount(current => ({ ...current, mode: 'merchant_account', token_configured: false, credentials_configured: false, token_hint: null }))} disabled={busy !== null || account.mode === 'merchant_account'} style={styles.modeButton}>حساب التاجر الخاص</button>
-          <button type="button" onClick={() => void selectCentralAccount()} disabled={busy !== null || account.mode === 'central_account'} style={styles.modeButton}>{busy === 'central' ? <Loader2 size={13} className="spin" /> : null} حساب Sellpert المركزي</button>
-        </div> : null}
-      </div>
-
-      <div style={styles.flow}>
-        <FlowStep number="1" title="افتح Omniful" detail="مساحة مقيدة لهذا التاجر فقط" active={Boolean(portal?.configured)} />
-        <FlowStep number="2" title="اربط القنوات" detail="من شاشة Sales Channel Apps" active={Boolean(portal?.configured)} />
-        <FlowStep number="3" title="اسحب إلى Sellpert" detail="نرصد القناة من الطلبات الفعلية" active={totals.seen > 0} />
-      </div>
-
-      <div style={styles.actionsPanel}>
-        <div><strong style={{ display: 'block', fontSize: 13 }}>{portal?.seller_scope_label || 'مساحة التاجر في Omniful'}</strong><span style={styles.helperText}>{portal?.configured ? 'رابط مساحة Omniful جاهز' : 'بانتظار إضافة رابط مساحة Omniful من الإدارة'}</span></div>
-        <div style={styles.actionButtons}>
-          <button type="button" onClick={() => portal?.url && window.open(portal.url, '_blank', 'noopener,noreferrer')} disabled={!portal?.url} style={{ ...styles.primaryButton, opacity: portal?.url ? 1 : 0.5 }}><ExternalLink size={15} /> فتح Omniful وربط المتاجر</button>
-          <button type="button" onClick={() => void sync()} disabled={busy !== null || !readyToPull} style={{ ...styles.secondaryButton, opacity: busy !== null || !readyToPull ? 0.5 : 1 }}>{busy === 'sync' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق واسحب القنوات</button>
         </div>
-      </div>
+        <StatusBadge active={connectionMode === 'central_account' ? Boolean(centralAccount?.configured) : account.credentials_configured} />
+      </header>
 
-      {!merchantMode ? <details style={styles.adminSettings} open={!portal?.configured || !available}>
-        <summary style={styles.settingsSummary}><Wrench size={14} /> إعداد الإدارة وعزل بيانات التاجر</summary>
-        <div style={styles.settingsGrid}>
-          <label style={styles.fieldLabel}>رابط مساحة Omniful المقيدة<input dir="ltr" type="url" value={portalUrl} onChange={event => setPortalUrl(event.target.value)} placeholder="https://...omniful.com/..." style={styles.input} /></label>
-          <label style={styles.fieldLabel}>اسم نطاق البائع<input value={sellerScopeLabel} onChange={event => setSellerScopeLabel(event.target.value)} placeholder="اسم التاجر" style={styles.input} /></label>
-          <button type="button" onClick={() => void savePortal()} disabled={busy !== null} style={styles.saveButton}>{busy === 'save' ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ البوابة</button>
+      {!merchantMode ? <section style={styles.modePanel}>
+        <div><strong style={styles.sectionTitle}>نوع الربط</strong><span style={styles.helper}>الافتراضي لكل تاجر جديد هو الحساب المركزي.</span></div>
+        <div style={styles.segmented}>
+          <button type="button" onClick={() => void changeMode('central_account')} disabled={busy !== null} style={{ ...styles.segment, ...(connectionMode === 'central_account' ? styles.segmentActive : {}) }}>مركزي</button>
+          <button type="button" onClick={() => void changeMode('merchant_account')} disabled={busy !== null} style={{ ...styles.segment, ...(connectionMode === 'merchant_account' ? styles.segmentActive : {}) }}>حساب خاص</button>
         </div>
-        <p style={styles.adminNote}>لا تضع رابط الحساب المركزي بصلاحية مدير. أنشئ مستخدمًا أو مساحة Seller مقيدة بعطارة شمول ثم الصق رابطها هنا.</p>
-        {account.mode === 'central_account' ? <div style={styles.mappingSection}>
-          <div style={styles.mappingTitle}>معرّفات القنوات داخل حساب Omniful المركزي</div>
-          <p style={styles.mappingHelp}>اختر Store ID عند وجود متجر مستقل لكل قناة. استخدم Seller ID فقط إذا كان Omniful يعزل جميع قنوات التاجر تحت بائع واحد.</p>
-          <div style={styles.mappingList}>
-            {(Object.keys(PLATFORM_META) as TrialPlatform[]).map(platform => {
-              const mapping = mappings[platform]
-              const connection = connections.find(item => item.platform === platform)
-              const connectionConfigured = Boolean(connection?.is_enabled && (
-                connection.scope_strategy === 'store_ref' ? connection.omniful_store_ref : connection?.omniful_seller_ref
-              ))
-              return <div key={platform} style={styles.mappingCard}>
-                <div style={styles.mappingHead}>
-                  <span style={{ ...styles.dot, background: PLATFORM_META[platform].color }} />
-                  <strong>{PLATFORM_META[platform].label}</strong>
-                  <span style={{ ...styles.mappingStatus, color: connectionConfigured ? 'var(--success-text)' : 'var(--text3)' }}>{connectionConfigured ? 'محفوظ' : 'غير مضاف'}</span>
-                </div>
-                <label style={styles.fieldLabel}>طريقة عزل البيانات
-                  <select value={mapping.scope_strategy} onChange={event => updateMapping(platform, 'scope_strategy', event.target.value)} style={styles.input}>
-                    <option value="store_ref">Store ID — موصى به</option>
-                    <option value="seller_ref">Seller ID</option>
-                  </select>
-                </label>
-                <div style={styles.mappingFields}>
-                  <label style={styles.fieldLabel}>Seller ID / Code<input dir="ltr" value={mapping.omniful_seller_ref} onChange={event => updateMapping(platform, 'omniful_seller_ref', event.target.value)} placeholder="Seller ID" style={styles.input} /></label>
-                  <label style={styles.fieldLabel}>Store ID / Code<input dir="ltr" value={mapping.omniful_store_ref} onChange={event => updateMapping(platform, 'omniful_store_ref', event.target.value)} placeholder="Store ID" style={styles.input} /></label>
-                </div>
-                <button type="button" onClick={() => void saveMapping(platform)} disabled={busy !== null || (mapping.scope_strategy === 'store_ref' ? !mapping.omniful_store_ref.trim() : !mapping.omniful_seller_ref.trim())} style={{ ...styles.saveButton, width: '100%', opacity: busy !== null ? 0.65 : 1 }}>
-                  {busy === platform ? <Loader2 size={14} className="spin" /> : <Save size={14} />} حفظ ربط {PLATFORM_META[platform].label}
-                </button>
-              </div>
-            })}
+      </section> : null}
+
+      {connectionMode === 'central_account' && !merchantMode ? <>
+        <section style={styles.accountSummary}>
+          <div><strong style={styles.sectionTitle}>حساب Sellpert المركزي</strong><span style={styles.helper}>{centralAccount?.configured ? `الاتصال محفوظ ومشفر${centralAccount.token_hint ? ` · ••••${centralAccount.token_hint}` : ''}` : 'الحساب المركزي غير مكتمل'}</span></div>
+          <button type="button" onClick={() => void discover()} disabled={busy !== null || !centralAccount?.configured} style={styles.primaryButton}>{busy === 'discover' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />} تحقق من القنوات</button>
+        </section>
+        <ChannelDirectory channels={directory} merchantCode={merchantCode} selectedIds={selectedIds} onToggle={channelId => setSelectedIds(current => current.includes(channelId) ? current.filter(id => id !== channelId) : [...current, channelId])} />
+        <div style={styles.footerActions}><span style={styles.selectionCount}>{formatNumber(selectedIds.length)} قناة مختارة</span><button type="button" onClick={() => void assignChannels()} disabled={busy !== null} style={styles.saveButton}>{busy === 'assign' ? <Loader2 size={15} className="spin" /> : <Save size={15} />} حفظ ربط القنوات</button></div>
+      </> : null}
+
+      {connectionMode === 'merchant_account' ? merchantMode ? <>
+        {account.credentials_configured && !editingCredentials ? <section style={styles.privateConnected}>
+          <div><strong style={styles.connectedTitle}><CheckCircle2 size={16} /> الحساب الخاص متصل</strong><span style={styles.helper}>بيانات الاعتماد محفوظة ومشفرة ولا تظهر بعد الحفظ.</span></div>
+          <div style={styles.actionRow}>
+            <button type="button" onClick={() => void discover()} disabled={busy !== null} style={styles.secondaryButton}><RefreshCw size={14} /> تحديث القنوات</button>
+            <button type="button" onClick={() => setEditingCredentials(true)} disabled={busy !== null} style={styles.secondaryButton}><KeyRound size={14} /> إعادة اتصال</button>
+            <button type="button" onClick={() => void disconnectPrivateAccount()} disabled={busy !== null} style={styles.dangerButton}>{busy === 'disconnect' ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} فصل</button>
           </div>
-        </div> : <p style={styles.adminNote}>هذا التاجر يستخدم حساب Omniful خاصًا به؛ لذلك لا يحتاج Seller ID أو Store ID من الحساب المركزي.</p>}
-      </details> : null}
+        </section> : <PrivateCredentialsForm credentials={credentials} onChange={(field, value) => setCredentials(current => ({ ...current, [field]: value }))} onSave={() => void savePrivateCredentials()} onCancel={account.credentials_configured ? () => setEditingCredentials(false) : undefined} disabled={busy !== null} ready={credentialsReady} />}
+        <PrivateChannelList channels={channels} onSync={() => void syncShadow()} busy={busy} />
+      </> : <section style={styles.awaitingPanel}><LockKeyhole size={20} /><div><strong>الحساب الخاص متاح للتاجر</strong><span style={styles.helper}>سيظهر له نموذج الربط واستدعاء القنوات. لا تحتاج الإدارة إلى إدخال أسراره.</span></div></section> : null}
 
-      <div style={styles.discoveryRow}>
-        <div><span style={styles.sectionLabel}>القنوات المرصودة من Omniful</span><div style={styles.channelChips}>
-          {detected.length > 0 ? detected.map(connection => <span key={connection.platform} style={{ ...styles.channelChip, borderColor: `${PLATFORM_META[connection.platform].color}66` }}><i style={{ ...styles.dot, background: PLATFORM_META[connection.platform].color }} />{PLATFORM_META[connection.platform].label} · {formatNumber(connection.records_seen)}</span>) : <span style={styles.emptyChannels}>لم نرصد طلبات من قناة بعد</span>}
-        </div></div>
-        {latestSync ? <span style={styles.lastSync}><CheckCircle2 size={14} /> آخر فحص {formatDate(latestSync)}</span> : null}
-      </div>
-
-      {totals.seen > 0 ? <div style={styles.metrics}><Metric label="طلبات Omniful" value={totals.seen} /><Metric label="مطابقة للمصادر الحالية" value={totals.matched} /><Metric label="جديدة للمراجعة" value={totals.fresh} /></div> : null}
-      <div style={styles.safetyBox}><ShieldCheck size={17} /><span><strong>المصادر الحالية لن تتعطل:</strong> Amazon وNoon يستمران عبر Excel، وTrendyol يستمر عبر API المباشر. بيانات Omniful للمقارنة فقط حتى اعتمادها.</span></div>
-      {notice ? <div style={notice.startsWith('تم') ? styles.success : styles.error}>{notice}</div> : null}
+      <div style={styles.safety}><ShieldCheck size={16} /><span><strong>المصادر الحالية مستمرة:</strong> ملفات Amazon وNoon وربط Trendyol المباشر لن تتغير. جميع القنوات الجديدة تبدأ بوضع المراقبة فقط.</span></div>
+      {notice ? <Notice notice={notice} /> : null}
     </div>
   </article>
 }
 
-function CredentialInput({ label, value, onChange, secret = false }: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  secret?: boolean
-}) {
-  return <label style={styles.fieldLabel}>{label}
-    <input
-      dir="ltr"
-      type={secret ? 'password' : 'text'}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      autoComplete="new-password"
-      spellCheck={false}
-      style={{ ...styles.input, fontFamily: 'monospace' }}
-    />
-  </label>
+function MerchantManagedChannels({ channels, busy, notice, onRefresh, onSync }: { channels: Channel[]; busy: string | null; notice: { kind: 'success' | 'error'; text: string } | null; onRefresh: () => void; onSync: () => void }) {
+  return <article style={styles.card}><div style={styles.topLine} /><div style={styles.body}>
+    <header style={styles.header}><div style={styles.titleGroup}><span style={styles.logo}><Store size={21} /></span><div><h3 style={styles.title}>قنوات البيع المتصلة</h3><p style={styles.subtitle}>تدير Sellpert الاتصال تقنياً، وتظهر لك قنوات متجرك فقط.</p></div></div><span style={styles.protectedBadge}><ShieldCheck size={13} /> مُدار وآمن</span></header>
+    {channels.length > 0 ? <div style={styles.channelGrid}>{channels.map(channel => <div key={channel.id} style={styles.channelCard}><PlatformMark code={channel.platform_code} /><div style={{ minWidth: 0, flex: 1 }}><strong style={styles.channelName}>{channel.platform_name}</strong><span style={styles.channelRef}>{channel.store_ref || channel.seller_ref || 'قناة متصلة'}</span></div><span style={styles.connectedPill}><Check size={12} /> متصل</span></div>)}</div> : <div style={styles.empty}><Unplug size={22} /><strong>لا توجد قناة معيّنة بعد</strong><span>ستظهر القنوات هنا فور اعتمادها من الإدارة.</span></div>}
+    <div style={styles.footerActions}><button type="button" onClick={onRefresh} disabled={busy !== null} style={styles.secondaryButton}><RefreshCw size={14} /> تحديث الحالة</button>{channels.length > 0 ? <button type="button" onClick={onSync} disabled={busy !== null} style={styles.primaryButton}>{busy === 'sync' ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} مزامنة تجريبية</button> : null}</div>
+    <div style={styles.safety}><ShieldCheck size={16} /><span>قنواتك معزولة عن بقية التجار، والمصادر الحالية تبقى فعالة خلال الاختبار.</span></div>{notice ? <Notice notice={notice} /> : null}
+  </div></article>
 }
 
-function FlowStep({ number, title, detail, active }: { number: string; title: string; detail: string; active: boolean }) {
-  return <div style={styles.flowStep}><span style={{ ...styles.stepNumber, background: active ? 'var(--accent)' : 'var(--surface3)', color: active ? '#fff' : 'var(--text3)' }}>{number}</span><div><strong>{title}</strong><small>{detail}</small></div></div>
+function ChannelDirectory({ channels, merchantCode, selectedIds, onToggle }: { channels: Channel[]; merchantCode: string; selectedIds: string[]; onToggle: (channelId: string) => void }) {
+  if (channels.length === 0) return <div style={styles.empty}><Store size={22} /><strong>لم تُكتشف قنوات بعد</strong><span>اضغط «تحقق من القنوات» لقراءة الحساب المركزي.</span></div>
+  return <section style={{ marginTop: 16 }}><div style={styles.directoryHeader}><div><strong style={styles.sectionTitle}>دليل القنوات المركزي</strong><span style={styles.helper}>يمكن اختيار عدة قنوات. القناة المرتبطة بتاجر آخر تكون مقفلة.</span></div><span style={styles.countBadge}>{formatNumber(channels.length)} قناة</span></div><div style={styles.channelGrid}>{channels.map(channel => {
+    const assignedElsewhere = Boolean(channel.assigned_merchant_code && channel.assigned_merchant_code !== merchantCode)
+    const needsReview = channel.identity_status === 'needs_review'
+    const disabled = assignedElsewhere || needsReview || channel.status !== 'active'
+    const checked = selectedIds.includes(channel.id)
+    return <button type="button" key={channel.id} onClick={() => !disabled && onToggle(channel.id)} disabled={disabled} style={{ ...styles.selectableChannel, ...(checked ? styles.selectedChannel : {}), opacity: disabled ? 0.58 : 1 }}><span style={{ ...styles.checkbox, ...(checked ? styles.checkboxActive : {}) }}>{checked ? <Check size={13} /> : null}</span><PlatformMark code={channel.platform_code} /><span style={{ flex: 1, minWidth: 0, textAlign: 'right' }}><strong style={styles.channelName}>{channel.platform_name}</strong><small style={styles.channelRef}>{channel.store_ref || channel.seller_ref || channel.display_name}</small></span><small style={assignedElsewhere ? styles.lockedText : needsReview ? styles.reviewText : styles.availableText}>{assignedElsewhere ? `مرتبط بـ ${channel.assigned_merchant_code}` : needsReview ? 'يحتاج تثبيت الهوية' : checked ? 'مختار' : 'متاح'}</small></button>
+  })}</div></section>
 }
-function Metric({ label, value }: { label: string; value: number }) { return <div style={styles.metric}><span>{label}</span><strong>{formatNumber(value)}</strong></div> }
+
+function PrivateCredentialsForm({ credentials, onChange, onSave, onCancel, disabled, ready }: { credentials: CredentialForm; onChange: (field: keyof CredentialForm, value: string) => void; onSave: () => void; onCancel?: () => void; disabled: boolean; ready: boolean }) {
+  return <section style={styles.credentialsPanel}><div><strong style={styles.sectionTitle}>بيانات حساب Omniful الخاص</strong><span style={styles.helper}>تُحفظ مشفرة، ولا يمكن عرضها بعد الحفظ.</span></div><div style={styles.formGrid}><CredentialInput label="Client ID" value={credentials.client_id} onChange={value => onChange('client_id', value)} /><CredentialInput label="Client Secret" value={credentials.client_secret} onChange={value => onChange('client_secret', value)} /><CredentialInput label="Refresh Token" value={credentials.refresh_token} onChange={value => onChange('refresh_token', value)} /><CredentialInput label="Access Token" value={credentials.access_token} onChange={value => onChange('access_token', value)} /></div><div style={styles.actionRow}><button type="button" onClick={onSave} disabled={disabled || !ready} style={{ ...styles.saveButton, opacity: disabled || !ready ? 0.55 : 1 }}><KeyRound size={14} /> اختبار وحفظ</button>{onCancel ? <button type="button" onClick={onCancel} disabled={disabled} style={styles.secondaryButton}>إلغاء</button> : null}</div></section>
+}
+
+function PrivateChannelList({ channels, onSync, busy }: { channels: Channel[]; onSync: () => void; busy: string | null }) {
+  if (channels.length === 0) return null
+  return <section style={{ marginTop: 16 }}><div style={styles.directoryHeader}><strong style={styles.sectionTitle}>القنوات المستدعاة</strong><button type="button" onClick={onSync} disabled={busy !== null} style={styles.secondaryButton}><RefreshCw size={14} /> مزامنة تجريبية</button></div><div style={styles.channelGrid}>{channels.map(channel => <div key={channel.id} style={styles.channelCard}><PlatformMark code={channel.platform_code} /><div style={{ flex: 1 }}><strong style={styles.channelName}>{channel.platform_name}</strong><span style={styles.channelRef}>{channel.store_ref || channel.seller_ref}</span></div><span style={styles.connectedPill}><Check size={12} /> متصل</span></div>)}</div></section>
+}
+
+function CredentialInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label style={styles.fieldLabel}>{label}<input dir="ltr" type="password" value={value} onChange={event => onChange(event.target.value)} autoComplete="new-password" spellCheck={false} style={styles.input} /></label>
+}
+function PlatformMark({ code }: { code: string }) { const color = platformColor(code); return <span style={{ ...styles.platformMark, background: color.background, color: color.text }}>{code.slice(0, 1).toUpperCase()}</span> }
+function StatusBadge({ active }: { active: boolean }) { return <span style={{ ...styles.statusBadge, background: active ? 'var(--success-bg)' : 'var(--warning-bg)', color: active ? 'var(--success-text)' : 'var(--warning-text)' }}>{active ? <CheckCircle2 size={13} /> : <Unplug size={13} />}{active ? 'جاهز' : 'غير مكتمل'}</span> }
+function Notice({ notice }: { notice: { kind: 'success' | 'error'; text: string } }) { return <div style={notice.kind === 'success' ? styles.success : styles.error}>{notice.text}</div> }
 
 async function callOmniful(body: Record<string, unknown>) {
   const { data: { session } } = await supabase.auth.getSession()
@@ -352,17 +253,15 @@ async function callOmniful(body: Record<string, unknown>) {
   if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`)
   return result
 }
-
+function errorMessage(error: unknown, hideProvider: boolean) { const message = error instanceof Error ? error.message : 'تعذر تنفيذ العملية'; return hideProvider ? message.replace(/omniful/gi, 'مزود الربط') : message }
 function formatNumber(value: unknown) { return Number(value || 0).toLocaleString('en-US') }
-function formatDate(value: string) { return new Date(value).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) }
+function platformColor(code: string) { if (code === 'amazon') return { background: '#fff3df', text: '#a85f00' }; if (code === 'noon') return { background: '#fffbd7', text: '#837100' }; if (code === 'trendyol') return { background: '#fff0e6', text: '#b64800' }; return { background: 'var(--accent-soft)', text: 'var(--accent)' } }
 
 const styles: Record<string, CSSProperties> = {
-  card: { maxWidth: 760, marginTop: 14, background: 'var(--surface)', border: '1px solid rgba(25,42,62,.2)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }, topLine: { height: 3, background: 'linear-gradient(90deg,#192a3e,#0e8177)' }, body: { padding: 18 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, titleGroup: { display: 'flex', alignItems: 'center', gap: 12 }, logo: { width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: 'rgba(14,129,119,.11)', color: 'var(--accent)' }, title: { fontSize: 15, fontWeight: 850, color: 'var(--text)' }, subtitle: { marginTop: 3, fontSize: 11, color: 'var(--text3)' }, protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 20, padding: '5px 10px', fontSize: 10, fontWeight: 800, background: 'var(--success-bg)', color: 'var(--success-text)' },
-  accountPanel: { marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid rgba(14,129,119,.24)', background: 'linear-gradient(135deg,rgba(14,129,119,.07),rgba(255,255,255,.02))' }, accountHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }, accountBadge: { display: 'inline-flex', alignItems: 'center', minHeight: 25, padding: '3px 9px', borderRadius: 20, fontSize: 9, fontWeight: 850, direction: 'ltr' }, credentialsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 9, marginTop: 12 }, tokenRow: { display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap', marginTop: 12 }, tokenRowCompact: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }, tokenNote: { margin: '8px 0 0', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, expiryNote: { display: 'block', margin: '6px 0 0', color: 'var(--success-text)', fontSize: 9, lineHeight: 1.7 }, connectedAccount: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 12, borderRadius: 10, border: '1px solid rgba(14,129,119,.18)', background: 'var(--surface)' }, connectedTitle: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success-text)', fontSize: 11 }, deleteButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--danger-text)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, managedAccount: { display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, padding: 10, borderRadius: 9, background: 'var(--surface)', color: 'var(--text2)', fontSize: 10, lineHeight: 1.6 }, modeActions: { display: 'flex', gap: 7, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }, modeButton: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer' },
-  flow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8, alignItems: 'center', marginTop: 18, padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface2)' }, flowStep: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontSize: 11 }, stepNumber: { flex: '0 0 auto', width: 25, height: 25, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 },
-  actionsPanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,rgba(14,129,119,.08),rgba(25,42,62,.04))', border: '1px solid rgba(14,129,119,.2)' }, helperText: { display: 'block', marginTop: 4, fontSize: 10, color: 'var(--text3)' }, actionButtons: { display: 'flex', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: 0, borderRadius: 9, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
-  adminSettings: { marginTop: 12, padding: 12, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)' }, settingsSummary: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)', fontSize: 11, fontWeight: 800, cursor: 'pointer' }, settingsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, alignItems: 'end', marginTop: 12 }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 11 }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, adminNote: { margin: '9px 0 0', color: 'var(--warning-text)', fontSize: 9, lineHeight: 1.6 },
-  mappingSection: { marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }, mappingTitle: { color: 'var(--text)', fontSize: 12, fontWeight: 850 }, mappingHelp: { margin: '4px 0 10px', color: 'var(--text3)', fontSize: 9, lineHeight: 1.7 }, mappingList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(205px,1fr))', gap: 9 }, mappingCard: { display: 'grid', gap: 9, minWidth: 0, padding: 11, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' }, mappingHead: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11 }, mappingStatus: { marginInlineStart: 'auto', fontSize: 9, fontWeight: 750 }, mappingFields: { display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 7 },
-  discoveryRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }, sectionLabel: { display: 'block', marginBottom: 7, color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelChips: { display: 'flex', gap: 6, flexWrap: 'wrap' }, channelChip: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 9px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: 10, fontWeight: 750 }, dot: { width: 7, height: 7, borderRadius: 99 }, emptyChannels: { color: 'var(--text3)', fontSize: 10 }, lastSync: { display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--success-text)', fontSize: 10 }, metrics: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12 }, metric: { padding: 10, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9 }, safetyBox: { display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 14, padding: 11, borderRadius: 10, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 11 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 11 },
+  card: { maxWidth: 920, marginTop: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }, topLine: { height: 3, background: 'linear-gradient(90deg,#192a3e,#0e8177)' }, body: { padding: 18 }, loading: { display: 'flex', alignItems: 'center', gap: 8, padding: 24, color: 'var(--text3)', fontSize: 12 },
+  header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }, titleGroup: { display: 'flex', alignItems: 'center', gap: 11 }, logo: { width: 42, height: 42, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 11, background: 'var(--accent-soft)', color: 'var(--accent)' }, title: { margin: 0, fontSize: 16, color: 'var(--text)' }, subtitle: { margin: '4px 0 0', fontSize: 11, lineHeight: 1.7, color: 'var(--text3)' }, statusBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 20, fontSize: 10, fontWeight: 800 }, protectedBadge: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 20, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10, fontWeight: 800 },
+  modePanel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 16, padding: 13, borderRadius: 11, background: 'var(--surface2)', border: '1px solid var(--border)' }, sectionTitle: { display: 'block', fontSize: 12, color: 'var(--text)' }, helper: { display: 'block', marginTop: 4, color: 'var(--text3)', fontSize: 10, lineHeight: 1.7 }, segmented: { display: 'flex', padding: 3, borderRadius: 9, background: 'var(--surface3)' }, segment: { minWidth: 95, padding: '7px 11px', border: 0, borderRadius: 7, background: 'transparent', color: 'var(--text3)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, segmentActive: { background: 'var(--surface)', color: 'var(--accent)', boxShadow: '0 1px 4px rgba(15,23,42,.1)' },
+  accountSummary: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 14, padding: 14, borderRadius: 11, border: '1px solid rgba(14,129,119,.22)', background: 'rgba(14,129,119,.05)' }, actionRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }, primaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', border: 0, borderRadius: 8, background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, secondaryButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 11px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, saveButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 13px', border: 0, borderRadius: 8, background: '#192a3e', color: '#fff', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' }, dangerButton: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 11px', border: '1px solid var(--danger-border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--danger-text)', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, cursor: 'pointer' },
+  directoryHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 9 }, countBadge: { padding: '4px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--text3)', fontSize: 9, fontWeight: 800 }, channelGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(245px,1fr))', gap: 8, marginTop: 10 }, channelCard: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, padding: 11, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface2)' }, selectableChannel: { display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, padding: 11, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit', cursor: 'pointer' }, selectedChannel: { borderColor: 'rgba(14,129,119,.55)', background: 'rgba(14,129,119,.055)', boxShadow: '0 0 0 1px rgba(14,129,119,.08)' }, checkbox: { width: 19, height: 19, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 6, border: '1px solid var(--border2)', color: '#fff' }, checkboxActive: { background: 'var(--accent)', borderColor: 'var(--accent)' }, platformMark: { width: 34, height: 34, display: 'grid', placeItems: 'center', flex: '0 0 auto', borderRadius: 9, fontWeight: 900 }, channelName: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }, channelRef: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3, color: 'var(--text3)', fontSize: 9 }, connectedPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '4px 7px', borderRadius: 20, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 9, fontWeight: 800 }, availableText: { color: 'var(--success-text)', fontSize: 8 }, lockedText: { color: 'var(--danger-text)', fontSize: 8 }, reviewText: { color: 'var(--warning-text)', fontSize: 8 }, footerActions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 12 }, selectionCount: { marginInlineEnd: 'auto', color: 'var(--text3)', fontSize: 10 },
+  credentialsPanel: { marginTop: 16, padding: 14, borderRadius: 11, border: '1px solid var(--border)', background: 'var(--surface2)' }, formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 9, margin: '12px 0' }, fieldLabel: { display: 'grid', gap: 5, color: 'var(--text3)', fontSize: 9, fontWeight: 750 }, input: { width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'monospace', fontSize: 11 }, privateConnected: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 16, padding: 14, borderRadius: 11, border: '1px solid rgba(14,129,119,.22)', background: 'rgba(14,129,119,.05)' }, connectedTitle: { display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success-text)', fontSize: 12 }, awaitingPanel: { display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 16, padding: 14, borderRadius: 11, background: 'var(--surface2)', color: 'var(--text2)' }, empty: { display: 'grid', placeItems: 'center', gap: 6, marginTop: 14, padding: 28, borderRadius: 11, border: '1px dashed var(--border2)', background: 'var(--surface2)', color: 'var(--text3)', textAlign: 'center', fontSize: 10 }, safety: { display: 'flex', alignItems: 'flex-start', gap: 7, marginTop: 14, padding: 10, borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 9, lineHeight: 1.7 }, success: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--success-bg)', color: 'var(--success-text)', fontSize: 10 }, error: { marginTop: 10, padding: '9px 11px', borderRadius: 9, background: 'var(--danger-bg)', color: 'var(--danger-text)', fontSize: 10 },
 }

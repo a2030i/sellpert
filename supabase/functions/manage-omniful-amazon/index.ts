@@ -22,6 +22,7 @@ import {
   mergeOmnifulTokenResponse,
   type OmnifulCredentials,
 } from '../_shared/omnifulCredentials.ts'
+import { normalizeOmnifulChannel, omnifulChannelRows, type OmnifulChannel } from '../_shared/omnifulChannels.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,9 +44,23 @@ Deno.serve(async req => {
     const body = await req.json().catch(() => ({}))
     merchantCode = String(body?.merchant_code || '').trim()
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
-    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations'])
+    const actor = await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations'])
 
     const action = String(body?.action || 'status')
+    if (action === 'set_connection_mode') {
+      const adminUserId = await requirePortalAdmin(req, admin)
+      return json(await setConnectionMode(admin, merchantCode, body, adminUserId), 200, corsHeaders)
+    }
+    if (action === 'discover_channels') {
+      const adminUserId = actor.kind === 'staff' || actor.kind === 'service'
+        ? await requirePortalAdmin(req, admin)
+        : null
+      return json(await discoverChannels(admin, merchantCode, adminUserId, actor.kind === 'service' || Boolean(adminUserId)), 200, corsHeaders)
+    }
+    if (action === 'assign_channels') {
+      const adminUserId = await requirePortalAdmin(req, admin)
+      return json(await assignCentralChannels(admin, merchantCode, body, adminUserId), 200, corsHeaders)
+    }
     if (action === 'save_account_credentials' || action === 'save_account_token') {
       return json(await saveMerchantAccountCredentials(admin, merchantCode, body), 200, corsHeaders)
     }
@@ -65,7 +80,7 @@ Deno.serve(async req => {
       return json(await configurePortal(admin, merchantCode, body), 200, corsHeaders)
     }
     const connections = await getConnections(admin, merchantCode)
-    if (action === 'status') return json(await connectionStatus(admin, merchantCode, connections), 200, corsHeaders)
+    if (action === 'status') return json(await connectionStatus(admin, merchantCode, connections, actor.kind !== 'merchant' && actor.kind !== 'employee'), 200, corsHeaders)
     if (action !== 'sync') throw new HttpError(400, 'Unsupported action')
     if (connections.length === 0) throw new HttpError(409, 'لم تُضبط خرائط Omniful لهذا المتجر بعد')
     const enabledConnections = connections.filter((connection: any) => connection.is_enabled && connection.status !== 'disabled')
@@ -102,8 +117,10 @@ Deno.serve(async req => {
     try {
       result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
     } catch (error) {
-      if (!(error instanceof HttpError) || error.status !== 401 || tokenContext.source !== 'merchant' || !tokenContext.credentials) throw error
-      tokenContext = await refreshAndPersistMerchantCredentials(admin, merchantCode, tokenContext.credentials)
+      if (!(error instanceof HttpError) || error.status !== 401 || !tokenContext.credentials) throw error
+      tokenContext = tokenContext.source === 'central'
+        ? await refreshAndPersistCentralCredentials(admin, tokenContext.credentials)
+        : await refreshAndPersistMerchantCredentials(admin, merchantCode, tokenContext.credentials)
       result = await fetchMarketplaceOrders(tokenContext.token, from, to, enabledConnections)
     }
     const comparisons: Record<string, { matched: number; newShadow: number; duplicates: number }> = {}
@@ -184,7 +201,7 @@ Deno.serve(async req => {
 
 async function requirePortalAdmin(req: Request, admin: any) {
   const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
-  if (token === SERVICE_KEY) return
+  if (token === SERVICE_KEY) return null
   const { data: { user }, error } = await admin.auth.getUser(token)
   if (error || !user) throw new HttpError(401, 'Unauthorized')
   const { data: caller, error: callerError } = await admin.from('merchants')
@@ -193,6 +210,7 @@ async function requirePortalAdmin(req: Request, admin: any) {
   if (!caller || caller.is_active === false || !['admin', 'super_admin'].includes(caller.role)) {
     throw new HttpError(403, 'إعداد رابط Omniful متاح للإدارة فقط')
   }
+  return user.id as string
 }
 
 async function getConnections(admin: any, merchantCode: string) {
@@ -203,26 +221,33 @@ async function getConnections(admin: any, merchantCode: string) {
   return data || []
 }
 
-async function connectionStatus(admin: any, merchantCode: string, connections: any[]) {
-  const [uploadsResult, trendyolResult, portalResult] = await Promise.all([
+async function connectionStatus(admin: any, merchantCode: string, connections: any[], includeAdminDirectory = false) {
+  const [uploadsResult, trendyolResult, portalResult, merchantResult, channelResult] = await Promise.all([
     admin.from('platform_file_uploads').select('platform')
       .eq('merchant_code', merchantCode).in('platform', ['amazon', 'noon']).eq('status', 'success'),
     admin.from('platform_credentials').select('is_active,last_sync_at')
       .eq('merchant_code', merchantCode).eq('platform', 'trendyol').maybeSingle(),
     admin.from('omniful_merchant_portals').select('portal_url,seller_scope_label,updated_at')
       .eq('merchant_code', merchantCode).maybeSingle(),
+    admin.from('merchants').select('omniful_connection_mode')
+      .eq('merchant_code', merchantCode).maybeSingle(),
+    assignedChannels(admin, merchantCode),
   ])
   if (uploadsResult.error) throw uploadsResult.error
   if (trendyolResult.error) throw trendyolResult.error
   if (portalResult.error) throw portalResult.error
+  if (merchantResult.error) throw merchantResult.error
   const uploadCounts = { amazon: 0, noon: 0 }
   for (const upload of uploadsResult.data || []) {
     const platform = String(upload.platform)
     if (platform === 'amazon' || platform === 'noon') uploadCounts[platform]++
   }
-  return {
+  const connectionMode = merchantResult.data?.omniful_connection_mode || 'central_account'
+  const response: Record<string, unknown> = {
     available: connections.length > 0,
-    account: await accountStatus(admin, merchantCode),
+    connection_mode: connectionMode,
+    account: await accountStatus(admin, merchantCode, connectionMode),
+    channels: channelResult,
     portal: {
       configured: Boolean(portalResult.data?.portal_url),
       url: portalResult.data?.portal_url || null,
@@ -253,6 +278,55 @@ async function connectionStatus(admin: any, merchantCode: string, connections: a
         ? trendyolResult.data?.last_sync_at || null
         : null,
     })),
+  }
+  if (includeAdminDirectory && connectionMode === 'central_account') {
+    response.directory = await centralChannelDirectory(admin)
+    response.central_account = await centralAccountStatus(admin)
+  }
+  return response
+}
+
+async function assignedChannels(admin: any, merchantCode: string) {
+  const { data, error } = await admin.from('omniful_channel_assignments')
+    .select('mode,status,assigned_at,channel:omniful_channels!inner(id,account_scope,platform_code,platform_name,display_name,seller_ref,store_ref,identity_status,status,last_seen_at)')
+    .eq('merchant_code', merchantCode).eq('status', 'active').order('assigned_at')
+  if (error) throw error
+  return (data || []).map((row: any) => sanitizeAssignedChannel(row.channel, row))
+}
+
+async function centralChannelDirectory(admin: any) {
+  const { data, error } = await admin.from('omniful_channels')
+    .select('id,platform_code,platform_name,display_name,seller_ref,store_ref,identity_status,status,last_seen_at,assignment:omniful_channel_assignments(merchant_code,status,assigned_at)')
+    .eq('account_scope', 'central_account').order('platform_name').order('display_name')
+  if (error) throw error
+  return (data || []).map((channel: any) => ({
+    id: channel.id,
+    platform_code: channel.platform_code,
+    platform_name: channel.platform_name,
+    display_name: channel.display_name,
+    seller_ref: channel.seller_ref,
+    store_ref: channel.store_ref,
+    identity_status: channel.identity_status,
+    status: channel.status,
+    last_seen_at: channel.last_seen_at,
+    assigned_merchant_code: channel.assignment?.[0]?.merchant_code || null,
+    assignment_status: channel.assignment?.[0]?.status || null,
+  }))
+}
+
+function sanitizeAssignedChannel(channel: any, assignment: any) {
+  return {
+    id: channel.id,
+    platform_code: channel.platform_code,
+    platform_name: channel.platform_name,
+    display_name: channel.display_name,
+    seller_ref: channel.seller_ref,
+    store_ref: channel.store_ref,
+    status: channel.status,
+    connection_status: assignment.status,
+    mode: assignment.mode,
+    assigned_at: assignment.assigned_at,
+    last_seen_at: channel.last_seen_at,
   }
 }
 
@@ -288,7 +362,289 @@ async function configureMapping(admin: any, merchantCode: string, body: any) {
   return { ok: true, connection: data }
 }
 
+async function setConnectionMode(admin: any, merchantCode: string, body: any, adminUserId: string | null) {
+  const mode = clean(body?.connection_mode)
+  if (!['central_account', 'merchant_account'].includes(mode)) {
+    throw new HttpError(400, 'نوع الربط غير صالح')
+  }
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  if (!merchant) throw new HttpError(404, 'Merchant not found')
+  const previousMode = merchant.omniful_connection_mode || 'central_account'
+  if (previousMode === mode) return { ok: true, connection_mode: mode }
+
+  if (mode === 'merchant_account') {
+    const { data: assigned, error: assignedError } = await admin.from('omniful_channel_assignments')
+      .select('channel_id,channel:omniful_channels!inner(account_scope)')
+      .eq('merchant_code', merchantCode)
+    if (assignedError) throw assignedError
+    const centralIds = (assigned || []).filter((row: any) => row.channel?.account_scope === 'central_account').map((row: any) => row.channel_id)
+    if (centralIds.length > 0) {
+      const { error } = await admin.from('omniful_channel_assignments').delete().in('channel_id', centralIds)
+      if (error) throw error
+    }
+  } else {
+    const { data: privateChannels, error: privateError } = await admin.from('omniful_channels')
+      .select('id').eq('account_scope', 'merchant_account').eq('owner_merchant_code', merchantCode)
+    if (privateError) throw privateError
+    const privateIds = (privateChannels || []).map((row: any) => row.id)
+    if (privateIds.length > 0) {
+      const { error } = await admin.from('omniful_channels').delete().in('id', privateIds)
+      if (error) throw error
+    }
+    const { error: credentialError } = await admin.from('omniful_account_credentials')
+      .delete().eq('merchant_code', merchantCode)
+    if (credentialError) throw credentialError
+  }
+
+  const { error: updateError } = await admin.from('merchants')
+    .update({ omniful_connection_mode: mode }).eq('merchant_code', merchantCode)
+  if (updateError) throw updateError
+  await writeOmnifulAudit(admin, merchantCode, 'omniful_connection_mode_changed', {
+    previous_mode: previousMode,
+    connection_mode: mode,
+  }, adminUserId)
+  return { ok: true, connection_mode: mode }
+}
+
+async function discoverChannels(
+  admin: any,
+  merchantCode: string,
+  actorUserId: string | null,
+  canManageCentral: boolean,
+) {
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  const mode = merchant?.omniful_connection_mode || 'central_account'
+  if (mode === 'central_account' && !canManageCentral) {
+    throw new HttpError(403, 'الإدارة فقط تستطيع فحص القنوات في الحساب المركزي')
+  }
+
+  let tokenContext = await resolveAccessToken(admin, merchantCode, true)
+  if (!tokenContext.token) {
+    throw new HttpError(409, mode === 'central_account'
+      ? 'بيانات الحساب المركزي غير مكتملة'
+      : 'اربط حسابك الخاص أولًا')
+  }
+  let discovered: OmnifulChannel[]
+  try {
+    discovered = await fetchOmnifulChannels(tokenContext.token)
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 401 || !tokenContext.credentials) throw error
+    tokenContext = mode === 'central_account'
+      ? await refreshAndPersistCentralCredentials(admin, tokenContext.credentials)
+      : await refreshAndPersistMerchantCredentials(admin, merchantCode, tokenContext.credentials)
+    discovered = await fetchOmnifulChannels(tokenContext.token)
+  }
+
+  const now = new Date().toISOString()
+  let providerAccountId: string | null = null
+  if (mode === 'central_account') {
+    const { data: provider, error: providerError } = await admin.from('omniful_provider_accounts')
+      .select('id').eq('account_key', 'sellpert-central').single()
+    if (providerError) throw providerError
+    providerAccountId = provider.id
+  }
+
+  for (const channel of discovered) {
+    const record = {
+      provider_account_id: providerAccountId,
+      owner_merchant_code: mode === 'merchant_account' ? merchantCode : null,
+      account_scope: mode,
+      provider_channel_id: channel.providerChannelId,
+      platform_code: channel.platformCode,
+      platform_name: channel.platformName,
+      display_name: channel.displayName,
+      seller_ref: channel.sellerRef || null,
+      store_ref: channel.storeRef || null,
+      external_identity_key: channel.externalIdentityKey || null,
+      identity_status: channel.identityStatus,
+      status: 'active',
+      capabilities: channel.capabilities,
+      provider_metadata: channel.raw,
+      last_seen_at: now,
+      updated_at: now,
+    }
+    const conflict = mode === 'central_account'
+      ? 'provider_account_id,provider_channel_id'
+      : 'owner_merchant_code,provider_channel_id'
+    const { error } = await admin.from('omniful_channels').upsert(record, { onConflict: conflict })
+    if (error) throw error
+  }
+
+  if (mode === 'central_account') {
+    await admin.from('omniful_provider_accounts').update({
+      status: 'active', last_discovered_at: now, last_error: null, updated_at: now,
+    }).eq('account_key', 'sellpert-central')
+  } else {
+    const { data: privateRows, error: privateRowsError } = await admin.from('omniful_channels')
+      .select('id').eq('account_scope', 'merchant_account').eq('owner_merchant_code', merchantCode)
+      .eq('status', 'active').eq('identity_status', 'verified')
+    if (privateRowsError) throw privateRowsError
+    for (const row of privateRows || []) {
+      const { error } = await admin.from('omniful_channel_assignments').upsert({
+        channel_id: row.id,
+        merchant_code: merchantCode,
+        mode: 'shadow',
+        status: 'active',
+        assigned_by: actorUserId,
+        updated_at: now,
+      }, { onConflict: 'channel_id' })
+      if (error) throw error
+    }
+  }
+
+  await writeOmnifulAudit(admin, merchantCode, 'omniful_channels_discovered', {
+    connection_mode: mode,
+    discovered_count: discovered.length,
+  }, actorUserId)
+  const channels = mode === 'central_account' ? await centralChannelDirectory(admin) : await assignedChannels(admin, merchantCode)
+  return { ok: true, connection_mode: mode, discovered_count: discovered.length, channels }
+}
+
+async function assignCentralChannels(admin: any, merchantCode: string, body: any, adminUserId: string | null) {
+  const requestedIds = [...new Set((Array.isArray(body?.channel_ids) ? body.channel_ids : [])
+    .map(clean).filter(Boolean))]
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  if (merchant?.omniful_connection_mode !== 'central_account') {
+    throw new HttpError(409, 'حوّل نوع ربط التاجر إلى مركزي قبل تعيين القنوات')
+  }
+
+  let channels: any[] = []
+  if (requestedIds.length > 0) {
+    const { data, error } = await admin.from('omniful_channels')
+      .select('id,platform_code,seller_ref,store_ref,identity_status,status')
+      .eq('account_scope', 'central_account').in('id', requestedIds)
+    if (error) throw error
+    channels = data || []
+    if (channels.length !== requestedIds.length) throw new HttpError(400, 'إحدى القنوات المختارة غير صالحة')
+    const invalid = channels.find(channel => channel.status !== 'active' || channel.identity_status !== 'verified')
+    if (invalid) throw new HttpError(409, 'لا يمكن تعيين قناة قبل تثبيت هويتها')
+  }
+
+  const { data: conflicts, error: conflictError } = requestedIds.length > 0
+    ? await admin.from('omniful_channel_assignments').select('channel_id,merchant_code')
+      .in('channel_id', requestedIds).neq('merchant_code', merchantCode)
+    : { data: [], error: null }
+  if (conflictError) throw conflictError
+  if ((conflicts || []).length > 0) {
+    throw new HttpError(409, `إحدى القنوات مرتبطة مسبقًا بالتاجر ${(conflicts || [])[0].merchant_code}`)
+  }
+
+  const now = new Date().toISOString()
+  for (const channel of channels) {
+    const { error } = await admin.from('omniful_channel_assignments').upsert({
+      channel_id: channel.id,
+      merchant_code: merchantCode,
+      mode: 'shadow',
+      status: 'active',
+      assigned_by: adminUserId,
+      updated_at: now,
+    }, { onConflict: 'channel_id' })
+    if (error?.code === '23505') throw new HttpError(409, 'القناة ارتبطت بتاجر آخر أثناء الحفظ؛ حدّث القائمة')
+    if (error) throw error
+  }
+
+  const { data: current, error: currentError } = await admin.from('omniful_channel_assignments')
+    .select('channel_id,channel:omniful_channels!inner(account_scope)')
+    .eq('merchant_code', merchantCode)
+  if (currentError) throw currentError
+  const deselected = (current || [])
+    .filter((row: any) => row.channel?.account_scope === 'central_account' && !requestedIds.includes(row.channel_id))
+    .map((row: any) => row.channel_id)
+  if (deselected.length > 0) {
+    const { error } = await admin.from('omniful_channel_assignments').delete().in('channel_id', deselected)
+    if (error) throw error
+  }
+
+  await mirrorAssignmentsToLegacyConnections(admin, merchantCode, channels, now)
+  await writeOmnifulAudit(admin, merchantCode, 'omniful_channels_assigned', {
+    channel_ids: requestedIds,
+    released_channel_ids: deselected,
+    mode: 'shadow',
+  }, adminUserId)
+  return {
+    ok: true,
+    channels: await assignedChannels(admin, merchantCode),
+    directory: await centralChannelDirectory(admin),
+  }
+}
+
+async function mirrorAssignmentsToLegacyConnections(admin: any, merchantCode: string, channels: any[], now: string) {
+  for (const channel of channels) {
+    if (!TRIAL_PLATFORMS.includes(channel.platform_code as OmnifulMarketplace)) continue
+    const scopeStrategy = channel.store_ref ? 'store_ref' : 'seller_ref'
+    const { error } = await admin.from('omniful_connections').upsert({
+      merchant_code: merchantCode,
+      platform: channel.platform_code,
+      mode: 'shadow',
+      status: 'pending',
+      scope_strategy: scopeStrategy,
+      omniful_seller_ref: channel.seller_ref || null,
+      omniful_store_ref: channel.store_ref || null,
+      is_enabled: true,
+      last_error: null,
+      updated_at: now,
+    }, { onConflict: 'merchant_code,platform' })
+    if (error) throw error
+  }
+}
+
+async function fetchOmnifulChannels(token: string): Promise<OmnifulChannel[]> {
+  const baseUrl = String(Deno.env.get('OMNIFUL_BASE_URL') || DEFAULT_BASE_URL).replace(/\/$/, '')
+  const payload = await fetchJsonWithRetry(
+    `${baseUrl}/sales-channel/public/v1/channels/integrations?page=1&per_page=100`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+    'Omniful Channels API',
+    3,
+  )
+  const unique = new Map<string, OmnifulChannel>()
+  for (const row of omnifulChannelRows(payload)) {
+    const channel = normalizeOmnifulChannel(row)
+    if (channel) unique.set(channel.providerChannelId, channel)
+  }
+  return [...unique.values()]
+}
+
+async function centralAccountStatus(admin: any) {
+  const { data, error } = await admin.from('omniful_provider_accounts')
+    .select('display_name,status,token_hint,last_tested_at,last_discovered_at,last_error')
+    .eq('account_key', 'sellpert-central').maybeSingle()
+  if (error) throw error
+  return {
+    configured: Boolean(data?.token_hint),
+    display_name: data?.display_name || 'حساب Sellpert المركزي',
+    status: data?.status || 'pending',
+    token_hint: data?.token_hint || null,
+    last_tested_at: data?.last_tested_at || null,
+    last_discovered_at: data?.last_discovered_at || null,
+    last_error: data?.last_error || null,
+  }
+}
+
+async function writeOmnifulAudit(admin: any, merchantCode: string, action: string, values: Record<string, unknown>, userId: string | null) {
+  const { error } = await admin.from('audit_log').insert({
+    merchant_code: merchantCode,
+    action,
+    table_name: 'omniful_channel_assignments',
+    record_id: merchantCode,
+    new_values: values,
+    performed_by: userId || 'service_role',
+  })
+  if (error) throw error
+}
+
 async function saveMerchantAccountCredentials(admin: any, merchantCode: string, body: any) {
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  if (merchant?.omniful_connection_mode !== 'merchant_account') {
+    throw new HttpError(403, 'يجب أن تغيّر الإدارة نوع الربط إلى حساب خاص أولًا')
+  }
   let credentials = buildOmnifulCredentials({
     client_id: body?.client_id,
     client_secret: body?.client_secret,
@@ -357,6 +713,9 @@ async function removeMerchantAccountToken(admin: any, merchantCode: string) {
   const { error } = await admin.from('omniful_account_credentials')
     .delete().eq('merchant_code', merchantCode).eq('connection_mode', 'merchant_account')
   if (error) throw error
+  const { error: channelError } = await admin.from('omniful_channels')
+    .delete().eq('account_scope', 'merchant_account').eq('owner_merchant_code', merchantCode)
+  if (channelError) throw channelError
   const { error: connectionError } = await admin.from('omniful_connections').update({
     is_enabled: false,
     status: 'pending',
@@ -369,31 +728,27 @@ async function removeMerchantAccountToken(admin: any, merchantCode: string) {
 
 async function useCentralAccount(admin: any, merchantCode: string) {
   const now = new Date().toISOString()
-  const { error } = await admin.from('omniful_account_credentials').upsert({
-    merchant_code: merchantCode,
-    connection_mode: 'central_account',
-    secret_blob: null,
-    token_hint: null,
-    last_tested_at: null,
-    last_error: null,
-    updated_at: now,
-  }, { onConflict: 'merchant_code' })
+  const { error } = await admin.from('merchants').update({
+    omniful_connection_mode: 'central_account',
+  }).eq('merchant_code', merchantCode)
   if (error) throw error
+  await admin.from('omniful_account_credentials').delete().eq('merchant_code', merchantCode)
+  const central = await centralAccountStatus(admin)
   return {
     ok: true,
     account: {
       mode: 'central_account',
-      token_configured: Boolean(String(Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim()),
-      token_hint: null,
-      last_tested_at: null,
+      token_configured: central.configured || Boolean(String(Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim()),
+      token_hint: central.token_hint,
+      last_tested_at: central.last_tested_at,
     },
   }
 }
 
-async function accountStatus(admin: any, merchantCode: string) {
+async function accountStatus(admin: any, merchantCode: string, configuredMode?: string) {
   const tokenContext = await resolveAccessToken(admin, merchantCode, false)
   return {
-    mode: tokenContext.mode,
+    mode: configuredMode || tokenContext.mode,
     token_configured: Boolean(tokenContext.token),
     credentials_configured: tokenContext.source === 'central'
       ? Boolean(tokenContext.token)
@@ -632,22 +987,64 @@ async function refreshAndPersistMerchantCredentials(admin: any, merchantCode: st
   }
 }
 
-async function resolveAccessToken(admin: any, merchantCode: string, refreshIfExpiring = false) {
-  const { data, error } = await admin.from('omniful_account_credentials')
-    .select('connection_mode,secret_blob,token_hint,last_tested_at')
-    .eq('merchant_code', merchantCode).maybeSingle()
+async function refreshAndPersistCentralCredentials(admin: any, current: OmnifulCredentials) {
+  if (!credentialsAreComplete(current)) {
+    throw new HttpError(409, 'بيانات الحساب المركزي تحتاج تحديثًا من الإدارة')
+  }
+  const credentials = await refreshOmnifulCredentials(current)
+  const now = new Date().toISOString()
+  const secretBlob = await encryptCredentialPayload(credentials)
+  const { error } = await admin.from('omniful_provider_accounts').update({
+    secret_blob: secretBlob,
+    token_hint: credentials.access_token.slice(-4),
+    status: 'active',
+    last_tested_at: now,
+    last_error: null,
+    updated_at: now,
+  }).eq('account_key', 'sellpert-central')
   if (error) throw error
+  return {
+    token: credentials.access_token,
+    source: 'central' as const,
+    mode: 'central_account' as const,
+    tokenHint: credentials.access_token.slice(-4),
+    lastTestedAt: now,
+    credentials,
+  }
+}
 
-  if (data?.connection_mode === 'central_account') {
+async function resolveAccessToken(admin: any, merchantCode: string, refreshIfExpiring = false) {
+  const { data: merchant, error: merchantError } = await admin.from('merchants')
+    .select('omniful_connection_mode').eq('merchant_code', merchantCode).maybeSingle()
+  if (merchantError) throw merchantError
+  const mode = merchant?.omniful_connection_mode || 'central_account'
+
+  if (mode === 'central_account') {
+    const { data: provider, error: providerError } = await admin.from('omniful_provider_accounts')
+      .select('secret_blob,token_hint,last_tested_at').eq('account_key', 'sellpert-central').maybeSingle()
+    if (providerError) throw providerError
+    let credentials: OmnifulCredentials | null = null
+    if (provider?.secret_blob) {
+      const secret = await decryptCredentialPayload(provider.secret_blob)
+      credentials = buildOmnifulCredentials(secret)
+    }
+    if (refreshIfExpiring && credentials && credentialsAreComplete(credentials) && accessTokenExpiresSoon(credentials)) {
+      return await refreshAndPersistCentralCredentials(admin, credentials)
+    }
     return {
-      token: String(Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim(),
+      token: credentials?.access_token || String(Deno.env.get('OMNIFUL_ACCESS_TOKEN') || '').trim(),
       source: 'central' as const,
       mode: 'central_account' as const,
-      tokenHint: null,
-      lastTestedAt: data.last_tested_at || null,
-      credentials: null,
+      tokenHint: provider?.token_hint || null,
+      lastTestedAt: provider?.last_tested_at || null,
+      credentials,
     }
   }
+
+  const { data, error } = await admin.from('omniful_account_credentials')
+    .select('connection_mode,secret_blob,token_hint,last_tested_at')
+    .eq('merchant_code', merchantCode).eq('connection_mode', 'merchant_account').maybeSingle()
+  if (error) throw error
 
   if (data?.connection_mode === 'merchant_account' && data.secret_blob) {
     const secret = await decryptCredentialPayload(data.secret_blob)
