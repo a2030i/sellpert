@@ -24,6 +24,7 @@ const DBHealthView        = lazy(() => import('./admin/DBHealthView'))
 const TeamDashboardView   = lazy(() => import('./admin/TeamDashboardView'))
 const MerchantTimelineView = lazy(() => import('./admin/MerchantTimelineView'))
 const EmployeesView       = lazy(() => import('./admin/EmployeesView'))
+const ServiceRequestsView = lazy(() => import('./admin/ServiceRequestsView'))
 import CommandPalette from '../components/CommandPalette'
 import PWAInstallPrompt from '../components/PWAInstallPrompt'
 import type { Merchant, PerformanceData, PlatformCredential, SyncLog } from '../lib/supabase'
@@ -32,13 +33,13 @@ import {
   Percent, ShoppingBag, Network,
   BarChart2, Key, Activity, LogOut,
   ChevronUp, Settings, Wallet, Server,
-  ClipboardList, PackageCheck, FileInput,
+  ClipboardList, ClipboardCheck, PackageCheck, FileInput,
   type LucideIcon,
 } from 'lucide-react'
 
-type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'audit' | 'products' | 'fees' | 'salla' | 'omniful' | 'health'
+type AdminView = 'overview' | 'team' | 'merchants' | 'employees' | 'performance' | 'entry' | 'import' | 'uploads' | 'inbound' | 'ads' | 'operations' | 'tasks' | 'service-requests' | 'audit' | 'products' | 'fees' | 'salla' | 'omniful' | 'health'
 
-const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'audit', 'products', 'fees', 'salla', 'omniful', 'health']
+const ADMIN_VIEWS: AdminView[] = ['overview', 'team', 'merchants', 'employees', 'performance', 'entry', 'import', 'uploads', 'inbound', 'ads', 'operations', 'tasks', 'service-requests', 'audit', 'products', 'fees', 'salla', 'omniful', 'health']
 
 function readAdminView(): AdminView {
   const parts = window.location.pathname.split('/')
@@ -121,6 +122,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'employees', Icon: Users, label: 'الموظفون والمدراء', perm: 'create_staff' },
       { key: 'tasks', Icon: ClipboardList, label: 'المهام وطلبات التجار', perm: 'tasks' },
+      { key: 'service-requests', Icon: ClipboardCheck, label: 'طلبات الخدمة', adminOnly: true },
     ],
   },
   {
@@ -497,6 +499,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         {view === 'ads'         && <AdsView merchants={merchantOnly} />}
         {view === 'operations'  && <OperationsView merchants={merchantOnly} />}
         {view === 'tasks'       && <TasksBoardView merchants={merchants} currentUserCode={adminMerchant?.merchant_code} currentUserRole={adminMerchant?.role} />}
+        {view === 'service-requests' && <ServiceRequestsView currentUserId={adminMerchant?.id} />}
         {view === 'audit'       && <AuditLogView merchants={merchantOnly} />}
         {view === 'products'    && <AdminProductsView merchants={merchantOnly} />}
         {view === 'fees'        && <FeesView />}

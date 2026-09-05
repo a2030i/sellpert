@@ -12,6 +12,7 @@ import PageErrorBoundary from './components/PageErrorBoundary'
 import MfaChallenge from './components/MfaChallenge'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
+import PricingRequest from './pages/PricingRequest'
 import {
   LayoutDashboard, Tags, Package, Link2, LogOut, Boxes, Eye, BookOpen,
   Megaphone, Settings2, MoreHorizontal, X,
@@ -124,7 +125,17 @@ function readView(): View {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+function isServiceRequestRoute() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  const host = window.location.hostname.toLowerCase()
+  return path === '/pricing-request' || path === '/service-request' || host.startsWith('request.') || host.startsWith('quote.')
+}
+
 export default function App() {
+  return isServiceRequestRoute() ? <PricingRequest /> : <MerchantApp />
+}
+
+function MerchantApp() {
   const [session, setSession]               = useState<Session | null>(null)
   const [merchant, setMerchant]             = useState<Merchant | null>(null)
   const [merchantLoadError, setMerchantLoadError] = useState('')

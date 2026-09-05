@@ -8,3 +8,8 @@ test-results/
 
 .vercel
 supabase/.temp/
+
+# Local Codex build, preview, and test artifacts
+.codex-*.log
+.codex/figma-*.png
+.codex/figma-state-sellpert-v2.json
