@@ -1,5 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { PayloadTooLargeError, readBoundedText } from '../_shared/webhookSecurity.ts'
+import { loadAmazonCaller } from '../_shared/amazonActor.ts'
+import { inspectAmazonAppConfig, saveAmazonAppConfig } from '../_shared/amazonAppConfig.ts'
+import { HttpError } from '../_shared/sync.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -23,7 +26,7 @@ Deno.serve(async req => {
 
   try {
     const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
-    if (!token) return reply({ error: 'Unauthorized' }, 401)
+    if (!token || token === SERVICE_KEY) return reply({ error: 'Unauthorized' }, 401)
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY)
     const { data: { user }, error: authError } = await admin.auth.getUser(token)
@@ -41,14 +44,23 @@ Deno.serve(async req => {
     const raw = await readBoundedText(req, MAX_REQUEST_BYTES)
     const body = raw ? JSON.parse(raw) : {}
     const action = String(body?.action || 'status')
+    if (action === 'amazon_status' || action === 'save_amazon_config') {
+      // The role read above uses the service client. This separate user-context
+      // read is mandatory: an enrolled AAL1 admin must not bypass the MFA policy.
+      const actor = await loadAmazonCaller(createClient, SUPABASE_URL, SERVICE_KEY, token, user.id)
+      if (!['admin', 'super_admin'].includes(actor.role)) throw new HttpError(403, 'Forbidden')
+      if (action === 'amazon_status') return reply(await inspectAmazonAppConfig(admin, Deno.env))
+      return reply(await saveAmazonAppConfig(admin, body, user.id))
+    }
     if (action === 'status') return reply(await status(admin))
     if (action === 'save_setting') return reply(await saveSetting(admin, body, user.id))
     return reply({ error: 'Unsupported action' }, 400)
   } catch (error: any) {
     if (error instanceof PayloadTooLargeError) return reply({ error: 'الطلب أكبر من الحد المسموح' }, 413)
     if (error instanceof SyntaxError) return reply({ error: 'بيانات الطلب غير صالحة' }, 400)
-    console.error('admin-integration-settings:', error?.message)
-    return reply({ error: 'تعذر حفظ إعدادات سلة' }, 500)
+    if (error instanceof HttpError) return reply({ error: error.message }, error.status)
+    console.error('admin-integration-settings: unexpected failure')
+    return reply({ error: 'تعذر حفظ إعدادات التكامل' }, 500)
   }
 })
 
@@ -96,6 +108,6 @@ function bounded(value: unknown, min: number, max: number) {
 function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   })
 }

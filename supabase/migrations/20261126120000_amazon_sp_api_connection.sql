@@ -63,6 +63,13 @@ create policy sellpert_require_mfa_if_enrolled
   using ((select security.mfa_access_allowed()))
   with check ((select security.mfa_access_allowed()));
 
+-- Keep the shared tenant guard as defense in depth; this grants no browser access.
+create policy tenant_boundary
+  on public.amazon_oauth_states as restrictive
+  for all to authenticated
+  using (security.can_access_merchant(merchant_code))
+  with check (security.can_access_merchant(merchant_code));
+
 comment on table public.amazon_oauth_states is
   'Server-only, single-use OAuth state hashes for the Amazon SP-API website authorization workflow.';
 

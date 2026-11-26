@@ -124,6 +124,19 @@ the frontend. On a missing RPC or failed status check, Amazon imports fail close
 other platform imports remain available. Live OAuth, seller-ID rejection and
 SQL enforcement still require validation against an authorized environment.
 
+Platform administrators can enter the three Amazon app credentials together at
+`/admin/amazon`. `admin-integration-settings` verifies the administrator and the
+user-context MFA policy, then stores one AES-GCM encrypted `AMAZON_SP_APP_CONFIG`
+record in server-only `app_settings`. The response contains configuration booleans
+only; saved values are never returned or prefilled. `amazon-connect` reads that
+record on the server. If no record exists, the original Edge secret configuration
+remains supported. An unreadable stored record fails closed instead of switching
+to a different app identity. Database-managed configuration uses the fixed
+`https://app.sellpert.com/integrations/amazon/callback` URL and draft mode.
+This does not mirror values into Supabase Edge Function Secrets or require a
+Management API token in the application runtime. Replacing the global app identity
+can require merchants to reconnect; it is not a verification of Amazon API access.
+
 ### Salla
 
 Server implementation remains even though the launch product/direct-connection

@@ -1,0 +1,32 @@
+.amazon-settings { max-width: 760px; color: var(--text); }
+.amazon-settings__intro, .amazon-settings__help { color: var(--text2); font-size: 13px; line-height: 1.8; margin: 0 0 18px; }
+.amazon-settings__summary, .amazon-settings__label-row, .amazon-settings__actions, .amazon-settings__callback { display: flex; align-items: center; gap: 12px; }
+.amazon-settings__summary { justify-content: space-between; margin-bottom: 20px; font-size: 13px; font-weight: 700; flex-wrap: wrap; }
+.amazon-settings button { font-family: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; }
+.amazon-settings button:disabled { opacity: .55; cursor: default; }
+.amazon-settings button:focus-visible, .amazon-settings input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.amazon-settings__title { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 10px; }
+.amazon-settings fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.amazon-settings__field + .amazon-settings__field { margin-top: 20px; }
+.amazon-settings__label-row { justify-content: space-between; align-items: baseline; margin-bottom: 5px; flex-wrap: wrap; gap: 5px 10px; }
+.amazon-settings__label-row label { text-transform: none !important; letter-spacing: normal !important; line-height: 1.7; }
+.amazon-settings__presence { color: var(--text2); font-size: 11px; white-space: nowrap; }
+.amazon-settings input { min-height: 44px; font-family: ui-monospace, monospace !important; }
+.amazon-settings input[aria-invalid="true"] { border-color: var(--danger-text) !important; }
+.amazon-settings__error { color: var(--danger-text); font-size: 12px; line-height: 1.6; margin: 6px 0 0; }
+.amazon-settings__actions { margin-top: 24px; flex-wrap: wrap; }
+.amazon-settings__actions span { color: var(--text2); font-size: 12px; }
+.amazon-settings__connection { padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--border); }
+.amazon-settings__connection h3 { font-size: 14px; margin: 0 0 8px; }
+.amazon-settings__callback { align-items: flex-start; }
+.amazon-settings__callback code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--surface2); border: 1px solid var(--border); padding: 11px 12px; border-radius: 9px; font-size: 12px; line-height: 1.7; }
+.amazon-settings__callback button { flex-shrink: 0; }
+.amazon-settings__draft { font-size: 12px; line-height: 1.7; color: var(--text2); margin: 16px 0 0; }
+.amazon-settings__draft span { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; margin-inline-end: 8px; font-weight: 700; }
+@media (max-width: 560px) {
+  .amazon-settings form { padding: 18px !important; }
+  .amazon-settings__actions button { width: 100%; }
+  .amazon-settings__callback { flex-direction: column; align-items: stretch; }
+  .amazon-settings__callback code { flex: auto; }
+  .amazon-settings__callback button { align-self: flex-start; }
+}

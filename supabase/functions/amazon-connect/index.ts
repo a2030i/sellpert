@@ -18,6 +18,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 import { loadAmazonCaller } from '../_shared/amazonActor.ts'
+import { loadAmazonAppConfig } from '../_shared/amazonAppConfig.ts'
 import { HttpError, json } from '../_shared/sync.ts'
 import {
   AMAZON_MARKETPLACES,
@@ -31,7 +32,6 @@ import {
   isWellFormedOAuthCode,
   isWellFormedSellingPartnerId,
   isWellFormedState,
-  readAmazonSpConfig,
   supportedParticipations,
   verifyAmazonSellerIdentity,
 } from '../_shared/amazonSpApi.ts'
@@ -71,7 +71,7 @@ Deno.serve(async req => {
 })
 
 async function connectionStatus(admin: any, merchantCode: string) {
-  const config = readAmazonSpConfig(Deno.env)
+  const config = await loadAmazonAppConfig(admin, Deno.env)
   const { data, error } = await admin.from('platform_credentials')
     .select('seller_id,is_active,test_status,last_tested_at,last_sync_at,created_at,updated_at,extra')
     .eq('merchant_code', merchantCode).eq('platform', 'amazon').maybeSingle()
@@ -91,7 +91,7 @@ async function connectionStatus(admin: any, merchantCode: string) {
 }
 
 async function startAuthorization(admin: any, merchantCode: string, userId: string, requestedMarketplace: unknown) {
-  const config = readAmazonSpConfig(Deno.env)
+  const config = await loadAmazonAppConfig(admin, Deno.env)
   if (!config) throw new HttpError(503, 'ربط أمازون غير مهيأ بعد على الخادم')
   const marketplaceId = String(requestedMarketplace || DEFAULT_AMAZON_MARKETPLACE)
   if (!AMAZON_MARKETPLACES[marketplaceId]) throw new HttpError(400, 'سوق أمازون غير مدعوم')
@@ -115,7 +115,7 @@ async function startAuthorization(admin: any, merchantCode: string, userId: stri
 }
 
 async function completeAuthorization(admin: any, merchantCode: string, userId: string, body: any) {
-  const config = readAmazonSpConfig(Deno.env)
+  const config = await loadAmazonAppConfig(admin, Deno.env)
   if (!config) throw new HttpError(503, 'ربط أمازون غير مهيأ بعد على الخادم')
   const state = body?.state
   const sellingPartnerId = body?.selling_partner_id
