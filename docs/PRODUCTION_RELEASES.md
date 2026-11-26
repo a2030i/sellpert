@@ -63,6 +63,50 @@ immutable hashed-asset caching. Their presence on a live response is
 consistent. There is no repository-defined staging release workflow.
 Do not change custom domains or Vercel/Supabase targets by inference.
 
+## Manual Auth domain configuration
+
+The manual-only [Configure Sellpert Auth domain workflow](../.github/workflows/configure-auth-domain.yml)
+targets only `urdyzbsukcuibadlaath` and `https://app.sellpert.com`. It uses Node 22,
+the `production` environment's `SUPABASE_ACCESS_TOKEN`, and the backend release
+concurrency lock. Its existence is not authorization to run `apply`.
+
+- `inspect` (default) reads Auth configuration and function-setting names. It does
+  not require the new domain to be ready and makes no configuration changes.
+- `apply` first checks valid HTTPS and HTTP 200 Sellpert SPA shells at `/`,
+  `/auth/recovery`, and `/integrations/amazon/callback`. Only then it sets
+  `AMAZON_SP_REDIRECT_URI` and `AMAZON_SP_APP_DRAFT` to the reviewed public values,
+  reads Auth configuration again, and patches only `site_url` and `uri_allow_list`.
+- Existing redirect entries and the previous implicit Site URL are preserved.
+  The new origin, root, password recovery, and Amazon callback are added as exact
+  URLs. No new wildcard is added. Avoid concurrent manual Auth configuration edits:
+  the API does not document a compare-and-swap mechanism for these fields.
+- The final read verifies the new Site URL, retained redirects and setting-name
+  presence. Output contains only the fixed target URLs and presence/status flags;
+  Auth responses, secret values/digests and provider error bodies are never logged.
+- The three Amazon app-key names and `PLATFORM_CREDENTIALS_ENCRYPTION_KEY` are
+  reported as present/absent only. This workflow never writes their values or
+  changes the encryption key. Missing Amazon app keys remain a separate
+  configuration prerequisite for live Amazon authorization.
+- The two configuration writes are not one transaction. A partial failure requires
+  inspection before retrying; the script does not guess rollback settings. This
+  workflow does not deploy functions, apply migrations, or repair history.
+
+After explicit authorization, dispatch `inspect` on `main`, review the sanitized
+result, then dispatch `apply` only once the new domain and application are ready.
+The token needs Management API `auth:read`, `auth:write`, `secrets:read`, and
+`secrets:write` permissions on the fixed project (only read scopes for inspection).
+The workflow runs `node --test scripts/configure-auth-domain.test.mjs` before
+accessing the token. No npm install is needed for this built-in Node script.
+
+An HTTP shell check and configuration read-back do not prove actual sign-in,
+email delivery, password recovery, or Amazon consent. Verify those journeys on
+the new origin with an authorized test account afterward. Their live results
+remain `NEEDS_CONFIRMATION` until exercised.
+
+API references: [Auth config](https://supabase.com/docs/reference/api/v1-update-auth-service-config),
+[redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls),
+[function settings](https://supabase.com/docs/reference/api/v1-bulk-create-secrets).
+
 ## Supabase release order
 
 [scripts/deploy-supabase-release.ps1](../scripts/deploy-supabase-release.ps1)
