@@ -24,6 +24,7 @@ Before changing anything:
 | Local setup, environment names, checks, unresolved facts | [Development](docs/DEVELOPMENT.md) |
 | Explicitly authorized releases | [Production releases](docs/PRODUCTION_RELEASES.md) |
 | Incidents / recovery | [Incident response](docs/INCIDENT-RESPONSE.md), [Recovery](docs/DISASTER-RECOVERY.md) |
+| Security commitments (SP-API), passwords, MFA, retention | [Security policy](docs/SECURITY-POLICY.md) |
 
 ## Standing rules
 

@@ -16,6 +16,7 @@
 - [AGENTS.md](AGENTS.md): تعليمات Codex وقواعد العمل والفحوص.
 - [Architecture](docs/ARCHITECTURE.md): وحدات المنتج وتدفق البيانات والقرارات الحالية.
 - [Data and security](docs/DATA_AND_SECURITY.md): مصادر المخطط والصلاحيات وقواعد العمل.
+- [Security policy](docs/SECURITY-POLICY.md): التزامات أمن المعلومات وكلمات المرور والتحقق الثنائي والإبلاغ عن الحوادث.
 - [Integrations](docs/INTEGRATIONS.md): APIs والمنصات وحدود الأسرار.
 - [Development](docs/DEVELOPMENT.md): التشغيل والاختبارات وأسماء متغيرات البيئة.
 - [Production releases](docs/PRODUCTION_RELEASES.md): النشر المصرح به فقط.

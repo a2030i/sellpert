@@ -29,3 +29,36 @@ The accountable role is the platform operator on duty. The operator must record 
 ## Escalation conditions
 
 Immediately escalate any suspected cross-tenant access, credential exposure, unauthorized marketplace write, unrecoverable data loss, or prolonged authentication outage. Preserve audit evidence and do not delete affected records during investigation.
+
+## Roles
+
+| Role | Responsibility |
+| --- | --- |
+| Security owner (currently Rakan Aljuhani, Rakan@sellpert.com) | Owns this plan, decides on external notifications, approves closure of security incidents |
+| Platform operator on duty | Detects, triages and contains; records the incident owner and timeline |
+| Account manager of the affected merchant | Informs the merchant once the security owner approves the message |
+
+## Security incidents and external notification
+
+A security incident is any suspected or confirmed unauthorized access to, disclosure,
+loss or alteration of merchant data or credentials, including Amazon Information as
+defined in the [Security policy](SECURITY-POLICY.md).
+
+1. Record the detection time; every deadline below is measured from it.
+2. Contain: revoke or rotate the affected credentials and refresh tokens, disable the
+   affected integration or account, and preserve audit evidence.
+3. Amazon: if Amazon Information may be involved, email security@amazon.com within
+   24 hours of detection, even if the investigation is not finished. Include what is
+   known, the affected merchants and data, containment steps and a contact person.
+   Send updates as facts are confirmed.
+4. Other marketplaces and merchants: notify affected merchants and any marketplace
+   whose terms require it, as soon as scope is known.
+5. After resolution, record root cause, impact, notifications sent (with times) and
+   prevention actions.
+
+## Plan review
+
+This plan is reviewed every 6 months together with the [Security policy](SECURITY-POLICY.md)
+(next review due 2027-05-26), and after every security incident. Each review confirms
+role assignments and contact details, staff access lists, MFA enrollment, and
+password rotation, and is recorded in the review log of the security policy.
