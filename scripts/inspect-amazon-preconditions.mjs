@@ -25,11 +25,11 @@ const ACTOR_SQL = `SELECT
 function safeFailure(code, status) {
   return { ok: false, diagnostic: code, ...(Number.isInteger(status) ? { http_status: status } : {}), mutations_requested: false }
 }
-async function query(token, sql, fetchImpl) {
+async function query(token, sql, fetchImpl, readOnly = true) {
   const response = await fetchImpl(API, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000),
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: sql, read_only: true, disable_statement_timeout: false }),
+    body: JSON.stringify({ query: sql, read_only: readOnly, disable_statement_timeout: false }),
   })
   if (!response.ok) {
     await response.body?.cancel()
@@ -51,17 +51,25 @@ export async function inspectAmazonPreconditions({ token, sql, fetchImpl = fetch
     return safeFailure(error?.safeCode === 'HTTP' ? 'INSPECT_HTTP' : 'INSPECT_REQUEST', error?.safeCode === 'HTTP' ? error.status : undefined)
   }
   const result = { ok: true, inspect_sha256: INSPECT_SHA256, checks, preconditions_passed: Object.values(checks).every(Boolean), mutations_requested: false }
-  try {
-    const actor = await query(token, ACTOR_SQL, fetchImpl)
-    const valid = Object.keys(actor).length === ACTOR_KEYS.length
-      && ACTOR_KEYS.every(key => Object.hasOwn(actor, key))
-      && ROLES.includes(actor.current_role_category) && ROLES.includes(actor.session_role_category)
-      && ['current_role_sha256', 'search_path_sha256'].every(key => typeof actor[key] === 'string' && /^[a-f0-9]{64}$/.test(actor[key]))
-      && ['current_role_superuser', 'current_role_bypass_rls', 'row_security_on'].every(key => typeof actor[key] === 'boolean')
-    return valid ? { ...result, actor: Object.fromEntries(ACTOR_KEYS.map(key => [key, actor[key]])) } : { ...result, actor_diagnostic: 'SHAPE' }
-  } catch (error) {
-    return { ...result, actor_diagnostic: error?.safeCode === 'HTTP' ? 'HTTP' : 'REQUEST', ...(error?.safeCode === 'HTTP' ? { actor_http_status: error.status } : {}) }
+  const actorByTransport = {}
+  // The second transport still executes only this hardcoded metadata SELECT.
+  // Neither the approved inspect SQL nor any user input can enter this branch.
+  for (const readOnly of [true, false]) {
+    const transport = readOnly ? 'read_only_true' : 'read_only_false_fixed_select'
+    try {
+      const actor = await query(token, ACTOR_SQL, fetchImpl, readOnly)
+      const valid = Object.keys(actor).length === ACTOR_KEYS.length
+        && ACTOR_KEYS.every(key => Object.hasOwn(actor, key))
+        && ROLES.includes(actor.current_role_category) && ROLES.includes(actor.session_role_category)
+        && ['current_role_sha256', 'search_path_sha256'].every(key => typeof actor[key] === 'string' && /^[a-f0-9]{64}$/.test(actor[key]))
+        && ['current_role_superuser', 'current_role_bypass_rls', 'row_security_on'].every(key => typeof actor[key] === 'boolean')
+      actorByTransport[transport] = valid ? Object.fromEntries(ACTOR_KEYS.map(key => [key, actor[key]])) : { diagnostic: 'SHAPE' }
+    } catch (error) {
+      actorByTransport[transport] = { diagnostic: error?.safeCode === 'HTTP' ? 'HTTP' : 'REQUEST', ...(error?.safeCode === 'HTTP' ? { http_status: error.status } : {}) }
+    }
   }
+  return { ...result, actor_by_transport: actorByTransport }
+
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
