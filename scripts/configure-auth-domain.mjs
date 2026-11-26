@@ -21,7 +21,7 @@ export const SECRET_NAMES = Object.freeze([
 
 const API_ROOT = `https://api.supabase.com/v1/projects/${PROJECT_REF}`
 const FAILURES = Object.freeze({
-  MODE: 'Use exactly one mode: --inspect or --apply.',
+  MODE: 'Use exactly one mode: --inspect, --apply, or --apply_function_settings.',
   TOKEN: 'SUPABASE_ACCESS_TOKEN is missing.',
   TLS: 'TLS certificate verification must remain enabled.',
   API_READ: 'Management API inspection failed. No response body was logged.',
@@ -161,9 +161,27 @@ function summary(mode, auth, names, applied = false) {
 }
 
 export async function configureAuthDomain({ mode, token, fetchImpl = fetch }) {
-  if (!['inspect', 'apply'].includes(mode)) throw new ConfigurationError('MODE')
+  if (!['inspect', 'apply', 'apply_function_settings'].includes(mode)) throw new ConfigurationError('MODE')
   if (typeof token !== 'string' || !token.trim()) throw new ConfigurationError('TOKEN')
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') throw new ConfigurationError('TLS')
+
+  if (mode === 'apply_function_settings') {
+    // These two fixed public constants can be staged before DNS is ready.
+    // This mode does not read or change Auth configuration or contact the site.
+    await managementRequest(fetchImpl, token, '/secrets', {
+      method: 'POST', body: EDGE_SETTINGS, failure: 'EDGE_WRITE', json: false,
+    })
+    const names = readSecretNames(await managementRequest(fetchImpl, token, '/secrets', { failure: 'VERIFY' }))
+    if (EDGE_SETTINGS.some(({ name }) => !names.has(name))) throw new ConfigurationError('VERIFY')
+    return {
+      mode,
+      project_ref: PROJECT_REF,
+      function_setting_presence: EDGE_SETTINGS.map(({ name }) => ({ name, present: names.has(name) })),
+      function_settings_request_accepted: true,
+      function_setting_names_verified: true,
+      auth_configuration_changed: false,
+    }
+  }
 
   const initialAuth = readAuthFields(await managementRequest(fetchImpl, token, '/config/auth'))
   const initialNames = readSecretNames(await managementRequest(fetchImpl, token, '/secrets'))
@@ -201,7 +219,7 @@ export async function configureAuthDomain({ mode, token, fetchImpl = fetch }) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const args = process.argv.slice(2)
-    if (args.length !== 1 || !['--inspect', '--apply'].includes(args[0])) throw new ConfigurationError('MODE')
+    if (args.length !== 1 || !['--inspect', '--apply', '--apply_function_settings'].includes(args[0])) throw new ConfigurationError('MODE')
     const result = await configureAuthDomain({ mode: args[0].slice(2), token: process.env.SUPABASE_ACCESS_TOKEN })
     console.log(JSON.stringify(result, null, 2))
   } catch (error) {

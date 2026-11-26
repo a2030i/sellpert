@@ -166,3 +166,44 @@ test('invalid mode and absent token stop before making any request', async () =>
   await assert.rejects(configureAuthDomain({ mode: 'unexpected', token: 'test-only-token', fetchImpl }), { code: 'MODE' })
   await assert.rejects(configureAuthDomain({ mode: 'inspect', token: '', fetchImpl }), { code: 'TOKEN' })
 })
+
+
+test('function-settings mode writes only fixed public constants and never accesses Auth or DNS', async () => {
+  const { fetchImpl, calls } = harness({ unhealthy: true })
+  const result = await configureAuthDomain({ mode: 'apply_function_settings', token: 'test-only-token', fetchImpl })
+  assert.deepEqual(calls.map(({ method, url }) => ({ method, url })), [
+    { method: 'POST', url: `${API_ROOT}/secrets` },
+    { method: 'GET', url: `${API_ROOT}/secrets` },
+  ])
+  assert.deepEqual(calls[0].body, EDGE_SETTINGS)
+  assert.deepEqual(calls[0].body.map(({ name }) => name), ['AMAZON_SP_REDIRECT_URI', 'AMAZON_SP_APP_DRAFT'])
+  assert.equal(result.function_settings_request_accepted, true)
+  assert.equal(result.function_setting_names_verified, true)
+  assert.equal(result.auth_configuration_changed, false)
+  assert.equal(Object.hasOwn(result, 'auth_configuration_verified'), false)
+  assert.ok(result.function_setting_presence.every(row => row.present))
+  assert.ok(!JSON.stringify(result).includes(sentinel))
+})
+
+test('function-settings write failure never falls through into Auth operations', async () => {
+  const { fetchImpl, calls } = harness({ failureAt: 'POST /secrets' })
+  await assert.rejects(configureAuthDomain({ mode: 'apply_function_settings', token: 'test-only-token', fetchImpl }), error => {
+    assert.equal(error.code, 'EDGE_WRITE')
+    assert.ok(!safeFailure(error).includes(sentinel))
+    return true
+  })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, `${API_ROOT}/secrets`)
+})
+
+test('function-settings mode requires both names after accepted write without reading values', async () => {
+  const calls = []
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, method: options.method })
+    assert.equal(url, `${API_ROOT}/secrets`)
+    return options.method === 'POST' ? new Response(sentinel, { status: 201 })
+      : json([{ name: 'AMAZON_SP_REDIRECT_URI', value: sentinel, digest: sentinel }])
+  }
+  await assert.rejects(configureAuthDomain({ mode: 'apply_function_settings', token: 'test-only-token', fetchImpl }), { code: 'VERIFY' })
+  assert.deepEqual(calls.map(row => row.method), ['POST', 'GET'])
+})
