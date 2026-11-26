@@ -860,7 +860,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           <div style={{ color: 'var(--text3)', fontSize: 11, lineHeight: 1.6, marginTop: 5 }}>
             اختر سلة أو زد إذا كان ملف الطلبات بقالب مخصص ولا يظهر اسم المنصة داخله.
           </div>
-          {merchantCode && amazonImportMessage && suppliedAmazonImportAllowed === undefined ? <p role="status" style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text3)', margin: '8px 0 0' }}>{amazonImportMessage}{amazonImportAllowed === null ? <button type="button" onClick={() => setRefreshTick(t => t + 1)} style={{ marginInlineStart: 8 }}>إعادة التحقق</button> : null}</p> : null}
+          {merchantCode && amazonImportMessage && suppliedAmazonImportAllowed === undefined ? <p role="status" style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text2)', margin: '8px 0 0' }}>{amazonImportMessage}{amazonImportAllowed === null ? <button type="button" onClick={() => setRefreshTick(t => t + 1)} style={{ marginInlineStart: 8 }}>إعادة التحقق</button> : null}</p> : null}
         </div>
 
         {!merchantCode

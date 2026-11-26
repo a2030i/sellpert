@@ -209,10 +209,10 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', gap: 8, marginTop: 16 }}>
           {FILE_UPLOAD_PLATFORMS.map(item => <div key={item.key} style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>{item.label}</div>
-            <div style={{ fontSize: 10, color: item.key === 'amazon' && amazonImportAllowed !== true ? 'var(--text3)' : 'var(--success-text)', marginTop: 3 }}>{item.key === 'amazon' && amazonImportAllowed !== true ? amazonImportAllowed === false ? 'عبر الربط المباشر' : 'بانتظار التحقق من الربط' : item.status}</div>
+            <div style={{ fontSize: 10, color: item.key === 'amazon' && amazonImportAllowed !== true ? 'var(--text2)' : 'var(--success-text)', marginTop: 3 }}>{item.key === 'amazon' && amazonImportAllowed !== true ? amazonImportAllowed === false ? 'عبر الربط المباشر' : 'بانتظار التحقق من الربط' : item.status}</div>
           </div>)}
         </div>
-        {amazonImportMessage ? <p role="status" style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.7, margin: '12px 0 0' }}>{amazonImportMessage}</p> : null}
+        {amazonImportMessage ? <p role="status" style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.7, margin: '12px 0 0' }}>{amazonImportMessage}</p> : null}
         {MERCHANT_FILE_IMPORT_ENABLED && showFileUpload ? <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
           <Suspense fallback={<div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)' }}>جاري تجهيز أداة رفع الملفات...</div>}>
             <MerchantFileImport key={merchant.merchant_code} merchants={[merchant]} lockedMerchantCode={merchant.merchant_code} merchantMode allowedPlatforms={['amazon', 'noon', 'salla', 'zid']} amazonImportAllowed={amazonImportAllowed} />
