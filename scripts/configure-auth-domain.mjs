@@ -34,16 +34,21 @@ const FAILURES = Object.freeze({
 })
 
 export class ConfigurationError extends Error {
-  constructor(code) {
+  constructor(code, status, operation) {
     super(FAILURES[code] || FAILURES.UNEXPECTED)
     this.code = Object.hasOwn(FAILURES, code) ? code : 'UNEXPECTED'
+    this.httpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined
+    this.operation = ['/config/auth', '/secrets'].includes(operation) ? operation : undefined
   }
 }
 
 // Never print error.message/stack/cause from fetch, JSON parsing, or an API.
 export function safeFailure(error) {
   const code = error instanceof ConfigurationError ? error.code : 'UNEXPECTED'
-  return `${code}: ${FAILURES[code] || FAILURES.UNEXPECTED}`
+  const detail = error instanceof ConfigurationError
+    ? [error.operation, error.httpStatus && `HTTP ${error.httpStatus}`].filter(Boolean).join(' ')
+    : ''
+  return `${code}: ${FAILURES[code] || FAILURES.UNEXPECTED}${detail ? ` (${detail})` : ''}`
 }
 
 function redirectEntries(value) {
@@ -103,16 +108,17 @@ async function managementRequest(fetchImpl, token, path, { method = 'GET', body,
     })
     if (!response.ok) {
       await response.body?.cancel()
-      throw new ConfigurationError(failure)
+      throw new ConfigurationError(failure, response.status, path)
     }
     if (!json) {
       await response.body?.cancel()
       return undefined
     }
     return await response.json()
-  } catch {
+  } catch (error) {
     // A provider may echo credentials in an error body or malformed JSON.
-    throw new ConfigurationError(failure)
+    if (error instanceof ConfigurationError) throw error
+    throw new ConfigurationError(failure, undefined, path)
   }
 }
 
