@@ -89,6 +89,14 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   orders/financials must respect the source precedence with Amazon file imports
   (`amazon_daily_sales`, `security.rebuild_performance_data`) to avoid double
   counting. Live enablement and configured secrets are `NEEDS_CONFIRMATION`.
+- Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
+  is the authoritative Amazon source and Amazon file uploads are retired for
+  that merchant. Note the existing precedence in `security.rebuild_performance_data`:
+  as soon as any `orders` row with `platform = 'amazon'` exists for a merchant,
+  Amazon `account_transactions` and `amazon_daily_sales` are ignored for all
+  dates, so the first API sync must backfill history to avoid losing earlier
+  file-based periods. File-imported Amazon orders share the
+  `(merchant_code, platform, order_id)` key and are merged, not duplicated.
 - Seller Central-initiated authorization (Login URI with `amazon_callback_uri`)
   is not implemented; the registered Login URI only opens the Integrations page.
 
