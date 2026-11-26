@@ -13,6 +13,9 @@ on:
           - apply
           - inspect_database
           - inspect_amazon_preconditions
+          - amazon_inspect
+          - amazon_verify
+          - amazon_apply
 
 permissions:
   contents: read
@@ -27,7 +30,7 @@ jobs:
     if: github.ref == 'refs/heads/ops/amazon-domain-20261126'
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:
@@ -37,7 +40,7 @@ jobs:
         with:
           node-version: 22
       - name: Test configuration merge and sanitized failures
-        run: node --test scripts/configure-auth-domain.test.mjs scripts/inspect-release-database.test.mjs scripts/inspect-amazon-preconditions.test.mjs
+        run: node --test scripts/configure-auth-domain.test.mjs scripts/inspect-release-database.test.mjs scripts/inspect-amazon-preconditions.test.mjs scripts/release-amazon-exception.test.mjs
       - name: Inspect or apply the fixed production domain configuration
         if: inputs.mode == 'inspect' || inputs.mode == 'apply'
         env:
@@ -59,3 +62,48 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/inspect-amazon-preconditions.mjs
+      # Keep the browser release pinned/rolled back while the reviewed backend is
+      # completed from its immutable source commit; never deploy all functions.
+      - name: Checkout the approved Amazon function source
+        if: inputs.mode == 'amazon_apply'
+        uses: actions/checkout@v5
+        with:
+          ref: ac7adf85b74665325c06fdde8ae64f4095cb1424
+          path: release-source
+          persist-credentials: false
+      - name: Verify immutable Amazon bundle and current preconditions before deployment
+        if: inputs.mode == 'amazon_apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/release-amazon-exception.mjs inspect 4da5966b7c9bafc9d1675b09a12b7e9c31b099a42edfd924cb8ce79586c4c25e
+      - uses: supabase/setup-cli@v3.0.0
+        if: inputs.mode == 'amazon_apply'
+        with:
+          version: 2.111.0
+      - name: Deploy the two approved backward-compatible Amazon handlers
+        if: inputs.mode == 'amazon_apply'
+        working-directory: release-source
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/deploy-amazon-functions.mjs
+      - name: Run only the fixed owner-approved Amazon operation
+        if: inputs.mode == 'amazon_inspect' || inputs.mode == 'amazon_verify' || inputs.mode == 'amazon_apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          AMAZON_OPERATION: ${{ inputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$AMAZON_OPERATION" in
+            amazon_inspect) operation=inspect ;;
+            amazon_verify) operation=verify ;;
+            amazon_apply) operation=apply ;;
+            *) exit 1 ;;
+          esac
+          node scripts/release-amazon-exception.mjs "$operation" 4da5966b7c9bafc9d1675b09a12b7e9c31b099a42edfd924cb8ce79586c4c25e
+      - name: Redeploy the same two handlers after verified Amazon schema application
+        if: inputs.mode == 'amazon_apply'
+        working-directory: release-source
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/deploy-amazon-functions.mjs

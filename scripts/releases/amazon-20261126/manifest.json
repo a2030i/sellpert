@@ -1,0 +1,42 @@
+{
+  "project_ref": "urdyzbsukcuibadlaath",
+  "migration_version": "20261126120000",
+  "files": {
+    "inspect.sql": "5a1bc95e79de761b913e7a526b0b73fba63f6b58344b2984c274cb9e8d7bce9d",
+    "apply.sql": "f7d8ba154184deb438c54c6198001044f2a6f60f20e8e5c95ae192620109da97",
+    "verify.sql": "28842e6e8d75456252ee8a35497aacef08a33a8e8d3b3004165755d3760b5ab3"
+  },
+  "checks": {
+    "inspect": [
+      "expected_actor",
+      "original_225_history_unchanged",
+      "import_wrapper_unchanged",
+      "authorization_dependencies_unchanged",
+      "import_options_and_acl_expected",
+      "app_settings_browser_denied",
+      "history_count_225",
+      "amazon_version_absent",
+      "amazon_objects_absent",
+      "atomic_import_baseline_exact",
+      "platform_constraint_baseline_exact",
+      "credential_constraints_applicable"
+    ],
+    "verify": [
+      "expected_actor",
+      "original_225_history_unchanged",
+      "import_wrapper_unchanged",
+      "authorization_dependencies_unchanged",
+      "import_options_and_acl_expected",
+      "app_settings_browser_denied",
+      "history_count_226",
+      "exact_amazon_history_entry",
+      "atomic_import_only_reviewed_guard",
+      "new_import_rpc_definitions_exact",
+      "new_import_rpc_acl_exact",
+      "oauth_state_schema_indexes_policies_exact",
+      "oauth_state_rls_acl_exact",
+      "platform_constraint_exact",
+      "seller_uniqueness_exact"
+    ]
+  }
+}
