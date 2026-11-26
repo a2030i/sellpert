@@ -1,0 +1,65 @@
+name: Reviewed Amazon release exception
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Apply requires explicit owner approval of the documented release exception
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, verify, apply]
+      manifest_sha256:
+        description: Exact SHA-256 of the reviewed and owner-approved release manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Check release runner failure and verification behavior
+        run: node --test scripts/release-amazon-exception.test.mjs
+      - name: Verify immutable artifacts and current preconditions before function deployment
+        if: inputs.mode == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: node scripts/release-amazon-exception.mjs inspect "$MANIFEST_SHA256"
+      - uses: supabase/setup-cli@v3.0.0
+        if: inputs.mode == 'apply'
+        with:
+          version: 2.111.0
+      - name: Deploy the two backward-compatible Amazon handlers
+        if: inputs.mode == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/deploy-amazon-functions.mjs
+      - name: Run the selected reviewed operation
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: node scripts/release-amazon-exception.mjs "$RELEASE_MODE" "$MANIFEST_SHA256"
+      - name: Redeploy the two handlers against the verified Amazon schema
+        if: inputs.mode == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/deploy-amazon-functions.mjs

@@ -89,6 +89,10 @@ If a backend release fails, investigate before assuming a browser-only retry can
 resolve it. Roll-forward or retry operations still require explicit authorization
 covering the concrete action; this recovery advice is not permission to deploy.
 
+The separately reviewed [Amazon-only exception proposal](AMAZON-RELEASE-EXCEPTION.md)
+does not change these rules. Its manual workflow requires explicit owner approval
+of that exact exception and manifest; ordinary release authorization is insufficient.
+
 ## Historical production state — NEEDS_CONFIRMATION
 
 The previous runbook recorded a 2026-08-05 production-history mismatch after

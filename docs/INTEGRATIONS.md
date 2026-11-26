@@ -23,6 +23,7 @@ never enable/disable gateway checks as a generic fix.
 | Edge Function(s) | Contract / purpose |
 | --- | --- |
 | `manage-platform-credentials` | Trendyol credential list/save/delete, queue sync, sync status; returns safe status rather than secret material |
+| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect. No data sync |
 | `test-platform-connection`, `sync-trendyol` | Connection validation and normalized marketplace synchronization |
 | `trendyol-actions` | Fixed action registry for products, pricing/stock, packages, invoices, claims, questions and provider reference operations |
 | `trendyol-webhook` | Validated provider callbacks, event dedupe and order/queue updates |
@@ -61,6 +62,81 @@ bodies. The webhook handler and `_shared/webhookSecurity.ts` define accepted
 forms and timing-safe comparisons. Do not remove them because gateway JWT
 verification is disabled.
 
+### Amazon (SP-API connection)
+
+Owner decision 2026-11-26: Sellpert is an approved public SP-API solution
+provider (non-PII roles only: Product Listing, Pricing, Amazon Fulfillment,
+Inventory and Order Tracking, Finance and Accounting, Selling Partner Insights),
+so Amazon is a direct connection again. Commitments made to Amazon are in
+[Security policy](SECURITY-POLICY.md).
+
+- Flow: the Integrations page calls `amazon-connect` `start`; the browser goes to
+  `/apps/authorize/consent` on the marketplace's Seller Central (`version=beta`
+  while the app is a draft). Amazon redirects to the registered URI
+  `/integrations/amazon/callback`; the SPA posts `state`, `selling_partner_id`
+  and `spapi_oauth_code` to `complete` with the user's session.
+- `amazon_oauth_states` stores only a SHA-256 hash of the state, bound to the
+  user and workspace, expiring within 15 minutes and consumed once. The table is
+  server-only.
+- Every action first verifies the session and reads the actor through a
+  user-context Data API client. The existing restrictive MFA policy on
+  `merchants` therefore denies enrolled users with AAL1 sessions before any
+  privileged credential operation. A denied or failed actor read never falls
+  back to a service-role read. Workspace checks still run separately.
+- `complete` exchanges the code at LWA with the registered redirect URI, reads
+  `GET /sellers/v1/marketplaceParticipations` on the EU endpoint, requires at
+  least one supported marketplace (Amazon.sa/.ae/.eg), and verifies access to
+  the supplied seller ID with `searchListingsItems` on that seller's own route.
+  This read requires Product Listing or Inventory and Order Tracking, requests
+  one listing summary, accepts a valid empty result, and discards listing data.
+  It rejects failed or malformed responses before saving credentials, rejects a
+  seller already active in another workspace, and upserts `platform_credentials`
+  (`platform = 'amazon'`, `seller_id` = selling partner ID, refresh token in
+  `extra.secret_blob`).
+  A partial unique index prevents concurrent active connections for the same
+  Amazon seller in different workspaces; a conflict returns HTTP 409.
+- Not included yet: order, finance, inventory or listing sync. Amazon is not in
+  `enqueue_active_marketplace_syncs` or queue dispatch. Adding canonical Amazon
+  orders/financials must respect the source precedence with Amazon file imports
+  (`amazon_daily_sales`, `security.rebuild_performance_data`) to avoid double
+  counting. Live enablement and configured secrets are `NEEDS_CONFIRMATION`.
+- Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
+  is the authoritative Amazon source and Amazon file uploads are retired for
+  that merchant. Note the existing precedence in `security.rebuild_performance_data`:
+  as soon as any `orders` row with `platform = 'amazon'` exists for a merchant,
+  Amazon `account_transactions` and `amazon_daily_sales` are ignored for all
+  dates, so the first API sync must backfill history to avoid losing earlier
+  file-based periods. File-imported Amazon orders share the
+  `(merchant_code, platform, order_id)` key and are merged, not duplicated.
+- Seller Central-initiated authorization (Login URI with `amazon_callback_uri`)
+  is not implemented; the registered Login URI only opens the Integrations page.
+
+The import UI disables Amazon uploads while the connection is active and while
+its status cannot be verified. Other platforms and historical archives remain
+available. A permission-checked boolean RPC, `amazon_file_import_allowed`, also
+supports the existing platform-staff import flow without exposing credentials.
+The atomic import RPC enforces the rule for all callers, checking both the upload
+platform and Amazon payload rows so relabeling a file cannot bypass it. This does
+not delete previous imports or enable order/settlement sync.
+
+Release dependency: the new import-policy RPC must be available before publishing
+the frontend. On a missing RPC or failed status check, Amazon imports fail closed;
+other platform imports remain available. Live OAuth, seller-ID rejection and
+SQL enforcement still require validation against an authorized environment.
+
+Platform administrators can enter the three Amazon app credentials together at
+`/admin/amazon`. `admin-integration-settings` verifies the administrator and the
+user-context MFA policy, then stores one AES-GCM encrypted `AMAZON_SP_APP_CONFIG`
+record in server-only `app_settings`. The response contains configuration booleans
+only; saved values are never returned or prefilled. `amazon-connect` reads that
+record on the server. If no record exists, the original Edge secret configuration
+remains supported. An unreadable stored record fails closed instead of switching
+to a different app identity. Database-managed configuration uses the fixed
+`https://app.sellpert.com/integrations/amazon/callback` URL and draft mode.
+This does not mirror values into Supabase Edge Function Secrets or require a
+Management API token in the application runtime. Replacing the global app identity
+can require merchants to reconnect; it is not a verification of Amazon API access.
+
 ### Salla
 
 Server implementation remains even though the launch product/direct-connection
@@ -89,7 +165,8 @@ authorize promoting this feed. Actual merchant enablement is `NEEDS_CONFIRMATION
 
 ### File-only and retired paths
 
-Amazon/Noon report imports remain in `platformParsers.ts`; other named parser
+Amazon/Noon report imports remain in `platformParsers.ts` (Amazon also has the
+SP-API connection above, without data sync yet); other named parser
 formats are not evidence of direct provider APIs. The migration
 `20260810180331_remove_retired_integrations_and_billing.sql` contains SQL to remove
 retired provider/billing paths while keeping imported data. Whether that migration

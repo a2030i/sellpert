@@ -34,17 +34,15 @@ test('merchant can understand and navigate the complete public entry journey', a
 
   await page.goto('/')
   await expect(page).toHaveTitle(/Sellpert/)
-  await expect(page.getByRole('heading', { name: 'Sellpert' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'مرحبًا بعودتك' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first()).toBeVisible()
   await expectHealthyViewport(page)
-  await expectNoSeriousAccessibilityViolations(page, 'صفحة تسجيل الدخول')
 
-  await page.getByRole('button', { name: 'إنشاء متجر', exact: true }).click()
+  await page.getByRole('tab', { name: 'إنشاء متجر', exact: true }).click()
   await expect(page.getByLabel('اسم المتجر')).toBeVisible()
   await expect(page.getByLabel(/رقم الجوال/)).toBeVisible()
   await expect(page.getByLabel('تأكيد كلمة المرور')).toBeVisible()
   await expect(page.getByRole('button', { name: 'إنشاء المتجر والبدء' })).toBeVisible()
-  await expectNoSeriousAccessibilityViolations(page, 'نموذج إنشاء المتجر')
 
   let signupPayload: Record<string, unknown> | null = null
   await page.route('**/auth/v1/signup**', route => {
@@ -74,13 +72,30 @@ test('merchant can understand and navigate the complete public entry journey', a
   })
   await expect(page.getByRole('button', { name: /إعادة المحاولة بعد/ })).toBeDisabled()
 
-  await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).first().click()
+  await page.getByRole('tab', { name: 'تسجيل الدخول', exact: true }).click()
   await page.getByLabel('البريد الإلكتروني').fill('')
   await page.getByRole('button', { name: 'نسيت كلمة المرور؟' }).click()
   await expect(page.getByText(/أدخل بريدك الإلكتروني أولًا/)).toBeVisible()
 
   expect(failures).toEqual([])
 })
+
+// Audit each rendered form independently so two complete axe scans do not
+// consume the functional journey's budget before its signup assertions run.
+for (const mode of ['login', 'register'] as const) {
+  test(`public ${mode} form has no serious accessibility violations`, async ({ page }) => {
+    const failures = collectRuntimeFailures(page)
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'مرحبًا بعودتك' })).toBeVisible()
+    if (mode === 'register') {
+      await page.getByRole('tab', { name: 'إنشاء متجر', exact: true }).click()
+      await expect(page.getByLabel('اسم المتجر')).toBeVisible()
+    }
+    await expectHealthyViewport(page)
+    await expectNoSeriousAccessibilityViolations(page, mode === 'login' ? 'صفحة تسجيل الدخول' : 'نموذج إنشاء المتجر')
+    expect(failures).toEqual([])
+  })
+}
 
 test('legal pages are reachable and readable without an account', async ({ page }) => {
   const failures = collectRuntimeFailures(page)

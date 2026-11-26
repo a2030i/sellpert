@@ -53,6 +53,7 @@ describes the consumer, not an instruction to configure every integration locall
 | Selected Edge handlers | `SUPABASE_ANON_KEY` | Used by create-employee, manual-entry and test-platform-connection; separate from the browser-prefixed name |
 | Credential encryption | `PLATFORM_CREDENTIALS_ENCRYPTION_KEY` | Configured key or service-role-derived fallback in `credentialVault.ts`; rotation is sensitive |
 | Salla / redirects | `SALLA_CLIENT_ID`, `SALLA_CLIENT_SECRET`, `SALLA_WEBHOOK_SECRET`, `APP_URL` | Conditional on Salla/account link flows; selected DB settings take precedence in `getSettings.ts` |
+| Amazon SP-API | `AMAZON_SP_APP_ID`, `AMAZON_SP_LWA_CLIENT_ID`, `AMAZON_SP_LWA_CLIENT_SECRET`, `AMAZON_SP_REDIRECT_URI`, `AMAZON_SP_APP_DRAFT` | Environment fallback when no encrypted `AMAZON_SP_APP_CONFIG` record exists. Admins can save the three keys together at `/admin/amazon`; that server-only encrypted configuration uses the fixed app.sellpert.com callback and draft mode. Environment-only draft mode stays on unless set to `false`. No complete configuration means the merchant card shows preparation status. |
 | Trendyol webhook | `TRENDYOL_WEBHOOK_SECRET` | Conditional provider authentication; handler also consults protected configuration |
 | Omniful | `OMNIFUL_ACCESS_TOKEN`, `OMNIFUL_BASE_URL` | Central fallback/provider endpoint override; account credentials may instead be encrypted DB records |
 | Public intake | `RATE_LIMIT_SALT` | Optional source-hash salt with code fallback |
@@ -60,7 +61,7 @@ describes the consumer, not an instruction to configure every integration locall
 | Vercel release | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Token secret plus workflow project metadata; not browser config |
 | Workflow-managed context | `GITHUB_OUTPUT`, `GH_TOKEN` | Workflow output and smoke-monitor issue management; not local app requirements |
 
-Protected DB setting names include `QUEUE_WORKER_SECRET` and
+Protected DB setting names include encrypted `AMAZON_SP_APP_CONFIG`, `QUEUE_WORKER_SECRET` and
 `salla_app_store_url`, in addition to settings consumed by `getSettings.ts`.
 Do not incorrectly require these as `.env` keys. Never put service-role,
 provider, deployment or encryption credentials in a `VITE_` variable.

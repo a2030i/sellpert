@@ -1,9 +1,12 @@
-import { lazy, Suspense, useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react'
 import { FileSpreadsheet, Upload, X, Store, RefreshCw, ExternalLink, Plug, Activity } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import MarketplaceConnections from './admin/MarketplaceConnections'
+import AmazonConnectionCard from '../components/AmazonConnectionCard'
+import type { AmazonConnectionStatus } from '../lib/amazonConnection'
+import { amazonFileImportAllowedFromStatus, amazonFileImportMessage } from '../lib/amazonImportPolicy'
 import { PageHeader } from '../components/UI'
 
 const SHOW_MANAGED_MARKETPLACES = false
@@ -143,6 +146,12 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
   const [uploads, setUploads] = useState<Record<string, { uploaded_at: string; detected_report: string }>>({})
   const [fresh, setFresh] = useState<Record<string, { last_data_date: string; age_days: number }>>({})
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const [amazonImport, setAmazonImport] = useState<{ merchantCode: string; allowed: boolean | null } | null>(null)
+  const onAmazonStatus = useCallback((merchantCode: string, status: AmazonConnectionStatus | null) => {
+    setAmazonImport({ merchantCode, allowed: amazonFileImportAllowedFromStatus(status) })
+  }, [])
+  const amazonImportAllowed = amazonImport?.merchantCode === merchant?.merchant_code ? amazonImport?.allowed ?? null : null
+  const amazonImportMessage = amazonFileImportMessage(amazonImportAllowed)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
@@ -169,7 +178,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
   return (
     <div className="integrations-page" style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
-      <PageHeader title="الربط والاستيراد" description="Amazon وNoon عبر ملفات Excel المعتمدة، وTrendyol عبر الاتصال المباشر API." icon={Plug} />
+      <PageHeader title="الربط والاستيراد" description="اربط حسابات المنصات، أو استورد ملفات التقارير للمنصات المتاحة." icon={Plug} />
 
       {merchant ? (
         <MarketplaceConnections
@@ -178,6 +187,8 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
           compactHeader
         />
       ) : null}
+
+      {merchant ? <AmazonConnectionCard key={merchant.merchant_code} merchantCode={merchant.merchant_code} onStatusChange={onAmazonStatus} /> : null}
 
       {merchant ? <section style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -198,12 +209,13 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', gap: 8, marginTop: 16 }}>
           {FILE_UPLOAD_PLATFORMS.map(item => <div key={item.key} style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>{item.label}</div>
-            <div style={{ fontSize: 10, color: item.status.includes('جاهز') ? 'var(--success-text)' : 'var(--text3)', marginTop: 3 }}>{item.status}</div>
+            <div style={{ fontSize: 10, color: item.key === 'amazon' && amazonImportAllowed !== true ? 'var(--text2)' : 'var(--success-text)', marginTop: 3 }}>{item.key === 'amazon' && amazonImportAllowed !== true ? amazonImportAllowed === false ? 'عبر الربط المباشر' : 'بانتظار التحقق من الربط' : item.status}</div>
           </div>)}
         </div>
+        {amazonImportMessage ? <p role="status" style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.7, margin: '12px 0 0' }}>{amazonImportMessage}</p> : null}
         {MERCHANT_FILE_IMPORT_ENABLED && showFileUpload ? <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
           <Suspense fallback={<div style={{ padding: 30, textAlign: 'center', color: 'var(--text3)' }}>جاري تجهيز أداة رفع الملفات...</div>}>
-            <MerchantFileImport merchants={[merchant]} lockedMerchantCode={merchant.merchant_code} merchantMode allowedPlatforms={['amazon', 'noon', 'salla', 'zid']} />
+            <MerchantFileImport key={merchant.merchant_code} merchants={[merchant]} lockedMerchantCode={merchant.merchant_code} merchantMode allowedPlatforms={['amazon', 'noon', 'salla', 'zid']} amazonImportAllowed={amazonImportAllowed} />
           </Suspense>
         </div> : null}
       </section> : null}

@@ -56,4 +56,4 @@ jobs:
       - name: Type-check every Supabase Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
       - name: Test shared Edge Function security utilities
-        run: deno test --node-modules-dir=auto supabase/functions/_shared/*.test.ts
+        run: deno test --node-modules-dir=auto --allow-env=SUPABASE_SERVICE_ROLE_KEY,PLATFORM_CREDENTIALS_ENCRYPTION_KEY supabase/functions/_shared/*.test.ts
