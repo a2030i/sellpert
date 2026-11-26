@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { classifyInspectionFailure, inspectReleaseDatabase } from './inspect-release-database.mjs'
+import { classifyInspectionFailure, inspectReleaseDatabase, inspectDatabaseViaManagementApi } from './inspect-release-database.mjs'
 
 const secret = 'PRIVATE_SENTINEL_NOT_FOR_LOGS'
 const env = { SUPABASE_ACCESS_TOKEN: secret, SUPABASE_DB_PASSWORD: secret }
@@ -66,4 +66,44 @@ test('missing configuration and unparseable history fail closed without making d
   assert.equal(result.cli_version, null)
   assert.equal(result.migrations_applied, false)
   assert.ok(!JSON.stringify(result).includes(secret))
+})
+
+
+test('classifies colored conflicting-flag failures using fixed labels only', () => {
+  const result = classifyInspectionFailure({ status: 1, stderr: `flags in the \u001b[31mgroup\u001b[0m ${secret}` })
+  assert.equal(result.cli_flag_conflict, true)
+  assert.ok(!JSON.stringify(result).includes(secret))
+})
+
+test('Management API fallback sends only fixed read-only aggregate and allowlists its result', async () => {
+  const result = await inspectDatabaseViaManagementApi({ token: secret, fetchImpl: async (url, options) => {
+    assert.equal(url, 'https://api.supabase.com/v1/projects/urdyzbsukcuibadlaath/database/query')
+    assert.equal(options.method, 'POST')
+    assert.equal(options.redirect, 'error')
+    assert.equal(options.headers.Authorization, `Bearer ${secret}`)
+    assert.deepEqual(JSON.parse(options.body), {
+      query: 'SELECT count(*)::integer AS remote_migration_count, max(version)::text AS latest_remote_version FROM supabase_migrations.schema_migrations',
+      read_only: true,
+    })
+    return new Response(JSON.stringify([{ remote_migration_count: 225, latest_remote_version: '20260818183744', unexpected: secret }]), { status: 201 })
+  } })
+  assert.equal(result.ok, true)
+  assert.equal(result.direct_database_connection_verified, false)
+  assert.equal(result.database_metadata_access_verified, true)
+  assert.equal(result.remote_migration_count, 225)
+  assert.ok(!JSON.stringify(result).includes(secret))
+})
+
+test('Management API HTTP, malformed JSON and thrown errors never expose diagnostics', async () => {
+  for (const fetchImpl of [
+    async () => new Response(secret, { status: 403 }),
+    async () => new Response(`{"private":"${secret}`),
+    async () => new Response(JSON.stringify([{ remote_migration_count: secret, latest_remote_version: secret }])),
+    async () => { throw Error(secret) },
+  ]) {
+    const result = await inspectDatabaseViaManagementApi({ token: secret, fetchImpl })
+    assert.equal(result.ok, false)
+    assert.equal(result.migrations_applied, false)
+    assert.ok(!JSON.stringify(result).includes(secret))
+  }
 })

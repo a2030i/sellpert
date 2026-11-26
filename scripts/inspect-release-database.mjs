@@ -14,6 +14,8 @@ const failurePatterns = {
   connection_closed: /unexpected EOF|\bEOF\b|connection (?:reset|closed)|ECONNRESET|EPIPE|server closed/i,
   connection_limit: /too many clients|MaxClientsInSessionMode|remaining connection slots|connection limit|pool.*(?:busy|exhausted)/i,
   database_unavailable: /database.*(?:paused|unavailable|does not exist)|SQLSTATE 57P03/i,
+  cli_flag_conflict: /flags in the group|mutually exclusive|LegacyMigration(?:Password|Target)FlagsError/i,
+  legacy_database_error: /LegacyDb(?:Connect|Config|Exec)[A-Za-z]*Error|PostgresError|SqlError/i,
   unsupported_cli_option: /unknown flag|unknown option|unrecognized (?:flag|option|argument)/i,
   project_config_error: /cannot find project ref|not linked|config\.toml|failed to parse config/i,
   migration_history_mismatch: /Remote migration versions not found|local migration files.*before the last migration/i,
@@ -26,7 +28,7 @@ export function classifyInspectionFailure(error) {
   // but return only fixed keys/booleans: never messages, URLs, SQL, or captures.
   const stderr = String(error?.stderr || '')
   const stdout = String(error?.stdout || '')
-  const diagnostic = `${stderr}\n${stdout}`
+  const diagnostic = `${stderr}\n${stdout}`.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
   return {
     exit: Number.isInteger(error?.status) ? error.status : null,
     stdout_present: stdout.length > 0,
@@ -76,12 +78,47 @@ export function inspectReleaseDatabase({ env = process.env, runCli = args => exe
   }
 }
 
+// Fixed aggregate only. This does not prove direct database-password access.
+export async function inspectDatabaseViaManagementApi({ token = process.env.SUPABASE_ACCESS_TOKEN, fetchImpl = fetch } = {}) {
+  const base = { stage: 'management_database_query', transport: 'management_api_read_only', direct_database_connection_verified: false, migrations_applied: false }
+  if (!token) return { ...base, ok: false, required_secret_missing: true }
+  try {
+    const response = await fetchImpl(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'SELECT count(*)::integer AS remote_migration_count, max(version)::text AS latest_remote_version FROM supabase_migrations.schema_migrations',
+        read_only: true,
+      }),
+    })
+    if (!response.ok) {
+      await response.body?.cancel()
+      return { ...base, ok: false, http_status: response.status }
+    }
+    const rows = await response.json()
+    const row = Array.isArray(rows) && rows.length === 1 ? rows[0] : null
+    if (!row || !Number.isSafeInteger(row.remote_migration_count) || row.remote_migration_count < 1
+      || typeof row.latest_remote_version !== 'string' || !/^\d{14}$/.test(row.latest_remote_version)) {
+      return { ...base, ok: false, response_shape_valid: false }
+    }
+    return { ...base, ok: true, project_ref: projectRef, database_metadata_access_verified: true,
+      remote_migration_count: row.remote_migration_count, latest_remote_version: row.latest_remote_version }
+  } catch {
+    return { ...base, ok: false, request_or_response_failed: true }
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = inspectReleaseDatabase()
   const log = result.ok ? console.log : console.error
   log(JSON.stringify(result))
   if (!result.ok) {
-    console.error('Database inspection failed. No CLI diagnostics or connection strings were logged.')
-    process.exitCode = 1
+    const fallback = await inspectDatabaseViaManagementApi()
+    const fallbackLog = fallback.ok ? console.log : console.error
+    fallbackLog(JSON.stringify(fallback))
+    if (!fallback.ok) {
+      console.error('Database inspection failed. No CLI diagnostics or connection strings were logged.')
+      process.exitCode = 1
+    }
   }
 }
