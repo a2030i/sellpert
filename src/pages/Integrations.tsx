@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import MarketplaceConnections from './admin/MarketplaceConnections'
+import AmazonConnectionCard from '../components/AmazonConnectionCard'
 import { PageHeader } from '../components/UI'
 
 const SHOW_MANAGED_MARKETPLACES = false
@@ -178,6 +179,8 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
           compactHeader
         />
       ) : null}
+
+      {merchant ? <AmazonConnectionCard merchantCode={merchant.merchant_code} /> : null}
 
       {merchant ? <section style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>

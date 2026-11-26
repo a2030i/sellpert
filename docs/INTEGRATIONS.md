@@ -23,6 +23,7 @@ never enable/disable gateway checks as a generic fix.
 | Edge Function(s) | Contract / purpose |
 | --- | --- |
 | `manage-platform-credentials` | Trendyol credential list/save/delete, queue sync, sync status; returns safe status rather than secret material |
+| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect. No data sync |
 | `test-platform-connection`, `sync-trendyol` | Connection validation and normalized marketplace synchronization |
 | `trendyol-actions` | Fixed action registry for products, pricing/stock, packages, invoices, claims, questions and provider reference operations |
 | `trendyol-webhook` | Validated provider callbacks, event dedupe and order/queue updates |
@@ -61,6 +62,36 @@ bodies. The webhook handler and `_shared/webhookSecurity.ts` define accepted
 forms and timing-safe comparisons. Do not remove them because gateway JWT
 verification is disabled.
 
+### Amazon (SP-API connection)
+
+Owner decision 2026-11-26: Sellpert is an approved public SP-API solution
+provider (non-PII roles only: Product Listing, Pricing, Amazon Fulfillment,
+Inventory and Order Tracking, Finance and Accounting, Selling Partner Insights),
+so Amazon is a direct connection again. Commitments made to Amazon are in
+[Security policy](SECURITY-POLICY.md).
+
+- Flow: the Integrations page calls `amazon-connect` `start`; the browser goes to
+  `/apps/authorize/consent` on the marketplace's Seller Central (`version=beta`
+  while the app is a draft). Amazon redirects to the registered URI
+  `/integrations/amazon/callback`; the SPA posts `state`, `selling_partner_id`
+  and `spapi_oauth_code` to `complete` with the user's session.
+- `amazon_oauth_states` stores only a SHA-256 hash of the state, bound to the
+  user and workspace, expiring within 15 minutes and consumed once. The table is
+  server-only.
+- `complete` exchanges the code at LWA with the registered redirect URI, verifies
+  the seller with `GET /sellers/v1/marketplaceParticipations` on the EU endpoint,
+  requires at least one supported marketplace (Amazon.sa/.ae/.eg), rejects a
+  seller already active in another workspace, and upserts `platform_credentials`
+  (`platform = 'amazon'`, `seller_id` = selling partner ID, refresh token in
+  `extra.secret_blob`).
+- Not included yet: order, finance, inventory or listing sync. Amazon is not in
+  `enqueue_active_marketplace_syncs` or queue dispatch. Adding canonical Amazon
+  orders/financials must respect the source precedence with Amazon file imports
+  (`amazon_daily_sales`, `security.rebuild_performance_data`) to avoid double
+  counting. Live enablement and configured secrets are `NEEDS_CONFIRMATION`.
+- Seller Central-initiated authorization (Login URI with `amazon_callback_uri`)
+  is not implemented; the registered Login URI only opens the Integrations page.
+
 ### Salla
 
 Server implementation remains even though the launch product/direct-connection
@@ -89,7 +120,8 @@ authorize promoting this feed. Actual merchant enablement is `NEEDS_CONFIRMATION
 
 ### File-only and retired paths
 
-Amazon/Noon report imports remain in `platformParsers.ts`; other named parser
+Amazon/Noon report imports remain in `platformParsers.ts` (Amazon also has the
+SP-API connection above, without data sync yet); other named parser
 formats are not evidence of direct provider APIs. The migration
 `20260810180331_remove_retired_integrations_and_billing.sql` contains SQL to remove
 retired provider/billing paths while keeping imported data. Whether that migration

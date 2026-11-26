@@ -21,6 +21,9 @@ verify_jwt = false
 verify_jwt = false
 
 # All direct merchant and staff operations remain behind the Supabase gateway.
+[functions.amazon-connect]
+verify_jwt = true
+
 [functions.salla-sync]
 verify_jwt = true
 

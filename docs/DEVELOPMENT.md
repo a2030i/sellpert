@@ -53,6 +53,7 @@ describes the consumer, not an instruction to configure every integration locall
 | Selected Edge handlers | `SUPABASE_ANON_KEY` | Used by create-employee, manual-entry and test-platform-connection; separate from the browser-prefixed name |
 | Credential encryption | `PLATFORM_CREDENTIALS_ENCRYPTION_KEY` | Configured key or service-role-derived fallback in `credentialVault.ts`; rotation is sensitive |
 | Salla / redirects | `SALLA_CLIENT_ID`, `SALLA_CLIENT_SECRET`, `SALLA_WEBHOOK_SECRET`, `APP_URL` | Conditional on Salla/account link flows; selected DB settings take precedence in `getSettings.ts` |
+| Amazon SP-API | `AMAZON_SP_APP_ID`, `AMAZON_SP_LWA_CLIENT_ID`, `AMAZON_SP_LWA_CLIENT_SECRET`, `AMAZON_SP_REDIRECT_URI`, `AMAZON_SP_APP_DRAFT` | Edge secrets for `amazon-connect`; the first three are required for the connect button to appear. Redirect defaults to `https://app.sellpert.com/integrations/amazon/callback`; draft mode (consent `version=beta`) stays on unless set to `false` |
 | Trendyol webhook | `TRENDYOL_WEBHOOK_SECRET` | Conditional provider authentication; handler also consults protected configuration |
 | Omniful | `OMNIFUL_ACCESS_TOKEN`, `OMNIFUL_BASE_URL` | Central fallback/provider endpoint override; account credentials may instead be encrypted DB records |
 | Public intake | `RATE_LIMIT_SALT` | Optional source-hash salt with code fallback |
