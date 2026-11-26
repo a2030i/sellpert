@@ -12,6 +12,7 @@ on:
           - inspect
           - apply
           - inspect_database
+          - inspect_amazon_preconditions
 
 permissions:
   contents: read
@@ -36,9 +37,9 @@ jobs:
         with:
           node-version: 22
       - name: Test configuration merge and sanitized failures
-        run: node --test scripts/configure-auth-domain.test.mjs scripts/inspect-release-database.test.mjs
+        run: node --test scripts/configure-auth-domain.test.mjs scripts/inspect-release-database.test.mjs scripts/inspect-amazon-preconditions.test.mjs
       - name: Inspect or apply the fixed production domain configuration
-        if: inputs.mode != 'inspect_database'
+        if: inputs.mode == 'inspect' || inputs.mode == 'apply'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           CONFIGURATION_MODE: ${{ inputs.mode }}
@@ -53,3 +54,8 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: node scripts/inspect-release-database.mjs
+      - name: Diagnose exact Amazon preconditions without mutations
+        if: inputs.mode == 'inspect_amazon_preconditions'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/inspect-amazon-preconditions.mjs
