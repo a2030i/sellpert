@@ -6,7 +6,7 @@ if (!process.env.SUPABASE_ACCESS_TOKEN || !process.env.SUPABASE_DB_PASSWORD) {
   process.exit(1)
 }
 
-function run(args) {
+function run(stage, args) {
   try {
     return execFileSync('supabase', args, {
       encoding: 'utf8', timeout: 90_000,
@@ -15,13 +15,22 @@ function run(args) {
   } catch (error) {
     // CLI diagnostics may contain connection strings. Never print the exception,
     // command, stdout or stderr; GitHub masking is not our only protection.
-    console.error(`Database inspection failed (exit ${Number.isInteger(error.status) ? error.status : 'unknown'}). No CLI output was logged.`)
+    const diagnostic = String(error.stderr || '')
+    const indicators = {
+      database_password_rejected: /password authentication failed|SASL auth|SQLSTATE 28P01/i.test(diagnostic),
+      management_permission_denied: /Forbidden|403|permission.*denied|missing.*permission/i.test(diagnostic),
+      connection_timeout: /timed? ?out|timeout|deadline exceeded/i.test(diagnostic),
+      network_unreachable: /network is unreachable|no such host|ENOTFOUND|connection refused/i.test(diagnostic),
+      tenant_not_found: /Tenant or user not found/i.test(diagnostic),
+    }
+    console.error(JSON.stringify({ stage, exit: Number.isInteger(error.status) ? error.status : null, ...indicators }))
+    console.error('Database inspection failed. No CLI diagnostics or connection strings were logged.')
     process.exit(1)
   }
 }
 
-run(['link', '--project-ref', projectRef, '--password', process.env.SUPABASE_DB_PASSWORD])
-const output = run(['migration', 'list', '--linked', '--password', process.env.SUPABASE_DB_PASSWORD])
+run('link', ['link', '--project-ref', projectRef, '--password', process.env.SUPABASE_DB_PASSWORD])
+const output = run('migration_list', ['migration', 'list', '--linked', '--password', process.env.SUPABASE_DB_PASSWORD])
 const versions = [...new Set(output.split(/\r?\n/).flatMap(line => {
   const columns = line.split(/[│|]/)
   const match = columns[1]?.match(/\b\d{14}\b/)
