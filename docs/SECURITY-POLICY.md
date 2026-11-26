@@ -12,6 +12,11 @@ merchant-authorized intermediary. Technical enforcement lives in the code and
 migrations referenced below; where a control is organizational rather than enforced by
 code, this document says so.
 
+This policy states required controls; it is not an attestation that every live
+setting has been verified. Staff enrollment, infrastructure access restrictions,
+retention enforcement and provider configuration are `NEEDS_CONFIRMATION` until
+the security owner records evidence from the relevant systems.
+
 ## 1. Scope of data
 
 - Sellpert requests only non-PII SP-API roles: Product Listing, Pricing, Amazon
@@ -58,8 +63,11 @@ code, this document says so.
   credentials and refresh tokens are encrypted server-side
   (`supabase/functions/_shared/credentialVault.ts`) and returned to clients only as
   status, never as secret material.
-- The repository is private. Any secret that is accidentally exposed is rotated
-  immediately and handled as a security incident.
+- The repository is public as verified in GitHub settings on 2026-11-26. Intended
+  repository visibility is `NEEDS_CONFIRMATION` by the owner; this policy does not
+  authorize changing it. Secrets must never rely on repository visibility for
+  protection. Any secret that is accidentally exposed is rotated immediately and
+  handled as a security incident.
 
 ## 5. Encryption
 
