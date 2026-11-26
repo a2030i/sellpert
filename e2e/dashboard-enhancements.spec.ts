@@ -23,6 +23,8 @@ function unsignedToken(user=merchant) {
 }
 
 async function mockDashboard(page: Page, actor=merchant, catalogItemCount=1) {
+  // Keep the date window aligned with the fixed financial fixtures as calendar time advances.
+  await page.clock.setFixedTime(new Date('2026-08-14T12:00:00.000Z'))
   let sellpertTerm = actor.role === 'admin'
     ? {merchant_code:merchant.merchant_code,sellpert_fee_type:'none',sellpert_fee_value:0}
     : {merchant_code:merchant.merchant_code,sellpert_fee_type:'percentage',sellpert_fee_value:2.5}
@@ -107,7 +109,9 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
   await mockDashboard(page)
+  const dashboardData = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/rest/v1/orders'))
   await page.goto('/')
+  await dashboardData
 
   const chart = page.locator('.sales-panel')
   await expect(chart.getByRole('heading', { name: 'المبيعات عبر الزمن' })).toBeVisible()
@@ -124,8 +128,8 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   await expect(platformControl.locator('summary')).toContainText('2 منصات')
   await expect(chart.locator('.panel-head p')).toContainText('2 طلبًا')
   await expect(chart.locator('.panel-head p')).toContainText('300')
-  await expect(page.getByText('منتجات نافدة الآن', { exact:true }).locator('..').locator('strong')).toHaveText('1')
-  await expect(page.getByText('قيد المعالجة الآن', { exact:true }).locator('..').locator('strong')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /منتجات نفدت من المخزون/ }).locator('b')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /طلبات تحتاج معالجة الآن/ }).locator('b')).toHaveText('1')
 
   await platformControl.getByRole('checkbox', { name:'نون' }).uncheck()
   await expect(platformControl.locator('summary')).toContainText('أمازون')
@@ -232,16 +236,29 @@ test('admin sets one Sellpert contract commission for the whole merchant', async
 
 test('admin overview uses one shared date, platform and merchant scope', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile-chromium', 'تغطية الهاتف للوحة الإدارة موجودة في اختبارات التنقل العامة')
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
   await mockDashboard(page,adminMerchant)
+  const initialMetrics = page.waitForResponse(response => response.url().includes('/rpc/admin_overview_metrics'))
   await page.goto('/')
-  await expect(page.getByText('GMV في النطاق', {exact:true})).toBeVisible()
-  await expect(page.getByText('البسط والمقام من النطاق نفسه', {exact:true})).toBeVisible()
+  await initialMetrics
+  await expect(page.getByRole('heading', {name:'مركز تشغيل Sellpert'})).toBeVisible()
+  await expect(page.locator('.admin-kpi-grid').getByText('GMV', {exact:true})).toBeVisible()
+  const periodRequest = page.waitForRequest(request => request.url().includes('/rpc/admin_overview_metrics') && request.postDataJSON()?.p_start_date === '2026-08-08')
   await page.getByLabel('الفترة الزمنية لجميع بيانات نظرة عامة').selectOption('7')
-  await page.locator('.admin-overview-filters details summary').click()
+  expect((await periodRequest).postDataJSON()).toMatchObject({p_start_date:'2026-08-08',p_end_date:'2026-08-14',p_platforms:null,p_merchant_code:null})
+  await page.getByRole('region', {name:'فلاتر جميع بيانات نظرة عامة'}).locator('details summary').click()
+  const platformRequest = page.waitForRequest(request => request.url().includes('/rpc/admin_overview_metrics') && request.postDataJSON()?.p_platforms?.includes('amazon'))
   await page.getByRole('checkbox',{name:'أمازون'}).check()
+  expect((await platformRequest).postDataJSON()).toMatchObject({p_start_date:'2026-08-08',p_end_date:'2026-08-14',p_platforms:['amazon'],p_merchant_code:null})
+  const merchantRequest = page.waitForRequest(request => request.url().includes('/rpc/admin_overview_metrics') && request.postDataJSON()?.p_merchant_code === merchant.merchant_code)
+  await page.getByLabel('التاجر لجميع بيانات نظرة عامة').selectOption(merchant.merchant_code)
+  expect((await merchantRequest).postDataJSON()).toMatchObject({p_start_date:'2026-08-08',p_end_date:'2026-08-14',p_platforms:['amazon'],p_merchant_code:merchant.merchant_code})
   await expect(page).toHaveURL(/period=7/)
   await expect(page).toHaveURL(/platforms=amazon/)
-  await expect(page.getByText('مركز الإجراءات — الآن', {exact:true})).toBeVisible()
+  await expect(page).toHaveURL(/merchant=M-DASHBOARD-E2E/)
+  expect(runtimeErrors).toEqual([])
+  await expect(page.getByRole('heading', {name:'استثناءات تحتاج تدخّل الفريق'})).toBeVisible()
   await expect(page.getByText('جميع الفلاتر أعلاه مطبقة', {exact:false})).toBeVisible()
   await page.screenshot({path:testInfo.outputPath('admin-overview-shared-scope.png'),fullPage:true})
 })

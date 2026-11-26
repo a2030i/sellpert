@@ -97,11 +97,13 @@ test.beforeEach(async ({ page }) => {
 test('phase-one dashboard renders the multi-channel operating summary', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
+  const dashboardData = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/rest/v1/orders'))
   await page.goto('/')
+  await dashboardData
 
-  await expect(page.getByRole('heading', { name: 'مرحبًا متجر المرحلة الأولى', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'صباح الخير، متجر المرحلة الأولى', level: 1 })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'المبيعات عبر الزمن', level: 2 })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'حالة المزامنة', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'حالة المزامنة الآن', level: 2 })).toBeVisible()
   await expect(page.getByText('إجمالي الطلبات', { exact: true })).toBeVisible()
   await expect(page.locator('body')).not.toContainText(/[\u0660-\u0669\u06F0-\u06F9]/)
   await expect(page.locator('body')).not.toContainText('\u0635\u0641\u0631')
@@ -112,12 +114,23 @@ test('phase-one dashboard renders the multi-channel operating summary', async ({
 
 test('phase-one navigation contains the launch destinations', async ({ page }, testInfo) => {
   await page.goto('/')
-  const nav = page.getByRole('navigation', { name: 'التنقل الرئيسي' }).or(page.locator('nav').last())
-  for (const label of ['الرئيسية', 'الطلبات', 'المنتجات', 'المخزون', 'الربط']) {
-    await expect(nav.getByText(label, { exact: true })).toBeVisible()
+  const nav = page.getByRole('navigation', { name: 'التنقل الرئيسي' })
+  for (const label of ['الرئيسية', 'الطلبات', 'دليل المنتجات']) {
+    await expect(nav.getByRole('button', { name: label, exact: true })).toBeVisible()
   }
-  if (testInfo.project.name === 'desktop-chromium') {
-    await expect(nav.getByText('دليل المنتجات', { exact: true })).toBeVisible()
+  if (testInfo.project.name === 'mobile-chromium') {
+    await expect(nav.getByRole('button', { name: 'الربط', exact: true })).toBeVisible()
+    await nav.getByRole('button', { name: 'المزيد', exact: true }).click()
+    const more = page.getByRole('dialog', { name: 'المزيد والحساب' })
+    for (const label of ['المنتجات', 'المخزون']) {
+      await expect(more.getByRole('button', { name: label, exact: true })).toBeVisible()
+    }
+    await more.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await expect(more).toHaveCount(0)
+  } else {
+    for (const label of ['المنتجات', 'المخزون', 'الربط والتكاملات']) {
+      await expect(nav.getByRole('button', { name: label, exact: true })).toBeVisible()
+    }
   }
   for (const hidden of ['الأرباح والتحصيل', 'خطة العمل', 'مركز المتابعة', 'الفريق والصلاحيات']) {
     await expect(page.getByText(hidden, { exact: true })).toHaveCount(0)
@@ -125,7 +138,9 @@ test('phase-one navigation contains the launch destinations', async ({ page }, t
 })
 
 test('advanced merchant URLs return safely to the phase-one home', async ({ page }) => {
+  const dashboardData = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/rest/v1/orders'))
   await page.goto('/statement')
-  await expect(page.getByRole('heading', { name: 'مرحبًا متجر المرحلة الأولى', level: 1 })).toBeVisible()
+  await dashboardData
+  await expect(page.getByRole('heading', { name: 'صباح الخير، متجر المرحلة الأولى', level: 1 })).toBeVisible()
   await expect(page.getByText('الأرباح والتحصيل', { exact: true })).toHaveCount(0)
 })
