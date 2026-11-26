@@ -13,14 +13,15 @@ function fixture(overrides = {}) {
   return { digest: sha256(files['manifest.json']), read: async url => Buffer.from(files[url.pathname.split('/').at(-1)]), files }
 }
 
-test('inspection only sends a read-only request to the fixed project', async () => {
+test('inspection sends only the frozen SELECT using the deployment actor transport', async () => {
   const f = fixture(); const calls = []
   const result = await release({ ...f, mode: 'inspect', token: 'synthetic-token', fetchImpl: async (url, options) => {
     calls.push({ url, ...JSON.parse(options.body) }); return Response.json([{ ready: true }])
   } })
   assert.equal(calls.length, 1)
   assert.equal(calls[0].url, `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`)
-  assert.equal(calls[0].read_only, true)
+  assert.equal(calls[0].read_only, false)
+  assert.equal(calls[0].query, f.files['inspect.sql'])
   assert.equal(calls[0].disable_statement_timeout, false)
   assert.equal(result.migration_verified, false)
 })
@@ -32,7 +33,8 @@ test('apply checks first, sends exactly one mutation, then verifies in a fresh r
     return requests.length === 1 ? Response.json([{ ready: true }])
       : requests.length === 2 ? Response.json([]) : Response.json([{ complete: true }])
   } })
-  assert.deepEqual(requests.map(row => row.read_only), [true, false, true])
+  assert.deepEqual(requests.map(row => row.read_only), [false, false, false])
+  assert.deepEqual(requests.map(row => row.query), [f.files['inspect.sql'], f.files['apply.sql'], f.files['verify.sql']])
   assert.equal(result.migration_verified, true)
 })
 

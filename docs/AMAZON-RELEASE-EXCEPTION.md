@@ -32,6 +32,13 @@ Both require the exact SHA-256 of the reviewed bundle manifest. `inspect` and
 `verify` are read-only; `apply` must not be dispatched without owner approval.
 No automatic retries are made after an ambiguous mutation or verification error.
 
+Inspections execute only the immutable SELECT-only SQL files through the
+`postgres` Management API transport. The API parameter `read_only: true` changes
+the actor to `supabase_read_only_user`, which does not satisfy the approved actor
+assertion. The runner therefore uses `read_only: false` for all three modes;
+`inspect` and `verify` still send only their hash-verified inspection SQL. This
+transport correction does not change the approved SQL bundle or its assertions.
+
 Reviewed [manifest](../scripts/releases/amazon-20261126/manifest.json) SHA-256:
 `4da5966b7c9bafc9d1675b09a12b7e9c31b099a42edfd924cb8ce79586c4c25e`.
 The SQL sets a 60-second statement timeout and a 5-second lock timeout. All 12
