@@ -11,7 +11,10 @@ const AMAZON_COLOR = '#ff9900'
 
 type Notice = { type: 'ok' | 'err'; text: string } | null
 
-export default function AmazonConnectionCard({ merchantCode }: { merchantCode: string }) {
+export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
+  merchantCode: string
+  onStatusChange?: (merchantCode: string, status: AmazonConnectionStatus | null) => void
+}) {
   const [status, setStatus] = useState<AmazonConnectionStatus | null>(null)
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState<'start' | 'complete' | 'disconnect' | null>(null)
@@ -20,12 +23,15 @@ export default function AmazonConnectionCard({ merchantCode }: { merchantCode: s
 
   const load = useCallback(async () => {
     setLoadError('')
+    onStatusChange?.(merchantCode, null)
     try {
-      setStatus(await callAmazonConnect({ action: 'status', merchant_code: merchantCode }))
+      const nextStatus = await callAmazonConnect({ action: 'status', merchant_code: merchantCode })
+      setStatus(nextStatus)
+      onStatusChange?.(merchantCode, nextStatus)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'تعذر تحميل حالة ربط أمازون')
     }
-  }, [merchantCode])
+  }, [merchantCode, onStatusChange])
 
   // Amazon redirects the seller back to /integrations/amazon/callback.
   useEffect(() => {
@@ -84,23 +90,23 @@ export default function AmazonConnectionCard({ merchantCode }: { merchantCode: s
         <div aria-hidden style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: `${AMAZON_COLOR}18`, color: '#b36b00', fontWeight: 900 }}>A</div>
         <div style={{ flex: 1 }}>
           <strong>Amazon</strong>
-          <div style={{ color: 'var(--text3)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
+          <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
             ربط مباشر بحساب البائع. المرحلة الحالية تحفظ الربط فقط، ومزامنة الطلبات والتسويات تُفعَّل في التحديث القادم.
           </div>
         </div>
-        <span style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#b36b00' : 'var(--text3)', whiteSpace: 'nowrap' }}>
-          {busy === 'complete' ? 'جارٍ الربط…' : connected ? 'متصل' : 'غير مربوط'}
+        <span style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>
+          {busy === 'complete' ? 'جارٍ الربط…' : loadError ? 'تعذر التحقق' : !status ? 'جارٍ التحقق…' : connected ? 'متصل' : 'غير مربوط'}
         </span>
       </div>
 
       {connected && connection ? <dl style={{ margin: '14px 0 0', fontSize: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px' }}>
-        <dt style={{ color: 'var(--text3)' }}>معرّف البائع</dt><dd style={{ margin: 0 }} className="latin-number">{connection.seller_id}</dd>
-        <dt style={{ color: 'var(--text3)' }}>الأسواق</dt><dd style={{ margin: 0 }}>{markets || '—'}</dd>
-        <dt style={{ color: 'var(--text3)' }}>تاريخ الربط</dt><dd style={{ margin: 0 }}>{formatDate(connection.connected_at)}</dd>
+        <dt style={{ color: 'var(--text2)' }}>معرّف البائع</dt><dd style={{ margin: 0 }} className="latin-number">{connection.seller_id}</dd>
+        <dt style={{ color: 'var(--text2)' }}>الأسواق</dt><dd style={{ margin: 0 }}>{markets || '—'}</dd>
+        <dt style={{ color: 'var(--text2)' }}>تاريخ الربط</dt><dd style={{ margin: 0 }}>{formatDate(connection.connected_at)}</dd>
       </dl> : null}
 
-      {loadError ? <p role="alert" style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--danger-text)' }}>{loadError}</p> : null}
-      {status && !status.app_configured && !connected ? <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text3)' }}>الربط المباشر مع أمازون قيد التجهيز وسيتاح قريبًا.</p> : null}
+      {loadError ? <div style={{ marginTop: 12 }}><p role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--danger-text)' }}>{loadError}</p><button type="button" onClick={() => void load()} disabled={busy !== null} style={{ ...dangerButton(busy !== null), marginTop: 8, color: 'var(--text)', borderColor: 'var(--border)' }}>إعادة التحقق من الربط</button></div> : null}
+      {status && !status.app_configured && !connected ? <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text2)' }}>الربط المباشر مع أمازون قيد التجهيز وسيتاح قريبًا.</p> : null}
       {notice ? <p role={notice.type === 'err' ? 'alert' : 'status'} style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 700, color: notice.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{notice.text}</p> : null}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

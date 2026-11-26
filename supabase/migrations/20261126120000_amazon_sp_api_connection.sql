@@ -14,6 +14,12 @@ alter table public.platform_credentials
   add constraint platform_credentials_platform_check
   check (platform in ('trendyol', 'amazon'));
 
+-- A lookup before upsert cannot prevent concurrent cross-workspace claims.
+-- Fail closed on existing duplicates; never rewrite merchant credentials here.
+create unique index if not exists platform_credentials_active_amazon_seller_uidx
+  on public.platform_credentials (seller_id)
+  where platform = 'amazon' and is_active = true;
+
 -- 2. One-time OAuth state for the website authorization workflow.
 --    Only a SHA-256 hash of the state is stored. A state is bound to the
 --    Sellpert user who started the flow and the merchant workspace it targets,
@@ -50,5 +56,92 @@ create policy amazon_oauth_states_server_only
   using (false)
   with check (false);
 
+-- Preserve the schema-wide MFA invariant even though browser grants are revoked.
+create policy sellpert_require_mfa_if_enrolled
+  on public.amazon_oauth_states as restrictive
+  for all to authenticated
+  using ((select security.mfa_access_allowed()))
+  with check ((select security.mfa_access_allowed()));
+
 comment on table public.amazon_oauth_states is
   'Server-only, single-use OAuth state hashes for the Amazon SP-API website authorization workflow.';
+
+-- A safe boolean for the existing import UI, including platform staff whose
+-- import rights are governed by integrations permission rather than link rights.
+create or replace function security.amazon_file_import_allowed(p_merchant_code text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if (select auth.uid()) is null
+     or (select security.mfa_access_allowed()) is not true
+     or security.has_merchant_permission(p_merchant_code, 'integrations') is not true then
+    raise exception using errcode = '42501', message = 'Forbidden';
+  end if;
+  return not exists (
+    select 1 from public.platform_credentials
+    where merchant_code = p_merchant_code and platform = 'amazon' and is_active = true
+  );
+end
+$$;
+
+create or replace function public.amazon_file_import_allowed(p_merchant_code text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select security.amazon_file_import_allowed(p_merchant_code)
+$$;
+
+revoke all on function security.amazon_file_import_allowed(text) from public, anon;
+revoke all on function public.amazon_file_import_allowed(text) from public, anon;
+grant execute on function security.amazon_file_import_allowed(text) to authenticated;
+grant execute on function public.amazon_file_import_allowed(text) to authenticated;
+
+-- Keep the current atomic import implementation and its existing authorization,
+-- archive checks, lineage and transaction intact. Abort if its expected anchor
+-- has changed; never silently skip the rule or replace an unknown implementation.
+do $migration$
+declare
+  definition text;
+  anchor text := $anchor$  if v_upload.status <> 'processing' then$anchor$;
+  guard text := $guard$  -- Amazon API is authoritative after this workspace connects.
+  -- Inspect payloads too, so a client cannot relabel an Amazon file as Noon.
+  if exists (
+    select 1 from public.platform_credentials
+    where merchant_code = v_upload.merchant_code
+      and platform = 'amazon' and is_active = true
+  ) and (
+    v_upload.platform = 'amazon'
+    or exists (
+      select 1 from jsonb_array_elements(p_payloads) payload
+      where payload ->> 'table' = 'amazon_daily_sales'
+        or exists (
+          select 1 from jsonb_array_elements(
+            case when jsonb_typeof(payload -> 'rows') = 'array'
+              then payload -> 'rows' else '[]'::jsonb end
+          ) source_row
+          where source_row ->> 'platform' = 'amazon'
+        )
+    )
+  ) then
+    raise exception using errcode = '55000',
+      message = 'Amazon file imports are disabled while the direct connection is active';
+  end if;
+
+$guard$;
+begin
+  select pg_get_functiondef('security.commit_merchant_file_import(uuid,jsonb)'::regprocedure)
+    into definition;
+  if position(anchor in definition) = 0
+     or (length(definition) - length(replace(definition, anchor, ''))) <> length(anchor) then
+    raise exception 'Unexpected atomic import definition; review Amazon import guard before applying';
+  end if;
+  execute replace(definition, anchor, guard || anchor);
+end
+$migration$;

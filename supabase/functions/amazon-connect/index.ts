@@ -17,6 +17,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
+import { loadAmazonCaller } from '../_shared/amazonActor.ts'
 import { HttpError, json } from '../_shared/sync.ts'
 import {
   AMAZON_MARKETPLACES,
@@ -32,6 +33,7 @@ import {
   isWellFormedState,
   readAmazonSpConfig,
   supportedParticipations,
+  verifyAmazonSellerIdentity,
 } from '../_shared/amazonSpApi.ts'
 
 const corsHeaders = {
@@ -50,10 +52,7 @@ Deno.serve(async req => {
     if (!token || token === SERVICE_KEY) throw new HttpError(401, 'Unauthorized')
     const { data: { user }, error } = await admin.auth.getUser(token)
     if (error || !user) throw new HttpError(401, 'Unauthorized')
-    const { data: caller } = await admin.from('merchants')
-      .select('merchant_code,owner_merchant_code,permissions,role,is_active')
-      .eq('id', user.id).maybeSingle()
-    if (!caller || caller.is_active === false) throw new HttpError(403, 'Forbidden')
+    const caller = await loadAmazonCaller(createClient, SUPABASE_URL, SERVICE_KEY, token, user.id)
 
     const body = await req.json().catch(() => ({}))
     const action = String(body?.action || 'status')
@@ -146,6 +145,7 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
   if (!participations.length) {
     throw new HttpError(409, 'حساب أمازون هذا لا يبيع في سوق تدعمه سيلبرت (السعودية أو الإمارات أو مصر)')
   }
+  await verifyAmazonSellerIdentity(tokens.accessToken, sellingPartnerId, participations[0].marketplaceId, region)
 
   const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
     .select('merchant_code').eq('platform', 'amazon').eq('seller_id', sellingPartnerId)
@@ -173,6 +173,7 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
     last_tested_at: now,
     updated_at: now,
   }, { onConflict: 'merchant_code,platform' })
+  if (error?.code === '23505') throw new HttpError(409, 'حساب أمازون هذا مرتبط بمساحة عمل أخرى')
   if (error) throw error
   return { ok: true, seller_id: sellingPartnerId, marketplaces }
 }

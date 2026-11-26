@@ -78,12 +78,23 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
 - `amazon_oauth_states` stores only a SHA-256 hash of the state, bound to the
   user and workspace, expiring within 15 minutes and consumed once. The table is
   server-only.
-- `complete` exchanges the code at LWA with the registered redirect URI, verifies
-  the seller with `GET /sellers/v1/marketplaceParticipations` on the EU endpoint,
-  requires at least one supported marketplace (Amazon.sa/.ae/.eg), rejects a
+- Every action first verifies the session and reads the actor through a
+  user-context Data API client. The existing restrictive MFA policy on
+  `merchants` therefore denies enrolled users with AAL1 sessions before any
+  privileged credential operation. A denied or failed actor read never falls
+  back to a service-role read. Workspace checks still run separately.
+- `complete` exchanges the code at LWA with the registered redirect URI, reads
+  `GET /sellers/v1/marketplaceParticipations` on the EU endpoint, requires at
+  least one supported marketplace (Amazon.sa/.ae/.eg), and verifies access to
+  the supplied seller ID with `searchListingsItems` on that seller's own route.
+  This read requires Product Listing or Inventory and Order Tracking, requests
+  one listing summary, accepts a valid empty result, and discards listing data.
+  It rejects failed or malformed responses before saving credentials, rejects a
   seller already active in another workspace, and upserts `platform_credentials`
   (`platform = 'amazon'`, `seller_id` = selling partner ID, refresh token in
   `extra.secret_blob`).
+  A partial unique index prevents concurrent active connections for the same
+  Amazon seller in different workspaces; a conflict returns HTTP 409.
 - Not included yet: order, finance, inventory or listing sync. Amazon is not in
   `enqueue_active_marketplace_syncs` or queue dispatch. Adding canonical Amazon
   orders/financials must respect the source precedence with Amazon file imports
@@ -99,6 +110,19 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   `(merchant_code, platform, order_id)` key and are merged, not duplicated.
 - Seller Central-initiated authorization (Login URI with `amazon_callback_uri`)
   is not implemented; the registered Login URI only opens the Integrations page.
+
+The import UI disables Amazon uploads while the connection is active and while
+its status cannot be verified. Other platforms and historical archives remain
+available. A permission-checked boolean RPC, `amazon_file_import_allowed`, also
+supports the existing platform-staff import flow without exposing credentials.
+The atomic import RPC enforces the rule for all callers, checking both the upload
+platform and Amazon payload rows so relabeling a file cannot bypass it. This does
+not delete previous imports or enable order/settlement sync.
+
+Release dependency: the new import-policy RPC must be available before publishing
+the frontend. On a missing RPC or failed status check, Amazon imports fail closed;
+other platform imports remain available. Live OAuth, seller-ID rejection and
+SQL enforcement still require validation against an authorized environment.
 
 ### Salla
 

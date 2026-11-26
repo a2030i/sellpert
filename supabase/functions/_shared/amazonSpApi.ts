@@ -165,6 +165,45 @@ export function supportedParticipations(rows: AmazonParticipation[]) {
   return rows.filter(row => row.isParticipating && AMAZON_MARKETPLACES[row.marketplaceId])
 }
 
+/**
+ * Confirm the token can access the supplied seller's own listings route.
+ * Requires Product Listing or Inventory and Order Tracking. Empty listings
+ * are valid; the authorization check does not require an existing SKU.
+ * Listing data is discarded and must never be returned or persisted here.
+ */
+export async function verifyAmazonSellerIdentity(
+  accessToken: string,
+  sellerId: string,
+  marketplaceId: string,
+  region: AmazonSpRegion = 'eu',
+  fetchImpl: Fetch = fetch,
+): Promise<void> {
+  const url = new URL(`${AMAZON_SP_REGIONS[region]}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}`)
+  url.searchParams.set('marketplaceIds', marketplaceId)
+  url.searchParams.set('pageSize', '1')
+  url.searchParams.set('includedData', 'summaries')
+  let response: Response
+  try {
+    response = await fetchImpl(url.toString(), {
+      headers: spApiHeaders(accessToken),
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch {
+    throw new HttpError(502, 'Amazon seller identity verification failed')
+  }
+  // Do not echo provider errors: even error bodies may contain request material.
+  if (response.status !== 200) {
+    throw new HttpError(response.status === 403 ? 403 : 502, 'Amazon seller identity verification failed')
+  }
+  const body = await response.json().catch(() => null)
+  if (!body || !Number.isInteger(body.numberOfResults) || body.numberOfResults < 0
+    || !Array.isArray(body.items) || body.items.length > 1
+    || body.numberOfResults < body.items.length
+    || !body.items.every((item: any) => item && typeof item.sku === 'string' && item.sku.length > 0)) {
+    throw new HttpError(502, 'Amazon seller identity verification failed')
+  }
+}
+
 function clean(value: unknown) {
   return String(value ?? '').trim()
 }

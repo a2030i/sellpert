@@ -8,6 +8,7 @@ import { uploadDisplayStatus } from '../../lib/uploadStatus'
 import { Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Loader2, ArrowRight, Save, Archive, Info, Link2, FileText, RefreshCw, ChevronDown, ChevronUp, Inbox, ClipboardList, Boxes, PackageSearch, WalletCards, Megaphone, LayoutDashboard } from 'lucide-react'
 import { expandImportArchive, importArchiveContentType, importArchivePath } from '../../lib/importArchive'
 import { escapeReportHtml } from '../../lib/reportHtml'
+import { amazonFileImportMessage, readAmazonFileImportAllowed } from '../../lib/amazonImportPolicy'
 
 // ─── File guides per platform ────────────────────────────────────────────────
 type Importance = 'critical' | 'recommended' | 'optional'
@@ -475,9 +476,10 @@ type ImportFilesViewProps = {
   lockedMerchantCode?: string
   merchantMode?: boolean
   allowedPlatforms?: string[]
+  amazonImportAllowed?: boolean | null
 }
 
-export default function ImportFilesView({ merchants, lockedMerchantCode, merchantMode = false, allowedPlatforms }: ImportFilesViewProps) {
+export default function ImportFilesView({ merchants, lockedMerchantCode, merchantMode = false, allowedPlatforms, amazonImportAllowed: suppliedAmazonImportAllowed }: ImportFilesViewProps) {
   const [merchantCode, setMerchantCode] = useState<string>(lockedMerchantCode || '')
   // الاكتشاف التلقائي هو الافتراضي، ويمكن تحديد المنصة لقوالب سلة المخصصة
   // التي لا تحمل دائمًا اسم المنصة داخل الملف أو عناوين الأعمدة.
@@ -488,7 +490,21 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
   const [globalMsg, setGlobalMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [lastUploads, setLastUploads]   = useState<Record<string, { id: string; uploaded_at: string; status: string; rows_inserted: number; file_name: string }>>({})
   const [refreshTick, setRefreshTick]   = useState(0)
+  const [amazonImportState, setAmazonImportState] = useState<{ merchantCode: string; allowed: boolean | null } | null>(null)
+  const amazonImportAllowed = suppliedAmazonImportAllowed !== undefined ? suppliedAmazonImportAllowed
+    : amazonImportState?.merchantCode === merchantCode ? amazonImportState.allowed : null
+  const amazonImportMessage = amazonFileImportMessage(amazonImportAllowed)
   const allowedPlatformSet = useMemo(() => new Set(allowedPlatforms || []), [allowedPlatforms])
+
+  useEffect(() => {
+    if (!merchantCode || suppliedAmazonImportAllowed !== undefined) return
+    let cancelled = false
+    setAmazonImportState({ merchantCode, allowed: null })
+    readAmazonFileImportAllowed(merchantCode)
+      .then(allowed => { if (!cancelled) setAmazonImportState({ merchantCode, allowed }) })
+      .catch(() => { if (!cancelled) setAmazonImportState({ merchantCode, allowed: null }) })
+    return () => { cancelled = true }
+  }, [merchantCode, suppliedAmazonImportAllowed, refreshTick])
 
   useEffect(() => {
     if (lockedMerchantCode) setMerchantCode(lockedMerchantCode)
@@ -587,6 +603,10 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           platform === 'auto' ? undefined : platform as 'amazon' | 'noon' | 'trendyol' | 'salla' | 'zid',
         )
         const validation = validateMatch(parsed, platform)
+        if (validation?.ok && parsed.platform === 'amazon' && amazonImportMessage) {
+          validation.ok = false
+          validation.errors.push(amazonImportMessage)
+        }
         if (validation?.ok && allowedPlatformSet.size > 0 && !allowedPlatformSet.has(parsed.platform)) {
           validation.ok = false
           validation.errors.push(`هذا الملف يخص ${PLATFORM_MAP[parsed.platform] || parsed.platform}، والمنصة غير متاحة في هذه الشاشة`)
@@ -669,6 +689,20 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     for (const entry of validFiles) {
       // المنصة الفعلية من الملف نفسه (لدعم الرفع متعدّد المنصات)
       const filePlatform = entry.parsed!.platform
+      // Recheck before replacing an archive or writing an audit row. The RPC
+      // commit also enforces this rule against direct clients and stale screens.
+      if (filePlatform === 'amazon') {
+        try {
+          const allowed = await readAmazonFileImportAllowed(merchantCode)
+          const message = amazonFileImportMessage(allowed)
+          if (message) throw new Error(message)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : amazonFileImportMessage(null)!
+          allErrors.push(`${entry.file.name}: ${message}`)
+          setFiles(current => current.map(file => file.id === entry.id ? { ...file, stage: 'rejected', validation: { ok: false, errors: [message], warnings: [] } } : file))
+          continue
+        }
+      }
       // عند اختيار «استبدال»: احذف الرفعة السابقة المطابقة وبياناتها أولاً
       if (entry.dup && entry.dupAction === 'replace') {
         if (entry.dup.storagePath) {
@@ -821,11 +855,12 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
             <option value="auto">اكتشاف تلقائي</option>
             {['amazon', 'noon', 'salla', 'zid', 'trendyol']
               .filter(key => allowedPlatformSet.size === 0 || allowedPlatformSet.has(key))
-              .map(key => <option key={key} value={key}>{PLATFORM_MAP[key] || key}</option>)}
+              .map(key => <option key={key} value={key} disabled={key === 'amazon' && amazonImportAllowed !== true}>{PLATFORM_MAP[key] || key}{key === 'amazon' && amazonImportAllowed !== true ? ' — غير متاح للرفع' : ''}</option>)}
           </select>
           <div style={{ color: 'var(--text3)', fontSize: 11, lineHeight: 1.6, marginTop: 5 }}>
             اختر سلة أو زد إذا كان ملف الطلبات بقالب مخصص ولا يظهر اسم المنصة داخله.
           </div>
+          {merchantCode && amazonImportMessage && suppliedAmazonImportAllowed === undefined ? <p role="status" style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text3)', margin: '8px 0 0' }}>{amazonImportMessage}{amazonImportAllowed === null ? <button type="button" onClick={() => setRefreshTick(t => t + 1)} style={{ marginInlineStart: 8 }}>إعادة التحقق</button> : null}</p> : null}
         </div>
 
         {!merchantCode
@@ -834,8 +869,8 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
             </div>
           : <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 9, background: 'rgba(15,149,140,0.06)', border: '1px solid rgba(15,149,140,0.2)', color: 'var(--accent)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               {merchantMode
-                ? 'ارفع ملفات Amazon أو Noon أو تصدير الطلبات من سلة وزد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. اختر المنصة فقط للقوالب المخصصة.'
-                : 'ارفع ملفات Amazon أو Noon أو سلة أو زد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.'}
+                ? 'ارفع تقارير المنصات المتاحة أو تصدير الطلبات من سلة وزد، حتى عدة ملفات دفعة واحدة أو ملف ZIP. اختر المنصة فقط للقوالب المخصصة.'
+                : 'ارفع تقارير المنصات المتاحة، حتى عدة ملفات دفعة واحدة أو ملف ZIP. يُصنَّف كل ملف تلقائيًا حسب محتواه.'}
             </div>
         }
       </div>
