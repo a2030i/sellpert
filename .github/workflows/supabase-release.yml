@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 22
       - name: Test configuration merge and sanitized failures
-        run: node --test scripts/configure-auth-domain.test.mjs
+        run: node --test scripts/configure-auth-domain.test.mjs scripts/inspect-release-database.test.mjs
       - name: Inspect or apply the fixed production domain configuration
         if: inputs.mode != 'inspect_database'
         env:
