@@ -41,7 +41,7 @@ function makeStorage(): Storage {
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: {
     // Existing CORS-approved header also identifies the account-aware contract.
-    headers: { 'x-client-info': 'sellpert-accounts-v1' },
+    headers: { 'X-Client-Info': 'sellpert-accounts-v1' },
     fetch: createMonitoredFetch(globalThis.fetch.bind(globalThis), dispatchApiIncident),
   },
   auth: {

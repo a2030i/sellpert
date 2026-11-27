@@ -13,6 +13,26 @@ do $$ begin
 end $$;
 select set_config('request.headers','{"origin":"https://app.sellpert.com","x-client-info":"sellpert-accounts-v1"}',true);
 select security.require_current_release();
+-- Real browser headers merge the SDK default and the application token.
+do $$ declare candidate text; begin
+ foreach candidate in array array[
+  'supabase-js-web/2.104.0, sellpert-accounts-v1',
+  'sellpert-accounts-v1, supabase-js-web/2.104.0',
+  ' supabase-js-web/2.104.0 , sellpert-accounts-v1 '
+ ] loop
+  perform set_config('request.headers',jsonb_build_object('origin','https://app.sellpert.com','x-client-info',candidate)::text,true);
+  perform security.require_current_release();
+ end loop;
+ foreach candidate in array array[
+  '', 'supabase-js-web/2.104.0', 'sellpert-accounts-v10',
+  'prefix-sellpert-accounts-v1', 'sellpert-accounts-v1-suffix',
+  'supabase-js-web/2.104.0, sellpert-accounts-v10'
+ ] loop
+  perform set_config('request.headers',jsonb_build_object('origin','https://app.sellpert.com','x-client-info',candidate)::text,true);
+  begin perform security.require_current_release(); raise exception 'Invalid client accepted';
+  exception when sqlstate 'PT409' then null; end;
+ end loop;
+end $$;
 select set_config('request.headers','{}',true);
 -- Authenticated server-side actor clients remain usable.
 select security.require_current_release();

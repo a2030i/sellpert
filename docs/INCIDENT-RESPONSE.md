@@ -62,3 +62,20 @@ This plan is reviewed every 6 months together with the [Security policy](SECURIT
 (next review due 2027-05-26), and after every security incident. Each review confirms
 role assignments and contact details, staff access lists, MFA enrollment, and
 password rotation, and is recorded in the review log of the security policy.
+
+## 2026-11-27 workspace-load regression
+
+After the account release, authenticated `merchants` requests returned PT409 even
+from the current browser bundle. The SDK and application supplied differently
+cased `X-Client-Info` keys, which HTTP combined as
+`supabase-js-web/2.104.0, sellpert-accounts-v1`. The release hook incorrectly required
+the entire header to equal the application token. The affected workspace identity
+still existed and was active; this was not missing registration or lost data.
+
+The forward correction matches an exact, trimmed member of the comma-separated
+header and the browser uses the SDK's canonical header casing. Maintenance,
+old-browser rejection, RLS, tenant ownership and MFA remain enforced. Regression
+coverage exercises the actual SDK request headers and SQL acceptance/rejection of
+combined tokens, including misleading prefixes and suffixes. Verification of
+identity lookup must exercise the pre-request hook as well as the table policies;
+an anonymous denial check alone cannot validate authenticated workspace loading.
