@@ -8,6 +8,7 @@ import AmazonConnectionCard from '../components/AmazonConnectionCard'
 import type { AmazonConnectionStatus } from '../lib/amazonConnection'
 import { amazonFileImportAllowedFromStatus, amazonFileImportMessage } from '../lib/amazonImportPolicy'
 import { PageHeader } from '../components/UI'
+import './Integrations.css'
 
 const SHOW_MANAGED_MARKETPLACES = false
 const MERCHANT_FILE_IMPORT_ENABLED = true
@@ -177,7 +178,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
   }, [merchant?.merchant_code])
 
   return (
-    <div className="integrations-page" style={{ padding: '28px 32px', minHeight: '100vh', maxWidth: 900, margin: '0 auto' }}>
+    <div className="integrations-page">
       <PageHeader title="الربط والاستيراد" description="اربط حسابات المنصات، أو استورد ملفات التقارير للمنصات المتاحة." icon={Plug} />
 
       {merchant ? (
@@ -190,7 +191,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
 
       {merchant ? <AmazonConnectionCard key={merchant.merchant_code} merchantCode={merchant.merchant_code} onStatusChange={onAmazonStatus} /> : null}
 
-      {merchant ? <section style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
+      {merchant ? <section style={{ marginTop: 'var(--integration-section-gap)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
@@ -228,7 +229,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
         <ManagedPlatformCard merchant={merchant} platform="amazon"   lastUpload={uploads.amazon}   fresh={fresh.amazon} />
       </div>}
 
-      <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ marginTop: 'var(--integration-section-gap)', padding: '14px 16px', borderRadius: 12, background: 'rgba(15,149,140,0.05)', border: '1px solid rgba(15,149,140,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
           <b>المزامنة المباشرة:</b> عند ربط Trendyol تُسحب الطلبات والمنتجات والمخزون والمرتجعات والتسويات تلقائيًا، ويمكنك تشغيل المزامنة ومتابعة نتيجتها من بطاقة الاتصال.
         </div>

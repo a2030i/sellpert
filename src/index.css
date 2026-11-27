@@ -767,7 +767,6 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 }
 .admin-context-bar b{color:var(--border2);font-weight:400}.admin-context-bar strong{color:var(--text2);font-weight:600}
 .admin-page-heading h2{font-family:var(--font-heading);font-size:30px!important;letter-spacing:-.02em!important}
-.integrations-page{width:min(1280px,calc(100% - 64px))!important;max-width:none!important;padding:28px 0 64px!important}
 
 .product-catalog{max-width:1280px;padding:28px 32px 64px}
 .catalog-header h1{font-family:var(--font-heading);font-size:30px;letter-spacing:-.02em}
@@ -783,7 +782,6 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, .nav-item:
 .catalog-table tbody tr:nth-child(even){background:#f8fafb}
 
 @media(max-width:900px){
-  .integrations-page{width:calc(100% - 28px)!important;padding:24px 0 42px!important}
   .product-catalog{padding:24px 14px 42px}
   .catalog-stats{margin:20px 0 24px}
   .catalog-stats button{min-height:110px}
