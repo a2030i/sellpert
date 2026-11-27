@@ -89,6 +89,25 @@ Arabic locale and Riyadh timezone. Tests mock Auth/PostgREST/Edge responses.
 `authenticated-merchant.spec.ts` is explicitly skipped for advanced release
 scope; some admin checks skip mobile. Do not report these as passing coverage.
 
+Products load a complete paginated snapshot with a 20-second deadline for the
+whole request group, cancel superseded/unmounted requests, and expose retry on
+failure instead of accepting partial rows. Catalog preparation reads for Trendyol
+(inventory, listings and mappings) run only for a single non-legacy Trendyol
+account; they are unused in the other scope states. The canonical product list
+remains merchant-wide, while account facts keep their existing scope filters.
+`productCatalogLoad.test.ts` covers pagination, cancellation and incomplete loads;
+the Products cases in `phase-one-merchant.spec.ts` cover completed lists and retry.
+
+To test actual deployment recovery, independently build the previous and next
+frontend revisions with synthetic Supabase configuration, then run:
+`node scripts/test-deployment-recovery.mjs /previous/dist /next/dist`.
+The script requires different hashed entry assets, opens the previous build with
+an active service worker, replaces the served directory, and navigates to Products
+whose old chunk now returns 404. It verifies one automatic reload into the new
+build, preserved session/URL/account scope, and a searchable row beyond 1000 on
+desktop and mobile Chromium. Auth and data responses are synthetic; this does not
+verify live merchant permissions or establish recovery on an already-open live tab.
+
 SQL tests in `supabase/tests/` exercise real DB roles, tenant boundaries and
 functions using transaction fixtures and raised exceptions. The script runs
 all SQL files with psql and stops on error. It is not covered by `npm test`.
