@@ -40,7 +40,7 @@ async function sql(token, query) {
   // operations or the fixed metadata queries below can reach this function.
   return management(token,'/database/query',{method:'POST',body:JSON.stringify({query,read_only:false})})
 }
-async function fileSql(token, name) { return sql(token,await readFile(new URL(name,ROOT),'utf8')) }
+async function fileSql(token, name) { console.log(JSON.stringify({phase:name})); return sql(token,await readFile(new URL(name,ROOT),'utf8')) }
 function cli(args) {
   try { return execFileSync('supabase',args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:600_000}) }
   catch { throw new Error('CLI_FAILED_INSPECT_STATE_BEFORE_RETRY') }
@@ -79,7 +79,8 @@ async function verifyApiGate(publicKey, maintenance) {
   const response=await fetch(`https://${PROJECT}.supabase.co/rest/v1/orders?select=id&limit=0`,{
     headers:{apikey:publicKey,Authorization:`Bearer ${publicKey}`},redirect:'error',signal:AbortSignal.timeout(30_000)})
   await response.body?.cancel()
-  if (maintenance ? response.status!==503 : ![401,403].includes(response.status)) throw new Error('DATA_API_GATE_VERIFICATION_FAILED')
+  // Anonymous users lack USAGE on the private hook schema and stay denied.
+  if (maintenance ? ![401,403,503].includes(response.status) : ![401,403].includes(response.status)) throw new Error('DATA_API_GATE_VERIFICATION_FAILED')
 }
 
 async function verifyBefore(token) {
@@ -119,6 +120,7 @@ export async function run(dispatch, env = process.env) {
     // Wait for the config reload and old short-lived requests to drain.
     await delay(20_000)
     await verifyApiGate(front.publicKey,true)
+    await sql(token,`do $$ begin if not exists(select 1 from pg_roles r cross join lateral unnest(r.rolconfig) s where r.rolname='authenticator' and s='pgrst.db_pre_request=security.require_current_release') then raise exception 'HOOK_NOT_REGISTERED'; end if; begin perform security.require_current_release(); raise exception 'GATE_NOT_ACTIVE'; exception when sqlstate 'PT503' then null; end; end $$;`)
     await fileSql(token,'recover.sql')
     const verification=await fileSql(token,'recovery-inspect.sql')
     if (!verification?.some(row=>row.history_reconciled===true && row.maintenance===true)) throw new Error('RECOVERY_VERIFICATION_FAILED')

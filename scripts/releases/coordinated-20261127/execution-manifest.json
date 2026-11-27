@@ -396,7 +396,7 @@
     ".github/workflows/coordinated-reliability-release.yml": "81b983d533ba32754aef3ecf2e32bc2480a17562eeddcc33d9437cb13332b747",
     ".github/workflows/supabase-release.yml": "7998d6c1d19d94a67fa872f3ad12389f0067aa5ddd927d9be379b71678229f74",
     "scripts/Test-SupabaseMigrationParity.ps1": "42dcd3885e118bf83ca07613dfd9d07e6a79b9437be6c6c0eda0239049d31f65",
-    "scripts/coordinated-release.mjs": "cc5c567c0dfbe5744ae2c5a76262e304c921ffc8f45baae7e5422d78304b3009",
+    "scripts/coordinated-release.mjs": "cf8e6d5a2094916353191c33e84c6a22131525439b5ee11743074a5688669151",
     "scripts/coordinated-release.test.mjs": "62436c4a013cf18126450bcecdb7845724376abac105d23bccb0f4691b667ec1",
     "scripts/releases/coordinated-20261127/catalog-before.json": "6410b66bfbb4a0be38e12538b0f71b39ea856a5b629566e46d3f22c5acceeead",
     "scripts/releases/coordinated-20261127/catalog-recovered.json": "a42bef9a8d7a7db5e140fab81ec78a8ed577a2d7dea1d5011351626faf102252",
