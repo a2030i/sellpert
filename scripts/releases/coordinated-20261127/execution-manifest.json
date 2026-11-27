@@ -400,7 +400,7 @@
     "scripts/coordinated-release.test.mjs": "62436c4a013cf18126450bcecdb7845724376abac105d23bccb0f4691b667ec1",
     "scripts/releases/coordinated-20261127/catalog-before.json": "6410b66bfbb4a0be38e12538b0f71b39ea856a5b629566e46d3f22c5acceeead",
     "scripts/releases/coordinated-20261127/catalog-recovered.json": "a42bef9a8d7a7db5e140fab81ec78a8ed577a2d7dea1d5011351626faf102252",
-    "scripts/releases/coordinated-20261127/enter.sql": "a7ac263eb871de7d6aa9fdc99b5a461922a43d0b54e686091241fe9bb71b1d64",
+    "scripts/releases/coordinated-20261127/enter.sql": "caf270e04c4506043fe864e4bc7e12642f50f7be117b2362f35a299b39b37c65",
     "scripts/releases/coordinated-20261127/expected-catalog-digests.json": "a4ee0296fbdb121476c564f3e64f6991791cd757cedf0c8f916ed3d7b912e59d",
     "scripts/releases/coordinated-20261127/inspect-before.sql": "19ef257b0078bb05c00b909c8c8534b77c0faea046cc5236581d98b4511bd426",
     "scripts/releases/coordinated-20261127/recover.sql": "d50653b55652f32f62bb06f4cfb4a88a7657e01ceda2cf92d4bb35294bcdb663",
@@ -876,6 +876,6 @@
     "supabase/migrations/20261127111914_account_product_provider_identity.sql": "bdc4040d7948ab71fefb7e12a5056855fc2b01f25e659cdac63970d420df7b11",
     "supabase/migrations/20261127123000_account_bank_settlement_scope.sql": "06220abeb64e2c9dc5a95802b7f72a40d211aa5b2266674d56b9b0ff31514e26",
     "supabase/migrations/20261127123615_preserve_reviewed_policy_contracts.sql": "767cedfc3aa980593f55e6c817461edeab6feba5c8237ac1f012f3f074d1ce26",
-    "supabase/migrations/20261127125643_coordinated_release_gate.sql": "e3d79fa00d3155e5e380b70891ff4cdf63d7a91b9bf746afa5ceb4ab884afe62"
+    "supabase/migrations/20261127125643_coordinated_release_gate.sql": "408a6ede9d18107a97e2e21a83b8719ebf818f1e2a00d2c2758702cefd4d482f"
   }
 }

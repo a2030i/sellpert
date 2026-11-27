@@ -11,7 +11,9 @@ create table if not exists security.sellpert_release_control (
  updated_at timestamptz not null default now()
 );
 alter table security.sellpert_release_control enable row level security;
-revoke all on security.sellpert_release_control from public, anon, authenticated, service_role;
+revoke all on security.sellpert_release_control from public, anon, authenticated;
+-- Trusted server access follows the repository's explicit private-table grant contract.
+grant all on security.sellpert_release_control to service_role;
 insert into security.sellpert_release_control(singleton) values(true) on conflict do nothing;
 
 create or replace function security.require_current_release()
@@ -33,8 +35,8 @@ begin
    raise sqlstate 'PT409' using message='تم تحديث النظام. حدّث الصفحة للمتابعة', detail='APP_RELOAD_REQUIRED';
  end if;
 end $$;
-revoke all on function security.require_current_release() from public;
-grant execute on function security.require_current_release() to anon, authenticated, service_role;
+revoke all on function security.require_current_release() from public, anon;
+grant execute on function security.require_current_release() to authenticated, service_role;
 
 create or replace function security.freeze_release_writes()
 returns trigger language plpgsql security definer set search_path='' as $$
