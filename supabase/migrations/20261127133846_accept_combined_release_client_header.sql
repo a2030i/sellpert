@@ -24,4 +24,3 @@ begin
 end $$;
 revoke all on function security.require_current_release() from public, anon;
 grant execute on function security.require_current_release() to authenticated, service_role;
-
