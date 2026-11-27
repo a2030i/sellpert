@@ -178,7 +178,7 @@ export default function Integrations({ merchant }: { merchant: Merchant | null }
   }, [merchant?.merchant_code])
 
   return (
-    <div className="integrations-page">
+    <div className="integrations-page merchant-page">
       <PageHeader title="الربط والاستيراد" description="اربط حسابات المنصات، أو استورد ملفات التقارير للمنصات المتاحة." icon={Plug} />
 
       {merchant ? (

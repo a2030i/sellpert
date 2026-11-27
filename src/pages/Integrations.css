@@ -2,10 +2,6 @@
   --integration-card-max-width: 100%;
   --integration-section-gap: 20px;
   --integration-block-end: 0px;
-  width: min(1280px, calc(100% - 64px));
-  min-height: 100vh;
-  margin-inline: auto;
-  padding-block: 28px 64px;
 }
 
 .amazon-connection-header {
@@ -16,13 +12,6 @@
 
 .amazon-connection-logo { flex-shrink: 0; }
 .amazon-connection-copy { flex: 1; min-width: 0; }
-
-@media (max-width: 900px) {
-  .integrations-page {
-    width: calc(100% - 28px);
-    padding-block: 24px 42px;
-  }
-}
 
 @media (max-width: 540px) {
   .amazon-connection-header {

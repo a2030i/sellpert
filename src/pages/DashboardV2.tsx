@@ -214,9 +214,9 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
   }), [preset, from, to, selectedPlatforms])
   const navigate = (view:PhaseOneView, extra:Record<string,string>={}) => onNavigate(view, { ...navigationQuery, ...extra })
 
-  return <main className="merchant-dashboard" dir="rtl">
+  return <main className="merchant-dashboard merchant-page" dir="rtl">
     <header className="dashboard-header">
-      <div><h1>صباح الخير، {merchant?.name || 'تاجر Sellpert'}</h1><p>هذه هي القرارات والإجراءات التي تؤثر على متجرك الآن.</p></div>
+      <div><h1 className="merchant-page-title">صباح الخير، {merchant?.name || 'تاجر Sellpert'}</h1><p>هذه هي القرارات والإجراءات التي تؤثر على متجرك الآن.</p></div>
       <div className="dashboard-controls">
         <label className="date-control"><span>الفترة الزمنية</span><span className="control-box"><CalendarDays size={16}/><select value={preset} onChange={e=>setPreset(e.target.value as DatePreset)} aria-label="الفترة الزمنية"><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></span></label>
         <details className="platform-control">

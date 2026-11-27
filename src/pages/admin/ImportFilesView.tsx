@@ -808,7 +808,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1100, margin: '0 auto' }}>
       <div>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>استيراد ملفات المنصات</h3>
+        {merchantMode && <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>استيراد ملفات المنصات</h3>}
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>{merchantMode ? 'ارفع ملف Excel أو CSV الرسمي من المنصة، وسيتعرف النظام على نوع التقرير وبياناته تلقائيًا.' : 'اختر التاجر ثم ارفع أي ملف Excel/CSV — نتعرّف على نوعه ومنصته تلقائياً'}</p>
       </div>
 

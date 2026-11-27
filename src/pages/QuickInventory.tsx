@@ -5,7 +5,7 @@ import type { Merchant, InventoryItem } from '../lib/supabase'
 import { Search, Save, Plus, Minus, Check, AlertCircle, Zap } from 'lucide-react'
 import { toastOk, toastErr } from '../components/Toast'
 import { PLATFORM_MAP } from '../lib/constants'
-import { Pagination } from '../components/UI'
+import { Pagination, PageHeader } from '../components/UI'
 import { useMobile } from '../lib/hooks'
 
 interface PendingChange { qty: number; original: number }
@@ -125,17 +125,8 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
   if (!merchant) return null
 
   return (
-    <div style={{ padding: '16px', maxWidth: 1200, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--grad-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Zap size={20} color="#fff" />
-        </div>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>تحديث المخزون السريع</h1>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>عدّل كميات متعددة دفعة واحدة</div>
-        </div>
-      </div>
+    <div className="merchant-page">
+      <PageHeader title="تحديث المخزون السريع" description="عدّل كميات متعددة دفعة واحدة" icon={Zap} />
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>

@@ -1,3 +1,4 @@
+import { PageHeader, PageLoading } from '../components/UI'
 import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { AD_METRIC_SAFE_COLUMNS, INVENTORY_SAFE_COLUMNS, PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
@@ -98,25 +99,31 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" /></div>
+  if (loading) return <PageLoading title="تفاصيل المنتج" />
 
   if (loadError) return (
-    <div style={{ padding:60, textAlign:'center', maxWidth:560, margin:'0 auto' }}>
+    <div className="merchant-page">
+      <PageHeader title="تفاصيل المنتج" />
+      <div className="merchant-page-state">
       <h2 style={{ fontSize:18, marginBottom:8 }}>تعذر تحميل تفاصيل المنتج</h2>
       <p style={{ color:'var(--text2)', fontSize:13, lineHeight:1.8, marginBottom:18 }}>{loadError}</p>
       <button onClick={() => window.location.reload()} style={btnPrimary}>إعادة المحاولة</button>
+      </div>
     </div>
   )
 
   if (!product) return (
-    <div style={{ padding: 60, textAlign: 'center' }}>
-      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>المنتج غير موجود</div>
+    <div className="merchant-page">
+      <PageHeader title="تفاصيل المنتج" />
+      <div className="merchant-page-state">
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>المنتج غير موجود</h2>
       <button onClick={back} style={btnPrimary}>العودة للمنتجات</button>
+      </div>
     </div>
   )
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="merchant-page">
       <button onClick={back} style={{ background: 'transparent', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
         <ChevronLeft size={16} /> العودة للمنتجات
       </button>
@@ -124,8 +131,8 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       {/* Header */}
       <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
         {product.image_url && <img src={product.image_url} alt={product.name} style={{ width: 120, height: 120, borderRadius: 12, objectFit: 'cover' }} />}
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{product.name}</h2>
+        <div style={{ flex: 1, minWidth: 'min(100%, 280px)' }}>
+          <h1 className="merchant-page-title" style={{ marginBottom: 6 }}>{product.name}</h1>
           <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text3)', flexWrap: 'wrap' }}>
             {product.sku && <span>SKU: <b style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{product.sku}</b></span>}
             {product.barcode && <span>باركود: <b style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{product.barcode}</b></span>}
@@ -136,7 +143,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
         </div>
       </div>
 
-      {dataQuality && dataLineage ? <section aria-label="مصدر وجودة بيانات المنتج" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:10, marginBottom:22 }}>
+      {dataQuality && dataLineage ? <section aria-label="مصدر وجودة بيانات المنتج" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))', gap:10, marginBottom:22 }}>
         <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:11, padding:'13px 15px' }}>
           <div style={{ fontSize:10, color:'var(--text3)', marginBottom:5 }}>مصدر بيانات المنتج</div>
           <div style={{ fontSize:14, fontWeight:800, color:dataLineage.tone === 'success' ? 'var(--success-text)' : dataLineage.tone === 'warning' ? 'var(--warning-text)' : 'var(--info-text)' }}>{dataLineage.label}</div>
@@ -195,7 +202,7 @@ export default function ProductDetail({ merchant }: { merchant: Merchant | null 
       {/* Ad metrics */}
       {adMetrics.length > 0 && (
         <Section title={`الإعلانات (${adMetrics.length})`}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,120px),1fr))', gap: 10, marginBottom: 12 }}>
             <Kpi label="إنفاق إعلاني" value={fmtCurrency(adTotals.spend)} color="#e84040" />
             <Kpi label="إيرادات إعلانية" value={fmtCurrency(adTotals.revenue)} color={DATA_COLORS.success} />
             <Kpi label="نقرات" value={fmtNumber(adTotals.clicks)} color={DATA_COLORS.accent} />

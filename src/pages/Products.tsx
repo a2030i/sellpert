@@ -6,7 +6,7 @@ import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
-import { Pagination } from '../components/UI'
+import { Pagination, PageHeader, PageLoading } from '../components/UI'
 import ProductCostImport from '../components/ProductCostImport'
 import { ArrowRightLeft, Award } from 'lucide-react'
 import { userErrorMessage } from '../lib/userError'
@@ -298,15 +298,11 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     })
   }, [form.target_net_price, form.category, getRate])
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-      <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
+  if (loading) return <PageLoading title="المنتجات" />
 
   if (loadError) return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
+      <PageHeader title="المنتجات" />
       <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
         <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذّر تحميل المنتجات</h2>
         <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
@@ -397,7 +393,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const selectedBlocked = selectedRows.filter(product => !trendyolStateByProduct.get(product.id)?.ready)
 
   return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
       {/* Page Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0, overflowX: 'auto' }}>
         {([['catalog', 'الكتالوج'], ['analytics', 'الربحية والتحليلات']] as const).map(([k, lbl]) => (
@@ -411,16 +407,11 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {/* Header */}
-      <div style={{ ...S.topbar, gap: 14, flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={S.title}>المنتجات</h2>
-          <p style={S.sub}>{products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <PageHeader title="المنتجات" description={`${products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة`}
+        action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }} onClick={() => setShowCostImport(true)}>استيراد التكاليف</button>
           <button style={S.addBtn} onClick={() => { setTab('catalog'); setShowAdd(v => !v) }}>{showAdd ? 'إلغاء' : 'إضافة منتج'}</button>
-        </div>
-      </div>
+        </div>} />
 
       {missingCosts > 0 ? <section style={{ background: 'var(--warning-bg)', border: '1px solid color-mix(in srgb,var(--warning-text) 22%,transparent)', borderRadius: 13, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div><strong style={{ display: 'block', fontSize: 13, color: 'var(--text)' }}>الربحية غير مكتملة لـ {missingCosts.toLocaleString('ar-SA-u-nu-latn')} منتج</strong><span style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.7 }}>أدخل تكلفة الشراء جماعيًا لاحتساب تكلفة البضاعة وصافي الربح والمخزون بالقيمة.</span></div>
@@ -439,7 +430,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
             <div role="progressbar" aria-label="متوسط اكتمال بيانات المنتجات" aria-valuemin={0} aria-valuemax={100} aria-valuenow={catalogQuality.score} style={{ height:7, borderRadius:8, background:'var(--border)', overflow:'hidden' }}><i style={{ display:'block', width:`${catalogQuality.score}%`, height:'100%', background:catalogQuality.score >= 85 ? 'var(--success-text)' : catalogQuality.score >= 60 ? 'var(--warning-text)' : 'var(--danger-text)' }} /></div>
           </div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(5,minmax(120px,1fr))', gap:8, marginTop:13 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,120px),1fr))', gap:8, marginTop:13 }}>
           {([
             ['all', 'كل المنتجات', products.length],
             ['complete', 'مكتملة', catalogQuality.complete],
@@ -549,7 +540,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
             {trendyolSummary.pending ? <button disabled={bulkRefreshing} style={{ ...S.reqBtn, padding:'8px 13px', opacity:bulkRefreshing ? .6 : 1 }} onClick={() => void refreshPendingBatches()}>{bulkRefreshing ? 'جارٍ التحديث…' : 'تحديث الحالات'}</button> : null}
           </div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(4,minmax(110px,1fr))', gap:8, marginTop:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,110px),1fr))', gap:8, marginTop:14 }}>
           {[
             ['مرتبط', trendyolSummary.linked, 'var(--text)'],
             ['جاهز للإرسال', trendyolSummary.ready, 'var(--success-text)'],
@@ -760,10 +751,6 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap:       { padding: '28px 32px', minHeight: '100vh', maxWidth: 1100, margin: '0 auto' },
-  topbar:     { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
-  title:      { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
-  sub:        { fontSize: 13, color: 'var(--text2)', marginTop: 3 },
   addBtn:     { background: 'var(--accent-strong)', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   alert:      { padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   formCard:   { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 20 },
@@ -997,7 +984,7 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {show && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%,280px), 1fr))', gap: 16 }}>
           {/* Star products */}
           {stats.star.length > 0 && (
             <div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { userErrorMessage } from '../lib/userError'
+import './FeesView.css'
 
 type Platform = 'trendyol' | 'noon' | 'amazon'
 
@@ -154,7 +155,7 @@ export default function FeesView() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>جاري تحميل بيانات الرسوم...</div>
 
   return (
-    <div>
+    <div className="fees-page">
       {msg && (
         <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', background: msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)', color: msg.type === 'ok' ? 'var(--accent2)' : 'var(--red)', border: `1px solid ${msg.type === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)'}` }}>
           {msg.text}
@@ -178,7 +179,7 @@ export default function FeesView() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
+      <div className="fees-layout">
 
         {/* LEFT: Categories + Shipping + Other fees */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -304,7 +305,7 @@ export default function FeesView() {
         </div>
 
         {/* RIGHT: Calculator */}
-        <div style={{ position: 'sticky', top: 24 }}>
+        <div className="fees-calculator">
           <div style={{ ...S.card, borderTop: `3px solid ${meta.color}` }}>
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 2 }}>حاسبة الرسوم</div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 16 }}>{meta.label} — {VAT}% ضريبة</div>

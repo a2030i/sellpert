@@ -1,3 +1,4 @@
+import './OverviewView.css'
 import { useEffect, useMemo, useState } from 'react'
 import { fmt, relativeTime, PLATFORM_MAP } from './adminShared'
 import type { Merchant, PerformanceData, SyncLog } from '../../lib/supabase'

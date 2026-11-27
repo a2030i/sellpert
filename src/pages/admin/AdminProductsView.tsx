@@ -71,17 +71,17 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginBottom: 24 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>نسب العمولات حسب التصنيف</div>
         <div style={{ fontSize:11, color:'var(--text3)', marginBottom:16 }}>تُستخدم عمولة المنتج الواردة من المنصة أولًا، ثم نسبة تصنيفه. لا توجد نسبة موحدة لكل المنصة.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,280px),1fr))', gap: 14 }}>
           {PLATFORMS_LIST.map(platform => {
             const platformRates = rates.filter(rate => rate.platform === platform)
             const values = platformRates.map(rate => Number(rate.commission_rate || 0)).filter(Boolean)
             return <div key={platform} style={{ background: 'var(--bg)', border: `1px solid ${PLT_COLORS[platform] || '#5a5a7a'}33`, borderRadius: 12, padding: '14px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontWeight: 700, color: PLT_COLORS[platform] }}>{PLT_NAMES[platform] || platform}</div>
+                <div style={{ fontWeight: 700, color: 'var(--text)' }}>{PLT_NAMES[platform] || platform}</div>
                 <span style={{fontSize:10,color:'var(--text3)'}}>{platformRates.length} تصنيف</span>
               </div>
               <div style={{fontSize:12}}><span style={{color:'var(--text3)'}}>النطاق: </span><strong>{values.length ? `${Math.min(...values)}% – ${Math.max(...values)}%` : '—'}</strong></div>
-              <button style={{ marginTop: 10, width: '100%', background: PLT_COLORS[platform] + '22', border: `1px solid ${PLT_COLORS[platform]}44`, color: PLT_COLORS[platform], padding: '6px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }} onClick={() => recalcAllPrices(platform)}>
+              <button style={{ marginTop: 10, width: '100%', background: PLT_COLORS[platform] + '22', border: `1px solid ${PLT_COLORS[platform]}44`, color: 'var(--text)', padding: '6px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }} onClick={() => recalcAllPrices(platform)}>
                 ⟳ إعادة الحساب حسب تصنيف كل منتج
               </button>
             </div>
@@ -115,7 +115,7 @@ export default function AdminProductsView({ merchants }: { merchants: Merchant[]
                     <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{prod.target_net_price} ر.س</td>
                     {PLATFORMS_LIST.map(p => {
                       const pr = getPriceForProduct(prod.id, p)
-                      return <td key={p} style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: PLT_COLORS[p] }}>{pr ? pr.toLocaleString() + ' ر.س' : <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>}</td>
+                      return <td key={p} style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{pr ? pr.toLocaleString() + ' ر.س' : <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>}</td>
                     })}
                     <td style={{ padding: '10px 14px' }}>
                       <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: prod.status === 'active' ? 'var(--success-bg)' : 'var(--surface2)', color: prod.status === 'active' ? 'var(--accent2)' : 'var(--text3)' }}>
