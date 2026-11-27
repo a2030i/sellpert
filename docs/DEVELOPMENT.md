@@ -46,7 +46,7 @@ describes the consumer, not an instruction to configure every integration locall
 | Scope | Names | Requiredness / source |
 | --- | --- | --- |
 | Browser client | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Required by `src/lib/supabase.ts` at module initialization, including tests that import it |
-| Build release identification | `VERCEL_GIT_COMMIT_SHA`, `GITHUB_SHA`, `VITE_APP_RELEASE` | Vite defines the client release from the first two with a local fallback; Vercel workflow also supplies the third as build env, which is not what Vite's expression reads |
+| Build release identification | `VERCEL_GIT_COMMIT_SHA`, `GITHUB_SHA` | Vite defines the client release from these with a local fallback; the Vercel workflow supplies the immutable GitHub SHA as `VERCEL_GIT_COMMIT_SHA` |
 | Browser tests | `PLAYWRIGHT_PORT`, `CI` | Optional runner settings in `playwright.config.ts` |
 | SQL tests | `DATABASE_URL` | Optional override in `scripts/run-database-tests.sh`; default is the local Supabase DB. Never point tests at production |
 | Edge runtime | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Used by privileged handlers; server only |
