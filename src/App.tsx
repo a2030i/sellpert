@@ -24,6 +24,7 @@ import type { Merchant } from './lib/supabase'
 import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
 import { requiresMfaChallenge } from './lib/accountSecurity'
 import { userErrorMessage } from './lib/userError'
+import { AMAZON_CALLBACK_PATH, clearAmazonConnectTarget, readAmazonConnectTarget } from './lib/amazonConnection'
 
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
@@ -150,6 +151,12 @@ function MerchantApp() {
     new URLSearchParams(window.location.search).get('flow') === 'invite' ? 'invite' : 'recovery',
   )
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
+  // An administrator who started Amazon consent while viewing a merchant
+  // returns with a full page load; restore that workspace so the callback
+  // completes for the merchant that started it.
+  const [amazonReturnCode, setAmazonReturnCode] = useState<string | null>(() =>
+    window.location.pathname.replace(/\/+$/, '') === AMAZON_CALLBACK_PATH ? readAmazonConnectTarget() : null,
+  )
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
   const activeMerchant                      = impersonating || merchant
@@ -165,6 +172,26 @@ function MerchantApp() {
     setView('dashboard')
     window.history.pushState(null, '', '/')
   }
+  useEffect(() => {
+    if (!amazonReturnCode || !merchant || impersonating) return
+    if (!['admin', 'super_admin', 'staff'].includes(merchant.role)) { setAmazonReturnCode(null); return }
+    let cancelled = false
+    void supabase.from('merchants').select('*')
+      .eq('merchant_code', amazonReturnCode).eq('role', 'merchant').maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (data && !error) {
+          setImpersonating(data as Merchant)
+          setView('integrations')
+        } else {
+          clearAmazonConnectTarget()
+          toastErr('تعذر فتح مساحة التاجر لإكمال ربط أمازون. ابدأ الربط من جديد من صفحة الربط والتكاملات.')
+        }
+        setAmazonReturnCode(null)
+      })
+    return () => { cancelled = true }
+  }, [amazonReturnCode, merchant, impersonating])
+
   function stopImpersonate() {
     setImpersonating(null)
     window.history.pushState(null, '', '/admin/merchants')
@@ -374,6 +401,8 @@ function MerchantApp() {
   )
   // Platform administrators use the administration console. Merchant
   // employees stay inside their owner's store with tenant permissions.
+  if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating && amazonReturnCode)
+    return <div role="status" aria-busy="true" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: 'var(--text2)', fontSize: 14 }}>جارٍ إكمال ربط أمازون…</div>
   if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating)
     return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
 

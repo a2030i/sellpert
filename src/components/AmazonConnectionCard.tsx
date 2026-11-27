@@ -4,7 +4,9 @@ import { ExternalLink, Unplug } from 'lucide-react'
 import {
   AMAZON_MARKETPLACE_NAMES,
   callAmazonConnect,
+  clearAmazonConnectTarget,
   readAmazonCallback,
+  rememberAmazonConnectTarget,
   type AmazonConnectionStatus,
 } from '../lib/amazonConnection'
 
@@ -41,6 +43,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
     if (!callback) { void load(); return }
     // Remove Amazon's one-time parameters from the address bar and history.
     window.history.replaceState(null, '', '/integrations')
+    clearAmazonConnectTarget()
     if (callback === 'incomplete') {
       setNotice({ type: 'err', text: 'لم يكتمل الربط من جهة أمازون. ابدأ الربط من جديد.' })
       void load()
@@ -62,6 +65,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
       if (typeof result?.consent_url !== 'string' || !result.consent_url.startsWith('https://sellercentral.amazon.')) {
         throw new Error('تعذر تجهيز رابط الربط')
       }
+      rememberAmazonConnectTarget(merchantCode)
       window.location.assign(result.consent_url)
     } catch (error) {
       setNotice({ type: 'err', text: error instanceof Error ? error.message : 'تعذر بدء ربط أمازون' })
