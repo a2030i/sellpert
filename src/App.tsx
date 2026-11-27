@@ -180,7 +180,7 @@ function MerchantApp() {
     let cancelled = false
     const controller = new AbortController()
     void withTimeout(supabase.from('merchants').select('*')
-      .eq('merchant_code', amazonReturnCode).eq('role', 'merchant').maybeSingle().abortSignal(controller.signal), 15_000)
+      .eq('merchant_code', amazonReturnCode).eq('role', 'merchant').abortSignal(controller.signal).maybeSingle(), 15_000)
       .then(({ data, error }) => {
         if (cancelled) return
         if (error || !data) throw new Error('Workspace unavailable')
