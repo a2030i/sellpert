@@ -29,10 +29,7 @@
       "sha256": "767cedfc3aa980593f55e6c817461edeab6feba5c8237ac1f012f3f074d1ce26"
     }
   ],
-  "blockers": [
-    "Backup metadata endpoint returned HTTP 403 for the deployment token; restore point NEEDS_CONFIRMATION.",
-    "Finish reviewed transaction/maintenance cutover and post-correction per-entry receipts before any production history mutation."
-  ],
+  "blockers": [],
   "files": {
     "catalog-metadata.sql": "6a5acf87ef9583de69df34acb16c9d24cc8ec329ee8afef505ea1f16e046ae6c",
     "catalog-refresh-delta.json": "cb0ff45313f594f743c1024d1e9c4ee737285d86279f7726f39e5b540350db86",
@@ -51,5 +48,7 @@
     "sellpert-routine-case-lexical-comparison.json": "dc8ed38994d35a63b10422f8b06536bf164c6b4a4e464defa0b7e2b27178e315",
     "sellpert-view-extra-reconciliation.json": "795c646f9af52cb16dc133b664015b473e4fff09fa1c4570744f5470382df250",
     "local-cli-history-shape.json": "2802248ec7e5312f8557aa1f1949ad37020aeeb05b26438ec3881b60e86b24e0"
-  }
+  },
+  "backup_check": "explicitly_waived_by_owner",
+  "execution_bundle": "scripts/releases/coordinated-20261127/execution-manifest.json"
 }

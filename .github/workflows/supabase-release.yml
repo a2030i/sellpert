@@ -21,6 +21,9 @@ concurrency:
 
 jobs:
   deploy:
+    # This marker is used only after the coordinated workflow has applied SQL,
+    # deployed its exact handlers, and passed the unchanged parity guard.
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[coordinated-backend-ready]')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15

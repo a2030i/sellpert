@@ -116,9 +116,9 @@ The pre-recovery PR commit `abb308b3ae7d13783164c6a3c6b05d9d56f76fe7` passed all
 three CI jobs, including the complete isolated SQL suite. The correction files
 added afterward require their own fresh CI run before release.
 
-## Execution prerequisites still open
+## Execution controls (updated by owner authorization below)
 
-1. Verify a usable restore point through authorized backup metadata access.
+1. Backup verification explicitly waived by the owner; no backup access is required for this release.
 2. Complete the reviewed transaction and maintenance cutover. Suspend old-format
    queue dispatch/import/webhook writers, drain active jobs, and prevent merchant
    writes across the schema/handler transition. A point-in-time empty queue does
@@ -139,3 +139,31 @@ added afterward require their own fresh CI run before release.
 The production permission failure is an access limitation, not a new request for
 deployment approval. No automatic restoration, customer-data cleanup, staff-role
 change, historical provider operation or guard bypass is part of this work.
+
+## Owner-authorized coordinated execution
+
+The owner explicitly waived backup verification with «مايحتاج تتحقق انشر فقط».
+The prior HTTP 403 is historical evidence, not an outstanding permission request.
+No backup content is read or downloaded. Deployment and individual history
+reconciliation were already authorized; original ledger records remain immutable.
+
+The hash-pinned execution bundle is in
+`scripts/releases/coordinated-20261127/execution-manifest.json`. The feature-branch
+workflow first inspects the target, then pauses scheduled jobs and API writes.
+The recovery transaction applies only the four reviewed corrections plus the
+missing service/MFA schema, verifies the complete corrected catalog, and records
+124 individually reviewed final-effect receipts. It preserves all 227 original
+ledger records. The unchanged parity guard then permits 21 forward migrations.
+Eleven handlers deploy against the final schema before the main frontend merge.
+
+The merge marker `[coordinated-backend-ready]` skips the ordinary backend workflow
+only after that coordinated deployment. Native Vercel deployment must serve the
+exact merged commit before the resume operation restores the saved cron IDs and
+opens the API. Browser clients from before this schema change receive an explicit
+reload message; server actor clients remain usable. This client-version check is
+not an authorization mechanism and does not replace RLS or MFA.
+
+Any unverified/failed mutation leaves maintenance enabled for state inspection;
+there is no automatic retry of history repair and no automatic reopening against
+an uncertain backend. The execution receipt, rather than this proposal, proves
+whether production was changed.
