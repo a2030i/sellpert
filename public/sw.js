@@ -1,6 +1,6 @@
 // Sellpert Service Worker
-const CACHE_NAME = 'sellpert-v1';
-const STATIC_CACHE = 'sellpert-static-v1';
+const CACHE_NAME = 'sellpert-v2';
+const STATIC_CACHE = 'sellpert-static-v2';
 
 // Cache static assets on install
 self.addEventListener('install', (event) => {
@@ -51,8 +51,14 @@ self.addEventListener('fetch', (event) => {
         return (
           cached ||
           fetch(request).then((res) => {
-            const clone = res.clone();
-            caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
+            // Never cache failed assets or an SPA HTML fallback as JavaScript/CSS.
+            const type = res.headers.get('content-type') || '';
+            const script = request.destination === 'script' || /\.js$/i.test(url.pathname);
+            const style = request.destination === 'style' || /\.css$/i.test(url.pathname);
+            if (res.ok && (!script || /(?:java|ecma)script/i.test(type)) && (!style || type.includes('text/css'))) {
+              const clone = res.clone();
+              event.waitUntil(caches.open(STATIC_CACHE).then((c) => c.put(request, clone)));
+            }
             return res;
           })
         );
@@ -65,8 +71,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+        if (res.ok && res.headers.get('content-type')?.includes('text/html')) {
+          const clone = res.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then((c) => c.put(request, clone)));
+        }
         return res;
       })
       .catch(() => caches.match(request).then((c) => c || caches.match('/')))
