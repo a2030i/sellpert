@@ -122,13 +122,15 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   - Historical Amazon file rows in `account_transactions` are kept; for
     overlapping periods the statement ledger can contain both file and SP-API
     rows (performance and P&L are unaffected because API orders take
-    precedence). Deciding how to retire those rows is `NEEDS_CONFIRMATION`.
+    precedence). Per the 2026-11-27 owner decision these file rows are low
+    priority; any cleanup still needs explicit approval as a data change.
   - During the first backfill, dashboards show only the API history fetched so
     far (newest months first), because any API order overrides file-based
     Amazon performance for all dates. File-based Amazon history older than
-    12 months therefore stops appearing in performance once API orders exist;
-    `NEEDS_CONFIRMATION` whether that history must be kept (per-date
-    precedence would be a separate change to `rebuild_performance_data`).
+    12 months therefore stops appearing in performance once API orders exist.
+    Owner decision 2026-11-27: accepted. The platform is in a trial phase and
+    uploaded Amazon files cover scattered periods, so they are not a reliable
+    source; no per-date precedence change is planned.
 - Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
   is the authoritative Amazon source and Amazon file uploads are retired for
   that merchant. Note the existing precedence in `security.rebuild_performance_data`:
