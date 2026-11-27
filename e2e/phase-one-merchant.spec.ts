@@ -96,6 +96,46 @@ test.beforeEach(async ({ page }) => {
   await mockPhaseOneMerchant(page)
 })
 
+test('products finish loading every page in a legacy account and can search beyond 1000 rows', async ({ page }) => {
+  const offsets: number[] = []
+  let unusedOperations = 0
+  await page.route(/\/rest\/v1\/(inventory|product_platform_listings|product_channel_mappings)\?/, route => {
+    unusedOperations++
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  })
+  await page.route('**/rest/v1/products?*', async route => {
+    const offset = Number(new URL(route.request().url()).searchParams.get('offset'))
+    offsets.push(offset)
+    const all = Array.from({ length: 1744 }, (_, index) => ({
+      id: `product-${index}`, merchant_code: merchant.merchant_code, name: `منتج الفحص ${index}`,
+      sku: `CAT-${index}`, platform_source: 'manual', images: [], cost_price: 10, target_net_price: 20,
+    }))
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(all.slice(offset, offset + 1000)) })
+  })
+  await page.goto('/products?account=legacy')
+  await expect(page.getByPlaceholder('ابحث باسم المنتج أو SKU...')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('status', { name: 'جارٍ تحميل المنتجات' })).toHaveCount(0)
+  await page.getByPlaceholder('ابحث باسم المنتج أو SKU...').fill('CAT-1743')
+  await expect(page.getByText('منتج الفحص 1743', { exact: true })).toBeVisible()
+  expect(offsets).toEqual([0, 1000])
+  expect(unusedOperations).toBe(0)
+})
+
+test('products stop waiting for a stalled supporting query and allow a successful retry', async ({ page }) => {
+  test.setTimeout(45_000)
+  let stalled = true
+  await page.route('**/rest/v1/product_platform_prices?*', async route => {
+    if (stalled) return // deliberately unresolved transport
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  })
+  await page.goto('/products?account=legacy')
+  await expect(page.getByRole('heading', { name: 'تعذّر تحميل المنتجات', exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('status', { name: 'جارٍ تحميل المنتجات' })).toHaveCount(0)
+  stalled = false
+  await page.getByRole('button', { name: 'إعادة المحاولة', exact: true }).click()
+  await expect(page.getByPlaceholder('ابحث باسم المنتج أو SKU...')).toBeVisible({ timeout: 15000 })
+})
+
 test('phase-one dashboard renders the multi-channel operating summary', async ({ page }) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

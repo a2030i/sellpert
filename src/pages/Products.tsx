@@ -1,9 +1,10 @@
 import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { PRODUCT_SAFE_COLUMNS } from '../lib/supabase'
 import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
-import { fetchAll, fetchAllStrict } from '../lib/db'
+import { fetchAll } from '../lib/db'
+import { loadProductCatalog, type TrendyolInventoryRow, type TrendyolListingRow } from '../lib/productCatalogLoad'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
@@ -21,8 +22,6 @@ import { categoryCommission, normalizeFeeCategory, type FeeCategory } from '../l
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
 
-type TrendyolInventoryRow = { marketplace_account_id:string; sku: string; partner_sku: string | null; quantity: number }
-type TrendyolListingRow = { provider_barcode?:string|null; provider_product_id?:string|null; marketplace_account_id:string; product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null; catalog_status: string | null; catalog_error: string | null }
 type QualityFilter = 'all' | 'complete' | 'needs_content' | 'missing_cost' | 'unknown_source'
 
 const LINEAGE_TONE = {
@@ -82,33 +81,36 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const [form, setForm] = useState({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
   const [saving, setSaving] = useState(false)
 
-  // The loader is intentionally keyed by the current merchant.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (merchant) loadData() }, [merchant])
-
-  async function loadData(options: { background?: boolean } = {}) {
+  const merchantCode = merchant?.merchant_code
+  const includeTrendyolOperations = Boolean(singleTrendyol && !singleTrendyol.is_legacy)
+  const activeLoad = useRef<AbortController | null>(null)
+  const loadData = useCallback(async (options: { background?: boolean } = {}) => {
+    activeLoad.current?.abort()
+    const controller = new AbortController()
+    activeLoad.current = controller
     if (!options.background) setLoading(true)
     setLoadError('')
     try {
-      const [productRows, priceRows, rateRows, inventoryRows, listingRows, uploadRows, mappingRows] = await Promise.all([
-        fetchAllStrict<Product>((f,t)=>supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code',merchant!.merchant_code).order('created_at',{ascending:false}).order('id').range(f,t)),
-        fetchAllStrict<ProductPlatformPrice>((f,t)=>supabase.from('product_platform_prices').select('*').eq('merchant_code',merchant!.merchant_code).order('id').range(f,t)),
-        fetchAllStrict<FeeCategory>((f,t)=>supabase.from('platform_fee_categories').select('platform,category_key,commission_rate,commission_fbn_fba,min_fee_sar').order('platform').order('category_key').range(f,t)),
-        fetchAllStrict<TrendyolInventoryRow>((f,t)=>supabase.from('inventory').select('marketplace_account_id,sku,partner_sku,quantity').eq('merchant_code',merchant!.merchant_code).eq('platform','trendyol').eq('is_active',true).order('id').range(f,t)),
-        fetchAllStrict<TrendyolListingRow>((f,t)=>supabase.from('product_platform_listings').select('provider_barcode,provider_product_id,marketplace_account_id,product_id,delivery_status,delivery_error,external_batch_id,catalog_status,catalog_error').eq('merchant_code',merchant!.merchant_code).eq('platform','trendyol').order('id').range(f,t)),
-        fetchAllStrict<LineageUpload>((f,t)=>supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code',merchant!.merchant_code).order('uploaded_at',{ascending:false}).order('id').range(f,t)),
-        fetchAllStrict<CatalogChannelMapping>((f,t)=>supabase.from('product_channel_mappings').select('product_id,platform,marketplace_account_id,identifier_value,source_sku,source_barcode,match_status').eq('merchant_code',merchant!.merchant_code).eq('match_status','linked').order('id').range(f,t)),
-      ])
+      if (!merchantCode) throw new Error('لم يتم تحديد مساحة العمل. أعد فتح الصفحة.')
+      const { productRows, priceRows, rateRows, inventoryRows, listingRows, uploadRows, mappingRows } =
+        await loadProductCatalog(supabase, merchantCode, includeTrendyolOperations, controller.signal)
+      if (controller.signal.aborted || activeLoad.current !== controller) return
       setProducts(productRows);setPrices(priceRows);setFeeCategories(rateRows)
       setTrendyolInventory(inventoryRows);setTrendyolListings(listingRows);setMappings(mappingRows)
       setSourceUploads(new Map(uploadRows.map(upload => [upload.id, upload])))
     } catch (error) {
+      if (controller.signal.aborted || activeLoad.current !== controller) return
       console.error('load products', error)
       setLoadError(userErrorMessage(error, 'تعذّر تحميل المنتجات الآن.'))
     } finally {
-      if (!options.background) setLoading(false)
+      if (activeLoad.current === controller) setLoading(false)
     }
-  }
+  }, [merchantCode, supabase, includeTrendyolOperations])
+
+  useEffect(() => {
+    void loadData()
+    return () => { activeLoad.current?.abort(); activeLoad.current = null }
+  }, [loadData])
 
   function openProduct(productId: string) {
     window.history.pushState(null, '', `/product-detail?id=${productId}`)
