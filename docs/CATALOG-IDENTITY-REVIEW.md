@@ -5,8 +5,10 @@ product appears once when several selected accounts map to it. Products with no
 mapping remain visible only in the legacy/unassigned scope, preserving manual
 product creation and the tenant-wide mapping picker. The picker remains global
 within the authorized merchant so a source can be linked to an existing variant.
-Products uses the named tenant FK to fetch account memberships with its safe
-columns, then filters the complete paginated snapshot before computing counts.
+Products uses the invoker-rights `product_rows_by_account` RPC, which aggregates
+membership once and selects the requested scope before safe-column projection
+and pagination. It downloads only the selected scope, not the whole merchant
+catalog plus a correlated membership subquery for every product.
 The catalog RPC applies the equivalent filter before its statistics/pagination.
 Physical availability is calculated only for the selected page, after its counts
 and limit. A variant without any reviewed pool remains unknown without scanning
@@ -15,6 +17,16 @@ The explicit unassigned flag also preserves manual products before a merchant
 connects any selling account. The original RPC signature remains for old clients;
 the new browser falls back only for a missing signature during staggered rollout,
 never for authorization or query failures.
+
+The product load retains its 20-second whole-load deadline and rejects incomplete
+datasets. On the six product/supporting tables, the tenant policies evaluate
+actor-wide access and accessible merchant codes as statement initplans. This is
+the same predicate as `security.can_access_merchant(code)`; the mapping permission
+predicate also retains both tenant access and the existing products permission.
+MFA, restrictive permission policies, roles, grants and write checks remain.
+Future changes to the shared identity helper must keep these policy expressions
+equivalent. The migration rejects unexpected existing policy definitions.
+Release the new RPC before relying on the updated Products browser query.
 
 The server product-ingestion RPC retains the existing merchant advisory lock and
 exact account/SKU idempotency. Existing reviewed mappings remain authoritative.
@@ -77,5 +89,8 @@ and unchanged orders, fees, stock facts, costs and prices on an isolated databas
 Existing account/catalog tests cover distinct variants, repeated provider order
 IDs, tenant/MFA boundaries, physical stock pools and immutable recipe costs.
 Frontend tests cover pagination and scope changes on desktop/mobile.
+`product_rows_account_read.test.sql` checks more than 1,000 scoped products,
+multi-account deduplication, manual/legacy rows, cross-tenant reads/writes and
+employee permission/active-state boundaries through the invoker RPC.
 Production resynchronization acceptance needs a before/after count around a normal
 read-only provider synchronization; never run provider writes as a test.

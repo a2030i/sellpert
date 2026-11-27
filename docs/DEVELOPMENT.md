@@ -93,8 +93,9 @@ Products load a complete paginated snapshot with a 20-second deadline for the
 whole request group, cancel superseded/unmounted requests, and expose retry on
 failure instead of accepting partial rows. Catalog preparation reads for Trendyol
 (inventory, listings and mappings) run only for a single non-legacy Trendyol
-account; they are unused in the other scope states. The complete product snapshot includes account memberships; the displayed list
-and its counts are filtered to the selected accounts. Unmapped manual products
+account; they are unused in the other scope states. The product snapshot uses
+`product_rows_by_account` to filter membership on the server before paging.
+The displayed list and its counts use the complete selected scope. Unmapped manual products
 remain in the legacy/unassigned scope. See [catalog identity review](CATALOG-IDENTITY-REVIEW.md).
 `productCatalogLoad.test.ts` covers pagination, cancellation and incomplete loads;
 the Products cases in `phase-one-merchant.spec.ts` cover completed lists and retry.
