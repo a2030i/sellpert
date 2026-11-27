@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260816202949
+-- Original remote name: omniful_unified_merchant_portal
+-- Original recorded SQL SHA-256: 0337506968fb8085bd3b0b73a36f188555bb3f046a8a779f9ee92289d192c26b
+-- Reconstructed final schema mapping:
+--   20260816213000_omniful_unified_merchant_portal.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

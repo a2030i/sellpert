@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802230707
+-- Original remote name: guard_privileged_rpcs
+-- Original recorded SQL SHA-256: 4e4acc45f908ab24254ae62eddaf2d439048ff3262faf39ed2da54ad462eb0ff
+-- Reconstructed final schema mapping:
+--   20260803193000_guard_privileged_rpcs.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

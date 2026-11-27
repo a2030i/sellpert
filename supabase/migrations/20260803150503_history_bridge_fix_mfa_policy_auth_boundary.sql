@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803150503
+-- Original remote name: fix_mfa_policy_auth_boundary
+-- Original recorded SQL SHA-256: c8da8d2e8cd7d9132e21a6180c1de2f940155ed375aa91481d427524e13079d6
+-- Reconstructed final schema mapping:
+--   20260803150324_fix_mfa_policy_auth_boundary.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

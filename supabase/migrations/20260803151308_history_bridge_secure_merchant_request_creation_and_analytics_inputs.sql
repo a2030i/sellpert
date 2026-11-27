@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803151308
+-- Original remote name: secure_merchant_request_creation_and_analytics_inputs
+-- Original recorded SQL SHA-256: 0c7737558ac820c28ea48aecdd59a25e0b8326a687138ac04ba6a53b69653e90
+-- Reconstructed final schema mapping:
+--   20260803151143_secure_merchant_request_creation_and_analytics_inputs.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

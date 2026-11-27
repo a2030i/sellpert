@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260505100846
+-- Original remote name: upload_traceability_and_delete
+-- Original recorded SQL SHA-256: d47e2212726138c45b2c2e9bba73b2ba1cb883cc6750160264022e49163f5cb5
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

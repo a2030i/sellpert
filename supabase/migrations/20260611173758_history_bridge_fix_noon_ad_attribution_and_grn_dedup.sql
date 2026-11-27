@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611173758
+-- Original remote name: fix_noon_ad_attribution_and_grn_dedup
+-- Original recorded SQL SHA-256: e5564802fe1e2b3adf4478a1f4d405460a7da542dc584758c01efcca0fe594c9
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

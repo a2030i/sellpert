@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803085636
+-- Original remote name: require_sufficient_health_coverage
+-- Original recorded SQL SHA-256: 0fe1e54b98b29b318b3ed53647c6eaaac52d5a35ec752d50bbb0a016080c8df5
+-- Reconstructed final schema mapping:
+--   20260803272000_require_sufficient_health_coverage.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804213922
+-- Original remote name: add_bank_statement_reconciliation
+-- Original recorded SQL SHA-256: 878f5542a971c883fca1edacdd002974a413fc7b8687827d7193d7e1493de293
+-- Reconstructed final schema mapping:
+--   20260804213202_add_bank_statement_reconciliation.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

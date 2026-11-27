@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803123024
+-- Original remote name: expose_safe_sync_freshness_metric
+-- Original recorded SQL SHA-256: 80403476f1422f0d237a4837fb1d92c65290a9fcafc06b0567331b450505a3ec
+-- Reconstructed final schema mapping:
+--   20260803154700_expose_safe_sync_freshness_metric.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

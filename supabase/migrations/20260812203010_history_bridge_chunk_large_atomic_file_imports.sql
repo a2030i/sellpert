@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260812203010
+-- Original remote name: chunk_large_atomic_file_imports
+-- Original recorded SQL SHA-256: 520e61276c5746c391759d474485cb8e6417db7c53d330c2baee9f5fbadead64
+-- Reconstructed final schema mapping:
+--   20260812202758_chunk_large_atomic_file_imports.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

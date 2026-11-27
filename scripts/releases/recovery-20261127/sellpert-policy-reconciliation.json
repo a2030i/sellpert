@@ -1,0 +1,441 @@
+{
+  "scope": "75 shared policy predicate hash differences; metadata-only production audit, no production writes",
+  "changed_shared_policy_count": 75,
+  "effective_behavior_differences": 5,
+  "equivalent_accepted_rows": 70,
+  "classification_counts": {
+    "equivalent_admin_redundancy": 24,
+    "equivalent_row_acceptance": 37,
+    "effective_behavior_difference": 5,
+    "equivalent_wrapper": 2,
+    "equivalent_redundant_union": 2,
+    "equivalent_after_restrictive_intersection": 5
+  },
+  "policies": [
+    {
+      "key": "public.account_transactions.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.account_transactions.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.account_transactions.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.ad_metrics.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.ad_metrics.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.ad_metrics.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.amazon_daily_sales.sellpert_insert_access",
+      "classification": "effective_behavior_difference",
+      "reason": "Production additionally permits active admin/super_admin across merchants; expected own-code clause does not. Tenant/MFA/action gates remain present. Preserve live behavior pending intentional compatibility review, not automatic revocation."
+    },
+    {
+      "key": "public.amazon_daily_sales.sellpert_select_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.amazon_daily_sales.sellpert_update_access",
+      "classification": "effective_behavior_difference",
+      "reason": "Production additionally permits active admin/super_admin across merchants; expected own-code clause does not. Tenant/MFA/action gates remain present. Preserve live behavior pending intentional compatibility review, not automatic revocation."
+    },
+    {
+      "key": "public.amazon_daily_sales.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.audit_log.sellpert_select_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.audit_log.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.budget_alerts.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.entry_sessions.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.goods_received.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.goods_received.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.goods_received.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.import_diagnostics.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.import_diagnostics.sellpert_select_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.import_diagnostics.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.import_diagnostics.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.inbound_shipment_items.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.inbound_shipment_items.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.inbound_shipment_items.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.inbound_shipments.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.inbound_shipments.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.inbound_shipments.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.inventory.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.marketplace_action_logs.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.merchant_account_links.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.merchant_notes.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.merchant_payout_schedule.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.merchant_payout_schedule.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.merchant_payout_schedule.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.merchant_requests.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.merchant_weekly_briefs.merchant_weekly_briefs_insert",
+      "classification": "equivalent_wrapper",
+      "reason": "public.current_merchant_code is a thin SELECT security.current_merchant_code wrapper; private implementation matches."
+    },
+    {
+      "key": "public.merchant_weekly_briefs.merchant_weekly_briefs_update",
+      "classification": "equivalent_wrapper",
+      "reason": "public.current_merchant_code is a thin SELECT security.current_merchant_code wrapper; private implementation matches."
+    },
+    {
+      "key": "public.merchants.sellpert_delete_access",
+      "classification": "effective_behavior_difference",
+      "reason": "Production is_admin OR permits additional target roles, whereas expected permits merchant rows or non-self staff rows. MFA remains. Existing merchant UI filters role=merchant, so this broader capability is not needed by that visible delete flow; not grounds for automatic live revocation."
+    },
+    {
+      "key": "public.merchants.sellpert_select_access",
+      "classification": "equivalent_redundant_union",
+      "reason": "Expected additional own-code/permission/self-staff clauses are subsumed by production identity/can_access/admin/permission union; active member helper and constrained five-role set inspected."
+    },
+    {
+      "key": "public.merchants.sellpert_update_access",
+      "classification": "equivalent_redundant_union",
+      "reason": "Expected additional role-limited edit_merchants/create_staff clauses are subsets of production unrestricted permission clauses."
+    },
+    {
+      "key": "public.notifications.sellpert_select_access",
+      "classification": "equivalent_after_restrictive_intersection",
+      "reason": "Expected permissive predicate exactly matches shared restrictive SELECT predicate; extra production OR clauses cannot broaden effective rows."
+    },
+    {
+      "key": "public.notifications.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.nps_responses.sellpert_select_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.nps_responses.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.order_items.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.order_packages.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.orders.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.orders.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.orders.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.performance_data.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.performance_data.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.platform_credentials.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.platform_deals.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.platform_file_uploads.sellpert_delete_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.platform_file_uploads.sellpert_insert_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.platform_file_uploads.sellpert_update_access",
+      "classification": "equivalent_admin_redundancy",
+      "reason": "Added is_staff/is_admin OR branch is subsumed by existing nonempty platform permission checks; matching private helper hashes confirm admin/super_admin semantics."
+    },
+    {
+      "key": "public.platform_file_uploads.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.price_change_log.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.product_performance_snapshots.sellpert_insert_access",
+      "classification": "effective_behavior_difference",
+      "reason": "Production additionally permits active admin/super_admin across merchants; expected own-code clause does not. Tenant/MFA/action gates remain present. Preserve live behavior pending intentional compatibility review, not automatic revocation."
+    },
+    {
+      "key": "public.product_performance_snapshots.sellpert_update_access",
+      "classification": "effective_behavior_difference",
+      "reason": "Production additionally permits active admin/super_admin across merchants; expected own-code clause does not. Tenant/MFA/action gates remain present. Preserve live behavior pending intentional compatibility review, not automatic revocation."
+    },
+    {
+      "key": "public.product_performance_snapshots.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.product_platform_listings.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.product_platform_prices.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.products.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.returns.sellpert_insert_access",
+      "classification": "equivalent_after_restrictive_intersection",
+      "reason": "SELECT restrictive orders permission implies expected permissive orders/statement/dashboard union. Writes: extra caller-own-code clause is subsumed by current code for active merchants, owner code for authorized employees, or upload permission for platform staff; admin OR is redundant."
+    },
+    {
+      "key": "public.returns.sellpert_select_access",
+      "classification": "equivalent_after_restrictive_intersection",
+      "reason": "SELECT restrictive orders permission implies expected permissive orders/statement/dashboard union. Writes: extra caller-own-code clause is subsumed by current code for active merchants, owner code for authorized employees, or upload permission for platform staff; admin OR is redundant."
+    },
+    {
+      "key": "public.returns.sellpert_update_access",
+      "classification": "equivalent_after_restrictive_intersection",
+      "reason": "SELECT restrictive orders permission implies expected permissive orders/statement/dashboard union. Writes: extra caller-own-code clause is subsumed by current code for active merchants, owner code for authorized employees, or upload permission for platform staff; admin OR is redundant."
+    },
+    {
+      "key": "public.returns.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.sales_targets.sellpert_select_access",
+      "classification": "equivalent_after_restrictive_intersection",
+      "reason": "Expected permissive predicate exactly matches shared restrictive SELECT predicate; extra production OR clauses cannot broaden effective rows."
+    },
+    {
+      "key": "public.sales_targets.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.salla_connections.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.sync_logs.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.sync_queue.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.sync_requests.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    },
+    {
+      "key": "public.webhook_events.tenant_boundary",
+      "classification": "equivalent_row_acceptance",
+      "reason": "Same correlated merchant_code argument; scalar SELECT wrapper versus direct call. can_access_merchant implementations have equivalent accepted rows (NULL vs false possible for NULL input, both deny)."
+    }
+  ],
+  "limits": [
+    "Policy row acceptance does not prove trigger/constraint/financial RPC equivalence. Unmatched policy names require separate effective-union review, not classified by shared hash count.",
+    "No automatic revocation of live admin capabilities, no mass policy replacement, no migration history repair recommended."
+  ],
+  "views": {
+    "names": [
+      "ad_net_summary",
+      "inventory_health",
+      "inventory_reorder_recommendations",
+      "monthly_cashflow",
+      "platform_fee_profile",
+      "platform_return_profile",
+      "product_profitability"
+    ],
+    "grant_difference": "production authenticated INSERT/UPDATE/DELETE grants; expected SELECT only",
+    "verified_updatability": "all seven production views report pg_relation_is_updatable(...,true/false)=0",
+    "proposal": "Separately reviewed REVOKE INSERT, UPDATE, DELETE defense in depth; current non-updatable definitions mean not a proven live write path. Preserve existing SELECT and server privileges."
+  },
+  "historical_final_effect_evidence": [
+    {
+      "migration": "20260803294500_restore_linked_workspace_rls",
+      "evidence": "37 differing common tenant policy expressions accept same rows; absence of account_closure tenant policy is harmless under existing false restrictive policy/revoked grants, but do not claim byte parity."
+    },
+    {
+      "migration": "20260803294300_restore_linked_workspace_access",
+      "evidence": "Shared final helper acceptance preserved through production helper composition; active user, immutable link, active target and employee owner checks equivalent."
+    },
+    {
+      "migration": "20260803294700_restore_private_rpc_boundary",
+      "evidence": "current_merchant_code wrapper aspect equivalent; whole migration NOT verified here (bulk cost wrapper missing per other review)."
+    },
+    {
+      "migration": "20260803294800_enable_scoped_sales_targets",
+      "evidence": "Required merchant sales target INSERT/UPDATE permissive policies absent production. Existing production admin-only policies do not reproduce merchant goal-write behavior."
+    },
+    {
+      "migration": "20260803262000_consolidate_authenticated_rls_policies",
+      "evidence": "Not full final-effect parity: naming unions differ and genuine extra production write policies exist. Do not mark applied merely from 70 equivalent predicates."
+    }
+  ],
+  "narrow_boundary_draft": {
+    "path": "/tmp/sellpert-policy-proposal/supabase/migrations/20261126092428_enforce_remaining_table_boundaries.sql",
+    "local_applied": true,
+    "production_applied": false,
+    "mfa_tables": 9,
+    "tenant_tables": 2,
+    "grant_and_permissive_policy_catalog_unchanged": true,
+    "sql_tests": "47/47 passed after isolated application; /tmp/sellpert-local-sql-results.json",
+    "prerequisite": "Omniful migrations and 20260828083527_pricing_requests present; production currently lacks pricing tables."
+  }
+}

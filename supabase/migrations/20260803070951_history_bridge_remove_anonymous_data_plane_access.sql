@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803070951
+-- Original remote name: remove_anonymous_data_plane_access
+-- Original recorded SQL SHA-256: d7632a8aceabc667f5ada99c050461116c849bae87bd1e616239a07e38de2190
+-- Reconstructed final schema mapping:
+--   20260803261000_remove_anonymous_data_plane_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

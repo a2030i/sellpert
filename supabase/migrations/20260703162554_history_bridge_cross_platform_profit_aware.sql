@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260703162554
+-- Original remote name: cross_platform_profit_aware
+-- Original recorded SQL SHA-256: 022b3180dd3d064bb1b37b723808930474c1c4f25133b6475dfe04a77a4d8b50
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

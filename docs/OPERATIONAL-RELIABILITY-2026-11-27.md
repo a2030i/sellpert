@@ -1,7 +1,9 @@
 # Operational reliability and account expansion — 2026-11-27
 
-Status: implemented in the feature branch; **not deployed and not approved for
-production**. Base reviewed: `e879bcb45c30405de70c2a93de9be51ea59d48c2`.
+Status: implemented in the feature branch; **owner approved deployment and
+history reconciliation; not deployed**. Production prerequisites remain pending
+in [the recovery record](PRODUCTION-HISTORY-RECOVERY-2026-11-27.md).
+Base reviewed: `e879bcb45c30405de70c2a93de9be51ea59d48c2`.
 This record covers the findings transcribed in the conversation. The named full
 HTML admin/merchant reports were not supplied as readable repository artifacts;
 unquoted findings in those reports remain **NEEDS_CONFIRMATION**.
@@ -107,15 +109,16 @@ provider reconciliation or production schema equivalence is claimed.
   require controlled live acceptance after release authorization. No live Amazon
   writes are permitted as a test.
 
-## Production release proposal — approval still required
+## Authorized production release — prerequisites still required
 
 The manifest `OPERATIONAL-RELIABILITY-MANIFEST.json` enumerates this change's
-forward SQL files and SHA-256 digests. It does not authorize applying them.
+forward SQL files and SHA-256 digests. Authorization was subsequently supplied
+by the owner in the conversation (deployment, followed by history reconciliation).
 Follow `PRODUCTION_RELEASES.md`; historical Amazon-only exceptions do not cover
 this change. Existing production migration-history drift is unresolved and the
 ordinary parity guard must remain active. Do not bulk-repair the ledger or mark
-old files applied. If parity fails, stop and obtain a separately reviewed,
-explicitly authorized reconciliation/release decision.
+old files applied merely from this inventory. The separately authorized recovery
+must establish each version's final effects and preserve the original ledger.
 
 This is a coordinated schema/handler/browser change. The new handlers depend on
 new account columns and are **not phase-one compatible with the old schema**.

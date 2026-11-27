@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260813183123
+-- Original remote name: add_sellpert_contract_commission
+-- Original recorded SQL SHA-256: 3a357e6dc4394a6ef61cbe116f28bf323c878457149bc14c09b369e3341bc700
+-- Reconstructed final schema mapping:
+--   20260813214000_add_sellpert_contract_commission.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

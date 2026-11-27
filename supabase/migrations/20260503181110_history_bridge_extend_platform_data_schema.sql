@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503181110
+-- Original remote name: extend_platform_data_schema
+-- Original recorded SQL SHA-256: a6aadd7481036d3b523b5df413e6c97127f05ed4bb846a8ff0dc71de196dc9c6
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

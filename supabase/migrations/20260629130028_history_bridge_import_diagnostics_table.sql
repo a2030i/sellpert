@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260629130028
+-- Original remote name: import_diagnostics_table
+-- Original recorded SQL SHA-256: 95b04c46bc76431a04f23331104c164cce9ed2c850ca1063c070c6723263caff
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

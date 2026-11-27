@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260629123606
+-- Original remote name: delete_upload_includes_amazon_daily_sales
+-- Original recorded SQL SHA-256: 504acf9dae7c0fa11fcd2c9b812ce930f06f8474cf497d555149d132b28505ea
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

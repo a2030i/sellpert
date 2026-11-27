@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260423070030
+-- Original remote name: create_platform_credentials_table
+-- Original recorded SQL SHA-256: 3ab4a6f016eb73902a5083b37c126f59496ccddea779c9bb3d0fc0a041309641
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

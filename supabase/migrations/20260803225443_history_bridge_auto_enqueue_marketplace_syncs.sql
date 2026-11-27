@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803225443
+-- Original remote name: auto_enqueue_marketplace_syncs
+-- Original recorded SQL SHA-256: 0827fe1e70cd22037ae824f3386e6784d297c78e6348e96e2c4383e20dee32f2
+-- Reconstructed final schema mapping:
+--   20260804015000_auto_enqueue_marketplace_syncs.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

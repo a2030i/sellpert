@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422072236
+-- Original remote name: comprehensive_fee_system
+-- Original recorded SQL SHA-256: d72c86da8bba40339b894df624464b0eb050e865ad4fbc83e2d0204c4e07dac3
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

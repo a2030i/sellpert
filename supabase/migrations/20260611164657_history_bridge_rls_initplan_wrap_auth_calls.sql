@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611164657
+-- Original remote name: rls_initplan_wrap_auth_calls
+-- Original recorded SQL SHA-256: c6e6f4a5cec92592a0faec9831755e9cb6c6368232ef2d496fbec16c98c75a52
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

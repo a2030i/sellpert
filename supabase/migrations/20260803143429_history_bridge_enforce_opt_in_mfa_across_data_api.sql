@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803143429
+-- Original remote name: enforce_opt_in_mfa_across_data_api
+-- Original recorded SQL SHA-256: 9020261f72ef6438b44112751181de752b5b26fc013eb6ed857f9e5698ee347c
+-- Reconstructed final schema mapping:
+--   20260803143358_enforce_opt_in_mfa_across_data_api.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

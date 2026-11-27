@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804225217
+-- Original remote name: normalize_bank_reconciliation_tenant_boundaries
+-- Original recorded SQL SHA-256: 02c1fea84bc9122f42d290085888bd10010d8180ac9081dbf495dc508abc224f
+-- Reconstructed final schema mapping:
+--   20260804225200_normalize_bank_reconciliation_tenant_boundaries.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

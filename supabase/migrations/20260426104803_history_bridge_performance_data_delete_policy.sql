@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260426104803
+-- Original remote name: performance_data_delete_policy
+-- Original recorded SQL SHA-256: 815ea49fa16a9cbaba924d9a16ad32bc91724b0ef5eb22afc0c0260655a93cb9
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

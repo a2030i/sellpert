@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803160001
+-- Original remote name: deny_direct_client_incident_access
+-- Original recorded SQL SHA-256: dc089b5cbec8d776e6de65842aae624faa84941afa567df3829fbe10b156b114
+-- Reconstructed final schema mapping:
+--   20260803294100_deny_direct_client_incident_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

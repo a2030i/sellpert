@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260505110139
+-- Original remote name: phase_3_crm_nps_budget_search
+-- Original recorded SQL SHA-256: aca1429efc6a7d5958198b93c19ed93bc4218bf93e5f7b7df939baa72930e636
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

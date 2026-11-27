@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803093009
+-- Original remote name: weekly_operating_cycle
+-- Original recorded SQL SHA-256: 65fb256bc654fc04ec1d653be1546abc470eebbf9e4fd0cd411f68ba5dac0543
+-- Reconstructed final schema mapping:
+--   20260803274000_weekly_operating_cycle.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

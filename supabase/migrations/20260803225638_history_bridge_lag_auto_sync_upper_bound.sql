@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803225638
+-- Original remote name: lag_auto_sync_upper_bound
+-- Original recorded SQL SHA-256: 48cfcefb2a054da69d2b0b80196930363e2d0506aa0c4cfda5e00f5bbfb5cec8
+-- Reconstructed final schema mapping:
+--   20260804020500_lag_auto_sync_upper_bound.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

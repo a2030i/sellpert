@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503184813
+-- Original remote name: fix_derive_platform_prices
+-- Original recorded SQL SHA-256: 27bdf1d9ee61ec05c92d5e79b80bea9c7a928dcc1fb021a8a3f5a4b67e61150f
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

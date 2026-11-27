@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803132107
+-- Original remote name: retire_paid_subscription_workflows
+-- Original recorded SQL SHA-256: 4ea8ff8ba193a27b9c9ba1607f7ef361be932b1a608e0d4a878f270b6702d61f
+-- Reconstructed final schema mapping:
+--   20260803290000_retire_paid_subscription_workflows.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

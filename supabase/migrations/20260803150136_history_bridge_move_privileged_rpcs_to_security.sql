@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803150136
+-- Original remote name: move_privileged_rpcs_to_security
+-- Original recorded SQL SHA-256: 1ea1af659ea7cc774ba8852c46abfa0326b9fda384ae73fd9474d761c81c8cf5
+-- Reconstructed final schema mapping:
+--   20260803145656_move_privileged_rpcs_to_security.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

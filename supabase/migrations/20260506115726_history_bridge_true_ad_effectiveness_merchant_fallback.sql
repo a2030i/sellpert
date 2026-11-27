@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260506115726
+-- Original remote name: true_ad_effectiveness_merchant_fallback
+-- Original recorded SQL SHA-256: e6ae2ed2321e6e1b069f9de3ded4d12d0cf1f7050b2b1f71e0fd34ba427b7020
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

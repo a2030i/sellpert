@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802235559
+-- Original remote name: optimize_rls_access_context
+-- Original recorded SQL SHA-256: d73da2112729fd6fbe2e3557ec5d389e1ec0b7e84baf09ceeb315993e9cff22a
+-- Reconstructed final schema mapping:
+--   20260803233000_optimize_rls_access_context.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803000347
+-- Original remote name: enable_immutable_security_audit_log
+-- Original recorded SQL SHA-256: a5c26976247bd85a55ec3084173db4b0f8cf959b1f7d61c8c5708fdc4a723ab2
+-- Reconstructed final schema mapping:
+--   20260803240000_enable_immutable_security_audit_log.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

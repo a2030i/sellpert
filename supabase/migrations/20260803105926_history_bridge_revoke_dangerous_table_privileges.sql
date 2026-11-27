@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803105926
+-- Original remote name: revoke_dangerous_table_privileges
+-- Original recorded SQL SHA-256: faca86df400735dc480170238f83286af67a3a4012c84a88669989552df14556
+-- Reconstructed final schema mapping:
+--   20260803105830_revoke_dangerous_table_privileges.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

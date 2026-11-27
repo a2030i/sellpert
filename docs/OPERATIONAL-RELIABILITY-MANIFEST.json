@@ -1,6 +1,6 @@
 {
   "base_commit": "e879bcb45c30405de70c2a93de9be51ea59d48c2",
-  "production_authorized": false,
+  "production_authorized": true,
   "migration_count": 19,
   "migrations": [
     {
@@ -79,5 +79,7 @@
       "path": "supabase/migrations/20261127123000_account_bank_settlement_scope.sql",
       "sha256": "06220abeb64e2c9dc5a95802b7f72a40d211aa5b2266674d56b9b0ff31514e26"
     }
-  ]
+  ],
+  "production_applied": false,
+  "history_recovery_manifest": "scripts/releases/recovery-20261127/manifest.json"
 }

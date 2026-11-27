@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611165136
+-- Original remote name: drop_duplicate_orders_unique_index
+-- Original recorded SQL SHA-256: 6273b8719e3d238149ca098516f6705c6adce5b87111bce92ad44935e2bce52a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

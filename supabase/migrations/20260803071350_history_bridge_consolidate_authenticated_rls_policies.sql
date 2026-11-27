@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803071350
+-- Original remote name: consolidate_authenticated_rls_policies
+-- Original recorded SQL SHA-256: 2e3057fee001d47e95521f44655fce115d154a5200230a63eb119ac543e29073
+-- Reconstructed final schema mapping:
+--   20260803262000_consolidate_authenticated_rls_policies.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

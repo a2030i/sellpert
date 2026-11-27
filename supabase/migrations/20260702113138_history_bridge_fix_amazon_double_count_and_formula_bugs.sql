@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260702113138
+-- Original remote name: fix_amazon_double_count_and_formula_bugs
+-- Original recorded SQL SHA-256: 49b3eba09216435df15fe3bf62d5052e61041a8b6cce2b690f53eb1816b624af
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

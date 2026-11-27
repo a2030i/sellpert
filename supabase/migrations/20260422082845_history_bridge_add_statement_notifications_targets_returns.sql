@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422082845
+-- Original remote name: add_statement_notifications_targets_returns
+-- Original recorded SQL SHA-256: b4d7e39c25559e36487619887defce80fb91fb82cec5b231393f95959aaea291
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

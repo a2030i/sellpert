@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803084926
+-- Original remote name: truthful_merchant_health_and_forecast
+-- Original recorded SQL SHA-256: d00bc3b80bd34cb3dc6302f37f2d49b7e6dcfd9971906fd31ad22e96e9bcc1f1
+-- Reconstructed final schema mapping:
+--   20260803270000_truthful_merchant_health_and_forecast.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

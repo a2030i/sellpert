@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260504070653
+-- Original remote name: extend_tasks_ticketing_system
+-- Original recorded SQL SHA-256: ce4b8dc66db9e3172c02f9db7d28190d7d18ba104d0ea1989166e14593bd2a43
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

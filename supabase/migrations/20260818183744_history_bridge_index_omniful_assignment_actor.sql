@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260818183744
+-- Original remote name: index_omniful_assignment_actor
+-- Original recorded SQL SHA-256: 985c2c4639cb048f2b2bf0b15d56974630eb7c717d01d5f632baf21c9a89075a
+-- Reconstructed final schema mapping:
+--   20260818183726_index_omniful_assignment_actor.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

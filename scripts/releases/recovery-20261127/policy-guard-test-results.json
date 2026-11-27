@@ -1,0 +1,6 @@
+{
+  "repeat_keeps_policy_oids_and_definitions": true,
+  "unexpected_policy_state_rejected": true,
+  "failed_transaction_preserves_policy_catalog": true,
+  "production_mutations": false
+}

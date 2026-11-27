@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260426104950
+-- Original remote name: products_merchant_write_policies
+-- Original recorded SQL SHA-256: 2aef619ad4efce802d518af979e7efb7f7cc54a84a5a870cdea1b59ccb7316a9
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

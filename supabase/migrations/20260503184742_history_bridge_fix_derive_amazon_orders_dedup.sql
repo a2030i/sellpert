@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503184742
+-- Original remote name: fix_derive_amazon_orders_dedup
+-- Original recorded SQL SHA-256: 2acb201836eca55decd93aeb58b72543d6337ca916c14e91f7f4760ab79d4da1
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

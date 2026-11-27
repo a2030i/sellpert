@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611034048
+-- Original remote name: drop_public_bucket_listing_policy
+-- Original recorded SQL SHA-256: f6c173f1eab732e171d01ec5f50e786f0f1965e5762865568036f452c4885589
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

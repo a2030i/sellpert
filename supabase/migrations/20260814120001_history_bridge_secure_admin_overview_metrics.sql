@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260814120001
+-- Original remote name: secure_admin_overview_metrics
+-- Original recorded SQL SHA-256: 64c30a05d7ae857d042de5c239f1f50a06904caa1675e9f3d492631bb345378a
+-- Reconstructed final schema mapping:
+--   20260814103000_secure_admin_overview_metrics.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

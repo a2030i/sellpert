@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422093040
+-- Original remote name: financial_system_v1
+-- Original recorded SQL SHA-256: 3cb133fedc7c30485ae828282e1e32423cd18fe7edb7cc762d42f913caf25a39
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

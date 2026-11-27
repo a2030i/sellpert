@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803134711
+-- Original remote name: harden_account_closure_access
+-- Original recorded SQL SHA-256: df7421f1e526059904f0e5bd125b093246187c118b3a75401425253b0f2539fc
+-- Reconstructed final schema mapping:
+--   20260803292000_harden_account_closure_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

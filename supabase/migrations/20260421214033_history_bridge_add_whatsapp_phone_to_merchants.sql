@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260421214033
+-- Original remote name: add_whatsapp_phone_to_merchants
+-- Original recorded SQL SHA-256: a40607f91da4b3b0aa10366c40bcaed61cf2423c2cb87ad7b5859f630a800d7b
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

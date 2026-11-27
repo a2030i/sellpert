@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804233425
+-- Original remote name: purchase_cash_readiness
+-- Original recorded SQL SHA-256: 46249ea3fa74f87675f84cfe100b87d25ed7a6f9c4c31cd62c4b91d514358e1d
+-- Reconstructed final schema mapping:
+--   20260804232625_purchase_cash_readiness.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

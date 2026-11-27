@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802235730
+-- Original remote name: remove_legacy_amazon_rls_policy
+-- Original recorded SQL SHA-256: 5d56b535850e123afc8f299e62ecf93de780c49cb430cd92c76a354a2c282753
+-- Reconstructed final schema mapping:
+--   20260803234000_remove_legacy_amazon_rls_policy.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

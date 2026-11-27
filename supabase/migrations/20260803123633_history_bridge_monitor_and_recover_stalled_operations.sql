@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803123633
+-- Original remote name: monitor_and_recover_stalled_operations
+-- Original recorded SQL SHA-256: df279929ef4d9d8b1ef7abf9da3587b579afd265b3aba2b39c83963f81bec931
+-- Reconstructed final schema mapping:
+--   20260803280000_monitor_and_recover_stalled_operations.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

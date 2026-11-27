@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260629083628
+-- Original remote name: add_upload_fingerprint
+-- Original recorded SQL SHA-256: 55da2f6db3c5bd794f1e9f8eed5cbe7f362f2c7d8ea3760f1b039b46d0395ad2
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

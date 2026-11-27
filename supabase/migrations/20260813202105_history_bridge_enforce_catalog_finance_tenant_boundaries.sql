@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260813202105
+-- Original remote name: enforce_catalog_finance_tenant_boundaries
+-- Original recorded SQL SHA-256: e05374ab3b348970074f30b1373236f838ec3b93ee4f176ab2524f5ef9ec59d9
+-- Reconstructed final schema mapping:
+--   20260813221500_enforce_catalog_finance_tenant_boundaries.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260813200842
+-- Original remote name: protect_new_catalog_finance_tables_with_mfa
+-- Original recorded SQL SHA-256: cd8c69cef4bef98a421c80135859cacfdcb385bed3eab8f658f8f8c603e07710
+-- Reconstructed final schema mapping:
+--   20260813220000_protect_new_catalog_finance_tables_with_mfa.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

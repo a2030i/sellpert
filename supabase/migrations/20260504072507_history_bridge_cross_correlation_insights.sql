@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260504072507
+-- Original remote name: cross_correlation_insights
+-- Original recorded SQL SHA-256: de67c8ad9340f7b966e2610c785ba42f621d76ae1f2650d53fc721a547918d68
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803134548
+-- Original remote name: account_privacy_lifecycle
+-- Original recorded SQL SHA-256: e0d07aea2447d71994046146e83098e2f1da974ce98aa9a9eb7f1fb600565927
+-- Reconstructed final schema mapping:
+--   20260803291000_account_privacy_lifecycle.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

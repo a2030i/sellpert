@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260506102811
+-- Original remote name: merchant_employees_with_scopes
+-- Original recorded SQL SHA-256: 7934fb349bb73f931e3805320878631ebf3e9fd20b167dfede2165e1eb45b266
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

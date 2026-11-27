@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422091721
+-- Original remote name: get_db_health_function
+-- Original recorded SQL SHA-256: 522b1d9073b810fc2def246779123d1c08ca1ae22d13133dc4122832b1cc3328
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

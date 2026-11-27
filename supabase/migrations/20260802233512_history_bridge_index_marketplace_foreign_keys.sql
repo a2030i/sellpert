@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802233512
+-- Original remote name: index_marketplace_foreign_keys
+-- Original recorded SQL SHA-256: 371c84f1a497fa933b8f8e5c59a64d6df702a6837e1152170dcef8ebe2fe261f
+-- Reconstructed final schema mapping:
+--   20260803214500_index_marketplace_foreign_keys.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

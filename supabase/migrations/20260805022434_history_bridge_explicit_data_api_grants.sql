@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260805022434
+-- Original remote name: explicit_data_api_grants
+-- Original recorded SQL SHA-256: 1fe3f8b01a1b538fd5a6b1f7d37e64f71d9beb8dae90d5080d68c21ad7819261
+-- Reconstructed final schema mapping:
+--   20260805020314_explicit_data_api_grants.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

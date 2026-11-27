@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260511070703
+-- Original remote name: cascade_delete_upload_data
+-- Original recorded SQL SHA-256: f10b716d0b3322b8f6b332ba539e0aafdf269be83bc6bcb3417fff3d79b6ac86
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

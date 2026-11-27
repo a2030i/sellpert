@@ -1,0 +1,67 @@
+{
+  "inventory_health": {
+    "classification": "expression equivalent after TRIM/BOTH versus btrim spelling normalization",
+    "normalized_hash_both": "c85925bd89bcae755c82ab289238164b",
+    "latest_definition": "supabase/migrations/20260803269100_restore_operating_analytics_views.sql:19",
+    "live_security_invoker": true,
+    "automatically_updatable_mask": 0,
+    "authenticated_dml_grants_differ": true
+  },
+  "production_only_views": {
+    "names": [
+      "public.brand_performance",
+      "public.buybox_warnings",
+      "public.cross_platform_product_perf",
+      "public.fulfillment_performance",
+      "public.inventory_ageing",
+      "public.inventory_pipeline",
+      "public.merchant_timeline",
+      "public.product_abc_analysis",
+      "public.receiving_accuracy",
+      "public.search_query_insights",
+      "public.sku_lifecycle",
+      "public.supplier_quality_over_time",
+      "public.supply_chain_health",
+      "public.sync_queue_stats",
+      "public.top_failing_skus",
+      "public.true_ad_effectiveness",
+      "public.variant_performance"
+    ],
+    "ordered_migration_name_references": 0,
+    "classification": "baseline omissions supported; no intentional DROP found",
+    "all_live_security_invoker": true,
+    "all_live_anon_select": false,
+    "automatically_updatable_exception": {
+      "name": "public.buybox_warnings",
+      "mask": 28,
+      "source": "products"
+    },
+    "other_16_automatically_updatable_mask": 0
+  },
+  "production_only_routines": {
+    "names": [
+      "public.inventory_turnover(p_merchant_code text, p_days integer)",
+      "public.period_comparison(p_merchant_code text, p_days integer)",
+      "public.restock_recommendations(p_merchant_code text, p_lead_time_days integer)",
+      "public.return_reasons_breakdown(p_merchant_code text)",
+      "public.sales_heatmap(p_merchant_code text, p_days integer)",
+      "public.shipping_analytics(p_merchant_code text)",
+      "public.tasks_summary(p_assigned text)",
+      "public.weekly_digest(p_merchant_code text)"
+    ],
+    "ordered_migration_create_or_drop_references": 0,
+    "hardening_only_references": [
+      "20260803184500_harden_multi_tenant_access.sql:107-110",
+      "20260803193000_guard_privileged_rpcs.sql:98-99"
+    ],
+    "classification": "baseline omissions supported; no intentional DROP found",
+    "all_live_security_invoker": true,
+    "all_live_search_path": "public",
+    "all_live_anon_execute": false,
+    "all_live_authenticated_execute": true,
+    "all_live_dynamic_network_token_predicate": false,
+    "all_live_retired_subscription_name_predicate": false
+  },
+  "impact": "Rebuilt isolated schema lacks analytics queried by reachable Products, Inventory, Marketing, and admin operations/inbound/timeline. Most callers turn missing-object errors into empty data. Do not delete production extras to force parity.",
+  "limits": "Read-only catalog metadata and view expressions only; no production data or raw routine bodies read. Predicate checks are not a full routine semantic audit. No exact reproducible routine definitions exist in ordered migrations."
+}

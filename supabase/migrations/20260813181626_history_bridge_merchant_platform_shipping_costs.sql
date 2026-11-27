@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260813181626
+-- Original remote name: merchant_platform_shipping_costs
+-- Original recorded SQL SHA-256: d1149de9c3a3fe51017bf11a49a151965bd36847e32ca2fd4f0e3ad76df54a62
+-- Reconstructed final schema mapping:
+--   20260813181147_merchant_platform_shipping_costs.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803122528
+-- Original remote name: restore_secured_fee_reference_access
+-- Original recorded SQL SHA-256: 5e41dad0ffa498dbea32a191a2a5747d6a172aa77bc901016dc35f03578e93da
+-- Reconstructed final schema mapping:
+--   20260803153500_restore_secured_fee_reference_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

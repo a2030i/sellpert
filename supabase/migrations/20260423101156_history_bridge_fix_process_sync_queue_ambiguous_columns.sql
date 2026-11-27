@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260423101156
+-- Original remote name: fix_process_sync_queue_ambiguous_columns
+-- Original recorded SQL SHA-256: 57ac5d0b00de1c2b1d8f1e59f12071b2bf460aaa08bbf0d196a67451e504b8a3
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

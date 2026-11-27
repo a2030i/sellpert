@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804171459
+-- Original remote name: harden_pg_net_access
+-- Original recorded SQL SHA-256: 75f151ccab5ac479c3ee94a41053386ff63e2dfdd288449017203df85181292b
+-- Reconstructed final schema mapping:
+--   20260804171343_harden_pg_net_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

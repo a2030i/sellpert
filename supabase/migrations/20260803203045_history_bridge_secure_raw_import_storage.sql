@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803203045
+-- Original remote name: secure_raw_import_storage
+-- Original recorded SQL SHA-256: 9a667aabb81f353f6fd78e3759efa49b80835b25a2a4f12954fa94d240e8fbe7
+-- Reconstructed final schema mapping:
+--   20260803295000_secure_raw_import_storage.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

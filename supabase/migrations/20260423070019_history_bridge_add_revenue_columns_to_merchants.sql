@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260423070019
+-- Original remote name: add_revenue_columns_to_merchants
+-- Original recorded SQL SHA-256: 041e51ebdcd49b2357d93600d06361e919052bf45a9c5d1eab0f6b937c86084a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804204915
+-- Original remote name: add_customer_service_permission
+-- Original recorded SQL SHA-256: e3954818fcb8f005ae12fccb4e644f2801cb7263b5079c902398b36d80e04d29
+-- Reconstructed final schema mapping:
+--   20260804204219_add_customer_service_permission.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

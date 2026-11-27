@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503184801
+-- Original remote name: fix_derive_returns_jsonb
+-- Original recorded SQL SHA-256: 4a02b6f8b20ac765f355a3df67fb28af26bda4c2cfe00899737730ea568aea93
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.
