@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { listSellingAccounts, type SellingAccount } from '../lib/marketplaceAccounts'
 import { sellingAccountDataClient } from '../lib/marketplaceDataScope'
 import DataLoadError from './DataLoadError'
+const UnassignedProductsContext = createContext(false)
+export const useUnassignedProductScope = () => useContext(UnassignedProductsContext)
 const SelectedAccountsContext = createContext<SellingAccount[]>([])
 export const useSelectedSellingAccounts = () => useContext(SelectedAccountsContext)
 const AccountDataContext = createContext(supabase)
@@ -30,7 +32,7 @@ export default function SellingAccountScope({ merchantCode, enabled, children }:
   }, [merchantCode, enabled, reload])
   const ids = useMemo(() => (accounts || []).filter(account => selection === 'all' ? !account.is_legacy
     : selection === 'legacy' ? account.is_legacy : account.id === selection).map(account => account.id), [accounts, selection])
-  const client = useMemo(() => sellingAccountDataClient(supabase, merchantCode, ids), [merchantCode, ids])
+  const client = useMemo(() => sellingAccountDataClient(supabase, merchantCode, ids, selection === 'legacy'), [merchantCode, ids, selection])
   if (!enabled) return children
   if (error) return <DataLoadError onRetry={() => setReload(n => n + 1)} />
   if (!accounts) return <p role="status">جارٍ تحميل حسابات البيع…</p>
@@ -52,6 +54,6 @@ export default function SellingAccountScope({ merchantCode, enabled, children }:
       </label>
       {accounts.some(account => account.is_legacy) ? <span style={{ color: 'var(--text2)', fontSize: 11, maxWidth: 560 }}>البيانات القديمة محفوظة في عرض مستقل حتى تتأكد هوية حسابها؛ لا تُجمع مع الربط الجديد تجنبًا للتكرار.</span> : null}
     </div>
-    {selection ? <SelectedAccountsContext.Provider key={`${merchantCode}:${selection}`} value={(accounts || []).filter(account=>ids.includes(account.id))}><AccountDataContext.Provider value={client}>{children}</AccountDataContext.Provider></SelectedAccountsContext.Provider> : <p role="status" className="merchant-page-state">توجد بيانات قديمة وحسابات بيع محددة الهوية. اختر نطاق التقرير من القائمة أعلاه.</p>}
+    {selection ? <SelectedAccountsContext.Provider key={`${merchantCode}:${selection}`} value={(accounts || []).filter(account=>ids.includes(account.id))}><AccountDataContext.Provider value={client}><UnassignedProductsContext.Provider value={selection === 'legacy'}>{children}</UnassignedProductsContext.Provider></AccountDataContext.Provider></SelectedAccountsContext.Provider> : <p role="status" className="merchant-page-state">توجد بيانات قديمة وحسابات بيع محددة الهوية. اختر نطاق التقرير من القائمة أعلاه.</p>}
   </>
 }

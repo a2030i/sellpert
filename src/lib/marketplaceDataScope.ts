@@ -8,7 +8,7 @@ export const ACCOUNT_FACT_TABLES = new Set([
 const ACCOUNT_VIEWS = new Set(['monthly_cashflow','inventory_health','inventory_reorder_recommendations','platform_fee_profile','platform_return_profile','ad_net_summary'])
 const FACT_RPCS = new Set(['list_order_operating_facts', 'list_return_facts'])
 /** Immutable per-render query client; server tenant authorization remains authoritative. */
-export function sellingAccountDataClient<T extends object>(client: T, merchant: string, accountIds: readonly string[]): T {
+export function sellingAccountDataClient<T extends object>(client: T, merchant: string, accountIds: readonly string[], includeUnassignedProducts = false): T {
   const ids = [...accountIds]
   const filter = (query: any) => query.eq('merchant_code', merchant).in('marketplace_account_id', ids)
   return new Proxy(client, {
@@ -17,7 +17,14 @@ export function sellingAccountDataClient<T extends object>(client: T, merchant: 
         if (name === 'statement_costs') return target.rpc('statement_costs_by_account',{...args,p_account_ids:ids},options)
         if (name === 'revenue_forecast') return target.rpc('revenue_forecast_by_account', {...args,p_account_ids:ids},options)
         if (FACT_RPCS.has(name)) return filter(target.rpc(`${name}_by_account`, args, options))
-        if (name === 'unified_product_catalog') return target.rpc('unified_product_catalog_by_account', { ...args, p_account_ids: ids }, options)
+        if (name === 'unified_product_catalog') return (async () => {
+          const scopedArgs = { ...args, p_account_ids: ids }
+          const result = await target.rpc('unified_product_catalog_by_account', { ...scopedArgs, p_include_unassigned: includeUnassignedProducts }, options)
+          // Frontend/backend release independently. Only a missing new signature
+          // permits the old contract; authorization and query failures never do.
+          return result.error?.code === 'PGRST202'
+            ? target.rpc('unified_product_catalog_by_account', scopedArgs, options) : result
+        })()
         return target.rpc(name, args, options)
       }
       if (property !== 'from') { const v = target[property]; return typeof v === 'function' ? v.bind(target) : v }

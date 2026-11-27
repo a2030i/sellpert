@@ -1,4 +1,4 @@
-import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
+import { useSellingAccountClient, useSelectedSellingAccounts, useUnassignedProductScope } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { PRODUCT_SAFE_COLUMNS } from '../lib/supabase'
 import { useCallback } from 'react'
@@ -83,6 +83,8 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
 
   const merchantCode = merchant?.merchant_code
   const includeTrendyolOperations = Boolean(singleTrendyol && !singleTrendyol.is_legacy)
+  const productAccountKey = selectedAccounts.map(account => account.id).sort().join(',')
+  const includeUnassigned = useUnassignedProductScope()
   const activeLoad = useRef<AbortController | null>(null)
   const loadData = useCallback(async (options: { background?: boolean } = {}) => {
     activeLoad.current?.abort()
@@ -93,7 +95,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     try {
       if (!merchantCode) throw new Error('لم يتم تحديد مساحة العمل. أعد فتح الصفحة.')
       const { productRows, priceRows, rateRows, inventoryRows, listingRows, uploadRows, mappingRows } =
-        await loadProductCatalog(supabase, merchantCode, includeTrendyolOperations, controller.signal)
+        await loadProductCatalog(supabase, merchantCode, includeTrendyolOperations, controller.signal, { accountIds: productAccountKey.split(',').filter(Boolean), includeUnassigned })
       if (controller.signal.aborted || activeLoad.current !== controller) return
       setProducts(productRows);setPrices(priceRows);setFeeCategories(rateRows)
       setTrendyolInventory(inventoryRows);setTrendyolListings(listingRows);setMappings(mappingRows)
@@ -105,7 +107,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     } finally {
       if (activeLoad.current === controller) setLoading(false)
     }
-  }, [merchantCode, supabase, includeTrendyolOperations])
+  }, [merchantCode, supabase, includeTrendyolOperations, productAccountKey, includeUnassigned])
 
   useEffect(() => {
     void loadData()
@@ -421,7 +423,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {/* Header */}
-      <PageHeader title="المنتجات" description={`${products.length} منتج مسجّل — الأسعار محسوبة تلقائياً لكل منصة`}
+      <PageHeader title="المنتجات" description={`${products.length} منتج مسجّل ضمن النطاق المختار — الأسعار محسوبة تلقائياً لكل منصة`}
         action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }} onClick={() => setShowCostImport(true)}>استيراد التكاليف</button>
           <button style={S.addBtn} onClick={() => { setTab('catalog'); setShowAdd(v => !v) }}>{showAdd ? 'إلغاء' : 'إضافة منتج'}</button>

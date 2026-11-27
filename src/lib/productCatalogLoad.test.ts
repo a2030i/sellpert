@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { loadProductCatalog } from './productCatalogLoad'
+import { loadProductCatalog, productsInSelectedScope } from './productCatalogLoad'
 import { ACCOUNT_FACT_TABLES, sellingAccountDataClient } from './marketplaceDataScope'
 
-const rows = Array.from({ length: 1744 }, (_, id) => ({ id: String(id) }))
+const rows = Array.from({ length: 1744 }, (_, id) => ({ id: String(id), product_channel_mappings: [{ marketplace_account_id: 'account-one' }] }))
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status })
 const client = (fetch: typeof globalThis.fetch) => createClient('https://catalog.example.test', 'test-key', {
   auth: { persistSession: false, autoRefreshToken: false }, global: { fetch },
@@ -12,13 +12,22 @@ const client = (fetch: typeof globalThis.fetch) => createClient('https://catalog
 afterEach(() => vi.useRealTimers())
 
 describe('complete product catalog loading', () => {
+  it('counts each canonical product once and keeps legacy and connected scopes separate', () => {
+    const make = (id: string, accounts: string[]) => ({ id, product_channel_mappings: accounts.map(marketplace_account_id => ({ marketplace_account_id })) })
+    const records = [make('old',['legacy']),make('new',['active']),make('shared',['active','second']),make('manual',[])]
+    const select = (accountIds: string[], includeUnassigned = false) => productsInSelectedScope(records as Parameters<typeof productsInSelectedScope>[0], { accountIds, includeUnassigned }).map(p => p.id)
+    expect(select(['legacy'],true)).toEqual(['old','manual'])
+    expect(select(['active'])).toEqual(['new','shared'])
+    expect(select(['active','second'])).toEqual(['new','shared'])
+    expect(select([])).toEqual([])
+  })
   it('retains account filters on all supporting facts for a connected Trendyol account', async () => {
     const requests: URL[] = []
     const db = sellingAccountDataClient(client(async input => {
       requests.push(new URL(String(input)))
       return json([])
     }), 'M-TEST', ['account-one'])
-    await loadProductCatalog(db, 'M-TEST', true, new AbortController().signal)
+    await loadProductCatalog(db, 'M-TEST', true, new AbortController().signal, { accountIds: ['account-one'], includeUnassigned: false })
     expect(requests).toHaveLength(7)
     const facts = requests.filter(url => ACCOUNT_FACT_TABLES.has(url.pathname.split('/').pop()!))
     expect(facts).toHaveLength(5)
@@ -33,7 +42,7 @@ describe('complete product catalog loading', () => {
       const from = Number(url.searchParams.get('offset'))
       return json(url.pathname.endsWith('/products') ? rows.slice(from, from + 1000) : [])
     })
-    const result = await loadProductCatalog(db, 'M-TEST', false, new AbortController().signal)
+    const result = await loadProductCatalog(db, 'M-TEST', false, new AbortController().signal, { accountIds: ['account-one'], includeUnassigned: false })
     expect(result.productRows).toHaveLength(1744)
     expect(result.productRows[result.productRows.length - 1]?.id).toBe('1743')
     expect(requests.filter(url => url.pathname.endsWith('/products')).map(url => url.searchParams.get('offset'))).toEqual(['0', '1000'])
@@ -48,7 +57,7 @@ describe('complete product catalog loading', () => {
       return Number(url.searchParams.get('offset')) === 0
         ? json(rows.slice(0, 1000)) : json({ message: 'permission denied', code: '42501' }, 403)
     })
-    await expect(loadProductCatalog(db, 'M-TEST', false, new AbortController().signal)).rejects.toThrow('صلاحية')
+    await expect(loadProductCatalog(db, 'M-TEST', false, new AbortController().signal, { accountIds: ['account-one'], includeUnassigned: false })).rejects.toThrow('صلاحية')
   })
 
   it('bounds the entire paginated load, aborting a slow second page and its sibling', async () => {
@@ -65,7 +74,7 @@ describe('complete product catalog loading', () => {
         init?.signal?.addEventListener('abort', () => { cancelled.push(url.pathname); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
       })
     })
-    const result = loadProductCatalog(db, 'M-TEST', false, new AbortController().signal, 1000)
+    const result = loadProductCatalog(db, 'M-TEST', false, new AbortController().signal, { accountIds: ['account-one'], includeUnassigned: false }, 1000)
     const rejected = expect(result).rejects.toThrow('مهلة')
     await vi.advanceTimersByTimeAsync(1000)
     await rejected
@@ -82,7 +91,7 @@ describe('complete product catalog loading', () => {
         init?.signal?.addEventListener('abort', () => { cancellations++; reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
       })
     })
-    const result = loadProductCatalog(db, 'M-TEST', true, controller.signal)
+    const result = loadProductCatalog(db, 'M-TEST', true, controller.signal, { accountIds: ['account-one'], includeUnassigned: false })
     const rejected = expect(result).rejects.toThrow()
     await vi.waitFor(() => expect(requests).toBe(7))
     controller.abort()

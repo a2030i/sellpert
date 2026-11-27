@@ -108,7 +108,7 @@ test('products finish loading every page in a legacy account and can search beyo
     offsets.push(offset)
     const all = Array.from({ length: 1744 }, (_, index) => ({
       id: `product-${index}`, merchant_code: merchant.merchant_code, name: `منتج الفحص ${index}`,
-      sku: `CAT-${index}`, platform_source: 'manual', images: [], cost_price: 10, target_net_price: 20,
+      sku: `CAT-${index}`, platform_source: 'manual', product_channel_mappings: [{ marketplace_account_id: '00000000-0000-4000-8000-000000000122' }], images: [], cost_price: 10, target_net_price: 20,
     }))
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(all.slice(offset, offset + 1000)) })
   })
@@ -119,6 +119,36 @@ test('products finish loading every page in a legacy account and can search beyo
   await expect(page.getByText('منتج الفحص 1743', { exact: true })).toBeVisible()
   expect(offsets).toEqual([0, 1000])
   expect(unusedOperations).toBe(0)
+})
+
+test('product counts follow legacy, individual and aggregate account scopes without duplicate rows', async ({ page }) => {
+  const oldId = '00000000-0000-4000-8000-000000000122'
+  const activeId = '00000000-0000-4000-8000-000000000123'
+  const secondId = '00000000-0000-4000-8000-000000000124'
+  await page.route('**/rest/v1/marketplace_accounts?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+    { id: oldId, merchant_code: merchant.merchant_code, platform: 'trendyol', label: 'قديم', status: 'disconnected', is_legacy: true },
+    { id: activeId, merchant_code: merchant.merchant_code, platform: 'trendyol', label: 'الأول', status: 'active', is_legacy: false },
+    { id: secondId, merchant_code: merchant.merchant_code, platform: 'amazon', label: 'الثاني', status: 'active', is_legacy: false },
+  ]) }))
+  const product = (id: string, name: string, accounts: string[]) => ({ id, name, sku: id, platform_source: 'manual', images: [], cost_price: 10, target_net_price: 20, product_channel_mappings: accounts.map(marketplace_account_id => ({ marketplace_account_id })) })
+  await page.route('**/rest/v1/products?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+    product('old','منتج قديم',[oldId]), product('new','منتج الربط',[activeId]), product('shared','منتج مشترك',[activeId,secondId]), product('manual','منتج يدوي',[]),
+  ]) }))
+  await page.goto('/products?account=legacy')
+  await expect(page.getByText('منتج قديم', { exact: true })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('منتج يدوي', { exact: true })).toBeVisible()
+  await expect(page.getByText('منتج الربط', { exact: true })).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'نطاق حسابات البيع' }).selectOption(activeId)
+  await expect(page.getByText('منتج الربط', { exact: true })).toBeVisible()
+  await expect(page.getByText('منتج قديم', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('منتج يدوي', { exact: true })).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'نطاق حسابات البيع' }).selectOption('all')
+  await expect(page.getByText('منتج مشترك', { exact: true })).toHaveCount(1)
+  await expect(page.getByText(/2 منتج مسجّل/)).toBeVisible()
+  await page.getByRole('combobox', { name: 'نطاق حسابات البيع' }).selectOption(secondId)
+  await expect(page.getByText('منتج الربط', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('منتج مشترك', { exact: true })).toBeVisible()
+  await expect(page.getByText(/1 منتج مسجّل/)).toBeVisible()
 })
 
 test('products stop waiting for a stalled supporting query and allow a successful retry', async ({ page }) => {

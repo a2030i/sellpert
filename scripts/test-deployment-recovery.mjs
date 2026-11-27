@@ -38,7 +38,7 @@ const merchant = { id: '00000000-0000-4000-8000-000000000121', merchant_code: 'M
 const account = { id: '00000000-0000-4000-8000-000000000122', merchant_code: merchant.merchant_code, platform: 'trendyol', label: 'بيانات قديمة', status: 'disconnected', is_legacy: true }
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 const session = { access_token: `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: merchant.id, role: 'authenticated', exp: 2000000000 })}.fixture`, refresh_token: 'fixture-refresh', expires_in: 3600, expires_at: 2000000000, token_type: 'bearer', user: { id: merchant.id, email: merchant.email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, created_at: '2026-01-01' } }
-const products = Array.from({ length: 1744 }, (_, index) => ({ id: `product-${index}`, merchant_code: merchant.merchant_code, name: `منتج الفحص ${index}`, sku: `CAT-${index}`, platform_source: 'manual', images: [], cost_price: 10, target_net_price: 20 }))
+const products = Array.from({ length: 1744 }, (_, index) => ({ id: `product-${index}`, merchant_code: merchant.merchant_code, name: `منتج الفحص ${index}`, sku: `CAT-${index}`, platform_source: 'manual', product_channel_mappings: [{ marketplace_account_id: '00000000-0000-4000-8000-000000000122' }], images: [], cost_price: 10, target_net_price: 20 }))
 try {
   for (const [name, device] of [['desktop', { viewport: { width: 1440, height: 1000 } }], ['mobile', devices['Pixel 7']]]) {
     activeRoot = oldRoot; missingProducts = 0

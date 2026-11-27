@@ -9,6 +9,18 @@ function fixture() {
   return {client,calls}
 }
 describe('selling-account data boundary', () => {
+  it('retains the old catalog contract during rollout without retrying authorization failures', async () => {
+    for (const code of ['PGRST202', '42501']) {
+      const calls: any[] = []
+      const client = { rpc: async (_name: string, args: any) => { calls.push(args); return calls.length === 1 ? { data:null,error:{code} } : {data:{items:[]},error:null} } }
+      const scoped = sellingAccountDataClient(client, 'workspace-a', [], true)
+      const result = await scoped.rpc('unified_product_catalog', {p_merchant_code:'workspace-a'})
+      expect(calls[0]).toMatchObject({p_account_ids:[],p_include_unassigned:true})
+      expect(calls).toHaveLength(code === 'PGRST202' ? 2 : 1)
+      if (code === 'PGRST202') expect(calls[1]).not.toHaveProperty('p_include_unassigned')
+      else expect(result.error?.code).toBe('42501')
+    }
+  })
   it('captures the account selection so late requests cannot switch tenant or seller', () => {
     const {client,calls}=fixture();const ids=['seller-a']
     const scoped=sellingAccountDataClient(client,'workspace-a',ids)

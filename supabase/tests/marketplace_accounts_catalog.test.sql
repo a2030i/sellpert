@@ -24,9 +24,9 @@ begin
     update public.orders set marketplace_account_id=b where merchant_code='ACCT-QA-A' and marketplace_account_id=a;
     raise exception 'source account was silently reassigned';
   exception when raise_exception then if sqlerrm='source account was silently reassigned' then raise; end if; end;
-  result:=security.upsert_marketplace_products(a,'ACCT-QA-A','[{"sku":"SAME","name":"Red size M","cost_price":10}]');
+  result:=security.upsert_marketplace_products(a,'ACCT-QA-A','[{"sku":"SAME","name":"Red size M","color":"red","size":"M","cost_price":10}]');
   first_product:=(result->0->>'product_id')::uuid;
-  result:=security.upsert_marketplace_products(b,'ACCT-QA-A','[{"sku":"SAME","name":"Blue size L","cost_price":20}]');
+  result:=security.upsert_marketplace_products(b,'ACCT-QA-A','[{"sku":"SAME","name":"Blue size L","color":"blue","size":"L","cost_price":20}]');
   second_product:=(result->0->>'product_id')::uuid;
   if first_product=second_product then raise exception 'same external SKU merged different variants'; end if;
   result:=security.upsert_marketplace_products(a,'ACCT-QA-A','[{"sku":"SAME","name":"Provider changed name","cost_price":0}]');
