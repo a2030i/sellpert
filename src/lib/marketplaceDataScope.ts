@@ -5,7 +5,7 @@ export const ACCOUNT_FACT_TABLES = new Set([
   'amazon_daily_sales', 'marketplace_action_logs', 'inbound_shipments', 'inbound_shipment_items',
   'goods_received', 'platform_deals', 'trendyol_customer_questions', 'trendyol_question_reply_attempts',
 ])
-const ACCOUNT_VIEWS = new Set(['monthly_cashflow','inventory_health','inventory_reorder_recommendations','platform_fee_profile','platform_return_profile','ad_net_summary'])
+const ACCOUNT_VIEWS = new Set(['monthly_cashflow','inventory_health','inventory_ageing','inventory_pipeline','inventory_reorder_recommendations','platform_fee_profile','platform_return_profile','ad_net_summary'])
 const FACT_RPCS = new Set(['list_order_operating_facts', 'list_return_facts'])
 /** Immutable per-render query client; server tenant authorization remains authoritative. */
 export function sellingAccountDataClient<T extends object>(client: T, merchant: string, accountIds: readonly string[], includeUnassignedProducts = false): T {

@@ -39,7 +39,7 @@ begin
             (coalesce(p.qual, '') ilike '%can_access_merchant%'
               and coalesce(p.with_check, '') ilike '%can_access_merchant%')
             or (
-              c.relname in ('products','product_platform_prices','product_platform_listings','inventory','platform_file_uploads','product_channel_mappings')
+              c.relname in ('products','product_platform_prices','product_platform_listings','inventory','platform_file_uploads','product_channel_mappings','ad_metrics')
               and regexp_replace(p.qual,'\s','','g') = optimized_boundary
               and regexp_replace(p.with_check,'\s','','g') = optimized_boundary
             )

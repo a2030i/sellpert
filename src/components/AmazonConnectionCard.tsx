@@ -93,11 +93,15 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         <div className="amazon-connection-copy">
           <strong>Amazon</strong>
           <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
-            ربط مباشر بسوق أمازون السعودية بالريال السعودي. تُحدَّث الطلبات والمعاملات المالية تلقائيًا كل ٣٠ دقيقة تقريبًا. يُسحب سجل آخر ١٢ شهرًا بدءًا من الأحدث، وقد يستغرق السحب الأول عدة ساعات. الأسواق الأخرى غير مشمولة حاليًا.
+            ربط مباشر بسوق أمازون السعودية بالريال السعودي. الأسواق الأخرى غير مشمولة حاليًا.
+            {!status ? loadError ? ' تعذّر التحقق من حالة الربط والمزامنة.' : ' جارٍ التحقق من حالة الربط.'
+              : connected ? ' تُحدَّث طلبات هذا الحساب ومعاملاته المالية تلقائيًا كل 30 دقيقة تقريبًا، ويُسحب سجل آخر 12 شهرًا بدءًا من الأحدث. قد يستغرق السحب الأول عدة ساعات.'
+              : status?.app_configured ? ' بعد ربط الحساب وموافقتك، تبدأ مزامنة الطلبات والمعاملات المالية لآخر 12 شهرًا. لا توجد مزامنة لهذا الحساب قبل الربط.'
+              : ' لم تبدأ المزامنة لهذا الحساب.'}
           </div>
         </div>
         <span className="amazon-connection-status" style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>
-          {busy === 'complete' ? 'جارٍ الربط…' : loadError ? 'تعذر التحقق' : !status ? 'جارٍ التحقق…' : connected ? 'متصل' : 'غير مربوط'}
+          {busy === 'complete' ? 'جارٍ الربط…' : loadError ? 'تعذر التحقق' : !status ? 'جارٍ التحقق…' : connected ? 'متصل' : !status.app_configured ? 'قيد التجهيز' : 'غير مربوط'}
         </span>
       </div>
 
@@ -110,7 +114,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
       </dl> : null}
 
       {loadError ? <div style={{ marginTop: 12 }}><p role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--danger-text)' }}>{loadError}</p><button type="button" onClick={() => void load()} disabled={busy !== null} style={{ ...dangerButton(busy !== null), marginTop: 8, color: 'var(--text)', borderColor: 'var(--border)' }}>إعادة التحقق من الربط</button></div> : null}
-      {status && !status.app_configured && !connected ? <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text2)' }}>الربط المباشر مع أمازون قيد التجهيز وسيتاح قريبًا.</p> : null}
+      {status && !status.app_configured && !connected ? <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text2)' }}>إعداد الربط لدى إدارة سيلبرت غير مكتمل. يظهر زر الربط بعد استكمال الإعدادات.</p> : null}
       {notice ? <p role={notice.type === 'err' ? 'alert' : 'status'} style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 700, color: notice.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{notice.text}</p> : null}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

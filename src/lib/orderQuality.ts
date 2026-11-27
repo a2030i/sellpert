@@ -9,10 +9,10 @@ export function orderFinancialIssue(order: FinancialOrder): string | null {
   const expectedLineTotal = Number(order.unit_price || 0) * Number(order.quantity || 1)
 
   if (fees > total && total > 0) {
-    return 'رسوم المنصة أعلى من إجمالي الطلب في الملف المصدر.'
+    return 'رسوم المنصة أعلى من إجمالي الطلب المسجّل. يلزم التحقق من تعريف المبالغ ومكونات التقرير؛ هذا لا يثبت وجود خطأ.'
   }
   if (total > 0 && expectedLineTotal > 0 && Math.abs(expectedLineTotal - total) > Math.max(1, total * 0.05)) {
-    return 'سعر الوحدة والكمية لا يطابقان إجمالي الطلب في الملف المصدر.'
+    return 'سعر الوحدة والكمية لا يطابقان الإجمالي المسجّل؛ قد توجد خصومات أو ضرائب أو تسويات تحتاج مطابقة المصدر.'
   }
   return null
 }

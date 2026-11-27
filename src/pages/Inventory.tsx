@@ -11,7 +11,8 @@ import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import { userErrorMessage } from '../lib/userError'
 import PurchaseCashReadinessPanel from '../components/PurchaseCashReadinessPanel'
-import { fetchAllStrict as fetchAll } from '../lib/db'
+import { fetchAllStrict as fetchAll, withTimeout } from '../lib/db'
+import { inventoryEvidence } from '../lib/inventoryEvidence'
 import { inventoryDataLineage, inventoryFreshness, type InventoryDataLineage, type InventoryFreshness, type LineageUpload } from '../lib/dataLineage'
 
 const PAGE_SIZE = 25
@@ -454,29 +455,30 @@ function SingleAccountReorderRecommendations({ merchant }: { merchant: Merchant 
   const supabase = useSellingAccountClient()
 
   const [rows, setRows] = useState<ReorderRecommendation[]>([])
-  const [gate,setGate]=useState<'ready'|'stale'|'costs'|'empty'|'loading'|'error'>('loading')
+  const [gate,setGate]=useState<'ready'|'stale'|'costs'|'insufficient'|'empty'|'loading'|'error'>('loading')
   const [reload,setReload]=useState(0)
+  const [coverage,setCoverage]=useState({observed:0,total:0})
   const [tracking, setTracking] = useState<string | null>(null)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
     let alive = true
+    const controller=new AbortController()
     setGate('loading')
-    Promise.all([
-      supabase.from('inventory_reorder_recommendations').select('*').eq('merchant_code', merchant.merchant_code).order('urgency').order('days_of_stock').limit(20),
-      fetchAll<any>((f,t)=>supabase.from('inventory_health').select('data_age_days,cost_price,daily_velocity').eq('merchant_code',merchant.merchant_code).order('id').range(f,t)),
-    ]).then(([recommendations, health]) => {
+    withTimeout(Promise.all([
+      supabase.from('inventory_reorder_recommendations').select('*').eq('merchant_code', merchant.merchant_code).order('urgency').order('days_of_stock').limit(20).abortSignal(controller.signal),
+      fetchAll<any>((f,t)=>supabase.from('inventory_health').select('data_age_days,cost_price,daily_velocity,quantity').eq('merchant_code',merchant.merchant_code).order('id').range(f,t).abortSignal(controller.signal)),
+    ]),20_000).then(([recommendations, health]) => {
       if (!alive) return
       if(recommendations.error)throw recommendations.error
       const nextRows=(recommendations.data||[]) as ReorderRecommendation[]
       const healthRows=health
       setRows(nextRows)
-      if (nextRows.length) setGate('ready')
-      else if (healthRows.some(item => item.data_age_days != null && Number(item.data_age_days) > 2)) setGate('stale')
-      else if (healthRows.some(item => Number(item.daily_velocity) > 0 && Number(item.cost_price) <= 0)) setGate('costs')
-      else setGate('empty')
-    }).catch(()=>{if(alive){setRows([]);setGate('error')}})
-    return () => { alive = false }
+      const evidence=inventoryEvidence(healthRows)
+      setCoverage({observed:evidence.observed,total:evidence.total})
+      setGate(nextRows.length ? 'ready' : evidence.purchaseGate)
+    }).catch(()=>{if(alive){setRows([]);setGate('error')}}).finally(()=>controller.abort())
+    return () => { alive = false;controller.abort() }
   }, [merchant?.merchant_code,supabase,reload])
 
   const totalCost = useMemo(() => rows.reduce((sum, row) => sum + Number(row.estimated_cost || 0), 0), [rows])
@@ -506,16 +508,18 @@ function SingleAccountReorderRecommendations({ merchant }: { merchant: Merchant 
   if(gate==='loading')return <p role="status">جارٍ فحص اكتمال بيانات الشراء…</p>
   if(gate==='error')return <p role="alert">تعذر تحميل توصيات الشراء <button onClick={()=>setReload(n=>n+1)}>إعادة المحاولة</button></p>
   if (!rows.length) {
-    const content = gate === 'stale'
+    const content = gate === 'insufficient'
+      ? ['بيانات البيع غير كافية لتوصية شراء', `تغطية حركة البيع ${coverage.observed} من ${coverage.total} صنف. غياب الحركة لا يعني عدم الحاجة للشراء؛ استكمل بيانات الحساب قبل القرار.`]
+      : gate === 'stale'
       ? ['توصيات الشراء متوقفة مؤقتًا', 'بيانات حركة البيع أقدم من يومين. حدّث الطلبات والمخزون قبل إصدار قرار شراء.']
       : gate === 'costs'
         ? ['التكلفة مطلوبة قبل التوصية', 'أكمل تكاليف المنتجات حتى نحسب كمية الشراء والالتزام النقدي بدقة.']
         : ['لا توجد حاجة شراء عاجلة', 'لا توجد أصناف ببيانات حديثة تقل تغطيتها عن 14 يومًا.']
-    return <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}><span style={{ width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: gate === 'stale' || gate === 'costs' ? 'var(--warning-bg)' : 'var(--success-bg)', color: gate === 'stale' || gate === 'costs' ? 'var(--warning-text)' : 'var(--success-text)' }}><ShieldAlert size={19} /></span><div><strong style={{ fontSize: 13 }}>{content[0]}</strong><p style={{ margin: '4px 0 0', fontSize: 10, color: 'var(--text3)' }}>{content[1]}</p></div></section>
+    return <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}><span style={{ width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: gate !== 'empty' ? 'var(--warning-bg)' : 'var(--success-bg)', color: gate !== 'empty' ? 'var(--warning-text)' : 'var(--success-text)' }}><ShieldAlert size={19} /></span><div><strong style={{ fontSize: 13 }}>{content[0]}</strong><p style={{ margin: '4px 0 0', fontSize: 10, color: 'var(--text3)' }}>{content[1]}</p></div></section>
   }
 
   return <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18 }}>
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 13, flexWrap: 'wrap' }}><div><strong style={{ fontSize: 14 }}>توصيات إعادة الشراء</strong><p style={{ fontSize: 10, color: 'var(--text3)', margin: '4px 0 0' }}>كمية تغطي 30 يومًا، محسوبة فقط من بيانات لا يتجاوز عمرها يومين ومن تكلفة منتج معروفة.</p></div><div style={{ textAlign: 'left' }}><small style={{ display: 'block', fontSize: 9, color: 'var(--text3)' }}>الالتزام النقدي التقديري</small><strong style={{ fontSize: 17 }}>{totalCost.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س</strong></div></div>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 13, flexWrap: 'wrap' }}><div><strong style={{ fontSize: 14 }}>توصيات إعادة الشراء</strong><p style={{ fontSize: 10, color: 'var(--text3)', margin: '4px 0 0' }}>كمية تغطي 30 يومًا، محسوبة فقط من بيانات لا يتجاوز عمرها يومين ومن تكلفة منتج معروفة. تغطية حركة البيع {coverage.observed} من {coverage.total} صنف؛ التوصيات لا تحسم احتياج الأصناف غير المغطاة.</p></div><div style={{ textAlign: 'left' }}><small style={{ display: 'block', fontSize: 9, color: 'var(--text3)' }}>الالتزام النقدي التقديري</small><strong style={{ fontSize: 17 }}>{totalCost.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س</strong></div></div>
     <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr>{['المنتج', 'المنصة', 'المخزون', 'تغطية', 'الكمية المقترحة', 'التكلفة التقديرية', 'الإجراء'].map(label => <th key={label} style={{ textAlign: 'right', padding: '8px 10px', color: 'var(--text3)', fontSize: 9, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.inventory_id} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '10px', minWidth: 170 }}><strong>{row.product_name || row.sku}</strong><small style={{ display: 'block', color: 'var(--text3)', marginTop: 2 }}>{row.sku}</small></td><td style={{ padding: '10px' }}>{PLATFORM_MAP[row.platform] || row.platform}</td><td style={{ padding: '10px' }}>{row.current_quantity}</td><td style={{ padding: '10px', color: row.urgency === 'critical' ? 'var(--danger-text)' : 'var(--warning-text)', fontWeight: 750 }}>{row.days_of_stock ?? 0} يوم</td><td style={{ padding: '10px', fontWeight: 800 }}>{row.recommended_quantity}</td><td style={{ padding: '10px' }}>{Number(row.estimated_cost).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س</td><td style={{ padding: '10px' }}><button disabled={tracking === row.inventory_id} onClick={() => void track(row)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', padding: '7px 9px', borderRadius: 6, fontFamily: 'inherit', fontSize: 9, fontWeight: 750, cursor: 'pointer', whiteSpace: 'nowrap' }}><ClipboardPlus size={13} />{tracking === row.inventory_id ? 'جارٍ الإضافة' : 'إضافة للخطة'}</button></td></tr>)}</tbody></table></div>
   </section>
 }
@@ -538,22 +542,12 @@ const S: Record<string, React.CSSProperties> = {
 
 // ─── Inventory Health Panel ──────────────────────────────────────────────────
 function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
-  const supabase = useSellingAccountClient()
-
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
-  async function load() {
-    if (!merchant) return
-    setLoading(true)
-    const { data: rows } = await supabase.from('inventory_health').select('*').eq('merchant_code', merchant.merchant_code)
-    setData(rows || [])
-    setLoading(false)
-  }
+  const {data,loading,error,retry}=useInventoryAnalysisRows('inventory_health',merchant?.merchant_code)
 
   const stats = useMemo(() => {
-    const sumCost   = data.reduce((a, r) => a + (Number(r.stock_value_cost) || 0), 0)
-    const sumRetail = data.reduce((a, r) => a + (Number(r.stock_value_retail) || 0), 0)
+    const evidence=inventoryEvidence(data)
+    const sumCost=evidence.costValue
+    const sumRetail=evidence.retailValue
     const reorder   = data.filter(r => r.health_status === 'reorder_soon').length
     const slow      = data.filter(r => r.health_status === 'slow_mover').length
     const out       = data.filter(r => r.health_status === 'out_of_stock').length
@@ -563,7 +557,7 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
     const stockoutCost = data
       .filter(r => r.health_status === 'out_of_stock' && Number(r.daily_velocity) > 0)
       .reduce((a, r) => a + (Number(r.daily_velocity) * Number(r.selling_price || 0) * 30), 0)
-    return { sumCost, sumRetail, reorder, slow, out, stockoutCost, velocityRows, velocityCoverage, dataAgeDays }
+    return { sumCost, sumRetail, reorder, slow, out, stockoutCost:evidence.observed<data.length?null:stockoutCost, velocityRows, velocityCoverage, dataAgeDays,costed:evidence.costed,costCoverage:evidence.costCoverage,observed:evidence.observed }
   }, [data])
 
   const reorderList = useMemo(() => data.filter(r => r.health_status === 'reorder_soon')
@@ -571,21 +565,23 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
   const slowList = useMemo(() => data.filter(r => r.health_status === 'slow_mover' && Number(r.stock_value_cost) > 0)
     .sort((a, b) => Number(b.stock_value_cost) - Number(a.stock_value_cost)).slice(0, 6), [data])
 
-  if (loading || data.length === 0) return null
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
+  if(loading)return <p role="status">جارٍ تحميل صحة المخزون…</p>
+  if(error)return <p role="alert">تعذر تحميل صحة المخزون <button onClick={retry}>إعادة المحاولة</button></p>
+  if(!data.length)return null
+  const fmt = (v: number|null) => v===null?'غير متاح':Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}><div><div style={{ fontSize: 14, fontWeight: 800 }}>صحة المخزون</div><div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>سرعة البيع محسوبة من آخر نافذة طلبات متاحة لكل منصة.</div></div><div style={{ fontSize: 11, fontWeight: 700, color: stats.dataAgeDays > 2 ? 'var(--warning-text)' : 'var(--accent)', background: stats.dataAgeDays > 2 ? 'var(--warning-bg)' : 'var(--success-bg)', padding: '5px 10px', borderRadius: 7 }}>{stats.dataAgeDays > 2 ? `البيانات متأخرة ${stats.dataAgeDays} يومًا` : 'البيانات حديثة'}</div></div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}><div><div style={{ fontSize: 14, fontWeight: 800 }}>صحة المخزون</div><div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>سرعة البيع محسوبة من آخر نافذة طلبات متاحة لكل منصة.</div></div><div style={{ fontSize: 11, fontWeight: 700, color: stats.observed<data.length || stats.dataAgeDays > 2 ? 'var(--warning-text)' : 'var(--accent)', background: stats.observed<data.length || stats.dataAgeDays > 2 ? 'var(--warning-bg)' : 'var(--success-bg)', padding: '5px 10px', borderRadius: 7 }}>{stats.observed<data.length ? 'تغطية حركة البيع غير مكتملة' : stats.dataAgeDays > 2 ? `البيانات متأخرة ${stats.dataAgeDays} يومًا` : 'البيانات حديثة'}</div></div>
 
       {stats.dataAgeDays > 2 ? <div style={{ padding: '10px 12px', marginBottom: 14, borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: 11, lineHeight: 1.8 }}>مؤشرات السرعة وإعادة الطلب تاريخية حتى تتم مزامنة الطلبات والمخزون من صفحة الربط ورفع الملفات. لا تعتمد أمر شراء جديد قبل التحديث.</div> : null}
 
       {/* Value KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
-        <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`${data.length} سجل`} color="#0f958c" />
+        <HKpi label="قيمة المخزون (تكلفة)" value={fmt(stats.sumCost)} sub={`تغطية التكلفة ${stats.costCoverage.toFixed(0)}% · ${stats.costed} من ${data.length} سجل`} color="#0f958c" />
         <HKpi label="قيمة المخزون (بيع)" value={fmt(stats.sumRetail)} color="var(--green)" />
         <HKpi label="تغطية حركة البيع" value={stats.velocityCoverage.toFixed(0) + '%'} sub={`${stats.velocityRows} من ${data.length} صنف`} color="var(--info-text)" />
-        <HKpi label="مبيعات معرضة بسبب النفاد" value={fmt(stats.stockoutCost)} sub={stats.dataAgeDays > 2 ? 'تقدير تاريخي · حدّث البيانات' : 'تقدير 30 يومًا'} color="var(--red)" />
+        <HKpi label="مبيعات معرضة بسبب النفاد" value={fmt(stats.stockoutCost)} sub={stats.observed<data.length ? 'حركة البيع غير كافية للتقدير' : stats.dataAgeDays > 2 ? 'تقدير تاريخي · حدّث البيانات' : 'تقدير 30 يومًا'} color="var(--red)" />
       </div>
 
       {/* Status counts */}
@@ -636,10 +632,11 @@ function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
 }
 
 function HKpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  const displayColor=value==='غير متاح'?'var(--text2)':color
   return (
-    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${color}` }}>
+    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderLeft: `3px solid ${displayColor}` }}>
       <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color:displayColor }}>{value}</div>
       {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{sub}</div>}
     </div>
   )
@@ -655,28 +652,19 @@ function pill(color: string): React.CSSProperties {
 
 // ─── Inventory Ageing Section ─────────────────────────────────────────────────
 function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
-  const supabase = useSellingAccountClient()
-
-  const [data, setData] = useState<any[]>([])
-  useEffect(() => {
-    if (!merchantCode) return
-    supabase.from('inventory_ageing').select('*').eq('merchant_code', merchantCode).then(({ data }) => setData(data || []))
-  }, [merchantCode, supabase])
+  const {data,loading,error,retry}=useInventoryAnalysisRows('inventory_ageing',merchantCode)
 
   const stats = useMemo(() => {
-    const counts: any = { fresh: 0, slow: 0, aging: 0, dead_stock: 0, never_sold: 0 }
-    const capital: any = { fresh: 0, slow: 0, aging: 0, dead_stock: 0, never_sold: 0 }
-    for (const d of data) {
-      counts[d.ageing_class]++
-      capital[d.ageing_class] += Number(d.tied_capital) || 0
-    }
-    return { counts, capital, totalCapital: Object.values(capital).reduce((a: any, b: any) => a + b, 0) }
-  }, [data])
-
+    const classes=['fresh','slow','aging','dead_stock','never_sold']
+    return Object.fromEntries(classes.map(cls=>[cls,inventoryEvidence(data.filter(row=>row.ageing_class===cls))]))
+  },[data])
+  const evidence=inventoryEvidence(data)
+  if(loading)return <p role="status">جارٍ تحميل تقادم المخزون…</p>
+  if(error)return <p role="alert">تعذر تحميل تقادم المخزون <button onClick={retry}>إعادة المحاولة</button></p>
   if (data.length === 0) return null
-  const labels: any = { fresh: 'حديث', slow: 'بطيء (>30 يوم)', aging: 'متقادم (>60 يوم)', dead_stock: 'راكد (>90 يوم)', never_sold: 'لم يُبَع أبداً' }
+  const labels: any = { fresh: 'حديث', slow: 'بطيء (>30 يوم)', aging: 'متقادم (>60 يوم)', dead_stock: 'راكد (>90 يوم)', never_sold: 'لا توجد حركة بيع مسجلة' }
   const colors: any = { fresh: 'var(--green)', slow: 'var(--info-text)', aging: 'var(--warning-text)', dead_stock: 'var(--red)', never_sold: '#a598ff' }
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
+  const fmt = (v: number|null) => v===null?'غير متاح':Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
 
   const dead = data.filter(d => d.ageing_class === 'dead_stock' || d.ageing_class === 'never_sold')
     .sort((a, b) => Number(b.tied_capital) - Number(a.tied_capital)).slice(0, 6)
@@ -684,26 +672,26 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>تقادم المخزون</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>عمر كل منتج منذ آخر بيعة — لكشف رأس المال المجمّد</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>آخر حركة بيع مسجلة ضمن الحساب المختار — عدم وجود حركة لا يثبت عدم البيع. تغطية التكلفة {evidence.costCoverage.toFixed(0)}% ({evidence.costed} من {evidence.total})</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 14 }}>
         {Object.keys(labels).map(cls => (
           <div key={cls} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, borderTop: `3px solid ${colors[cls]}` }}>
             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>{labels[cls]}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: colors[cls] }}>{stats.counts[cls]}</div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{fmt(stats.capital[cls])}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: colors[cls] }}>{stats[cls].total}</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{fmt(stats[cls].total?stats[cls].costValue:0)}</div>
           </div>
         ))}
       </div>
       {dead.length > 0 && (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>أكبر رأس مال مجمّد</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>أصناف تحتاج مراجعة حركة البيع</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {dead.map((d, i) => (
               <div key={i} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={d.product_name}>{d.product_name}</span>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <span style={{ color: 'var(--text3)' }}>{d.age_days || '—'} يوم</span>
-                  <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{fmt(Number(d.tied_capital))}</span>
+                  <span style={{ color: 'var(--text3)' }}>{d.last_sold ? `${d.age_days ?? '—'} يوم` : 'لا يوجد سجل بيع'}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--danger-text)' }}>{fmt(Number(d.cost_price)>0 ? Number(d.tied_capital):null)}</span>
                 </div>
               </div>
             ))}
@@ -716,13 +704,9 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
 
 // ─── Inventory Pipeline (ASN → GRN → Sales) ───────────────────────────────────
 function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
-  const supabase = useSellingAccountClient()
-
-  const [data, setData] = useState<any[]>([])
-  useEffect(() => {
-    if (!merchantCode) return
-    supabase.from('inventory_pipeline').select('*').eq('merchant_code', merchantCode).order('asn_sent_at', { ascending: false }).limit(10).then(({ data }) => setData(data || []))
-  }, [merchantCode, supabase])
+  const {data,loading,error,retry}=useInventoryAnalysisRows('inventory_pipeline',merchantCode,10)
+  if(loading)return <p role="status">جارٍ تحميل الإرساليات…</p>
+  if(error)return <p role="alert">تعذر تحميل الإرساليات <button onClick={retry}>إعادة المحاولة</button></p>
   if (data.length === 0) return null
 
   return (
@@ -731,7 +715,7 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
         رحلة البضاعة: الإرسال ← الاستلام ← البيع
         <InfoIcon text="الإرسالية (ASN) = ما أرسلته لمستودع المنصة. تقرير الاستلام (GRN) = ما استلمه المستودع فعلياً. الفحص (QC) = الكمية المرفوضة لعيب أو تلف." />
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>تتبّع كل إرسالية من الإرسال حتى البيع</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>الإرساليات ضمن حساب البيع المختار. المبيعات التالية تخص الحساب بعد تاريخ الاستلام، وليست إسنادًا لهذه الإرسالية ولا تُجمع بين الإرساليات.</div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead><tr>{['الإرسالية','المنصة','سُجلت','مدة الاستلام','متوقع','مُستلم','فرق الكمية','مرفوض بالفحص','بيع بعد','إيراد بعد'].map(h => (
@@ -763,4 +747,28 @@ function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
       </div>
     </div>
   )
+}
+
+
+function useInventoryAnalysisRows(table: string, merchantCode?: string, firstRows=0) {
+  const supabase=useSellingAccountClient()
+  const [data,setData]=useState<any[]>([])
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState(false)
+  const [reload,setReload]=useState(0)
+  useEffect(()=>{
+    const controller=new AbortController()
+    setData([]);setError(false);setLoading(true)
+    if(!merchantCode){setLoading(false);return ()=>controller.abort()}
+    const page=(f:number,t:number)=>{
+      const q=supabase.from(table).select('*').eq('merchant_code',merchantCode)
+      return (table==='inventory_pipeline'?q.order('asn_sent_at',{ascending:false}):q).order('id').range(f,t).abortSignal(controller.signal)
+    }
+    const rows=firstRows?Promise.resolve(page(0,firstRows-1)).then(r=>{if(r.error)throw r.error;return r.data||[]}):fetchAll<any>(page)
+    withTimeout(rows,20_000).then(r=>{if(!controller.signal.aborted)setData(r)})
+      .catch(()=>{if(!controller.signal.aborted)setError(true)})
+      .finally(()=>{if(!controller.signal.aborted)setLoading(false);controller.abort()})
+    return ()=>controller.abort()
+  },[merchantCode,supabase,table,firstRows,reload])
+  return {data,loading,error,retry:()=>setReload(n=>n+1)}
 }
