@@ -6,6 +6,7 @@ do $$
 declare
   unsafe_tables text;
   unsafe_views text;
+  optimized_boundary constant text := '((SELECTsecurity.can_access_all_merchants()AScan_access_all_merchants)OR(merchant_code=ANY((SELECTsecurity.current_accessible_merchant_codes()AScurrent_accessible_merchant_codes)::text[])))';
 begin
   select string_agg(c.relname, ', ' order by c.relname)
   into unsafe_tables
@@ -34,8 +35,15 @@ begin
           and p.permissive = 'RESTRICTIVE'
           and p.cmd = 'ALL'
           and 'authenticated' = any(p.roles)
-          and coalesce(p.qual, '') ilike '%can_access_merchant%'
-          and coalesce(p.with_check, '') ilike '%can_access_merchant%'
+          and (
+            (coalesce(p.qual, '') ilike '%can_access_merchant%'
+              and coalesce(p.with_check, '') ilike '%can_access_merchant%')
+            or (
+              c.relname in ('products','product_platform_prices','product_platform_listings','inventory','platform_file_uploads','product_channel_mappings')
+              and regexp_replace(p.qual,'\s','','g') = optimized_boundary
+              and regexp_replace(p.with_check,'\s','','g') = optimized_boundary
+            )
+          )
       )
     );
 

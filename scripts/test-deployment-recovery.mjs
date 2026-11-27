@@ -56,8 +56,8 @@ try {
     await page.route('**/auth/v1/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: route.request().url().endsWith('/user') ? JSON.stringify(session.user) : '{}' }))
     await page.route('**/rest/v1/**', route => {
       const url = new URL(route.request().url()), table = url.pathname.split('/').pop()
-      const offset = Number(url.searchParams.get('offset'))
-      const rows = table === 'merchants' ? [merchant] : table === 'marketplace_accounts' ? [account] : table === 'products' ? products.slice(offset, offset + 1000) : []
+      const offset = table === 'product_rows_by_account' ? Number(route.request().postDataJSON().p_offset) : Number(url.searchParams.get('offset'))
+      const rows = table === 'merchants' ? [merchant] : table === 'marketplace_accounts' ? [account] : ['products','product_rows_by_account'].includes(table) ? products.slice(offset, offset + 1000) : []
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) })
     })
     await page.route('**/functions/v1/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
