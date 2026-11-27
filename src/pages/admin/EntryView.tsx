@@ -197,7 +197,7 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
         </div>
         <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
           <button style={{ ...S.btn, background: 'var(--accent)', color: '#fff', flex: 1 }} onClick={addRow}>+ إضافة للقائمة</button>
-          <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', flex: 1 }} onClick={submit} disabled={saving}>
+          <button style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff', flex: 1 }} onClick={submit} disabled={saving}>
             {saving ? 'جاري الحفظ...' : `حفظ${rows.length > 0 ? ` (${rows.length} سجل)` : ' مباشرة'}`}
           </button>
         </div>
@@ -207,7 +207,7 @@ export default function EntryView({ merchants }: { merchants: any[] }) {
         <div style={{ ...S.chartCard, marginBottom: 20 }}>
           <div style={{ padding: '14px 16px', fontWeight: 700, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>سجلات في الانتظار ({rows.length})</span>
-            <button style={{ ...S.btn, background: 'var(--accent2)', color: '#111', fontSize: 12 }} onClick={submit} disabled={saving}>{saving ? 'جاري الحفظ' : 'حفظ الكل'}</button>
+            <button style={{ ...S.btn, background: 'var(--accent-strong)', color: '#fff', fontSize: 12 }} onClick={submit} disabled={saving}>{saving ? 'جاري الحفظ' : 'حفظ الكل'}</button>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={S.table}>

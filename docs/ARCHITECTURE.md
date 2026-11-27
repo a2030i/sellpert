@@ -76,6 +76,23 @@ Public intake → pricing-request → private documents + service_request_* tabl
   deduplicated incident metadata. Keep query strings, raw errors and credentials
   out of telemetry. See [incident response](INCIDENT-RESPONSE.md).
 
+## Page layout
+
+Reachable merchant pages share the `merchant-page` frame in
+[PageLayout.css](../src/components/PageLayout.css): a 1,344px maximum outer
+width, 32px desktop gutters and 16px gutters at 900px and below. Use
+`PageHeader` from [UI.tsx](../src/components/UI.tsx) for the page identity and
+actions, and `PageLoading` when a page replaces its content while loading.
+Product detail and the dashboard keep their specialized headers with the same
+`merchant-page-title` typography. Narrow form bodies belong inside the frame;
+Settings uses a 920px body aligned to the RTL starting edge.
+
+AdminPanel owns the administrative page title and outer gutters. Child views
+should use section headings rather than repeat the page title. Wide tables
+scroll within their own containers; do not hide document overflow to conceal
+unreachable controls. Public entry, legal and intake pages retain their separate
+layouts. These layout conventions do not expand the launch navigation gates.
+
 ## Existing architectural decisions to preserve
 
 These are observed implementation choices, not newly proposed architecture.

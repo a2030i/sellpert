@@ -1,3 +1,4 @@
+import { PageHeader } from '../components/UI'
 import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useEffect } from 'react'
@@ -225,11 +226,9 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
   }
 
   return (
-    <div style={S.wrap}>
-      <div style={S.header}>
-        <h2 style={S.title}>إعدادات المتجر</h2>
-        <p style={S.sub}>حدّث هوية المتجر وبيانات التواصل وأمان الحساب.</p>
-      </div>
+    <div className="merchant-page">
+      <PageHeader title="إعدادات المتجر" description="حدّث هوية المتجر وبيانات التواصل وأمان الحساب." />
+      <div className="merchant-page-form">
 
       {msg && (
         <div style={{
@@ -372,20 +371,17 @@ export default function Settings({ merchant, onUpdate }: { merchant: Merchant | 
         </div>
       )}
 
+      </div>
     </div>
   )
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { padding: 'clamp(16px, 4vw, 32px)', maxWidth: 920, margin: '0 auto', minHeight: '100vh' },
-  header: { marginBottom: 28 },
-  title: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
-  sub: { fontSize: 13, color: 'var(--text2)', marginTop: 4 },
   card: {
     background: 'var(--surface)', border: '1px solid var(--border)',
     borderRadius: 16, padding: '20px 24px', marginBottom: 16,
   },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))', gap: 16 },
   identityCard: { background: 'linear-gradient(135deg,rgba(15,149,140,.10),rgba(15,149,140,.03))', border: '1px solid rgba(15,149,140,.22)', borderRadius: 16, padding: '18px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' },
   codeBtn: { border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', borderRadius: 10, padding: '9px 13px', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', cursor: 'pointer', fontFamily: 'inherit' },
   cardTitle: { fontSize: 14, fontWeight: 700, marginBottom: 18, color: 'var(--text)' },
@@ -407,7 +403,7 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 14, width: '100%', outline: 'none', boxSizing: 'border-box',
   },
   saveBtn: {
-    background: 'var(--accent2)', color: '#111', border: 'none',
+    background: 'var(--accent-strong)', color: '#fff', border: 'none',
     padding: '11px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4,
   },
   secondaryBtn: { background: 'var(--surface2)', color: 'var(--accent)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },

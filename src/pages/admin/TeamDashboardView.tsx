@@ -4,6 +4,7 @@ import {
   Users, CheckSquare, Star, TrendingUp, Upload, DollarSign, Heart,
 } from 'lucide-react'
 import { fmtCurrency, fmtNumber } from '../../lib/formatters'
+import './TeamDashboardView.css'
 
 // الأسماء مطابقة لمخرجات دالة team_dashboard_kpis الفعلية (كان عدم التطابق يجعل 4 مؤشرات صفراً دائماً)
 interface KPIs {
@@ -95,14 +96,13 @@ export default function TeamDashboardView() {
   const npsHealth = (promoters - detractors) / Math.max(promoters + passives + detractors, 1) * 100
 
   return (
-    <div style={{ padding: 16, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="team-dashboard">
       <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>لوحة الفريق</h1>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>مؤشرات الأداء الداخلية للفريق</div>
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div className="team-dashboard-kpis">
         <KPI Icon={Users} label="إجمالي التجار" value={fmtNumber(k?.total_merchants || 0)} color="#0f958c" sub={`${k?.active_merchants_30d || 0} نشطون آخر 30 يوم`} />
         <KPI Icon={CheckSquare} label="المهام المعلقة" value={fmtNumber(k?.pending_tasks || 0)} color="#00b894" sub={(k?.overdue_tasks || 0) > 0 ? `${k?.overdue_tasks} متأخرة!` : 'لا متأخرات'} subRed={(k?.overdue_tasks || 0) > 0} />
         <KPI Icon={Heart} label="متوسط Health" value={(k?.avg_health_score || 0).toFixed(0) + '%'} color="#f0a800" sub="من 100" />
@@ -112,7 +112,7 @@ export default function TeamDashboardView() {
       </div>
 
       {/* Two columns: Open tasks + NPS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 14, marginBottom: 14 }}>
+      <div className="team-dashboard-panels">
         <Panel title="مهام مفتوحة" Icon={CheckSquare}>
           {openTasks.length === 0 ? (
             <Empty text="لا توجد مهام مفتوحة" />

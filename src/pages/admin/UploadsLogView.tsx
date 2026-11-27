@@ -149,7 +149,6 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1450, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>سجل عمليات الاستيراد</div>
           <p style={{ fontSize: 12, color: 'var(--text3)', margin: '5px 0 0' }}>مرجع موحّد لكل ملف: المتجر والمنصة والموظف والنتيجة والوقت وعدد الصفوف</p>
         </div>
         <button onClick={() => { window.history.pushState(null, '', '/admin/import'); window.dispatchEvent(new PopStateEvent('popstate')) }} style={{ ...S.btn, display: 'flex', alignItems: 'center', gap: 7 }}>

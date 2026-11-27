@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
-import { PageTabs } from '../components/UI'
+import { PageHeader, PageLoading, PageTabs } from '../components/UI'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
@@ -624,15 +624,11 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     : null
   const selectedSource = selectedOrder ? sourceFor(selectedOrder) : null
 
-  if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
-      <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
+  if (loading) return <PageLoading title="الطلبات" />
 
   if (loadError) return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
+      <PageHeader title="الطلبات" />
       <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
         <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذر تحميل الطلبات</h2>
@@ -645,10 +641,10 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   // التبويبات قبل الحالة الفارغة: تاجر تراندايول-فقط (بياناته لقطات لا طلبات) كان يفقد
   // الوصول إلى «الصافي المستحق» كلياً. والرسالة توافق النموذج المُدار (الفريق يرفع، لا التاجر).
   if (orders.length === 0) return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
+      <PageHeader title="الطلبات" />
       <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       <div style={{ padding:'60px 32px', textAlign:'center', maxWidth:480, margin:'0 auto' }}>
-          <div style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>لا توجد طلبات بعد</div>
         <h2 style={{ fontSize:20, fontWeight:800, marginBottom:8 }}>لا توجد طلبات بعد</h2>
         <p style={{ fontSize:13, color:'var(--text3)', lineHeight:1.8, marginBottom:28 }}>
           اربط Trendyol للمزامنة المباشرة، أو ارفع ملف Amazon أو Noon أو سلة أو زد، وستظهر الطلبات هنا دون تدخل الإدارة.
@@ -662,23 +658,19 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   )
 
   return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
       <PageTabs tabs={[{ label: 'الطلبات', path: '/orders' }, { label: 'الأرباح والتحصيل', path: '/statement' }]} />
       {/* TOPBAR */}
-      <div style={S.topbar}>
-        <div>
-          <h2 style={S.pageTitle}>الطلبات</h2>
-          <p style={S.pageSub}>عرض {totalOrders.toLocaleString('ar-SA-u-nu-latn')} من أصل {orders.length.toLocaleString('ar-SA-u-nu-latn')} طلب</p>
-        </div>
-        <button style={S.exportBtn} onClick={exportCSV}>تصدير CSV</button>
-      </div>
+      <PageHeader title="الطلبات"
+        description={`عرض ${totalOrders.toLocaleString('ar-SA-u-nu-latn')} من أصل ${orders.length.toLocaleString('ar-SA-u-nu-latn')} طلب`}
+        action={<button style={S.exportBtn} onClick={exportCSV}>تصدير CSV</button>} />
 
       <section aria-label="مركز تشغيل الطلبات" style={{ ...S.card, padding:18, marginBottom:18 }}>
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:14, flexWrap:'wrap' }}>
           <div><div style={{ fontSize:14, fontWeight:850 }}>مركز تشغيل الطلبات</div><div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.7, marginTop:4 }}>طوابير العمل المستخرجة من حالة شحنات Trendyol الفعلية. ابدأ التجهيز جماعيًا، ثم أكمل الفاتورة والشحن من الطلب.</div></div>
           <button disabled={!operationQueue.picking.length || bulkPickingLoading} onClick={() => void prepareBulkPicking()} style={{ ...S.primaryBtn, opacity:operationQueue.picking.length && !bulkPickingLoading ? 1 : .5 }}>{bulkPickingLoading && !bulkPickingOpen ? 'جارٍ تجهيز القائمة…' : 'بدء تجهيز الشحنات الجاهزة'}</button>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr 1fr' : 'repeat(4,minmax(130px,1fr))', gap:8, marginTop:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,140px),1fr))', gap:8, marginTop:14 }}>
           {[
             { key:'picking', label:'بانتظار التجهيز', value:operationQueue.picking.length, hint:'اعرض المهام' },
             { key:'invoicing', label:'بانتظار الفاتورة', value:operationQueue.invoicing.length, hint:'اعرض المهام' },
@@ -783,7 +775,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       {/* TAB: LIST */}
       {tab === 'list' && (
         <div style={S.card}>
-          <div style={{ overflowX:'auto' }}>
+          <p className="table-scroll-hint">اسحب الجدول أفقيًا لعرض بقية الأعمدة</p>
+          <div style={{ overflowX:'auto' }} tabIndex={0} role="region" aria-label="جدول الطلبات">
             <table style={S.table}>
               <thead>
                 <tr>
@@ -1148,10 +1141,6 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap:       { padding:'28px 32px', minHeight:'100vh' },
-  topbar:     { display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 },
-  pageTitle:  { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
-  pageSub:    { fontSize:13, color:'var(--text2)', marginTop:3 },
   exportBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' },
   primaryBtn: { background:'var(--accent-strong)', border:'1px solid var(--accent-strong)', color:'#fff', padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:750, cursor:'pointer', fontFamily:'inherit' },
   actionBtn:  { background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text2)', padding:'7px 11px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },

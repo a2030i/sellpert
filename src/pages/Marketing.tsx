@@ -3,7 +3,7 @@ import { AD_METRIC_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
-import { Pagination, Tooltip } from '../components/UI'
+import { Pagination, Tooltip, PageHeader, PageLoading } from '../components/UI'
 import BudgetAlertsPanel from '../components/BudgetAlertsPanel'
 import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
 
@@ -142,24 +142,24 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
     return recs
   }, [grouped, groupBy])
 
-  if (loading) return <div style={{ padding: 80, textAlign: 'center' }}><div style={spinner} /></div>
+  if (loading) return <PageLoading title="الإعلانات والأداء" />
 
   if (rows.length === 0) {
     return (
-      <div style={{ padding: '60px 32px', textAlign: 'center', maxWidth: 600, margin: '0 auto' }}>
+      <div className="merchant-page">
+        <PageHeader title="الإعلانات والأداء" description="أداء حملاتك الإعلانية عبر كل المنصات" />
+        <div className="merchant-page-state">
         <Megaphone size={56} color="var(--text3)" style={{ marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>لا توجد بيانات إعلانية بعد</h2>
         <p style={{ fontSize: 13, color: 'var(--text3)' }}>ارفع تقرير الإعلانات من صفحة الربط ورفع الملفات، وستظهر المؤشرات هنا بعد اكتمال المعالجة.</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1300, margin: '0 auto' }}>
-      <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>الإعلانات والأداء</h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>أداء حملاتك الإعلانية عبر كل المنصات</p>
-      </div>
+    <div className="merchant-page">
+      <PageHeader title="الإعلانات والأداء" description="أداء حملاتك الإعلانية عبر كل المنصات" />
 
       <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'13px 16px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, flexWrap:'wrap' }}>
         <div><div style={{ fontSize:12, fontWeight:800 }}>مصدر بيانات الإعلانات</div><div style={{ fontSize:10, color:'var(--text3)', marginTop:3 }}>الأرقام أدناه مأخوذة من تقارير المنصات، وليست خصمًا بنكيًا نهائيًا.</div></div>
@@ -296,12 +296,6 @@ function Kpi({ label, labelNode, value, sub, color, icon }: { label: string; lab
       {sub && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{sub}</div>}
     </div>
   )
-}
-
-const spinner: React.CSSProperties = {
-  width: 36, height: 36, margin: '0 auto', border: '3px solid var(--border)',
-  borderTopColor: 'var(--accent)', borderRadius: '50%',
-  animation: 'spin 0.8s linear infinite',
 }
 
 // ─── True Ad Effectiveness (Net ROAS after returns) ──────────────────────────

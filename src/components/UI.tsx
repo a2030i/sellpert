@@ -65,6 +65,13 @@ export function PageHeader({ title, description, icon: Icon, action }: { title: 
   )
 }
 
+export function PageLoading({ title }: { title: string }) {
+  return <div className="merchant-page" aria-busy="true">
+    <PageHeader title={title} />
+    <div role="status" aria-label={`جارٍ تحميل ${title}`}><CardSkeleton /></div>
+  </div>
+}
+
 const BADGE_TONES: Record<string, { bg: string; fg: string }> = {
   green: { bg: 'var(--success-bg)', fg: 'var(--success-text)' },
   red:   { bg: 'var(--danger-bg)',  fg: 'var(--danger-text)' },

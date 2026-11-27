@@ -234,7 +234,6 @@ const S: Record<string, React.CSSProperties> = {
     background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)',
     padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
   },
-  pageTitle: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px' },
   pageSub: { fontSize: 12, color: 'var(--text3)', marginTop: 3 },
 }
 
@@ -472,14 +471,14 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
       )}
 
       {/* ── MAIN ── */}
-      <main className="admin-main" style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 240, padding: isMobile ? '70px 12px 80px' : '28px 32px' }}>
+      <main className="admin-main" style={{ flex: 1, minWidth: 0, width: '100%', overflowX: 'hidden', minHeight: '100vh', marginRight: isMobile ? 0 : 240, padding: isMobile ? '76px 16px 80px' : '28px 32px 64px' }}>
         {!isMobile && <div className="admin-context-bar"><span>كل المتاجر</span><b>/</b><strong>المملكة العربية السعودية</strong></div>}
         <div className={`admin-page-heading${view === 'overview' ? ' admin-page-heading--overview' : ''}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 28 }}>
           <div>
-            <h2 style={{ ...S.pageTitle, fontSize: isMobile ? 18 : 24 }}>{currentLabel}</h2>
+            <h1 className="admin-page-title">{currentLabel}</h1>
             {!isMobile && <p style={S.pageSub}>{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
           </div>
-          <button style={S.refreshBtn} onClick={() => loadAll(true)} disabled={refreshing}>
+          <button style={{ ...S.refreshBtn, flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => loadAll(true)} disabled={refreshing}>
             {refreshing ? '⟳' : '⟳ تحديث'}
           </button>
         </div>

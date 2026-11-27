@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { INVENTORY_SAFE_COLUMNS, supabase } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
-import { InfoIcon, Pagination } from '../components/UI'
+import { InfoIcon, Pagination, PageHeader, PageLoading } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { ClipboardPlus, ShieldAlert } from 'lucide-react'
@@ -166,15 +166,11 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     }
   }
 
-  if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:400 }}>
-      <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
+  if (loading) return <PageLoading title="المخزون" />
 
   if (loadError) return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
+      <PageHeader title="المخزون" />
       <div style={{ maxWidth:520, margin:'70px auto', padding:24, textAlign:'center', border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)' }}>
         <h2 style={{ margin:'0 0 8px', fontSize:18 }}>تعذّر تحميل المخزون</h2>
         <p style={{ margin:'0 0 18px', color:'var(--text2)', fontSize:13, lineHeight:1.8 }}>{loadError}</p>
@@ -199,7 +195,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   }
 
   return (
-    <div style={S.wrap}>
+    <div className="merchant-page">
       {/* Page Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
         <button onClick={goProducts} style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -211,20 +207,15 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       </div>
 
       {/* TOPBAR */}
-      <div style={{ ...S.topbar, flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <h2 style={S.pageTitle}>المخزون</h2>
-          <p style={S.pageSub}>راقب الكميات حسب المنصة، عالج النواقص، وحدّث عدة منتجات بسرعة.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <PageHeader title="المخزون" description="راقب الكميات حسب المنصة، عالج النواقص، وحدّث عدة منتجات بسرعة."
+        action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{ ...S.addBtn, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)', boxShadow: 'none' }} onClick={goQuickInventory}>
             تحديث كميات متعددة
           </button>
           <button style={S.addBtn} onClick={() => setShowAdd(!showAdd)}>
             {showAdd ? 'إلغاء' : 'إضافة منتج'}
           </button>
-        </div>
-      </div>
+        </div>} />
 
       {/* ALERT CARDS */}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap:14, marginBottom:20 }}>
@@ -504,10 +495,6 @@ function ReorderRecommendationsPanel({ merchant }: { merchant: Merchant | null }
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap:      { padding:'clamp(14px, 3vw, 32px)', minHeight:'100vh', maxWidth: '100%', overflowX: 'hidden' },
-  topbar:    { display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 },
-  pageTitle: { fontSize:24, fontWeight:800, letterSpacing:'-0.5px' },
-  pageSub:   { fontSize:13, color:'var(--text2)', marginTop:3 },
   addBtn:    { background:'linear-gradient(135deg,var(--accent),#55bdb5)', border:'none', color:'#fff', padding:'10px 20px', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 16px rgba(15,149,140,0.3)', cursor:'pointer' },
   statCard:  { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'18px 20px', cursor:'default', transition:'all 0.2s' },
   card:      { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' },
