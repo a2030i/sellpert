@@ -2,6 +2,11 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('deployment browser security', () => {
+  it('routes production through the CI-gated workflow while preserving Git previews', () => {
+    const deployment = JSON.parse(readFileSync('vercel.json', 'utf8'))
+    expect(deployment.git.deploymentEnabled).toEqual({ main: false, master: false })
+  })
+
   it('keeps a restrictive CSP and avoids blocked inline scripts', () => {
     const deployment = JSON.parse(readFileSync('vercel.json', 'utf8'))
     const index = readFileSync('index.html', 'utf8')

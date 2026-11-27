@@ -1,6 +1,6 @@
-# Critical data, money, identity, credentials and release paths require an owner review.
-# Either maintainer may review the other's work; authors cannot approve their own PR.
-# Pure CSS, static assets and unowned presentation files remain CI-only.
+# Suggested reviewers for critical data, money, identity, credentials and releases.
+# Human approval is optional by the owner's decision; required CI still gates merges.
+# These assignments request review without making the other maintainer a blocker.
 /supabase/ @a2030i @rakanaljuhani
 /scripts/ @a2030i @rakanaljuhani
 /.github/ @a2030i @rakanaljuhani

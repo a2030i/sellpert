@@ -67,19 +67,25 @@ Before deploying, the workflow authenticates to Vercel and checks that team
 `a2030i/sellpert`. Failure stops the release without printing provider responses.
 This preflight reads the project's `accountId`; it does not require permission to
 list team members. Team membership management requires separate Owner access.
-During setup, validate one Actions release before disabling native Git production
-deployments. Otherwise native Git deployment can bypass the Actions CI gate.
+`vercel.json` disables native Git deployments for main/master. Production deploys
+through the CI-gated Actions workflow; other branches retain native Git previews.
+This avoids duplicate deployments and ensures the immutable merged commit passes
+CI before publication. Do not merge this cutover before verifying an Actions release.
 
 ## Repository reviews and platform access
 
-[CODEOWNERS](../.github/CODEOWNERS) identifies database, financial, identity,
-credential and release paths. Configure main protection to require `checks`,
-`database-security`, and `edge-functions` from GitHub Actions, an up-to-date branch,
-resolved conversations and code-owner review. Zero general approvals plus required
-code-owner review allows presentation-only PRs to merge after CI while listed
-critical paths need another maintainer's approval. Mixed files still need review
-even for a text-only edit; path ownership does not classify the semantics of a diff.
-Protect administrators too; prohibit force pushes and branch deletion.
+[CODEOWNERS](../.github/CODEOWNERS) suggests reviewers for database, financial,
+identity, credential and release paths. By the owner's explicit decision, human
+approval is optional for all changes: set `required_approving_review_count: 0`,
+`require_code_owner_reviews: false`, and `require_last_push_approval: false`.
+Either maintainer may merge their own PR after the required checks pass; a review
+request from CODEOWNERS does not itself require approval.
+
+Keep main protection enabled: require `checks`, `database-security`, and
+`edge-functions` from GitHub Actions, an up-to-date branch and resolved conversations.
+Protect administrators too; prohibit force pushes and branch deletion. Optional
+peer review does not waive AGENTS.md's explicit authorization requirements for
+production, migrations or destructive changes, or the production parity guard.
 
 The repository currently belongs to personal account `a2030i`. GitHub supports
 owner and collaborator access for personal repositories; a second repository
