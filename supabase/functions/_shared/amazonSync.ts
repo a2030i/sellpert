@@ -1,5 +1,6 @@
 // Resumable Amazon SP-API synchronization planning.
 //
+// Backfill covers 12 months, newest month first, then continues forward.
 // Amazon's Orders API allows ~1 request every 3 minutes after a burst of 20,
 // and a queue job has under a minute, so every sync run continues from a
 // cursor stored in platform_credentials.extra.sync. The cursor holds no
@@ -9,7 +10,9 @@
 import { AMAZON_SP_REGIONS, spApiHeaders, type AmazonSpRegion } from './amazonSpApi.ts'
 import { HttpError } from './sync.ts'
 
-export const AMAZON_BACKFILL_DAYS = 730
+export const AMAZON_BACKFILL_DAYS = 365
+// Backfill walks backwards in 30-day windows so the newest months arrive first.
+export const AMAZON_BACKFILL_WINDOW_DAYS = 30
 export const AMAZON_FINANCE_WINDOW_DAYS = 180
 // Amazon rejects end times later than two minutes before the request.
 const SAFE_LAG_MS = 3 * 60_000
@@ -18,9 +21,13 @@ const FINANCE_OVERLAP_MS = 2 * 86_400_000
 const DAY_MS = 86_400_000
 
 export type AmazonOrderCursor = {
-  backfill_from: string
-  backfill_to: string
-  backfill_token: string | null
+  /** Oldest creation time to backfill. */
+  backfill_floor: string
+  /** When the backfill started; incremental updates continue from here. */
+  backfill_started: string
+  /** End of the current backward window (exclusive upper bound). */
+  window_end: string
+  window_token: string | null
   backfill_done: boolean
   updated_after: string | null
   updated_before: string | null
@@ -28,31 +35,37 @@ export type AmazonOrderCursor = {
 }
 
 export type AmazonFinanceCursor = {
-  posted_after: string
+  backfill_floor: string
+  backfill_started: string
+  window_end: string
+  window_token: string | null
+  backfill_done: boolean
+  /** Forward cursor after the backfill. */
+  posted_after: string | null
   posted_before: string | null
   token: string | null
   caught_up: boolean
 }
 
-export type AmazonSyncState = { orders: AmazonOrderCursor; finances: AmazonFinanceCursor }
+export type AmazonSyncState = { version: 2; orders: AmazonOrderCursor; finances: AmazonFinanceCursor }
 
 export class AmazonRateLimited extends Error {
   constructor() { super('Amazon rate limit reached') }
 }
 
 export function initialSyncState(now: Date): AmazonSyncState {
-  const backfillFrom = new Date(now.getTime() - AMAZON_BACKFILL_DAYS * DAY_MS).toISOString()
+  const floor = new Date(now.getTime() - AMAZON_BACKFILL_DAYS * DAY_MS).toISOString()
+  const started = new Date(now.getTime() - SAFE_LAG_MS).toISOString()
   return {
+    version: 2,
     orders: {
-      backfill_from: backfillFrom,
-      backfill_to: new Date(now.getTime() - SAFE_LAG_MS).toISOString(),
-      backfill_token: null,
-      backfill_done: false,
-      updated_after: null,
-      updated_before: null,
-      updated_token: null,
+      backfill_floor: floor, backfill_started: started, window_end: started, window_token: null,
+      backfill_done: false, updated_after: null, updated_before: null, updated_token: null,
     },
-    finances: { posted_after: backfillFrom, posted_before: null, token: null, caught_up: false },
+    finances: {
+      backfill_floor: floor, backfill_started: started, window_end: started, window_token: null,
+      backfill_done: false, posted_after: null, posted_before: null, token: null, caught_up: false,
+    },
   }
 }
 
@@ -60,17 +73,22 @@ export function initialSyncState(now: Date): AmazonSyncState {
 export function readSyncState(value: unknown, now: Date): AmazonSyncState {
   const state = value as AmazonSyncState
   const validDate = (input: unknown) => typeof input === 'string' && !Number.isNaN(Date.parse(input))
-  if (state && state.orders && state.finances
-    && validDate(state.orders.backfill_from) && validDate(state.orders.backfill_to)
-    && validDate(state.finances.posted_after)) {
+  if (state?.version === 2 && state.orders && state.finances
+    && validDate(state.orders.backfill_floor) && validDate(state.orders.window_end)
+    && validDate(state.finances.backfill_floor) && validDate(state.finances.window_end)) {
     return state
   }
   return initialSyncState(now)
 }
 
+/** Start of the backward window that ends at windowEnd. */
+function windowStart(windowEnd: string, floor: string) {
+  return new Date(Math.max(Date.parse(windowEnd) - AMAZON_BACKFILL_WINDOW_DAYS * DAY_MS, Date.parse(floor))).toISOString()
+}
+
 export type OrdersRequest = { params: URLSearchParams; phase: 'backfill' | 'incremental' }
 
-/** The next Orders API request for the cursor, freezing the window on its first page. */
+/** The next Orders API request; a window's parameters stay fixed while paging. */
 export function nextOrdersRequest(cursor: AmazonOrderCursor, marketplaceIds: string[], now: Date): OrdersRequest {
   const params = new URLSearchParams()
   for (const id of marketplaceIds) params.append('marketplaceIds', id)
@@ -79,16 +97,16 @@ export function nextOrdersRequest(cursor: AmazonOrderCursor, marketplaceIds: str
   params.append('includedData', 'FULFILLMENT')
   params.set('maxResultsPerPage', '100')
   if (!cursor.backfill_done) {
-    params.set('createdAfter', cursor.backfill_from)
-    params.set('createdBefore', cursor.backfill_to)
-    if (cursor.backfill_token) params.set('paginationToken', cursor.backfill_token)
+    params.set('createdAfter', windowStart(cursor.window_end, cursor.backfill_floor))
+    params.set('createdBefore', cursor.window_end)
+    if (cursor.window_token) params.set('paginationToken', cursor.window_token)
     return { params, phase: 'backfill' }
   }
   if (!cursor.updated_token || !cursor.updated_before) {
     cursor.updated_before = new Date(now.getTime() - SAFE_LAG_MS).toISOString()
     cursor.updated_token = null
   }
-  params.set('lastUpdatedAfter', cursor.updated_after || cursor.backfill_to)
+  params.set('lastUpdatedAfter', cursor.updated_after || cursor.backfill_started)
   params.set('lastUpdatedBefore', cursor.updated_before)
   if (cursor.updated_token) params.set('paginationToken', cursor.updated_token)
   return { params, phase: 'incremental' }
@@ -97,11 +115,16 @@ export function nextOrdersRequest(cursor: AmazonOrderCursor, marketplaceIds: str
 /** Advances the cursor after a page. Returns true when this phase has no more pages now. */
 export function advanceOrders(cursor: AmazonOrderCursor, phase: 'backfill' | 'incremental', nextToken: string | null) {
   if (phase === 'backfill') {
-    if (nextToken) { cursor.backfill_token = nextToken; return false }
-    cursor.backfill_token = null
-    cursor.backfill_done = true
-    // Orders created inside the backfill window may have changed while it ran.
-    cursor.updated_after = new Date(Date.parse(cursor.backfill_to) - ORDER_OVERLAP_MS).toISOString()
+    if (nextToken) { cursor.window_token = nextToken; return false }
+    cursor.window_token = null
+    const start = windowStart(cursor.window_end, cursor.backfill_floor)
+    if (Date.parse(start) <= Date.parse(cursor.backfill_floor)) {
+      cursor.backfill_done = true
+      // Orders created during the backfill window may have changed while it ran.
+      cursor.updated_after = new Date(Date.parse(cursor.backfill_started) - ORDER_OVERLAP_MS).toISOString()
+    } else {
+      cursor.window_end = start
+    }
     return false
   }
   if (nextToken) { cursor.updated_token = nextToken; return false }
@@ -111,21 +134,42 @@ export function advanceOrders(cursor: AmazonOrderCursor, phase: 'backfill' | 'in
   return true
 }
 
-/** The next Finances API window (at most 180 days, ending safely before now). */
+/** Next Finances API request: backward 30-day windows, then forward from the backfill start. */
 export function nextFinanceRequest(cursor: AmazonFinanceCursor, now: Date) {
+  if (!cursor.backfill_done) {
+    const params = new URLSearchParams({
+      postedAfter: windowStart(cursor.window_end, cursor.backfill_floor),
+      postedBefore: cursor.window_end,
+    })
+    if (cursor.window_token) params.set('nextToken', cursor.window_token)
+    return params
+  }
   if (!cursor.token || !cursor.posted_before) {
-    const safeEnd = now.getTime() - SAFE_LAG_MS
-    const end = Math.min(Date.parse(cursor.posted_after) + AMAZON_FINANCE_WINDOW_DAYS * DAY_MS, safeEnd)
+    const after = Date.parse(cursor.posted_after || cursor.backfill_started)
+    const end = Math.min(after + AMAZON_FINANCE_WINDOW_DAYS * DAY_MS, now.getTime() - SAFE_LAG_MS)
+    cursor.posted_after = new Date(after).toISOString()
     cursor.posted_before = new Date(end).toISOString()
     cursor.token = null
   }
-  const params = new URLSearchParams({ postedAfter: cursor.posted_after, postedBefore: cursor.posted_before as string })
+  const params = new URLSearchParams({ postedAfter: cursor.posted_after as string, postedBefore: cursor.posted_before as string })
   if (cursor.token) params.set('nextToken', cursor.token)
   return params
 }
 
 /** Advances the finance cursor. Returns true when caught up to the present for this run. */
 export function advanceFinances(cursor: AmazonFinanceCursor, nextToken: string | null, now: Date) {
+  if (!cursor.backfill_done) {
+    if (nextToken) { cursor.window_token = nextToken; return false }
+    cursor.window_token = null
+    const start = windowStart(cursor.window_end, cursor.backfill_floor)
+    if (Date.parse(start) <= Date.parse(cursor.backfill_floor)) {
+      cursor.backfill_done = true
+      cursor.posted_after = new Date(Date.parse(cursor.backfill_started) - FINANCE_OVERLAP_MS).toISOString()
+    } else {
+      cursor.window_end = start
+    }
+    return false
+  }
   if (nextToken) { cursor.token = nextToken; return false }
   const windowEnd = Date.parse(cursor.posted_before as string)
   cursor.token = null

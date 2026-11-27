@@ -5,12 +5,13 @@
  *
  * Each run continues from the cursor in platform_credentials.extra.sync and
  * stops well before the queue job timeout or at Amazon's rate limit:
- *   1. Orders (v2026-01-01 searchOrders): 2-year backfill by creation date,
- *      then incremental by last update. Items are embedded; no buyer or
- *      recipient data is requested.
- *   2. Transactions (Finances v2024-06-19 listTransactions) in ≤180-day
- *      windows → account_transactions, then each touched order's platform_fee
- *      is recomputed from all stored SP-API transactions for that order.
+ *   1. Orders (v2026-01-01 searchOrders): 12-month backfill by creation date
+ *      in backward 30-day windows (newest first), then incremental by last
+ *      update. Items are embedded; no buyer or recipient data is requested.
+ *   2. Transactions (Finances v2024-06-19 listTransactions): the same 12-month
+ *      backward backfill, then forward windows → account_transactions; each
+ *      touched order's platform_fee is recomputed from all stored SP-API
+ *      transactions for that order.
  *   3. rebuild_performance_data, using the database's source precedence.
  *
  * Owner decision 2026-11-26: the API is the authoritative Amazon source once a
@@ -156,15 +157,15 @@ Deno.serve(async req => {
     }
     details.fee_orders = await recomputeOrderFees(admin, merchantCode, [...touchedOrders])
 
-    if (!state.orders.backfill_done) warnings.push('backfill: سحب الطلبات التاريخية مستمر في الدورات القادمة')
-    else if (!state.finances.caught_up) warnings.push('backfill: سحب المعاملات المالية التاريخية مستمر في الدورات القادمة')
+    if (!state.orders.backfill_done || !state.finances.backfill_done) warnings.push('backfill: سحب سجل آخر ١٢ شهرًا مستمر في الدورات القادمة (الأحدث أولًا)')
 
     const { data: performanceRows, error: performanceError } = await admin.rpc('rebuild_performance_data', {
       p_merchant_code: merchantCode,
     })
     if (performanceError) throw performanceError
     details.performance_days = numberValue(performanceRows)
-    details.backfill_done = state.orders.backfill_done && state.finances.caught_up
+    details.backfill_done = state.orders.backfill_done && state.finances.backfill_done
+    details.backfill_reached = state.orders.backfill_done ? state.orders.backfill_floor : state.orders.window_end
     details.warnings = warnings
 
     const now = new Date().toISOString()

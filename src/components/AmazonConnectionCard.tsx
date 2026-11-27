@@ -91,7 +91,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         <div style={{ flex: 1 }}>
           <strong>Amazon</strong>
           <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
-            ربط مباشر بحساب البائع. تُحدَّث الطلبات والرسوم والتسويات تلقائيًا كل ٢٠ دقيقة تقريبًا، وقد يستغرق سحب السجل السابق (سنتان) عدة ساعات بعد الربط الأول.
+            ربط مباشر بحساب البائع. تُحدَّث الطلبات والرسوم والتسويات تلقائيًا كل ٢٠ دقيقة تقريبًا، وبعد الربط الأول يُسحب سجل آخر ١٢ شهرًا بدءًا من الأحدث، وقد يستغرق ذلك عدة ساعات.
           </div>
         </div>
         <span style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>

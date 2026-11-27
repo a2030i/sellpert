@@ -17,56 +17,72 @@ const now = new Date('2026-11-27T12:00:00Z')
 const DAY = 86_400_000
 
 describe('Amazon order cursor', () => {
-  it('backfills two years by creation date without requesting buyer or recipient data', () => {
+  it('starts with the newest 30 days and never requests buyer or recipient data', () => {
     const state = initialSyncState(now)
     const { params, phase } = nextOrdersRequest(state.orders, ['A17E79C6D8DWNP'], now)
     expect(phase).toBe('backfill')
-    expect(params.get('createdAfter')).toBe(new Date(now.getTime() - 730 * DAY).toISOString())
-    expect(Date.parse(params.get('createdBefore') as string)).toBeLessThan(now.getTime() - 2 * 60_000)
+    const before = Date.parse(params.get('createdBefore') as string)
+    expect(before).toBeLessThan(now.getTime() - 2 * 60_000)
+    expect(before - Date.parse(params.get('createdAfter') as string)).toBe(30 * DAY)
     expect(params.getAll('includedData')).toEqual(['PROCEEDS', 'FULFILLMENT'])
-    expect(params.getAll('includedData')).not.toContain('BUYER')
-    expect(params.getAll('includedData')).not.toContain('RECIPIENT')
     expect(params.getAll('marketplaceIds')).toEqual(['A17E79C6D8DWNP'])
   })
 
-  it('keeps the same window while paging, then switches to incremental updates', () => {
+  it('pages inside a fixed window, then walks back month by month to 12 months', () => {
     const state = initialSyncState(now)
     const first = nextOrdersRequest(state.orders, ['A17E79C6D8DWNP'], now)
-    expect(advanceOrders(state.orders, first.phase, 'token-2')).toBe(false)
+    advanceOrders(state.orders, first.phase, 'token-2')
     const second = nextOrdersRequest(state.orders, ['A17E79C6D8DWNP'], new Date(now.getTime() + 600_000))
     expect(second.params.get('createdBefore')).toBe(first.params.get('createdBefore'))
     expect(second.params.get('paginationToken')).toBe('token-2')
 
     advanceOrders(state.orders, 'backfill', null)
+    const older = nextOrdersRequest(state.orders, ['A17E79C6D8DWNP'], now)
+    expect(older.params.get('createdBefore')).toBe(first.params.get('createdAfter'))
+    expect(older.params.has('paginationToken')).toBe(false)
+
+    let windows = 2
+    while (!state.orders.backfill_done && windows < 50) {
+      advanceOrders(state.orders, 'backfill', null)
+      if (!state.orders.backfill_done) windows++
+    }
     expect(state.orders.backfill_done).toBe(true)
+    expect(windows).toBe(13)
+    const oldest = Date.parse(state.orders.backfill_floor)
+    expect(now.getTime() - oldest).toBe(365 * DAY)
+
     const incremental = nextOrdersRequest(state.orders, ['A17E79C6D8DWNP'], now)
     expect(incremental.phase).toBe('incremental')
     expect(Date.parse(incremental.params.get('lastUpdatedAfter') as string))
-      .toBeLessThan(Date.parse(state.orders.backfill_to))
-    expect(incremental.params.has('createdAfter')).toBe(false)
+      .toBeLessThan(Date.parse(state.orders.backfill_started))
     expect(advanceOrders(state.orders, 'incremental', null)).toBe(true)
-    expect(state.orders.updated_token).toBeNull()
   })
 
-  it('restarts safely from a damaged stored cursor', () => {
+  it('restarts safely from a damaged or older stored cursor', () => {
     expect(readSyncState({ orders: { backfill_from: 'nope' } }, now)).toEqual(initialSyncState(now))
+    expect(readSyncState({ orders: {}, finances: {} }, now).version).toBe(2)
   })
 })
 
 describe('Amazon finance cursor', () => {
-  it('walks history in windows of at most 180 days and then re-reads recent days', () => {
+  it('backfills newest months first, then moves forward from the backfill start', () => {
     const state = initialSyncState(now)
-    const params = nextFinanceRequest(state.finances, now)
-    const span = Date.parse(params.get('postedBefore') as string) - Date.parse(params.get('postedAfter') as string)
-    expect(span).toBeLessThanOrEqual(AMAZON_FINANCE_WINDOW_DAYS * DAY)
-    expect(advanceFinances(state.finances, null, now)).toBe(false)
+    const first = nextFinanceRequest(state.finances, now)
+    expect(Date.parse(first.get('postedBefore') as string) - Date.parse(first.get('postedAfter') as string)).toBe(30 * DAY)
+    advanceFinances(state.finances, null, now)
+    expect(nextFinanceRequest(state.finances, now).get('postedBefore')).toBe(first.get('postedAfter'))
     let guard = 0
-    while (!state.finances.caught_up && guard++ < 10) {
+    while (!state.finances.backfill_done && guard++ < 50) {
       nextFinanceRequest(state.finances, now)
       advanceFinances(state.finances, null, now)
     }
+    expect(state.finances.backfill_done).toBe(true)
+    const forward = nextFinanceRequest(state.finances, now)
+    expect(Date.parse(forward.get('postedAfter') as string)).toBeLessThan(Date.parse(state.finances.backfill_started))
+    const span = Date.parse(forward.get('postedBefore') as string) - Date.parse(forward.get('postedAfter') as string)
+    expect(span).toBeLessThanOrEqual(AMAZON_FINANCE_WINDOW_DAYS * DAY)
+    expect(advanceFinances(state.finances, null, now)).toBe(true)
     expect(state.finances.caught_up).toBe(true)
-    expect(Date.parse(state.finances.posted_after)).toBeLessThan(now.getTime() - DAY)
   })
 
   it('reuses the frozen window while following nextToken', () => {

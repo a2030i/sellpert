@@ -101,13 +101,16 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   `platform_credentials.extra.sync` (no secrets) and stops after ~30 s or on
   HTTP 429, because Orders v2026-01-01 `searchOrders` allows 0.0056 req/s
   (burst 20):
-  - Orders: 730-day backfill by `createdAfter/createdBefore`, then incremental
-    by `lastUpdatedAfter/lastUpdatedBefore` with a 10-minute overlap.
-    `includedData` is only `PROCEEDS` and `FULFILLMENT` (no BUYER/RECIPIENT).
-    Items are embedded and upserted into `order_items`. Order refreshes never
-    write `platform_fee`.
-  - Finances v2024-06-19 `listTransactions` in ≤180-day windows, then a 2-day
-    re-read overlap once caught up. Rows go to `account_transactions` with
+  - Orders: 365-day backfill walking backwards in 30-day windows (newest
+    month first) by `createdAfter/createdBefore`, then incremental by
+    `lastUpdatedAfter/lastUpdatedBefore` from the backfill start with a
+    10-minute overlap. `includedData` is only `PROCEEDS` and `FULFILLMENT`
+    (no BUYER/RECIPIENT). Items are embedded and upserted into `order_items`.
+    Order refreshes never write `platform_fee`.
+  - Finances v2024-06-19 `listTransactions`: the same 365-day backward
+    backfill in 30-day windows, then forward windows (≤180 days) from the
+    backfill start, with a 2-day re-read once caught up. Rows go to
+    `account_transactions` with
     `raw.sellpertSource = 'sp_api'`; each touched order's `platform_fee` is
     recomputed from all stored SP-API transactions for that order.
   - `rebuild_performance_data` runs once per run.
@@ -121,7 +124,11 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
     rows (performance and P&L are unaffected because API orders take
     precedence). Deciding how to retire those rows is `NEEDS_CONFIRMATION`.
   - During the first backfill, dashboards show only the API history fetched so
-    far, because any API order overrides file-based Amazon performance.
+    far (newest months first), because any API order overrides file-based
+    Amazon performance for all dates. File-based Amazon history older than
+    12 months therefore stops appearing in performance once API orders exist;
+    `NEEDS_CONFIRMATION` whether that history must be kept (per-date
+    precedence would be a separate change to `rebuild_performance_data`).
 - Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
   is the authoritative Amazon source and Amazon file uploads are retired for
   that merchant. Note the existing precedence in `security.rebuild_performance_data`:
