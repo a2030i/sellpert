@@ -28,9 +28,11 @@ Release YAML declares GitHub environment `production` and serializes each runtim
 releases with `cancel-in-progress: false`, and fail when required deployment
 secrets are missing. Vercel and Supabase do not share one release lock.
 
-The YAML does not make either release depend on successful completion of the
-separate CI workflow. Actual protected branches, required checks, environment
-reviewers and approval enforcement are `NEEDS_CONFIRMATION` in GitHub settings.
+Both release workflows first require successful **push CI for the exact commit**
+using [the release gate](../scripts/wait-for-release-ci.mjs). A successful PR run,
+another commit, failed/cancelled CI, or an API error cannot authorize deployment.
+Manual dispatch uses the same gate. Actual protected branches, required checks,
+environment restrictions and approval enforcement must also be verified in GitHub.
 A push can trigger production: commit/push authorization is not implicit in a
 local development or documentation request.
 
@@ -39,6 +41,8 @@ local development or documentation request.
 - Supabase release requires `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`.
 - Vercel release requires `VERCEL_TOKEN`; `VERCEL_ORG_ID` and
   `VERCEL_PROJECT_ID` are workflow metadata.
+  These three deployment secrets are stored in the `production` GitHub environment
+  (repository secrets also resolve if no environment override exists).
 - The browser client requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
   at module initialization. Supply them to its intended build environment; a
   successful bundle build alone does not prove they exist or identify the correct backend.
@@ -51,11 +55,43 @@ preview/staging separation and Supabase secrets are not established by this file
 ## Vercel behavior
 
 The workflow specifies Node 22 and Vercel CLI 58.5.1 with production mode.
-It supplies `VITE_APP_RELEASE` from GitHub's commit context.
+It supplies `VERCEL_GIT_COMMIT_SHA` from GitHub's immutable commit context.
 [vite.config.ts](../vite.config.ts) actually defines the client release using
 `VERCEL_GIT_COMMIT_SHA`, then `GITHUB_SHA`, then its local fallback. Preserve
 release attribution and verify the deployed immutable release after an authorized
 release; do not assume supplying a similarly named variable is sufficient.
+
+Before deploying, the workflow authenticates to Vercel and checks that team
+`team_RnIh0txGDI26IavAcpabyqCs` owns project
+`prj_Upq6kKTrMOC3NEfe2NMlrMFEiv8D`, named `sellpert`, linked to
+`a2030i/sellpert`. Failure stops the release without printing provider responses.
+During setup, validate one Actions release before disabling native Git production
+deployments. Otherwise native Git deployment can bypass the Actions CI gate.
+
+## Repository reviews and platform access
+
+[CODEOWNERS](../.github/CODEOWNERS) identifies database, financial, identity,
+credential and release paths. Configure main protection to require `checks`,
+`database-security`, and `edge-functions` from GitHub Actions, an up-to-date branch,
+resolved conversations and code-owner review. Zero general approvals plus required
+code-owner review allows presentation-only PRs to merge after CI while listed
+critical paths need another maintainer's approval. Mixed files still need review
+even for a text-only edit; path ownership does not classify the semantics of a diff.
+Protect administrators too; prohibit force pushes and branch deletion.
+
+The repository currently belongs to personal account `a2030i`. GitHub supports
+owner and collaborator access for personal repositories; a second repository
+Admin requires a separately authorized organization transfer. Do not claim that
+CODEOWNERS grants administrative access or transfer ownership during this setup.
+
+[Platform access verification](../.github/workflows/platform-access.yml) runs only
+by manual dispatch on main, uses production secrets and emits limited status only.
+`verify` reads the Vercel target/member status and Supabase organization membership.
+`invite-rakan` additionally invites/promotes only `rakan@sellpert.com` to Vercel team
+Owner, preserving other owners. Only dispatch it with an explicit owner request.
+Invitation sent, invitation pending and accepted membership are distinct states.
+Supabase invitations are managed in the organization's dashboard; the workflow
+only checks its member list. It does not change billing or database contents.
 
 [vercel.json](../vercel.json) declares SPA rewrites, security headers, CSP and
 immutable hashed-asset caching. Their presence on a live response is

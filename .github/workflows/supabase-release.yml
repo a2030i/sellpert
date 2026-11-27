@@ -10,17 +10,38 @@ on:
       - 'scripts/deploy-supabase-release.ps1'
       - 'scripts/Test-SupabaseMigrationParity.ps1'
       - '.github/workflows/supabase-release.yml'
+      - 'scripts/wait-for-release-ci.mjs'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: supabase-production-release
   cancel-in-progress: false
 
 jobs:
+  verify-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    outputs:
+      sha: ${{ steps.ci.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Require successful CI for this immutable production commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/wait-for-release-ci.mjs
+
   deploy:
+    needs: verify-ci
     # This marker is used only after the coordinated workflow has applied SQL,
     # deployed its exact handlers, and passed the unchanged parity guard.
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[coordinated-backend-ready]')
@@ -32,6 +53,8 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.verify-ci.outputs.sha }}
       - uses: supabase/setup-cli@v3.0.0
         with:
           version: 2.111.0

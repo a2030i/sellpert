@@ -12,17 +12,39 @@ on:
       - 'vite.config.*'
       - 'vercel.json'
       - '.github/workflows/vercel-release.yml'
+      - 'scripts/wait-for-release-ci.mjs'
+      - 'scripts/platform-access.mjs'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: vercel-production-release
   cancel-in-progress: false
 
 jobs:
+  verify-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    outputs:
+      sha: ${{ steps.ci.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Require successful CI for this immutable production commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/wait-for-release-ci.mjs
+
   deploy:
+    needs: verify-ci
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
@@ -32,15 +54,14 @@ jobs:
       VERCEL_PROJECT_ID: prj_Upq6kKTrMOC3NEfe2NMlrMFEiv8D
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.verify-ci.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - name: Validate required Vercel secret
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$VERCEL_TOKEN" || { echo 'Missing VERCEL_TOKEN' >&2; exit 1; }
+      - name: Verify token and exact Vercel team, project and repository
+        run: node scripts/platform-access.mjs vercel-preflight
       - name: Deploy immutable release to production
         shell: bash
         run: |
@@ -49,4 +70,4 @@ jobs:
             --prod \
             --yes \
             --token="$VERCEL_TOKEN" \
-            --build-env="VITE_APP_RELEASE=$GITHUB_SHA"
+            --build-env="VERCEL_GIT_COMMIT_SHA=$GITHUB_SHA"
