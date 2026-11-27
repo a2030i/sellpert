@@ -102,7 +102,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   },[merchant,selected, supabase])
 
   const pageCount=Math.max(1,Math.ceil(filteredCount/PAGE_SIZE))
-  const cards=useMemo(()=>[['all','كل المنتجات',stats.total,'#2563eb'],['linked','مرتبط',stats.linked,'#0f958c'],['review','يحتاج مراجعة',stats.review,'#d97706'],['unknown','غير معروف',stats.unknown,'#64748b']] as const,[stats])
+  const cards=useMemo(()=>[['all','سجلات الدليل',stats.total,'#2563eb'],['linked','منتجات مرتبطة',stats.linked,'#0f958c'],['review','يحتاج مراجعة',stats.review,'#d97706'],['unknown','معرّفات غير مرتبطة',stats.unknown,'#64748b']] as const,[stats])
   const availablePlatforms=useMemo(()=>{
     const available=new Set([...prices.map(row=>row.platform),...financeSettings.map(row=>row.platform),...items.flatMap(item=>item.mappings.map(mapping=>mapping.platform))])
     return platformPriority.filter(value=>available.has(value))
@@ -200,7 +200,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
 
   if (!merchant) return null
   return <div className="product-catalog merchant-page" dir="rtl">
-    <PageHeader title="دليل المنتجات" description="المرجع الموحد لأسماء المنتجات وربطها عبر جميع قنوات البيع." icon={BookOpen}
+    <PageHeader title="دليل المنتجات" description="المنتجات ومعرّفات المصدر ضمن حسابات البيع المختارة؛ سجلات المراجعة ليست منتجات موحّدة إضافية." icon={BookOpen}
       action={<button className="catalog-secondary" onClick={exportCsv}><Download size={16}/> تصدير</button>} />
     <section className="catalog-stats" aria-label="ملخص حالة ربط المنتجات">{cards.map(([key,label,value,color])=><button key={key} className={status===key?'active':''} onClick={()=>setStatus(key)} style={{'--metric-color':color} as React.CSSProperties}><span>{label}</span><strong>{Number(value).toLocaleString('en-US')}</strong><ChevronLeft size={16}/></button>)}</section>
     <section className="catalog-toolbar"><label className="catalog-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="البحث بالاسم أو SKU أو الباركود"/></label><select aria-label="اختيار منصة حساب الربحية" value={platform} onChange={e=>setPlatform(e.target.value)}>{!platform?<option value="" disabled>جاري تحديد المنصة…</option>:null}<option value="all">كل المنصات — عرض الربط</option>{Object.entries(platformNames).slice(0,-1).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><select aria-label="تصفية حسب حالة الربط" value={status} onChange={e=>setStatus(e.target.value as typeof status)}><option value="all">كل الحالات</option><option value="linked">مرتبط</option><option value="review">يحتاج مراجعة</option><option value="unknown">غير معروف</option></select></section>
