@@ -79,3 +79,19 @@ coverage exercises the actual SDK request headers and SQL acceptance/rejection o
 combined tokens, including misleading prefixes and suffixes. Verification of
 identity lookup must exercise the pre-request hook as well as the table policies;
 an anonymous denial check alone cannot validate authenticated workspace loading.
+
+## Deployment asset recovery
+
+A running tab can reference lazy-loaded files from an older deployment. The
+browser now handles `vite:preloadError` by fetching fresh same-origin HTML without
+cache and comparing its module entries. A verified entry change permits one
+reload per entry, with a five-minute per-tab cooldown; the current URL and auth
+storage are preserved. Offline, unchanged/invalid HTML, blocked session storage
+or exhausted recovery leaves the existing error UI available. It does not swallow
+the original error or classify unrelated runtime failures as a deployment.
+
+HTML revalidates with `Cache-Control: no-cache`; hashed assets retain immutable
+caching. The service worker does not cache failed requests or HTML at script/CSS
+URLs. Tabs created before this handler was deployed may still need one manual
+refresh to receive it. Local mocked-auth browser tests cover route/session
+preservation; they do not establish live merchant or financial acceptance.

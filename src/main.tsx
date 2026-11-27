@@ -12,10 +12,12 @@ import { applyStoredAccent } from './lib/theme'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import { installClientIncidentReporting } from './lib/clientIncident'
 import ConnectivityBanner from './components/ConnectivityBanner'
+import { installAssetRecovery } from './lib/assetRecovery'
 
 applyStoredTheme()
 applyStoredAccent()
 installClientIncidentReporting()
+installAssetRecovery()
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

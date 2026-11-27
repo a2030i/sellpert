@@ -154,3 +154,38 @@ for (const [path,title] of [['/statement','الأرباح والتحصيل'],['/
     await expect(page.getByRole('heading',{name:'صباح الخير، متجر المرحلة الأولى',exact:true})).toHaveCount(0)
   })
 }
+
+test.describe('deployment recovery', () => {
+  test.use({ serviceWorkers: 'block' })
+
+test('a stale deployment recovers once and preserves the workspace route and session', async ({ page }) => {
+  await page.goto('/orders?status=processing#current')
+  await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
+  const originalSession = await page.evaluate(() => localStorage.getItem('sellpert-auth-v1'))
+  // The fresh HTML references a newer entry. The dev server serves that same
+  // module with a query suffix, modelling a deployment without live credentials.
+  let freshChecks = 0
+  await page.route('http://127.0.0.1:*/', async route => {
+    if (route.request().resourceType() !== 'fetch') return route.continue()
+    freshChecks += 1
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replace(/(src="(?:\/src\/main\.tsx|\/assets\/index-[^"]+\.js))(")/, '$1?release=next$2') })
+  })
+  await Promise.all([
+    page.waitForEvent('load'),
+    page.evaluate(() => window.dispatchEvent(new Event('vite:preloadError'))),
+  ])
+  await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
+  expect(new URL(page.url()).pathname + new URL(page.url()).search + new URL(page.url()).hash).toBe('/orders?status=processing#current')
+  expect(await page.evaluate(() => localStorage.getItem('sellpert-auth-v1'))).toBe(originalSession)
+  expect(freshChecks).toBe(1)
+  let extraLoads = 0
+  page.on('load', () => { extraLoads += 1 })
+  await page.evaluate(() => window.dispatchEvent(new Event('vite:preloadError')))
+  await page.waitForTimeout(500)
+  expect(extraLoads).toBe(0)
+  expect(freshChecks).toBe(1)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})
+
+})
