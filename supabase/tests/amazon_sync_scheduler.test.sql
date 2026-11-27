@@ -31,18 +31,21 @@ begin
     update public.merchants set is_active = i <> 4,
       workspace_status = case when i = 5 then 'suspended' else 'active' end
       where id = actor_id returning merchant_code into strict code;
-    insert into public.platform_credentials (merchant_code, platform, seller_id, is_active, last_sync_at)
-    values (code, 'amazon', 'AMAZON-SCHEDULER-' || i, i <> 3,
+    insert into public.marketplace_accounts(id,merchant_code,platform,label,status) values(actor_id,code,'amazon','Scheduler fixture','active');
+    insert into public.platform_credentials (marketplace_account_id,merchant_code, platform, seller_id, is_active, last_sync_at)
+    values (actor_id,code, 'amazon', 'AMAZON-SCHEDULER-' || i, i <> 3,
       case when i = 2 then now() - interval '21 minutes'
            when i = 6 then now() - interval '10 minutes'
            when i = 7 then now() - interval '20 minutes' else null end);
-    if i = 1 then
-      insert into public.platform_credentials (merchant_code, platform, is_active)
-      values (code, 'trendyol', true);
+    if i in (1,12) then
+      with a as (insert into public.marketplace_accounts(merchant_code,platform,label,status) values(code,'trendyol','Scheduler fixture','active') returning id)
+      insert into public.platform_credentials (marketplace_account_id,merchant_code, platform, is_active)
+      select id,code,'trendyol',true from a;
     end if;
     if i in (8, 9, 10, 11, 12) then
-      insert into public.sync_queue (merchant_code, platform, job_type, status)
-      values (code, case when i = 12 then 'trendyol' else 'amazon' end, 'sync_incremental',
+      insert into public.sync_queue (merchant_code, platform, marketplace_account_id, job_type, status)
+      values (code, case when i = 12 then 'trendyol' else 'amazon' end,
+        (select marketplace_account_id from public.platform_credentials where merchant_code=code and platform=case when i=12 then 'trendyol' else 'amazon' end), 'sync_incremental',
         case i when 8 then 'pending' when 9 then 'processing' when 10 then 'running'
           when 11 then 'completed' else 'pending' end);
     end if;
@@ -93,11 +96,11 @@ begin
   end loop;
   perform security.enqueue_active_marketplace_syncs();
   if exists (
-    select q.merchant_code, q.platform from public.sync_queue q
+    select q.merchant_code, q.platform, q.marketplace_account_id from public.sync_queue q
     join public.merchants m on m.merchant_code = q.merchant_code
     where m.id between '00000000-0000-4000-8000-000000009101'::uuid and '00000000-0000-4000-8000-000000009112'::uuid
       and q.status in ('pending', 'processing', 'running')
-    group by q.merchant_code, q.platform having count(*) > 1
+    group by q.merchant_code, q.platform, q.marketplace_account_id having count(*) > 1
   ) then raise exception 'Repeated scheduler call duplicated an active tenant/platform job'; end if;
 end
 $$;

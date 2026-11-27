@@ -1,3 +1,4 @@
+import { accountScopedClient, requireMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 /**
  * trendyol-webhook
  * Receives real-time order events from Trendyol.
@@ -21,7 +22,7 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return json({ ok: true }, 200)
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let eventLogId = ''
 
   try {
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
     // Find the merchant who owns this supplierId
     const { data: directCredential } = await admin
       .from('platform_credentials')
-      .select('merchant_code')
+      .select('merchant_code,marketplace_account_id')
       .eq('platform', 'trendyol')
       .eq('seller_id', supplierId)
       .eq('is_active', true)
@@ -75,7 +76,7 @@ Deno.serve(async (req) => {
 
     const orderPayload = body.order || body.content || body
     const providerEventId = String(body.eventId || body.event_id || body.id || '')
-    const eventKey = providerEventId || await stableEventKey({
+    const eventKey = providerEventId ? `${supplierId}:${providerEventId}` : await stableEventKey({
       supplierId, eventType,
       orderId: orderPayload.orderNumber || orderPayload.orderId || orderPayload.id || '',
       status: orderPayload.status || orderPayload.orderStatus || '',
@@ -102,6 +103,9 @@ Deno.serve(async (req) => {
       console.warn(`[trendyol-webhook] No merchant found for supplierId=${supplierId}`)
       return json({ ok: true, skipped: true })
     }
+
+    const account = await requireMarketplaceAccount(admin, merchantCode, 'trendyol', directCredential?.marketplace_account_id)
+    admin = accountScopedClient(admin, account)
 
     // Test events — just log, no order processing needed
     const isTestEvent = eventType.includes('test') || eventType === 'unknown' ||

@@ -1,3 +1,4 @@
+import SellingAccountChooser from '../../components/SellingAccountChooser'
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchAll } from '../../lib/db'
@@ -279,6 +280,9 @@ type Merchant = { merchant_code: string; name: string; role: string }
 type Stage = 'queued' | 'parsing' | 'parsed' | 'validating' | 'saving' | 'saved' | 'skipped' | 'failed' | 'rejected'
 
 interface FileEntry {
+  marketplaceAccountId?: string
+  checkingAccount?: boolean
+  accountError?: string
   id: string
   file: File
   stage: Stage
@@ -510,6 +514,25 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     if (lockedMerchantCode) setMerchantCode(lockedMerchantCode)
   }, [lockedMerchantCode])
 
+  useEffect(() => { setFiles([]); setGlobalMsg(null) }, [merchantCode])
+  async function chooseFileAccount(entry: FileEntry, accountId?: string) {
+    setFiles(rows => rows.map(row => row.id === entry.id ? {...row,marketplaceAccountId:accountId,checkingAccount:Boolean(accountId),accountError:'',dup:undefined,dupAction:undefined} : row))
+    if (!accountId) return
+    let dup: FileEntry['dup']
+    let accountError = ''
+    try {
+      if (entry.fingerprint) {
+        const {data,error} = await supabase.from('platform_file_uploads').select('id,uploaded_at,file_name,rows_inserted,storage_path')
+          .eq('merchant_code',merchantCode).eq('marketplace_account_id',accountId).eq('fingerprint',entry.fingerprint)
+          .in('status',['success','partial']).order('uploaded_at',{ascending:false}).limit(1).maybeSingle()
+        if (error) throw error
+        if (data) dup={uploadId:data.id,uploadedAt:data.uploaded_at,fileName:data.file_name,rows:data.rows_inserted||0,storagePath:data.storage_path}
+      }
+    } catch { accountError='تعذر التحقق من الملفات السابقة لهذا الحساب. أعد اختيار الحساب.' }
+    setFiles(rows => rows.map(row => row.id === entry.id && row.marketplaceAccountId === accountId
+      ? {...row,checkingAccount:false,accountError,dup,dupAction:dup?'skip':undefined} : row))
+  }
+
   // ── Fetch last upload per file kind for current merchant (كل المنصات) ──
   useEffect(() => {
     if (!merchantCode) { setLastUploads({}); return }
@@ -555,9 +578,11 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
   const completionSummary = useMemo(() => buildImportCompletionSummary(files), [files])
 
   const amazonPair = useMemo(() => {
-    const business = files.find(f => f.validation?.ok && f.parsed?.kind === 'amazon_business_report')?.parsed
-    const dashboard = files.find(f => f.validation?.ok && f.parsed?.kind === 'amazon_sales_dashboard')?.parsed
-    if (!business || !dashboard) return null
+    const businessFiles = files.filter(f => f.validation?.ok && f.parsed?.kind === 'amazon_business_report')
+    const dashboardFiles = files.filter(f => f.validation?.ok && f.parsed?.kind === 'amazon_sales_dashboard')
+    if (businessFiles.length !== 1 || dashboardFiles.length !== 1 || !businessFiles[0].marketplaceAccountId || businessFiles[0].marketplaceAccountId !== dashboardFiles[0].marketplaceAccountId) return null
+    const business = businessFiles[0].parsed!
+    const dashboard = dashboardFiles[0].parsed!
     return reconcileAmazonReportTotals({
       sales: Number(business.summary.sales || 0),
       units: Number(business.summary.units || 0),
@@ -614,15 +639,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
         const isOk = validation?.ok ?? false
         // بصمة + كشف رفعة سابقة مطابقة لنفس التاجر
         const fingerprint = await fileFingerprint(entry.file)
-        let dup: FileEntry['dup'] = undefined
-        if (fingerprint && isOk) {
-          const { data: prev } = await supabase.from('platform_file_uploads')
-            .select('id, uploaded_at, file_name, rows_inserted, storage_path')
-            .eq('merchant_code', merchantCode).eq('fingerprint', fingerprint)
-            .in('status', ['success', 'partial'])
-            .order('uploaded_at', { ascending: false }).limit(1).maybeSingle()
-          if (prev) dup = { uploadId: prev.id, uploadedAt: prev.uploaded_at, fileName: (prev as any).file_name || '', rows: prev.rows_inserted || 0, storagePath: (prev as any).storage_path }
-        }
+        const dup: FileEntry['dup'] = undefined
         setFiles(p => p.map(f => f.id === entry.id ? {
           ...f, parsed, validation, fingerprint, dup,
           dupAction: dup ? 'skip' : undefined,
@@ -689,6 +706,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
     for (const entry of validFiles) {
       // المنصة الفعلية من الملف نفسه (لدعم الرفع متعدّد المنصات)
       const filePlatform = entry.parsed!.platform
+      if (!entry.marketplaceAccountId || entry.checkingAccount || entry.accountError) { allErrors.push(`${entry.file.name}: اختر حساب البيع قبل الحفظ`); continue }
       // Recheck before replacing an archive or writing an audit row. The RPC
       // commit also enforces this rule against direct clients and stale screens.
       if (filePlatform === 'amazon') {
@@ -719,7 +737,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
       // Insert audit row — فشله يوقف هذا الملف: المتابعة بـ uploadId فارغ
       // تُفشل كل الإدراجات الموسومة لاحقاً بخطأ uuid غامض
       const { data: audit, error: auditErr } = await supabase.from('platform_file_uploads').insert({
-        merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
+        marketplace_account_id:entry.marketplaceAccountId, merchant_code: merchantCode, platform: filePlatform, file_name: entry.file.name,
         file_type: entry.parsed!.kind, file_size: entry.file.size,
         detected_report: entry.parsed!.label, status: 'processing',
         uploaded_by: uploadedBy,
@@ -910,7 +928,11 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
           {/* File list */}
           {files.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {files.map(f => <FileCard key={f.id} entry={f} color={color} onRemove={removeFile} canRemove={!busy} onDupAction={setDupAction} />)}
+              {files.map(f => <div key={f.id}>
+                {f.parsed && merchantCode ? <SellingAccountChooser key={`${merchantCode}:${f.id}`} merchantCode={merchantCode} platform={f.parsed.platform} helpText="ستُنسب بيانات هذا الملف إلى حساب البيع المحدد." includeLegacy value={f.marketplaceAccountId || ''} disabled={busy || f.stage === 'saved'} onChange={account => void chooseFileAccount(f,account?.id)} /> : null}
+                {f.accountError ? <p role="alert">{f.accountError}</p> : null}
+                <FileCard entry={f} color={color} onRemove={removeFile} canRemove={!busy} onDupAction={setDupAction} />
+              </div>)}
             </div>
           )}
 
@@ -970,7 +992,7 @@ export default function ImportFilesView({ merchants, lockedMerchantCode, merchan
                 {allDone ? 'انتهيت — إفراغ القائمة' : 'إفراغ القائمة'}
               </button>
               {(pendingSave || busy) && (
-                <button onClick={saveAll} disabled={busy || !allValid || anyParsing || !pendingSave}
+                <button onClick={saveAll} disabled={busy || !allValid || anyParsing || !pendingSave || files.some(f => f.stage === 'parsed' && (!f.marketplaceAccountId || f.checkingAccount || f.accountError))}
                   style={{ ...S.btn, background: allValid && !busy && pendingSave ? color : 'var(--surface2)', color: allValid && !busy && pendingSave ? '#fff' : 'var(--text3)', display: 'flex', alignItems: 'center', gap: 8, opacity: busy ? 0.6 : 1 }}>
                   {busy ? <><Loader2 size={14} style={{ animation: 'spin 0.9s linear infinite' }} /> جاري الحفظ…</> : <><Save size={14} /> حفظ الكل</>}
                 </button>

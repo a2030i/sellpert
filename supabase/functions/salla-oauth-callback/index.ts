@@ -65,8 +65,7 @@ Deno.serve(async (req) => {
     })
 
     if (!tokenRes.ok) {
-      const err = await tokenRes.text()
-      console.error('Salla token exchange failed:', err)
+      console.error('Salla token exchange failed:', tokenRes.status)
       return redirect(`${APP_URL}?error=token_exchange_failed`)
     }
 
@@ -112,7 +111,7 @@ Deno.serve(async (req) => {
     // Check if salla_connections already exists
     const { data: existingConn } = await admin
       .from('salla_connections')
-      .select('id,merchant_code')
+      .select('id,merchant_code,marketplace_account_id')
       .eq('salla_store_id', sallaStoreId)
       .maybeSingle()
 
@@ -128,6 +127,9 @@ Deno.serve(async (req) => {
         updated_at:      new Date().toISOString(),
       }).eq('salla_store_id', sallaStoreId)
 
+      const {error:accountError} = await admin.from('marketplace_accounts').update({status:'active',updated_at:new Date().toISOString()})
+        .eq('id',existingConn.marketplace_account_id).eq('merchant_code',merchantCode).eq('external_seller_id',String(sallaStoreId))
+      if (accountError) throw accountError
       // Reactivate if suspended
       await admin.rpc('reactivate_merchant', { p_merchant_code: merchantCode })
 
@@ -193,7 +195,13 @@ Deno.serve(async (req) => {
       // path; the second attempt supports deploying this function immediately
       // before the Vault migration while access_token is still NOT NULL.
       const connectionId = crypto.randomUUID()
+      const {error:accountError} = await admin.from('marketplace_accounts').insert({
+        id:connectionId,merchant_code:merchantCode,platform:'salla',label:storeName || 'متجر سلة',
+        external_seller_id:String(sallaStoreId),status:'active',
+      })
+      if (accountError) throw accountError
       const connectionMetadata = {
+        marketplace_account_id: connectionId,
         id:               connectionId,
         merchant_code:    merchantCode,
         salla_store_id:   sallaStoreId,

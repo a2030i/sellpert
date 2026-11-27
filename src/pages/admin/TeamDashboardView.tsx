@@ -1,3 +1,5 @@
+import DataLoadError from '../../components/DataLoadError'
+import { fetchAllStrict, withTimeout } from '../../lib/db'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -43,6 +45,7 @@ interface OpenTask {
 export default function TeamDashboardView() {
   const [k, setK] = useState<KPIs | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [topMerchants, setTopMerchants] = useState<TopMerchant[]>([])
   const [recentNPS, setRecentNPS] = useState<any[]>([])
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([])
@@ -50,20 +53,24 @@ export default function TeamDashboardView() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    setLoading(true)
-    const [kpiResp, merchantsResp, npsResp, tasksResp, activityResp] = await Promise.all([
+    setLoading(true); setLoadError(false)
+    try {
+    const [kpiResp, merchantsResp, npsResp, tasksResp, activityResp] = await withTimeout(Promise.all([
       supabase.rpc('team_dashboard_kpis'),
-      supabase.from('merchants').select('merchant_code,name').eq('role', 'merchant').limit(50),
+      fetchAllStrict<any>((f,t) => supabase.from('merchants').select('merchant_code,name').eq('role', 'merchant').order('id').range(f,t)).then(data => ({data, error:null})),
       supabase.from('nps_responses').select('*').order('responded_at', { ascending: false }).limit(8),
       supabase.from('merchant_requests').select('id,title,note,priority,due_date,status,merchant_code,assigned_to')
         .in('status', ['pending', 'in_progress', 'review', 'blocked']).order('created_at', { ascending: false }).limit(10),
-      supabase.from('platform_file_uploads').select('merchant_code,uploaded_at').order('uploaded_at', { ascending: false }).limit(500),
-    ])
+      fetchAllStrict<any>((f,t) => supabase.from('platform_file_uploads').select('merchant_code,uploaded_at').order('uploaded_at', { ascending: false }).order('id').range(f,t)).then(data => ({data, error:null})),
+    ]))
+    const initialError = [kpiResp, merchantsResp, npsResp, tasksResp, activityResp].find(r => r.error)
+    if (initialError) throw initialError.error
+    if (!kpiResp.data) throw new Error('Missing team metrics')
 
     const merchantRows = merchantsResp.data || []
-    const healthResponses = await Promise.all(
+    const healthResponses = await withTimeout(Promise.all(
       merchantRows.map(m => supabase.rpc('merchant_health_score', { p_merchant_code: m.merchant_code })),
-    )
+    ))
     const latestActivity = new Map<string, string>()
     for (const upload of activityResp.data || []) {
       if (!latestActivity.has(upload.merchant_code)) latestActivity.set(upload.merchant_code, upload.uploaded_at)
@@ -78,14 +85,16 @@ export default function TeamDashboardView() {
     }).sort((a, b) => b.health_score - a.health_score).slice(0, 10)
 
     const errors = [kpiResp.error, merchantsResp.error, npsResp.error, tasksResp.error, activityResp.error, ...healthResponses.map(r => r.error)].filter(Boolean)
-    if (errors.length) console.error('تعذر تحميل جزء من لوحة الفريق', errors)
+    if (errors.length) throw new Error('Team health unavailable')
     setK(kpiResp.data || null)
     setTopMerchants(rankedMerchants)
     setRecentNPS(npsResp.data || [])
     setOpenTasks((tasksResp.data as OpenTask[]) || [])
-    setLoading(false)
+    } catch { setLoadError(true); setK(null) }
+    finally { setLoading(false) }
   }
 
+  if (loadError) return <DataLoadError message="تعذّر إكمال بيانات لوحة الفريق. أعد المحاولة." onRetry={load} />
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>جاري التحميل...</div>
 
   // مفاتيح الدالة team_dashboard_kpis الفعلية: active_merchants_30d / avg_health_score / nps_promoters / nps_detractors

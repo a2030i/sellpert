@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
+import { loadAmazonCaller } from '../_shared/amazonActor.ts'
+import { accountScopedClient, requireMarketplaceAccount, resolveMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 import { HttpError, json } from '../_shared/sync.ts'
 import { ensureTrendyolWebhook, verifyTrendyolCredentials } from '../_shared/trendyolConnection.ts'
@@ -20,9 +22,7 @@ Deno.serve(async req => {
     if (!token) throw new HttpError(401, 'Unauthorized')
     const { data: { user }, error } = await admin.auth.getUser(token)
     if (error || !user) throw new HttpError(401, 'Unauthorized')
-    const { data: caller } = await admin.from('merchants').select('merchant_code,owner_merchant_code,permissions,role,is_active')
-      .eq('id', user.id).maybeSingle()
-    if (!caller || caller.is_active === false) throw new HttpError(403, 'Forbidden')
+    const caller = await loadAmazonCaller(createClient, SUPABASE_URL, SERVICE_KEY, token, user.id)
 
     const body = await req.json()
     const action = String(body?.action || 'list')
@@ -34,13 +34,13 @@ Deno.serve(async req => {
     if (action === 'sync-status') return json(await getSyncStatus(admin, { ...body, merchant_code: merchantCode }), 200, corsHeaders)
     throw new HttpError(400, 'Unsupported action')
   } catch (error: any) {
-    return json({ error: error.message }, error instanceof HttpError ? error.status : 500, corsHeaders)
+    return json({ error: error instanceof HttpError ? error.message : 'تعذر إكمال الطلب' }, error instanceof HttpError ? error.status : 500, corsHeaders)
   }
 })
 
 async function listCredentials(admin: any, merchantCode: string | null) {
   let query = admin.from('platform_credentials')
-    .select('id,merchant_code,platform,seller_id,api_key,api_secret,is_active,last_sync_at,last_tested_at,test_status,records_synced,created_at,updated_at,extra')
+    .select('id,marketplace_account_id,merchant_code,platform,seller_id,api_key,api_secret,is_active,last_sync_at,last_tested_at,test_status,records_synced,created_at,updated_at,extra')
     .in('platform', [...PLATFORMS])
   if (merchantCode) query = query.eq('merchant_code', merchantCode)
   const { data, error } = await query.order('updated_at', { ascending: false })
@@ -48,6 +48,7 @@ async function listCredentials(admin: any, merchantCode: string | null) {
   return {
     credentials: (data || []).map((row: any) => ({
       id: row.id,
+      marketplace_account_id: row.marketplace_account_id,
       merchant_code: row.merchant_code,
       platform: row.platform,
       seller_id: row.seller_id,
@@ -102,6 +103,7 @@ async function saveCredential(admin: any, body: any) {
     .eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()
   if (!merchant) throw new HttpError(404, 'Merchant not found')
 
+  const account = await requireMarketplaceAccount(admin, merchantCode, platform, body.marketplace_account_id, false)
   const credentials = validateCredentials(platform, body?.credentials || {})
   let serverVerified = false
   let webhook: Record<string, unknown> | null = null
@@ -119,22 +121,13 @@ async function saveCredential(admin: any, body: any) {
   if (duplicate) throw new HttpError(409, 'حساب Trendyol هذا مرتبط بمساحة عمل أخرى')
   const secretBlob = await encryptCredentialPayload(credentials.secret)
   const extra = { ...credentials.publicExtra, secret_blob: secretBlob }
-  const row = {
-    merchant_code: merchantCode,
-    platform,
-    seller_id: credentials.sellerId,
-    api_key: null,
-    api_secret: null,
-    extra,
-    is_active: serverVerified,
-    test_status: serverVerified ? 'success' : 'untested',
-    last_tested_at: serverVerified ? new Date().toISOString() : null,
-    updated_at: new Date().toISOString(),
-  }
-  const { data, error } = await admin.from('platform_credentials').upsert(row, {
-    onConflict: 'merchant_code,platform',
-  }).select('id,merchant_code,platform,seller_id,is_active,test_status,updated_at').single()
-  if (error) throw error
+  const { error } = await admin.rpc('save_marketplace_credential', {
+    p_account_id: account.id, p_merchant_code: merchantCode, p_platform: platform,
+    p_seller_id: credentials.sellerId, p_extra: extra,
+  })
+  if (error) throw new HttpError(409, 'تعذر حفظ الربط. تحقق من أن الحساب غير مرتبط أو قيد المزامنة.')
+  const data = { id: account.id, marketplace_account_id: account.id, merchant_code: merchantCode,
+    platform, seller_id: credentials.sellerId, is_active: true, test_status: 'success' }
   if (serverVerified) {
     try {
       const webhookSecret = await resolveTrendyolWebhookSecret(admin)
@@ -167,8 +160,8 @@ async function deleteCredential(admin: any, body: any) {
   const merchantCode = String(body?.merchant_code || '')
   const platform = String(body?.platform || '')
   if (!merchantCode || !PLATFORMS.has(platform)) throw new HttpError(400, 'Invalid merchant or platform')
-  const { error } = await admin.from('platform_credentials').delete()
-    .eq('merchant_code', merchantCode).eq('platform', platform)
+  const account = await requireMarketplaceAccount(admin, merchantCode, platform, body.marketplace_account_id, false)
+  const { error } = await admin.rpc('disconnect_marketplace_account', {p_account_id: account.id, p_merchant_code: merchantCode})
   if (error) throw error
   return { ok: true }
 }
@@ -177,6 +170,8 @@ async function enqueueSync(admin: any, body: any) {
   const merchantCode = String(body?.merchant_code || '')
   const platform = String(body?.platform || '')
   if (!merchantCode || !PLATFORMS.has(platform)) throw new HttpError(400, 'Invalid merchant or platform')
+  const account = await resolveMarketplaceAccount(admin, merchantCode, platform, body.marketplace_account_id)
+  admin = accountScopedClient(admin, account)
 
   const { data: credential, error: credentialError } = await admin.from('platform_credentials')
     .select('id').eq('merchant_code', merchantCode).eq('platform', platform).eq('is_active', true).maybeSingle()
@@ -204,6 +199,8 @@ async function getSyncStatus(admin: any, body: any) {
   const merchantCode = String(body?.merchant_code || '')
   const platform = String(body?.platform || '')
   if (!merchantCode || !PLATFORMS.has(platform)) throw new HttpError(400, 'Invalid merchant or platform')
+  const account = await resolveMarketplaceAccount(admin, merchantCode, platform, body.marketplace_account_id)
+  admin = accountScopedClient(admin, account)
 
   const { data: job, error } = await admin.from('sync_queue')
     .select('id,status,attempts,error_message,created_at,started_at,finished_at')

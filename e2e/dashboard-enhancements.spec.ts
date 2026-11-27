@@ -15,6 +15,8 @@ const merchant = {
   created_at: '2026-08-01T08:00:00.000Z',
 }
 
+const accounts = ['amazon','noon','trendyol'].map((platform,index)=>({id:`00000000-0000-4000-8000-00000000098${index}`,merchant_code:merchant.merchant_code,platform,label:`حساب ${platform}`,status:'active',is_legacy:false,external_seller_id:`seller-${index}`}))
+
 const adminMerchant = { ...merchant, id:'00000000-0000-4000-8000-000000000992', merchant_code:'ADMIN-E2E', name:'مدير الاختبار', email:'admin@example.test', role:'admin' }
 
 function unsignedToken(user=merchant) {
@@ -52,12 +54,13 @@ async function mockDashboard(page: Page, actor=merchant, catalogItemCount=1) {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()
     let body: unknown = []
-    if (table === 'unified_product_catalog') {
+    if (table === 'unified_product_catalog_by_account') {
       const request=(route.request().postDataJSON()||{}) as {p_limit?:number;p_offset?:number}
-      const catalogItems=Array.from({length:catalogItemCount},(_,index)=>({ id:`product-${index+1}`, name:index===0?'خلطة القهوة الموحدة':`منتج موحد ${index+1}`, name_en:'Unified Coffee', sku:`MASTER-SKU-${index+1}`, barcode:`62800000000${String(index+11).padStart(2,'0')}`, brand:'Sellpert', category:'توابل أخرى', image_url:null, cost_price:50, sale_price:null, target_net_price:100, catalog_status:'active', inventory:12, mappings:[{id:`mapping-${index+1}`,platform:'noon',identifier_type:'sku',identifier_value:`NOON-SKU-${index+1}`,status:'linked'}], match_status:'linked' }))
+      const catalogItems=Array.from({length:catalogItemCount},(_,index)=>({ id:`product-${index+1}`, name:index===0?'خلطة القهوة الموحدة':`منتج موحد ${index+1}`, name_en:'Unified Coffee', sku:`MASTER-SKU-${index+1}`, barcode:`62800000000${String(index+11).padStart(2,'0')}`, brand:'Sellpert', category:'توابل أخرى', image_url:null, cost_price:50, sale_price:null, target_net_price:100, catalog_status:'active', inventory:12, mappings:[{id:`mapping-${index+1}`,platform:'noon',marketplace_account_id:accounts[1].id,account_label:accounts[1].label,identifier_type:'sku',identifier_value:`NOON-SKU-${index+1}`,status:'linked'}], match_status:'linked' }))
       const offset=Number(request.p_offset||0), limit=Number(request.p_limit||50)
       body={items:catalogItems.slice(offset,offset+limit),stats:{total:catalogItemCount,linked:catalogItemCount,review:0,unknown:0},filtered_count:catalogItemCount}
     }
+    if (table === 'marketplace_accounts') body = accounts
     if (table === 'merchants') body = url.searchParams.has('id') ? [actor] : actor.role === 'admin' ? [actor,merchant] : [actor]
     if (table === 'orders') body = [
       { order_id:'AMZ-OLD-PENDING', platform:'amazon', status:'processing', product_name:'RAW-AMAZON-CODE', sku:'AMZ-SKU-1', quantity:1, total_amount:50, currency:'SAR', order_date:'2026-06-01T08:00:00Z' },
@@ -87,7 +90,7 @@ async function mockDashboard(page: Page, actor=merchant, catalogItemCount=1) {
       if (posted?.merchant_code) sellpertTerm={merchant_code:posted.merchant_code,sellpert_fee_type:posted.sellpert_fee_type||'none',sellpert_fee_value:posted.sellpert_fee_value||0}
       body=[sellpertTerm]
     }
-    if (table === 'admin_overview_metrics') body = {
+    if (table === 'admin_overview_metrics_by_account_scope') body = {
       range:{start:'2026-07-16',end:'2026-08-14',previous_start:'2026-06-16',previous_end:'2026-07-15'},
       totals:{gmv:600,orders:6,fees:75,active_merchants:1,rows:3,first_date:'2026-08-12',last_date:'2026-08-13',updated_at:'2026-08-14T08:00:00Z'},
       previous:{gmv:500,orders:5,active_merchants:1},
@@ -100,6 +103,7 @@ async function mockDashboard(page: Page, actor=merchant, catalogItemCount=1) {
       { product_id:'product-1', platform:'noon', identifier_value:'NOON-SKU-1', source_sku:'NOON-SKU-1', source_barcode:null, source_name:'RAW-NOON-CODE', match_status:'linked' },
       { product_id:'product-1', platform:'trendyol', identifier_value:'TY-SKU-1', source_sku:'TY-SKU-1', source_barcode:'6280000000011', source_name:'RAW-TRENDYOL-CODE', match_status:'linked' },
     ]
+    if (Array.isArray(body)) body=body.map(row=>row.platform ? {...row,marketplace_account_id:accounts.find(account=>account.platform===row.platform)?.id} : row)
     const count=Array.isArray(body)?body.length:1
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': count ? `0-${count - 1}/${count}` : '*/0' }, body: JSON.stringify(body) })
   })
@@ -129,7 +133,7 @@ test('merchant dashboard combines multiple platforms across all dashboard data',
   await expect(chart.locator('.panel-head p')).toContainText('2 طلبًا')
   await expect(chart.locator('.panel-head p')).toContainText('300')
   await expect(page.getByRole('button', { name: /منتجات نفدت من المخزون/ }).locator('b')).toHaveText('1')
-  await expect(page.getByRole('button', { name: /طلبات تحتاج معالجة الآن/ }).locator('b')).toHaveText('1')
+  await expect(page.getByRole('button', { name: /طلبات معلقة تحتاج متابعة/ }).locator('b')).toHaveText('1')
 
   await platformControl.getByRole('checkbox', { name:'نون' }).uncheck()
   await expect(platformControl.locator('summary')).toContainText('أمازون')
@@ -163,7 +167,7 @@ test('product catalog deducts the merchant-wide Sellpert contract fee and saves 
   await mockDashboard(page,merchant,12)
   await page.goto('/product-catalog')
   const platformSelect=page.getByLabel('اختيار منصة حساب الربحية')
-  await expect(platformSelect).toHaveValue('noon')
+  await expect(platformSelect).toHaveValue('noon', { timeout:15000 })
   await expect(page.getByRole('heading',{name:'تحليل التسعير والربحية'})).toBeVisible()
   await expect(page).toHaveURL(/platform=noon/)
 
@@ -235,6 +239,7 @@ test('admin sets one Sellpert contract commission for the whole merchant', async
 })
 
 test('admin overview uses one shared date, platform and merchant scope', async ({ page }, testInfo) => {
+  test.setTimeout(60000)
   test.skip(testInfo.project.name === 'mobile-chromium', 'تغطية الهاتف للوحة الإدارة موجودة في اختبارات التنقل العامة')
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))

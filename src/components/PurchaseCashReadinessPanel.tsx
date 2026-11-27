@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, Banknote, CheckCircle2, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react'
+import { listSellingAccounts } from '../lib/marketplaceAccounts'
+import { useSelectedSellingAccounts } from './SellingAccountScope'
 import { supabase } from '../lib/supabase'
 import { normalizePurchaseReadiness, type PurchaseReadiness } from '../lib/purchaseReadiness'
 import { userErrorMessage } from '../lib/userError'
@@ -25,6 +27,17 @@ function navigate(path: string) {
 }
 
 export default function PurchaseCashReadinessPanel() {
+  const accounts=useSelectedSellingAccounts()
+  const merchantCode=accounts[0]?.merchant_code
+  const [legacyOnly,setLegacyOnly]=useState<boolean|null>(null)
+  useEffect(()=>{let cancelled=false;setLegacyOnly(null);if(merchantCode)listSellingAccounts(merchantCode).then(rows=>{if(!cancelled)setLegacyOnly(rows.every(row=>row.is_legacy))}).catch(()=>{if(!cancelled)setLegacyOnly(false)});return()=>{cancelled=true}},[merchantCode])
+  if(legacyOnly===null)return <p role="status">جارٍ التحقق من نطاق خطة الشراء…</p>
+  // The existing workspace-wide readiness RPC does not allocate shared stock
+  // or overlapping historical sources. Do not present its total as a scoped plan.
+  if(!legacyOnly || !accounts.every(account=>account.is_legacy))return <p role="status" style={{fontSize:12,lineHeight:1.8,color:'var(--text2)'}}>تقييم تمويل المشتريات للحسابات المتعددة يحتاج خطة شراء موحّدة للمخزون الفعلي. راجع الكميات المعتمدة في دليل المنتجات قبل إعداد الخطة.</p>
+  return <WorkspacePurchaseCashReadiness/>
+}
+function WorkspacePurchaseCashReadiness() {
   const [data, setData] = useState<PurchaseReadiness | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

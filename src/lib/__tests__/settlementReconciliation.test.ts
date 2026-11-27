@@ -28,3 +28,12 @@ describe('settlement reconciliation', () => {
     expect(result.unlinkedTransactions).toBe(1)
   })
 })
+
+it('keeps identical settlement references separate for different accounts', () => {
+  const result=reconcileSettlements([
+    {marketplace_account_id:'a',platform:'amazon',settlement_id:'shared:1',transaction_type:'Sale',net_amount:100},
+    {marketplace_account_id:'b',platform:'amazon',settlement_id:'shared:1',transaction_type:'Sale',net_amount:200},
+  ])
+  expect(result.groups).toHaveLength(2)
+  expect(result.groups.map(row=>[row.marketplace_account_id,row.reference,row.entitlement])).toEqual([['a','shared:1',100],['b','shared:1',200]])
+})

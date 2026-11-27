@@ -52,7 +52,9 @@ async function mockPhaseOneMerchant(page: Page) {
     let body: unknown[] = []
     let range = '*/0'
 
-    if (table === 'merchants') {
+    if (table === 'marketplace_accounts') {
+      body = [{id:'00000000-0000-4000-8000-000000000122',merchant_code:merchant.merchant_code,platform:'trendyol',label:'بيانات قديمة',status:'disconnected',is_legacy:true}]
+    } else if (table === 'merchants') {
       body = [merchant]
       range = '0-0/1'
     } else if (table === 'orders' && select.includes('order_id')) {
@@ -139,8 +141,16 @@ test('phase-one navigation contains the launch destinations', async ({ page }, t
 
 test('advanced merchant URLs return safely to the phase-one home', async ({ page }) => {
   const dashboardData = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/rest/v1/orders'))
-  await page.goto('/statement')
+  await page.goto('/product-compare')
   await dashboardData
   await expect(page.getByRole('heading', { name: 'صباح الخير، متجر المرحلة الأولى', level: 1 })).toBeVisible()
   await expect(page.getByText('الأرباح والتحصيل', { exact: true })).toHaveCount(0)
 })
+
+for (const [path,title] of [['/statement','الأرباح والتحصيل'],['/security','الأمان والجلسات'],['/store-status','حالة المتجر']]) {
+  test(`approved merchant route ${path} remains reachable`,async({page})=>{
+    await page.goto(path)
+    await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible({timeout:15000})
+    await expect(page.getByRole('heading',{name:'صباح الخير، متجر المرحلة الأولى',exact:true})).toHaveCount(0)
+  })
+}

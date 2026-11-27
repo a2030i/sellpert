@@ -1,4 +1,7 @@
-﻿import { useState, useMemo } from 'react'
+import { supabase } from '../../lib/supabase'
+import { fetchAllStrict } from '../../lib/db'
+import DataLoadError from '../../components/DataLoadError'
+import { useState, useMemo } from 'react'
 import { S, fmt, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
 import type { Merchant, PerformanceData } from '../../lib/supabase'
 import { useEffect } from 'react'
@@ -9,19 +12,25 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const PERF_PAGE_SIZE = 50
 
 export default function PerformanceView({ merchants, perfData }: any) {
-  const [filterMerchant, setFilterMerchant] = useState('all')
-  const [filterPlatform, setFilterPlatform] = useState('all')
+  const params=new URLSearchParams(window.location.search)
+  const [filterMerchant,setFilterMerchant]=useState(params.get('merchant')||'all')
+  const [sourceScope,setSourceScope]=useState(params.get('source')==='identified'?'identified':'legacy')
+  const [accountKinds,setAccountKinds]=useState<Map<string,boolean>|null>(null)
+  const [error,setError]=useState(false),[reload,setReload]=useState(0)
+  const [from,setFrom]=useState(params.get('from')||''),[to,setTo]=useState(params.get('to')||'')
+  useEffect(()=>{let cancelled=false;setError(false);fetchAllStrict<{id:string;is_legacy:boolean}>((f,t)=>supabase.from('marketplace_accounts').select('id,is_legacy').order('id').range(f,t)).then(rows=>{if(!cancelled)setAccountKinds(new Map(rows.map(row=>[row.id,row.is_legacy]))) }).catch(()=>{if(!cancelled)setError(true)});return()=>{cancelled=true}},[reload])
+  const [filterPlatform, setFilterPlatform] = useState(params.get('platforms')||'all')
   const [filterPreset, setFilterPreset] = useState<PerformancePreset>('last30')
   const [page, setPage] = useState(0)
 
   const filtered = useMemo(() => {
-    let d = perfData as PerformanceData[]
+    let d = (perfData as PerformanceData[]).filter(row=>accountKinds?.get(row.marketplace_account_id||'')===(sourceScope==='legacy'))
     if (filterMerchant !== 'all') d = d.filter(r => r.merchant_code === filterMerchant)
-    if (filterPlatform !== 'all') d = d.filter(r => r.platform === filterPlatform)
-    return filterPerformanceRows(d, filterPreset)
-  }, [perfData, filterMerchant, filterPlatform, filterPreset])
+    if (filterPlatform !== 'all') d = d.filter(r => filterPlatform.split(',').includes(r.platform))
+    return from&&to ? d.filter(row=>performanceDateKey(row)>=from&&performanceDateKey(row)<=to) : filterPerformanceRows(d,filterPreset)
+  }, [perfData, filterMerchant, filterPlatform, filterPreset, from, to, accountKinds, sourceScope])
 
-  useEffect(() => setPage(0), [filterMerchant, filterPlatform, filterPreset])
+  useEffect(() => setPage(0), [filterMerchant, filterPlatform, filterPreset, sourceScope, from, to])
 
   const totalPages = Math.ceil(filtered.length / PERF_PAGE_SIZE)
   const pageRows = filtered.slice(page * PERF_PAGE_SIZE, (page + 1) * PERF_PAGE_SIZE)
@@ -44,6 +53,8 @@ export default function PerformanceView({ merchants, perfData }: any) {
 
   const platforms = [...new Set(perfData.map((r: PerformanceData) => r.platform))]
 
+  if(error)return <DataLoadError onRetry={()=>setReload(n=>n+1)}/>
+  if(!accountKinds)return <p role="status">جارٍ تحديد مصدر البيانات…</p>
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -52,7 +63,7 @@ export default function PerformanceView({ merchants, perfData }: any) {
           {merchants.map((m: Merchant) => <option key={m.id} value={m.merchant_code}>{m.name}</option>)}
         </select>
         <select aria-label="تصفية الأداء حسب المنصة" style={S.filterSelect} value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
-          <option value="all">كل المنصات</option>
+          <option value="all">كل المنصات</option>{filterPlatform.includes(',')?<option value={filterPlatform}>{filterPlatform.split(',').map(value=>PLATFORM_MAP[value]||value).join('، ')}</option>:null}
           {platforms.map((p: any) => <option key={p} value={p}>{PLATFORM_MAP[p] || p}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -63,12 +74,14 @@ export default function PerformanceView({ merchants, perfData }: any) {
             { k: 'thisMonth', l: 'هذا الشهر' },
             { k: 'all', l: 'الكل' },
           ].map(p => (
-            <button key={p.k} aria-pressed={filterPreset === p.k} style={{ ...S.presetBtn, ...(filterPreset === p.k ? S.presetActive : {}) }} onClick={() => setFilterPreset(p.k as PerformancePreset)}>{p.l}</button>
+            <button key={p.k} aria-pressed={!from && !to && filterPreset === p.k} style={{ ...S.presetBtn, ...(!from && !to && filterPreset === p.k ? S.presetActive : {}) }} onClick={() => {setFrom('');setTo('');setFilterPreset(p.k as PerformancePreset)}}>{p.l}</button>
           ))}
         </div>
+        <label>مصدر الأرقام<select value={sourceScope} onChange={event=>setSourceScope(event.target.value)} style={S.filterSelect}><option value="legacy">البيانات القديمة غير المنسوبة</option><option value="identified">الحسابات المحددة الهوية</option></select></label>
+        {from&&to?<span>الفترة: {from} — {to}</span>:null}
         <span style={S.badge}>{filtered.length} سجل</span>
         <button style={{ ...S.miniBtn, marginRight: 'auto', fontSize: 12, padding: '6px 14px' }} onClick={() => {
-          const headers = ['تاريخ التقرير', 'التاجر', 'المنصة', 'الوحدات/الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش%', 'الإعلانات']
+          const headers = ['تاريخ التقرير', 'التاجر', 'المنصة', 'حجم المبيعات المسجل', 'المبيعات', 'رسوم المنصة', 'الهامش%', 'الإعلانات']
           const rows = filtered.map((r: PerformanceData) => [
             performanceDateKey(r),
             merchants.find((m: Merchant) => m.merchant_code === r.merchant_code)?.name || r.merchant_code,
@@ -79,11 +92,12 @@ export default function PerformanceView({ merchants, perfData }: any) {
         }}>تصدير CSV</button>
       </div>
 
+      <p style={{fontSize:12,color:"var(--text2)"}}>حجم المبيعات المسجل هو العدد الوارد من المصدر؛ قد يمثل وحدات أو طلبات، وليس عدد طلبات فريدًا. البيانات القديمة والحسابات المحددة الهوية تُعرض منفصلة تجنبًا للتكرار.</p>
       <div data-kpi-grid style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>
         {[
           { label: 'إجمالي المبيعات', value: fmt(totalSales), color: 'var(--accent)' },
-          { label: 'الوحدات / الطلبات', value: fmt(totalVolume, 'number'), color: 'var(--success-text)' },
-          { label: 'متوسط قيمة الوحدة / الطلب', value: fmt(averageValue), color: 'var(--warning-text)' },
+          { label: 'حجم المبيعات المسجل', value: fmt(totalVolume, 'number'), color: 'var(--success-text)' },
+          { label: 'متوسط قيمة العدد المبلّغ', value: fmt(averageValue), color: 'var(--warning-text)' },
           { label: 'رسوم المنصات', value: fmt(totalFees), color: '#ff6b6b' },
         ].map((k, i) => (
           <div key={i} style={{ ...S.kpiCard }}>
@@ -117,13 +131,15 @@ export default function PerformanceView({ merchants, perfData }: any) {
       <div style={S.tableCard}>
         <div style={S.tableHeader}>
           <div style={S.chartTitle}>سجل الأداء التفصيلي</div>
-          <span style={S.badge}>{filtered.length} سجل</span>
+          <label>مصدر الأرقام<select value={sourceScope} onChange={event=>setSourceScope(event.target.value)} style={S.filterSelect}><option value="legacy">البيانات القديمة غير المنسوبة</option><option value="identified">الحسابات المحددة الهوية</option></select></label>
+        {from&&to?<span>الفترة: {from} — {to}</span>:null}
+        <span style={S.badge}>{filtered.length} سجل</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={S.table}>
             <thead>
               <tr>
-                {['تاريخ التقرير', 'التاجر', 'المنصة', 'الوحدات/الطلبات', 'المبيعات', 'رسوم المنصة', 'الهامش', 'الإنفاق'].map(h => (
+                {['تاريخ التقرير', 'التاجر', 'المنصة', 'حجم المبيعات المسجل', 'المبيعات', 'رسوم المنصة', 'الهامش', 'الإنفاق'].map(h => (
                   <th key={h} style={S.th}>{h}</th>
                 ))}
               </tr>

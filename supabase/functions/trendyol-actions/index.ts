@@ -1,3 +1,4 @@
+import { accountScopedClient, resolveMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { authorizeMerchantSync, HttpError, json } from '../_shared/sync.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
@@ -104,7 +105,7 @@ const ACTIONS: Record<string, Definition> = {
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:cors })
   if (req.method !== 'POST') return json({ error:'Method not allowed' }, 405, cors)
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
   let questionReplyAttemptId = ''
   try {
@@ -124,6 +125,8 @@ Deno.serve(async req => {
       merchantCode,
       requiredEmployeePermissions(action),
     )
+    const account = await resolveMarketplaceAccount(admin, merchantCode, 'trendyol', input.marketplace_account_id)
+    admin = accountScopedClient(admin, account)
     if (DEPRECATED_ACTIONS[action]) {
       throw new HttpError(410, `أوقف Trendyol هذه العملية ضمن Product V1 اعتبارًا من 10 أغسطس 2026. ${DEPRECATED_ACTIONS[action]}`)
     }
@@ -457,21 +460,25 @@ async function validatePackageContext(admin:any,merchantCode:string,action:strin
 async function validateProductContext(admin:any,merchantCode:string,action:string,input:any) {
   if (action === 'products.price_inventory') {
     const barcodes = [...new Set((input?.payload?.items || []).map((item:any) => clean(item?.barcode)).filter(Boolean))]
-    const { data:products,error:productsError } = await admin.from('products')
-      .select('id,name,barcode,platform_source,raw').eq('merchant_code',merchantCode).in('barcode',barcodes)
-    if (productsError) throw productsError
-    const productByBarcode = new Map((products || []).map((product:any) => [clean(product.barcode),product]))
-    if (productByBarcode.size !== barcodes.length) throw new HttpError(409,'بعض المنتجات لا تنتمي إلى هذا المتجر أو لم تعد متاحة؛ حدّث الصفحة ثم حاول مجددًا')
-    const productIds = (products || []).map((product:any) => product.id)
-    const { data:listings,error:listingsError } = await admin.from('product_platform_listings')
-      .select('product_id,delivery_status,notes').eq('merchant_code',merchantCode).eq('platform','trendyol').in('product_id',productIds)
-    if (listingsError) throw listingsError
+    const {data:listings,error:listingsError}=await admin.from('product_platform_listings').select('product_id,provider_barcode,delivery_status,catalog_status,notes').eq('merchant_code',merchantCode).eq('platform','trendyol').in('provider_barcode',barcodes)
+    if(listingsError)throw listingsError
+    const productIds=[...new Set((listings||[]).map((listing:any)=>listing.product_id))]
+    const {data:products,error:productsError}=await admin.from('products').select('id,name,platform_source').eq('merchant_code',merchantCode).in('id',productIds)
+    if(productsError)throw productsError
+    const productById=new Map((products||[]).map((product:any)=>[product.id,product]))
+    const productByBarcode=new Map()
+    for(const listing of listings||[]){
+      if(productByBarcode.has(listing.provider_barcode))throw new HttpError(409,'باركود المنصة مرتبط بأكثر من منتج؛ راجع المطابقة أولًا')
+      const product=productById.get(listing.product_id)
+      if(product)productByBarcode.set(listing.provider_barcode,product)
+    }
+    if(productByBarcode.size!==barcodes.length)throw new HttpError(409,'حدّث ربط المنتجات في هذا الحساب قبل تعديل السعر أو المخزون')
     const listingByProduct = new Map((listings || []).map((listing:any) => [listing.product_id,listing]))
     for (const barcode of barcodes) {
       const product:any = productByBarcode.get(barcode)
       const listing:any = listingByProduct.get(product.id)
       const status = String(listing?.delivery_status || '')
-      const providerStatus = String(product.raw?.approvalStatus || '').toLowerCase()
+      const providerStatus = String(listing?.catalog_status || '').toLowerCase()
       const linked = String(product.platform_source || '').startsWith('trendyol') || Boolean(listing && status !== 'draft')
       if (!linked) throw new HttpError(409,`المنتج «${clean(product.name) || 'غير المسمى'}» غير منشور في Trendyol بعد`)
       if (['accepted','processing','running'].includes(status)) throw new HttpError(409,`يوجد تحديث قيد المعالجة للمنتج «${clean(product.name) || 'غير المسمى'}»`)
@@ -590,7 +597,13 @@ async function reconcileCreatedProduct(
     const productRows = normalized.products.filter(row => String(row.barcode || '') === barcode)
     const inventoryRows = normalized.inventory.filter(row => String((row.raw as any)?.variant?.barcode || '') === barcode || String(row.sku || '') === String(productRows[0]?.sku || ''))
     if (productRows.length) {
-      const { error } = await admin.from('products').upsert(productRows,{ onConflict:'merchant_code,sku' })
+      // The publication request already names the canonical product. Record its
+      // verified seller identifier instead of looking up a global SKU.
+      const { error } = await admin.from('product_channel_mappings').upsert(productRows.map(row => ({
+        merchant_code:merchantCode,platform:'trendyol',product_id:listingResult.data.product_id,
+        identifier_type:'sku',identifier_value:String(row.sku),source_sku:String(row.sku),
+        source_barcode:row.barcode,source_name:row.name,match_status:'linked',match_method:'platform_id',confidence:1,
+      })),{onConflict:'merchant_code,platform,identifier_type,identifier_value',ignoreDuplicates:true})
       if (error) throw error
     }
     if (inventoryRows.length) {
@@ -599,13 +612,11 @@ async function reconcileCreatedProduct(
     }
     if (productRows.length && normalized.listings.length) {
       const sku = String(productRows[0]?.sku || '')
-      const { data:storedProduct,error:storedProductError } = await admin.from('products')
-        .select('id').eq('merchant_code',merchantCode).eq('sku',sku).maybeSingle()
-      if (storedProductError) throw storedProductError
+      const storedProduct = {id:listingResult.data.product_id}
       const normalizedListing = normalized.listings.find(row => String(row.sku || '') === sku)
       if (storedProduct?.id && normalizedListing) {
         const { sku:_sku,...listing } = normalizedListing
-        const { error } = await admin.from('product_platform_listings').upsert({ ...listing,product_id:storedProduct.id },{ onConflict:'product_id,platform' })
+        const { error } = await admin.from('product_platform_listings').upsert({ ...listing,product_id:storedProduct.id,provider_barcode:productRows[0].barcode||null,provider_product_id:productRows[0].external_id||null },{ onConflict:'product_id,platform' })
         if (error) throw error
       }
     }

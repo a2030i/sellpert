@@ -102,7 +102,7 @@ describe('Trendyol fulfillment action contract', () => {
 
   it('binds bulk price and inventory updates to linked products in the same merchant', () => {
     expect(gateway).toContain("if (action === 'products.price_inventory')")
-    expect(gateway).toContain(".select('id,name,barcode,platform_source,raw').eq('merchant_code',merchantCode).in('barcode',barcodes)")
+    expect(gateway).toContain(".select('product_id,provider_barcode,delivery_status,catalog_status,notes').eq('merchant_code',merchantCode).eq('platform','trendyol').in('provider_barcode',barcodes)")
     expect(gateway).toContain('input.__bulkProducts = barcodes.map')
     expect(gateway).toContain("notes:product.listing?.notes || 'trendyol_price_inventory'")
     expect(gateway).toContain("upsert(rows,{ onConflict:'product_id,platform' })")
@@ -121,7 +121,8 @@ describe('Trendyol fulfillment action contract', () => {
     expect(statement).toContain('تأكيد القبول وإرساله')
     expect(statement).toContain('تحديث من Trendyol')
     expect(statement).not.toContain('window.confirm(`تأكيد ${label}')
-    expect(statement).not.toContain('JSON')
+    expect(statement).not.toMatch(/>\s*(?:JSON|claimId|provider_claim_item_id)\s*</)
+    expect(statement).toContain('marketplace_account_id: row.marketplace_account_id')
   })
 
   it('separates customer-service permission from marketplace credential administration', () => {

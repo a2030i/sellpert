@@ -1,3 +1,4 @@
+import { accountScopedClient, requireMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 /**
  * salla-webhook
  * ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid JSON' }, 400)
   }
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
   // ── Load settings from DB (admin panel) ──────────────────────────────────
   const cfg = await getSettings(admin)
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
   const event    = payload.event    || payload.type || ''
   const storeId  = String(payload.merchant?.id || payload.store_id || '')
   const providerEventId = String(payload.id || payload.event_id || '')
-  const eventKey = await stableWebhookEventKey('salla', providerEventId, rawBody)
+  const eventKey = await stableWebhookEventKey('salla', providerEventId ? `${storeId}:${providerEventId}` : '', rawBody)
 
   // Log the event first (idempotency: skip if already processed)
   const { data: existing } = await admin
@@ -91,13 +92,21 @@ Deno.serve(async (req) => {
   // Find merchant_code from salla_store_id
   const { data: conn } = await admin
     .from('salla_connections')
-    .select('merchant_code')
+    .select('merchant_code,marketplace_account_id')
     .eq('salla_store_id', storeId)
     .maybeSingle()
 
   const merchantCode = conn?.merchant_code || null
 
   try {
+    if (merchantCode) {
+      const account = await requireMarketplaceAccount(admin, merchantCode, 'salla', conn?.marketplace_account_id, false)
+      admin = accountScopedClient(admin, account)
+      if(event==='app.uninstalled'){
+        const {error}=await admin.from('marketplace_accounts').update({status:'disconnected',updated_at:new Date().toISOString()}).eq('id',account.id).eq('merchant_code',merchantCode)
+        if(error)throw error
+      } else if(account.status!=='active')return json({ok:true,skipped:true})
+    }
     await handleEvent(admin, event, storeId, merchantCode, payload)
 
     // Mark processed

@@ -1,5 +1,8 @@
+import { useSellingAccountClient } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { INVENTORY_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { fetchAllStrict } from '../lib/db'
+import DataLoadError from '../components/DataLoadError'
+import { INVENTORY_SAFE_COLUMNS } from '../lib/supabase'
 import { useDeferredValue } from 'react'
 import type { Merchant, InventoryItem } from '../lib/supabase'
 import { Search, Save, Plus, Minus, Check, AlertCircle, Zap } from 'lucide-react'
@@ -12,9 +15,13 @@ interface PendingChange { qty: number; original: number }
 const PAGE_SIZE = 25
 
 export default function QuickInventory({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const isMobile = useMobile()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const generation = useRef(0)
   const [search, setSearch] = useState('')
   const [pending, setPending] = useState<Record<string, PendingChange>>({})
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
@@ -24,7 +31,7 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
 
   // The loader is intentionally keyed by the current merchant.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (merchant) loadInventory() }, [merchant])
+  useEffect(() => { setPending({}); if (merchant) void loadInventory(); return () => { generation.current++ } }, [merchant])
 
   // Focus search on mount and on '/'
   useEffect(() => {
@@ -41,12 +48,14 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
 
   async function loadInventory() {
     if (!merchant) return
-    setLoading(true)
-    const { data } = await supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS)
-      .eq('merchant_code', merchant.merchant_code).eq('is_active', true)
-      .order('product_name').limit(500)
-    setItems(data || [])
-    setLoading(false)
+    const request = ++generation.current
+    setLoading(true); setLoadError(false); setItems([])
+    try {
+      const data = await fetchAllStrict<InventoryItem>((f,t) => supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS)
+        .eq('merchant_code', merchant.merchant_code).eq('is_active', true).order('product_name').order('id').range(f,t))
+      if (request === generation.current) setItems(data)
+    } catch { if (request === generation.current) setLoadError(true) }
+    finally { if (request === generation.current) setLoading(false) }
   }
 
   const deferredSearch = useDeferredValue(search)
@@ -85,27 +94,31 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
   }
 
   async function saveAll() {
-    if (!merchant) return
+    if (!merchant || loading || loadError || saving) return
+    const request = generation.current
     const changes = Object.entries(pending)
     if (changes.length === 0) return
     setSaving(true)
 
     // تحديثات متوازية بدل التسلسل — كل صف بقيمة مختلفة فلا يصلح upsert واحد
     const now = new Date().toISOString()
-    const results = await Promise.all(changes.map(([id, p]) =>
+    const results = await Promise.allSettled(changes.map(([id, p]) =>
       supabase.from('inventory')
         .update({ quantity: p.qty, last_updated: now, platform_source: 'manual_override' })
         .eq('id', id)
-        .eq('merchant_code', merchant.merchant_code)
+        .eq('merchant_code', merchant.merchant_code).eq('quantity', p.original).select('id')
     ))
-    const succeeded = results.filter(r => !r.error).length
+    if (request !== generation.current) return
+    const succeededIds=changes.filter((_,index)=>{const result=results[index];return result.status==='fulfilled'&&!result.value.error&&result.value.data?.length===1}).map(([id])=>id)
+    const succeeded=succeededIds.length
+    setPending(current=>Object.fromEntries(Object.entries(current).filter(([id])=>!succeededIds.includes(id))))
     setSaving(false)
     if (succeeded === changes.length) {
       toastOk(`تم حفظ ${succeeded} تعديلات`)
       setPending({})
       loadInventory()
     } else {
-      toastErr(`فشل حفظ ${changes.length - succeeded} من ${changes.length}`)
+      toastErr(`لم يُحفظ ${changes.length-succeeded} تعديلًا؛ ربما تغيّر الرصيد بالتزامن. راجع الكميات قبل المحاولة.`)
       loadInventory()
     }
   }
@@ -123,10 +136,11 @@ export default function QuickInventory({ merchant }: { merchant: Merchant | null
   const pendingCount = Object.keys(pending).length
 
   if (!merchant) return null
+  if (loadError) return <div className="merchant-page"><PageHeader title="تحديث المخزون السريع" /><DataLoadError onRetry={loadInventory} /></div>
 
   return (
     <div className="merchant-page">
-      <PageHeader title="تحديث المخزون السريع" description="عدّل كميات متعددة دفعة واحدة" icon={Zap} />
+      <PageHeader title="تحديث المخزون السريع" description="سجلات المخزون النشطة فقط. كل سجل يمثل SKU في قناة؛ العدد لا يساوي عدد المنتجات الموحدة." icon={Zap} />
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>

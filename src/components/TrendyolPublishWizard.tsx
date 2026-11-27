@@ -17,6 +17,7 @@ type Props = {
   product: any
   quantity?: number | null
   merchantCode: string
+  accountId: string
   onSubmitted: (listing: any) => void
   mode?: 'create' | 'repair'
 }
@@ -34,7 +35,7 @@ function resultData(result: any) {
   return result?.data ?? result
 }
 
-export default function TrendyolPublishWizard({ product, quantity, merchantCode, onSubmitted, mode = 'create' }: Props) {
+export default function TrendyolPublishWizard({ product, quantity, merchantCode, accountId, onSubmitted, mode = 'create' }: Props) {
   const repairing = mode === 'repair'
   const [opened, setOpened] = useState(false)
   const [loadingReferences, setLoadingReferences] = useState(false)
@@ -85,7 +86,7 @@ export default function TrendyolPublishWizard({ product, quantity, merchantCode,
         'Content-Type':'application/json',
         ...(write ? { 'idempotency-key':crypto.randomUUID() } : {}),
       },
-      body:JSON.stringify({ merchant_code:merchantCode, action, storefront:'SA', language:'ar', ...(write ? { confirm:true } : {}), ...options }),
+      body:JSON.stringify({ marketplace_account_id:accountId, merchant_code:merchantCode, action, storefront:'SA', language:'ar', ...(write ? { confirm:true } : {}), ...options }),
     })
     const result = await response.json().catch(() => ({}))
     if (!response.ok || result?.error) throw new Error(result?.error || 'تعذر الاتصال بـ Trendyol')

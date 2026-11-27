@@ -269,3 +269,28 @@ forms, stages and follow-up through administrator RLS. Preserve the separate
 public Edge entrypoint; do not grant anonymous table or bucket access.
 [e2e/service-request-flow.spec.ts](../e2e/service-request-flow.spec.ts) mocks
 the function response and does not prove live rate limiting or storage isolation.
+
+## Multiple selling accounts: server contract
+
+The reliability branch adds `manage-marketplace-accounts` for safe account
+metadata, and requires an explicit `marketplace_account_id` for connection and
+account-specific actions. Old sync callers may omit a selector only when exactly
+one active identified account exists. Amazon state includes the user, workspace
+and account, expires, and is consumed once. Reconnect cannot replace the verified
+seller identity with another seller. Disconnect retains merchant facts and rejects
+an active sync lease; provider secrets are never returned to the browser.
+
+Trendyol/Salla synchronization and signed webhooks propagate the verified account.
+Failed Salla fetches/database writes no longer report successful completion, and
+order updates preserve stored fees. Analytics rebuilds from persisted facts.
+Account-specific Trendyol listing IDs must be reverified by sync before updating
+existing content, pricing or inventory. No live provider write was used to test
+these paths.
+
+**NEEDS_CONFIRMATION — Salla production onboarding:** the owner does not know
+whether the Sellpert app is published with Easy Mode or still a test Custom Mode
+app. Rakan must supply its publication/onboarding mode from Salla. The existing
+onboarding flow is retained; no new production second-store Custom flow or
+unverified ownership association is enabled. The schema and fact isolation can
+represent multiple Salla connections, but that does not establish a working
+second-store production onboarding journey.

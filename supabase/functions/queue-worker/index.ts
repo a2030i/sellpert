@@ -125,6 +125,7 @@ async function processJob(admin: any, job: any): Promise<{ success: boolean; err
       }
     }
 
+    body.marketplace_account_id = job.marketplace_account_id || payload?.marketplace_account_id
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnSlug}`, {
       method: 'POST',
       headers: {

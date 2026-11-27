@@ -1,3 +1,4 @@
+import SellingAccountChooser from '../../components/SellingAccountChooser'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, KeyRound, Loader2, PlugZap, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import TrendyolActionCenter from '../../components/TrendyolActionCenter'
@@ -7,6 +8,7 @@ import { S } from './adminShared'
 
 type CredentialStatus = {
   id: string
+  marketplace_account_id: string
   merchant_code: string
   platform: 'trendyol'
   seller_id: string | null
@@ -25,6 +27,8 @@ type Props = { merchants: Merchant[]; lockedMerchantCode?: string; compactHeader
 
 export default function MarketplaceConnections({ merchants, lockedMerchantCode, compactHeader = false }: Props) {
   const [merchantCode, setMerchantCode] = useState(lockedMerchantCode || merchants[0]?.merchant_code || '')
+  const [accountBusy, setAccountBusy] = useState(false)
+  const [accountId, setAccountId] = useState('')
   const [credentials, setCredentials] = useState<CredentialStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -46,8 +50,8 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
   useEffect(() => { if (lockedMerchantCode) setMerchantCode(lockedMerchantCode) }, [lockedMerchantCode])
 
   const credential = useMemo(
-    () => credentials.find(row => row.merchant_code === merchantCode) || null,
-    [credentials, merchantCode],
+    () => credentials.find(row => row.merchant_code === merchantCode && row.marketplace_account_id === accountId) || null,
+    [credentials, merchantCode, accountId],
   )
 
   return <section style={{ marginBottom: 'var(--integration-block-end, 28px)' }}>
@@ -62,7 +66,7 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!lockedMerchantCode && !compactHeader ? <select style={{ ...S.input, width: 260 }} value={merchantCode} onChange={event => setMerchantCode(event.target.value)}>
+          {!lockedMerchantCode && !compactHeader ? <select style={{ ...S.input, width: 260 }} disabled={accountBusy} value={merchantCode} onChange={event => setMerchantCode(event.target.value)}>
             {merchants.map(merchant => <option key={merchant.merchant_code} value={merchant.merchant_code}>{merchant.name} — {merchant.merchant_code}</option>)}
           </select> : null}
           <button aria-label="تحديث حالة Trendyol" style={S.miniBtn} onClick={() => void loadCredentials()} disabled={loading}>
@@ -80,14 +84,17 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
     {!merchantCode
       ? <div style={{ ...S.tableCard, padding: 30, textAlign: 'center', color: 'var(--text3)' }}>أضف تاجرًا أولًا لبدء الربط.</div>
       : <>
-          <TrendyolCard merchantCode={merchantCode} credential={credential} onChanged={loadCredentials} setNotice={setNotice} merchantMode={Boolean(lockedMerchantCode)} />
+          <SellingAccountChooser key={merchantCode} merchantCode={merchantCode} platform="trendyol" disabled={accountBusy} value={accountId} onChange={account => { setAccountId(account?.id || ''); setNotice(null) }} />
+          {accountId ? <TrendyolCard key={`${merchantCode}:${accountId}`} onBusyChange={setAccountBusy} accountId={accountId} merchantCode={merchantCode} credential={credential} onChanged={loadCredentials} setNotice={setNotice} merchantMode={Boolean(lockedMerchantCode)} /> : null}
           <OmnifulAmazonTrialCard merchantCode={merchantCode} merchantMode={Boolean(lockedMerchantCode)} />
         </>}
   </section>
 }
 
-function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchantMode }: {
+function TrendyolCard({ merchantCode, accountId, onBusyChange, credential, onChanged, setNotice, merchantMode }: {
   merchantCode: string
+  accountId: string
+  onBusyChange: (busy:boolean) => void
   credential: CredentialStatus | null
   onChanged: () => Promise<void>
   setNotice: (value: { type: 'ok' | 'err'; text: string } | null) => void
@@ -100,6 +107,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
   const [syncJob, setSyncJob] = useState<{ status: string; error_message?: string | null } | null>(null)
   const [syncDetails, setSyncDetails] = useState<Record<string, unknown> | null>(null)
   const [showActions, setShowActions] = useState(false)
+  useEffect(() => { onBusyChange(Boolean(busy) || showActions); return () => onBusyChange(false) }, [busy, showActions, onBusyChange])
 
   useEffect(() => {
     setEditing(!credential)
@@ -111,7 +119,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
     if (!credential?.is_active) { setSyncJob(null); setSyncDetails(null); return }
     let cancelled = false
     const poll = async () => {
-      const result = await callManager({ action: 'sync-status', merchant_code: merchantCode, platform: 'trendyol' }).catch(() => null)
+      const result = await callManager({ action: 'sync-status', merchant_code: merchantCode, marketplace_account_id: accountId, platform: 'trendyol' }).catch(() => null)
       if (cancelled || !result || result.error) return
       setSyncJob(result.job || null)
       setSyncDetails(result.log?.details || null)
@@ -119,7 +127,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
     void poll()
     const timer = window.setInterval(() => void poll(), 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [credential?.is_active, merchantCode])
+  }, [credential?.is_active, merchantCode, accountId])
 
   const syncActive = ['pending', 'processing', 'running'].includes(syncJob?.status || '')
   const syncProcessing = syncJob?.status === 'processing' || syncJob?.status === 'running'
@@ -156,7 +164,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
   async function save() {
     setBusy('save'); setNotice(null)
     try {
-      const result = await callManager({ action: 'save', merchant_code: merchantCode, platform: 'trendyol', credentials: form, verified })
+      const result = await callManager({ action: 'save', merchant_code: merchantCode, marketplace_account_id: accountId, platform: 'trendyol', credentials: form, verified })
       if (result.error) throw new Error(result.error)
       setNotice({ type: 'ok', text: 'تم حفظ ربط Trendyol وتفعيله.' })
       setEditing(false)
@@ -170,7 +178,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
     if (!window.confirm('حذف ربط Trendyol لهذا التاجر؟')) return
     setBusy('delete'); setNotice(null)
     try {
-      const result = await callManager({ action: 'delete', merchant_code: merchantCode, platform: 'trendyol' })
+      const result = await callManager({ action: 'delete', merchant_code: merchantCode, marketplace_account_id: accountId, platform: 'trendyol' })
       if (result.error) throw new Error(result.error)
       setNotice({ type: 'ok', text: 'تم حذف ربط Trendyol.' })
       await onChanged()
@@ -182,7 +190,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
   async function requestSync() {
     setBusy('sync'); setNotice(null)
     try {
-      const result = await callManager({ action: 'sync', merchant_code: merchantCode, platform: 'trendyol' })
+      const result = await callManager({ action: 'sync', merchant_code: merchantCode, marketplace_account_id: accountId, platform: 'trendyol' })
       if (result.error) throw new Error(result.error)
       setSyncJob({ status: 'pending' })
       setNotice({ type: 'ok', text: result.already_queued ? 'مزامنة Trendyol موجودة بالفعل في الطابور.' : 'تمت جدولة مزامنة Trendyol.' })
@@ -241,7 +249,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
         </div>
       </>}
     </div>
-    {showActions ? <TrendyolActionCenter merchantCode={merchantCode} onClose={() => setShowActions(false)} merchantMode={merchantMode} /> : null}
+    {showActions ? <TrendyolActionCenter marketplaceAccountId={accountId} merchantCode={merchantCode} onClose={() => setShowActions(false)} merchantMode={merchantMode} /> : null}
   </article>
 }
 

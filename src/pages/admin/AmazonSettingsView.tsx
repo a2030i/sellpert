@@ -100,7 +100,7 @@ export default function AmazonSettingsView() {
   </section>
 
   return <section className="amazon-settings" aria-label="إعدادات تطبيق أمازون" aria-busy={loading || saving}>
-    <p className="amazon-settings__intro">أضف بيانات تطبيق <bdi>Sellpert Dashboard</bdi> لتفعيل ربط حسابات البائعين. مزامنة الطلبات والتسويات ستتاح في تحديث لاحق.</p>
+    <p className="amazon-settings__intro">أضف بيانات تطبيق <bdi>Sellpert Dashboard</bdi> لتفعيل ربط حسابات البائعين. يتوفر سحب الطلبات والمعاملات المالية لآخر 12 شهرًا في السوق السعودي دون بيانات المشترين الشخصية.</p>
     <div className="amazon-settings__summary">
       <span role="status">{loading ? 'جارٍ التحقق من الإعدادات…' : status ? status.configured ? 'إعدادات التطبيق مكتملة' : 'إعدادات التطبيق تحتاج استكمالًا' : 'حالة الإعدادات غير متاحة'}</span>
       <button type="button" style={S.refreshBtn} onClick={() => void load()} disabled={loading || saving}><RefreshCw size={15} aria-hidden="true" /> تحديث الحالة</button>

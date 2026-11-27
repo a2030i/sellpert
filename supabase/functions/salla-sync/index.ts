@@ -1,3 +1,5 @@
+import { upsertMarketplaceProducts } from '../_shared/marketplaceProducts.ts'
+import { accountScopedClient, resolveMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 /**
  * salla-sync
  * ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +16,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { getSettings } from '../_shared/getSettings.ts'
-import { authorizeMerchantSync } from '../_shared/sync.ts'
+import { authorizeMerchantSync, HttpError } from '../_shared/sync.ts'
 import { resolveSallaTokens, storeSallaTokens } from '../_shared/sallaTokenVault.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -30,12 +32,16 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return json({ ok: true }, 200)
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let syncingConnectionId: string | null = null
 
   try {
-    const { merchant_code, job_type, payload: jobPayload } = await req.json()
+    const { merchant_code, marketplace_account_id, job_type, payload: jobPayload } = await req.json()
     if (!merchant_code || !job_type) return json({ error: 'merchant_code and job_type required' }, 400)
+    if(!['sync_orders','sync_products','sync_analytics','sync_all'].includes(job_type))return json({error:'Unknown job_type'},400)
     await authorizeMerchantSync(req, admin, SERVICE_KEY, String(merchant_code))
+    const account=await resolveMarketplaceAccount(admin,String(merchant_code),'salla',marketplace_account_id)
+    admin=accountScopedClient(admin,account)
 
     // ── GUARD: Check administrative account access ──────────────────────────
     const { data: merchant } = await admin
@@ -56,7 +62,7 @@ Deno.serve(async (req) => {
       .from('salla_connections')
       .select('id,merchant_code,token_expires_at,sync_status,access_token,refresh_token')
       .eq('merchant_code', merchant_code)
-      .eq('sync_status', 'idle')
+      .in('sync_status', ['idle','error'])
       .maybeSingle()
 
     if (!conn) return json({ error: 'No active Salla connection' }, 404)
@@ -70,8 +76,10 @@ Deno.serve(async (req) => {
     }
 
     // Mark connection as syncing
-    await admin.from('salla_connections').update({ sync_status: 'syncing' })
-      .eq('merchant_code', merchant_code)
+    const {data:claimed,error:claimError}=await admin.from('salla_connections').update({sync_status:'syncing'}).eq('id',conn.id).in('sync_status',['idle','error']).select('id').maybeSingle()
+    if(claimError)throw claimError
+    if(!claimed)throw new HttpError(409,'Salla synchronization is already running')
+    syncingConnectionId=conn.id
 
     let result: any = {}
 
@@ -84,37 +92,34 @@ Deno.serve(async (req) => {
         result = await syncProducts(admin, merchant_code, accessToken, jobPayload)
         break
       case 'sync_analytics':
-        result = await syncAnalytics(admin, merchant_code, accessToken)
+        result = await syncAnalytics(admin, merchant_code)
         break
       case 'sync_all':
-        const [o, p, a] = await Promise.all([
-          syncOrders(admin, merchant_code, accessToken, {}),
-          syncProducts(admin, merchant_code, accessToken, {}),
-          syncAnalytics(admin, merchant_code, accessToken),
-        ])
-        result = { orders: o, products: p, analytics: a }
+        const o=await syncOrders(admin,merchant_code,accessToken,{})
+        const p=await syncProducts(admin,merchant_code,accessToken,{})
+        result = { orders:o, products:p }
         break
       default:
         return json({ error: `Unknown job_type: ${job_type}` }, 400)
     }
 
+    if(job_type!=='sync_analytics')await syncAnalytics(admin,merchant_code)
     // Mark connection idle + update last_sync
-    await admin.from('salla_connections').update({
+    const {error:finishError}=await admin.from('salla_connections').update({
       sync_status:  'idle',
       last_sync_at: new Date().toISOString(),
-    }).eq('merchant_code', merchant_code)
+    }).eq('id',syncingConnectionId)
+    if(finishError)throw finishError
+    syncingConnectionId=null
 
     return json({ ok: true, ...result })
 
   } catch (e: any) {
     console.error('salla-sync error:', e)
-    // Reset sync_status on error
-    const { merchant_code } = await req.json().catch(() => ({}))
-    if (merchant_code) {
-      await admin.from('salla_connections').update({ sync_status: 'error' })
-        .eq('merchant_code', merchant_code)
+    if (syncingConnectionId) {
+      await admin.from('salla_connections').update({ sync_status: 'error' }).eq('id',syncingConnectionId)
     }
-    return json({ ok: false, error: e.message }, 500)
+    return json({ ok:false,error:e instanceof HttpError ? e.message : 'تعذرت مزامنة سلة؛ أعد المحاولة' },e instanceof HttpError ? e.status : 500)
   }
 })
 
@@ -124,7 +129,7 @@ async function syncOrders(admin: any, merchantCode: string, token: string, paylo
   // If specific order_id provided, fetch just that order
   if (payload?.order_id) {
     const res = await sallaGet(`/orders/${payload.order_id}`, token)
-    if (!res.ok) return { synced: 0, error: 'Order fetch failed' }
+    if (!res.ok) throw new Error(`Salla order fetch failed (${res.status})`)
     const order = (await res.json()).data
     await upsertOrder(admin, merchantCode, order)
     return { synced: 1 }
@@ -137,7 +142,7 @@ async function syncOrders(admin: any, merchantCode: string, token: string, paylo
 
   while (true) {
     const res = await sallaGet(`/orders?page=${page}&per_page=50&created_at[from]=${since}`, token)
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Salla page fetch failed (${res.status})`)
     const body = await res.json()
     const orders: any[] = body.data || []
     if (orders.length === 0) break
@@ -160,7 +165,7 @@ async function syncOrders(admin: any, merchantCode: string, token: string, paylo
 
 async function upsertOrder(admin: any, merchantCode: string, order: any) {
   const status = mapOrderStatus(order.status?.name || order.status)
-  await admin.from('orders').upsert({
+  const {error}=await admin.from('orders').upsert({
     merchant_code: merchantCode,
     platform:      'salla',
     order_id:      String(order.id || order.reference_id),
@@ -169,13 +174,12 @@ async function upsertOrder(admin: any, merchantCode: string, order: any) {
     quantity:      order.items?.reduce((s: number, i: any) => s + (i.quantity || 1), 0) || 1,
     unit_price:    order.items?.[0]?.price?.amount || 0,
     total_amount:  order.amounts?.total?.amount || 0,
-    platform_fee:  0,
     shipping_cost: order.amounts?.shipping?.amount || 0,
     currency:      order.currency || 'SAR',
     customer_city: order.customer?.city || null,
     order_date:    order.date?.date ? new Date(order.date.date).toISOString() : new Date().toISOString(),
   }, { onConflict: 'merchant_code,platform,order_id', ignoreDuplicates: false })
-    .catch(() => {}) // don't fail entire sync on one bad order
+  if(error)throw error
 }
 
 function mapOrderStatus(raw: string): string {
@@ -193,7 +197,7 @@ function mapOrderStatus(raw: string): string {
 async function syncProducts(admin: any, merchantCode: string, token: string, payload: any) {
   if (payload?.product_id) {
     const res = await sallaGet(`/products/${payload.product_id}`, token)
-    if (!res.ok) return { synced: 0, error: 'Product fetch failed' }
+    if (!res.ok) throw new Error(`Salla product fetch failed (${res.status})`)
     const product = (await res.json()).data
     await upsertProduct(admin, merchantCode, product)
     return { synced: 1 }
@@ -204,7 +208,7 @@ async function syncProducts(admin: any, merchantCode: string, token: string, pay
 
   while (true) {
     const res = await sallaGet(`/products?page=${page}&per_page=50`, token)
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Salla page fetch failed (${res.status})`)
     const body = await res.json()
     const products: any[] = body.data || []
     if (products.length === 0) break
@@ -226,7 +230,7 @@ async function syncProducts(admin: any, merchantCode: string, token: string, pay
 
 async function upsertProduct(admin: any, merchantCode: string, product: any) {
   const sku = product.sku || String(product.id)
-  await admin.from('products').upsert({
+  await upsertMarketplaceProducts(admin, merchantCode, [{
     merchant_code:    merchantCode,
     name:             product.name || 'منتج سلة',
     sku,
@@ -237,41 +241,17 @@ async function upsertProduct(admin: any, merchantCode: string, product: any) {
     cost_price:       product.cost_price || 0,
     target_net_price: product.price?.amount || 0,
     status:           product.status === 'sale' ? 'active' : 'inactive',
-  }, { onConflict: 'merchant_code,sku', ignoreDuplicates: false })
-    .catch(() => {})
+  }])
 }
 
 // ── Analytics Sync ────────────────────────────────────────────────────────────
 
-async function syncAnalytics(admin: any, merchantCode: string, token: string) {
-  // Salla provides summary stats — map to performance_data
-  const today = new Date().toISOString().split('T')[0]
-
-  // Get today's summary
-  const res = await sallaGet('/orders/summary', token)
-  if (!res.ok) return { synced: 0, error: 'Analytics fetch failed' }
-
-  const body = await res.json()
-  const data  = body.data || {}
-
-  const totalSales  = data.totals?.revenue?.amount || 0
-  const orderCount  = data.totals?.orders_count    || 0
-
-  if (totalSales === 0 && orderCount === 0) return { synced: 0 }
-
-  await admin.from('performance_data').upsert({
-    merchant_code: merchantCode,
-    platform:      'salla',
-    data_date:     today,
-    total_sales:   totalSales,
-    order_count:   orderCount,
-    margin:        0,
-    ad_spend:      0,
-    platform_fees: 0,
-  }, { onConflict: 'merchant_code,platform,data_date', ignoreDuplicates: false })
-    .catch(() => {})
-
-  return { synced: 1 }
+async function syncAnalytics(admin: any, merchantCode: string) {
+  // Aggregate persisted account-scoped facts; never label an undated provider
+  // lifetime summary as today's revenue or silently discard a failed upsert.
+  const {data,error}=await admin.rpc('rebuild_performance_data',{p_merchant_code:merchantCode})
+  if(error)throw error
+  return {rebuilt:data}
 }
 
 // ── Token Refresh ─────────────────────────────────────────────────────────────
@@ -293,8 +273,7 @@ async function refreshSallaToken(admin: any, conn: any, credentials: { accessTok
   })
 
   if (!res.ok) {
-    console.error('Token refresh failed:', await res.text())
-    return credentials.accessToken
+    throw new Error(`Salla token refresh failed (${res.status})`)
   }
 
   const tokens = await res.json()

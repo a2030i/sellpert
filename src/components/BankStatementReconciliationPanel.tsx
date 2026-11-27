@@ -1,3 +1,6 @@
+import { fetchAllStrict } from '../lib/db'
+import DataLoadError from './DataLoadError'
+import { useSelectedSellingAccounts } from './SellingAccountScope'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, FileSpreadsheet, Landmark, Loader2, Upload, XCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -45,10 +48,13 @@ export default function BankStatementReconciliationPanel({ merchantCode, transac
   month:number
 }) {
   const isMobile = useMobile()
+  const selectedAccounts = useSelectedSellingAccounts()
+  const accountLabel = (id?:string|null) => selectedAccounts.find(account=>account.id===id)?.label || 'بيانات قديمة غير منسوبة'
   const inputRef = useRef<HTMLInputElement>(null)
   const [bankRows, setBankRows] = useState<BankTransaction[]>([])
   const [confirmed, setConfirmed] = useState<ConfirmedBankMatch[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError,setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -67,17 +73,15 @@ export default function BankStatementReconciliationPanel({ merchantCode, transac
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data: rows, error: rowsError }, { data: matches, error: matchesError }] = await Promise.all([
-      db.from('bank_transactions').select('id,transaction_date,value_date,description,reference,debit,credit,net_amount,currency')
-        .eq('merchant_code', merchantCode).gte('transaction_date', start).lte('transaction_date', end)
-        .order('transaction_date', { ascending:false }).limit(2500),
-      db.from('settlement_bank_matches').select('id,bank_transaction_id,platform,settlement_id,expected_amount,confirmed_at')
-        .eq('merchant_code', merchantCode).order('confirmed_at', { ascending:false }).limit(1000),
-    ])
-    if (rowsError || matchesError) setNotice({ type:'error', text:'تعذر تحميل المطابقة البنكية. أعد المحاولة.' })
-    setBankRows((rows || []) as BankTransaction[])
-    setConfirmed((matches || []) as ConfirmedBankMatch[])
-    setLoading(false)
+    setLoadError(false)
+    try {
+      const [rows,matches] = await Promise.all([
+        fetchAllStrict<BankTransaction>((from,to)=>db.from('bank_transactions').select('id,transaction_date,value_date,description,reference,debit,credit,net_amount,currency').eq('merchant_code',merchantCode).gte('transaction_date',start).lte('transaction_date',end).order('transaction_date',{ascending:false}).order('id').range(from,to),'الحركات البنكية'),
+        // Keep all workspace confirmations reserved, including unselected accounts.
+        fetchAllStrict<ConfirmedBankMatch>((from,to)=>db.from('settlement_bank_matches').select('id,bank_transaction_id,platform,marketplace_account_id,settlement_id,expected_amount,confirmed_at').eq('merchant_code',merchantCode).order('confirmed_at',{ascending:false}).order('id').range(from,to),'مطابقات البنك'),
+      ])
+      setBankRows(rows); setConfirmed(matches)
+    } catch { setLoadError(true) } finally { setLoading(false) }
   }, [db, merchantCode, start, end])
 
   useEffect(() => { void load() }, [load])
@@ -152,6 +156,7 @@ export default function BankStatementReconciliationPanel({ merchantCode, transac
       merchant_code:merchantCode,
       bank_transaction_id:result.bankTransaction.id,
       platform:result.settlement.platform,
+      marketplace_account_id:result.settlement.marketplace_account_id,
       settlement_id:result.settlement.reference,
       expected_amount:result.settlement.transferRecorded,
       confirmed_by:user?.id,
@@ -169,6 +174,7 @@ export default function BankStatementReconciliationPanel({ merchantCode, transac
     setConfirming('')
   }
 
+  if (loadError) return <DataLoadError onRetry={()=>void load()} />
   return <section aria-label="المطابقة مع كشف البنك" style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, marginBottom:20, overflow:'hidden' }}>
     <div style={{ padding:isMobile ? 14 : '16px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, flexWrap:'wrap' }}>
       <div style={{ maxWidth:700 }}>
@@ -219,8 +225,8 @@ export default function BankStatementReconciliationPanel({ merchantCode, transac
       <div style={{ padding:isMobile ? 10 : '12px 14px', display:'grid', gap:8 }}>
         {results.slice(0, 20).map((result, index) => {
           const meta = STATUS[result.status]
-          return <div key={`${result.settlement.platform}:${result.settlement.reference}`} style={{ border:'1px solid var(--border)', borderRadius:10, padding:'11px 12px', background:'var(--surface2)', display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(160px,1.2fr) repeat(3,minmax(110px,.8fr)) auto', gap:10, alignItems:'center' }}>
-            <div><div style={{ fontSize:11, fontWeight:800 }}>{PLATFORM_MAP[result.settlement.platform] || result.settlement.platform} · تسوية {result.settlement.reference}</div><div style={{ fontSize:9, color:'var(--text3)', marginTop:3 }}>{meta.detail}</div></div>
+          return <div key={`${result.settlement.marketplace_account_id}:${result.settlement.platform}:${result.settlement.reference}`} style={{ border:'1px solid var(--border)', borderRadius:10, padding:'11px 12px', background:'var(--surface2)', display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'minmax(160px,1.2fr) repeat(3,minmax(110px,.8fr)) auto', gap:10, alignItems:'center' }}>
+            <div><div style={{ fontSize:11, fontWeight:800 }}>{PLATFORM_MAP[result.settlement.platform] || result.settlement.platform} · {accountLabel(result.settlement.marketplace_account_id)} · تسوية {result.settlement.reference}</div><div style={{ fontSize:9, color:'var(--text3)', marginTop:3 }}>{meta.detail}</div></div>
             <div><div style={labelStyle}>تحويل المنصة</div><div style={valueStyle}>{money(result.settlement.transferRecorded)}</div></div>
             <div><div style={labelStyle}>الحركة البنكية</div><div style={valueStyle}>{result.bankTransaction ? money(Number(result.bankTransaction.credit || result.bankTransaction.net_amount || 0), result.bankTransaction.currency || 'SAR') : '—'}</div></div>
             <div><div style={labelStyle}>تاريخ الوصول</div><div style={valueStyle}>{date(result.bankTransaction?.value_date || result.bankTransaction?.transaction_date)}</div></div>

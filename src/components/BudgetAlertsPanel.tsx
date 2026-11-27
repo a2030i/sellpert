@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useSellingAccountClient } from './SellingAccountScope'
+import { fetchAllStrict } from '../lib/db'
+import DataLoadError from './DataLoadError'
 import { Bell, BellOff, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { toastOk, toastErr } from './Toast'
 import { PLATFORM_MAP } from '../lib/constants'
@@ -20,6 +22,8 @@ interface Alert {
 interface Props { merchantCode: string }
 
 export default function BudgetAlertsPanel({ merchantCode }: Props) {
+  const supabase=useSellingAccountClient()
+  const [error,setError]=useState(false)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -30,30 +34,16 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
   useEffect(() => { load() }, [merchantCode])
 
   async function load() {
-    setLoading(true)
-    const [{ data: ba }, spendByPlat] = await Promise.all([
-      supabase.from('budget_alerts').select('*').eq('merchant_code', merchantCode).order('created_at', { ascending: false }),
-      currentMonthSpend(merchantCode),
-    ])
-
-    const enriched = (ba || []).map((a: Alert) => {
-      const spend = a.platform ? (spendByPlat[a.platform] || 0) : Object.values(spendByPlat).reduce((s, v) => s + v, 0)
-      const pct = a.monthly_limit > 0 ? (spend / a.monthly_limit) * 100 : 0
-      return { ...a, current_spend: spend, current_pct: pct }
-    })
-    setAlerts(enriched)
-    setLoading(false)
-  }
-
-  async function currentMonthSpend(code: string): Promise<Record<string, number>> {
-    const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0)
-    const { data } = await supabase.from('ad_metrics').select('platform,spend')
-      .eq('merchant_code', code).gte('report_date', start.toISOString().slice(0, 10))
-    const out: Record<string, number> = {}
-    for (const r of data || []) {
-      out[r.platform] = (out[r.platform] || 0) + (r.spend || 0)
-    }
-    return out
+    setLoading(true);setError(false)
+    try {
+      const [ba,spendRows]=await Promise.all([
+        fetchAllStrict<Alert>((f,t)=>supabase.from('budget_alerts').select('*').eq('merchant_code',merchantCode).order('created_at',{ascending:false}).order('id').range(f,t)),
+        fetchAllStrict<{platform:string;spend:number}>((f,t)=>supabase.from('ad_metrics').select('platform,spend').eq('merchant_code',merchantCode).gte('report_date',new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Riyadh'}).slice(0,7)+'-01').order('id').range(f,t)),
+      ])
+      const spendByPlat:Record<string,number>={}
+      for(const row of spendRows)spendByPlat[row.platform]=(spendByPlat[row.platform]||0)+Number(row.spend||0)
+      setAlerts(ba.map(a=>{const spend=a.platform?(spendByPlat[a.platform]||0):Object.values(spendByPlat).reduce((sum,value)=>sum+value,0);return {...a,current_spend:spend,current_pct:a.monthly_limit>0?spend/a.monthly_limit*100:0}}))
+    }catch{setError(true)}finally{setLoading(false)}
   }
 
   async function addAlert() {
@@ -86,6 +76,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
     load()
   }
 
+  if(error)return <DataLoadError onRetry={()=>void load()}/>
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -98,6 +89,7 @@ export default function BudgetAlertsPanel({ merchantCode }: Props) {
         </button>
       </div>
 
+      <p style={{fontSize:11,color:"var(--text2)"}}>الحدود محفوظة للتاجر والمنصة. الإنفاق المعروض يخص حسابات البيع المختارة في التقرير خلال الشهر الحالي.</p>
       {showAdd && (
         <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, marginBottom: 12, display: 'grid', gap: 8 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>

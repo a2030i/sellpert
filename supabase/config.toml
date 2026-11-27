@@ -43,3 +43,6 @@ verify_jwt = true
 # No database or Storage permissions are granted to anonymous clients.
 [functions.pricing-request]
 verify_jwt = false
+
+[functions.manage-marketplace-accounts]
+verify_jwt = false

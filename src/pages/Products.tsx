@@ -1,8 +1,9 @@
+import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo } from 'react'
-import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS } from '../lib/supabase'
 import { useCallback } from 'react'
 import { useDeferredValue } from 'react'
-import { fetchAll } from '../lib/db'
+import { fetchAll, fetchAllStrict } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import type { Merchant, Product, ProductPlatformPrice } from '../lib/supabase'
 import { PLATFORM_MAP as PLATFORM_NAMES, PLATFORM_COLORS } from '../lib/constants'
@@ -14,13 +15,14 @@ import { friendlyDeliveryError } from '../lib/productDelivery'
 import { trendyolCatalogReadiness, type TrendyolCatalogReadiness } from '../lib/trendyolCatalog'
 import { productDataLineage, type LineageUpload } from '../lib/dataLineage'
 import { productDataQuality } from '../lib/productQuality'
+import { createCatalogResolver, type CatalogChannelMapping } from '../lib/catalogIdentity'
 import { categoryCommission, normalizeFeeCategory, type FeeCategory } from '../lib/commission'
 
 const PLATFORMS = ['trendyol'] as const
 const PAGE_SIZE = 30
 
-type TrendyolInventoryRow = { sku: string; partner_sku: string | null; quantity: number }
-type TrendyolListingRow = { product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null; catalog_status: string | null; catalog_error: string | null }
+type TrendyolInventoryRow = { marketplace_account_id:string; sku: string; partner_sku: string | null; quantity: number }
+type TrendyolListingRow = { provider_barcode?:string|null; provider_product_id?:string|null; marketplace_account_id:string; product_id: string; delivery_status: string; delivery_error: string | null; external_batch_id: string | null; catalog_status: string | null; catalog_error: string | null }
 type QualityFilter = 'all' | 'complete' | 'needs_content' | 'missing_cost' | 'unknown_source'
 
 const LINEAGE_TONE = {
@@ -44,6 +46,12 @@ function calcSellingPrice(netTarget: number, rate: EffectiveCommission): number 
 }
 
 export default function Products({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+  const selectedAccounts=useSelectedSellingAccounts()
+  const trendyolAccounts=selectedAccounts.filter(account=>account.platform==='trendyol')
+  const singleTrendyol=trendyolAccounts.length===1 ? trendyolAccounts[0] : null
+  const [mappings,setMappings]=useState<CatalogChannelMapping[]>([])
+
   const [products, setProducts]         = useState<Product[]>([])
   const [prices, setPrices]             = useState<ProductPlatformPrice[]>([])
   const [feeCategories, setFeeCategories] = useState<FeeCategory[]>([])
@@ -82,23 +90,17 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     if (!options.background) setLoading(true)
     setLoadError('')
     try {
-      const [productResult, priceResult, rateResult, inventoryResult, listingResult, uploadRows] = await Promise.all([
-        supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('created_at', { ascending: false }),
-        supabase.from('product_platform_prices').select('*').eq('merchant_code', merchant!.merchant_code),
-        supabase.from('platform_fee_categories').select('platform,category_key,commission_rate,commission_fbn_fba,min_fee_sar'),
-        supabase.from('inventory').select('sku,partner_sku,quantity').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
-        supabase.from('product_platform_listings').select('product_id,delivery_status,delivery_error,external_batch_id,catalog_status,catalog_error').eq('merchant_code', merchant!.merchant_code).eq('platform', 'trendyol'),
-        fetchAll<LineageUpload>((from, to) =>
-          supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
-            .eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending: false }).range(from, to), 'سجل ملفات المنتجات'),
+      const [productRows, priceRows, rateRows, inventoryRows, listingRows, uploadRows, mappingRows] = await Promise.all([
+        fetchAllStrict<Product>((f,t)=>supabase.from('products').select(PRODUCT_SAFE_COLUMNS).eq('merchant_code',merchant!.merchant_code).order('created_at',{ascending:false}).order('id').range(f,t)),
+        fetchAllStrict<ProductPlatformPrice>((f,t)=>supabase.from('product_platform_prices').select('*').eq('merchant_code',merchant!.merchant_code).order('id').range(f,t)),
+        fetchAllStrict<FeeCategory>((f,t)=>supabase.from('platform_fee_categories').select('platform,category_key,commission_rate,commission_fbn_fba,min_fee_sar').order('platform').order('category_key').range(f,t)),
+        fetchAllStrict<TrendyolInventoryRow>((f,t)=>supabase.from('inventory').select('marketplace_account_id,sku,partner_sku,quantity').eq('merchant_code',merchant!.merchant_code).eq('platform','trendyol').eq('is_active',true).order('id').range(f,t)),
+        fetchAllStrict<TrendyolListingRow>((f,t)=>supabase.from('product_platform_listings').select('provider_barcode,provider_product_id,marketplace_account_id,product_id,delivery_status,delivery_error,external_batch_id,catalog_status,catalog_error').eq('merchant_code',merchant!.merchant_code).eq('platform','trendyol').order('id').range(f,t)),
+        fetchAllStrict<LineageUpload>((f,t)=>supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code',merchant!.merchant_code).order('uploaded_at',{ascending:false}).order('id').range(f,t)),
+        fetchAllStrict<CatalogChannelMapping>((f,t)=>supabase.from('product_channel_mappings').select('product_id,platform,marketplace_account_id,identifier_value,source_sku,source_barcode,match_status').eq('merchant_code',merchant!.merchant_code).eq('match_status','linked').order('id').range(f,t)),
       ])
-      const error = productResult.error || priceResult.error || rateResult.error || inventoryResult.error || listingResult.error
-      if (error) throw error
-      setProducts(productResult.data || [])
-      setPrices(priceResult.data || [])
-      setFeeCategories((rateResult.data || []) as FeeCategory[])
-      setTrendyolInventory((inventoryResult.data || []) as TrendyolInventoryRow[])
-      setTrendyolListings((listingResult.data || []) as TrendyolListingRow[])
+      setProducts(productRows);setPrices(priceRows);setFeeCategories(rateRows)
+      setTrendyolInventory(inventoryRows);setTrendyolListings(listingRows);setMappings(mappingRows)
       setSourceUploads(new Map(uploadRows.map(upload => [upload.id, upload])))
     } catch (error) {
       console.error('load products', error)
@@ -127,6 +129,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const prod = productById.get(productId)
     for (const p of PLATFORMS) {
       const existing = priceByProductPlatform.get(`${productId}:${p}`)
+      if (existing === null) continue
       if (existing) {
         result[p] = existing.override_price ?? existing.selling_price
       } else {
@@ -156,7 +159,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       const rate = getRate(p, prod)
       if (!rate) return null
       return {
-        product_id: prod.id,
+        marketplace_account_id:singleTrendyol?.id, product_id: prod.id,
         merchant_code: merchant!.merchant_code,
         platform: p,
         selling_price: calcSellingPrice(parseFloat(form.target_net_price), rate),
@@ -165,9 +168,9 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
         commission_source: rate.source,
       }
     }).filter((row): row is NonNullable<typeof row> => row !== null)
-    if (priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
+    if (singleTrendyol && priceInserts.length) await supabase.from('product_platform_prices').insert(priceInserts)
 
-    setMsg({ type: 'ok', text: 'تمت إضافة المنتج وحساب الأسعار' })
+    setMsg({ type: 'ok', text: singleTrendyol ? 'تمت إضافة المنتج وحساب السعر' : 'تمت إضافة المنتج. اختر حساب بيع واحدًا لحساب سعره.' })
     setForm({ name: '', sku: '', category: '', cost_price: '', target_net_price: '' })
     setShowAdd(false)
     loadData()
@@ -196,10 +199,10 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     const priceUpserts = PLATFORMS.map(p => {
       const rate = getRate(p, editProduct)
       if (!rate) return null
-      return { product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate, category_key:rate.categoryKey || null, commission_source:rate.source }
+      return { marketplace_account_id:singleTrendyol?.id, product_id: editProduct.id, merchant_code: merchant!.merchant_code, platform: p, selling_price: calcSellingPrice(netPrice, rate), commission_rate: rate.rate, category_key:rate.categoryKey || null, commission_source:rate.source }
     }).filter((row): row is NonNullable<typeof row> => row !== null)
-    if (priceUpserts.length) {
-      const { error: priceError } = await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform' })
+    if (singleTrendyol && priceUpserts.length) {
+      const { error: priceError } = await supabase.from('product_platform_prices').upsert(priceUpserts, { onConflict: 'product_id,platform,marketplace_account_id' })
       if (priceError) {
         console.error('recalculate platform prices', priceError)
         setMsg({ type:'err', text:'حُفظت تكلفة المنتج، لكن تعذرت إعادة حساب أسعار المنصة. حاول مرة أخرى.' })
@@ -207,7 +210,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
       }
     }
 
-    setMsg({ type: 'ok', text: 'تم تحديث الأسعار وإعادة الحساب' })
+    setMsg({ type: 'ok', text: singleTrendyol ? 'تم تحديث الأسعار وإعادة الحساب' : 'تم حفظ التكلفة والهدف. اختر حساب بيع واحدًا لحساب سعره.' })
     setEditProduct(null)
     setEditSaving(false)
     loadData()
@@ -222,7 +225,11 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
     ),
   ])), [products, sourceUploads])
   const productById = useMemo(() => new Map(products.map(product => [product.id, product])), [products])
-  const priceByProductPlatform = useMemo(() => new Map(prices.map(price => [`${price.product_id}:${price.platform}`, price])), [prices])
+  const priceByProductPlatform = useMemo(() => {
+    const result=new Map<string,ProductPlatformPrice|null>()
+    for(const price of prices){const key=`${price.product_id}:${price.platform}`;const previous=result.get(key);result.set(key,previous===undefined?price:previous && (previous.override_price??previous.selling_price)===(price.override_price??price.selling_price)?previous:null)}
+    return result
+  }, [prices])
 
   const deferredSearch = useDeferredValue(search)
   const filtered = useMemo(() => {
@@ -253,22 +260,25 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   }, [productQualityById, productLineageById])
 
   const trendyolStateByProduct = useMemo(() => {
+    const resolve=createCatalogResolver(products,mappings)
     const inventory = new Map<string, TrendyolInventoryRow>()
     for (const row of trendyolInventory) {
-      if (row.sku) inventory.set(row.sku, row)
-      if (row.partner_sku) inventory.set(row.partner_sku, row)
+      if(!singleTrendyol || row.marketplace_account_id!==singleTrendyol.id)continue
+      const product=resolve({marketplace_account_id:row.marketplace_account_id,platform:'trendyol',identifiers:[row.sku,row.partner_sku]})
+      if(product)inventory.set(product.id,row)
     }
-    const listings = new Map(trendyolListings.map(row => [row.product_id, row]))
+    const listings = new Map(trendyolListings.filter(row=>row.marketplace_account_id===singleTrendyol?.id).map(row => [row.product_id, row]))
     const result = new Map<string, TrendyolCatalogReadiness>()
     for (const product of products) {
       const platformPrice = priceByProductPlatform.get(`${product.id}:trendyol`)
       const rate = getRate('trendyol', product)
       const calculatedPrice = platformPrice?.override_price ?? platformPrice?.selling_price ?? (rate ? calcSellingPrice(product.target_net_price, rate) : null)
-      const stock = inventory.get(String(product.sku || '')) || inventory.get(String(product.supplier_sku || '')) || inventory.get(String(product.barcode || ''))
-      result.set(product.id, trendyolCatalogReadiness(product, stock, listings.get(product.id), calculatedPrice))
+      const stock = inventory.get(product.id)
+      const listing=listings.get(product.id)
+      result.set(product.id,!singleTrendyol || singleTrendyol.is_legacy ? {ready:false,linked:false,pending:false,item:null,reason:'اختر حساب Trendyol واحدًا لتشغيل الكتالوج'} : trendyolCatalogReadiness({...product,barcode:listing?.provider_barcode||null,platform_source:listing?'trendyol':null},stock,listing,calculatedPrice))
     }
     return result
-  }, [products, priceByProductPlatform, trendyolInventory, trendyolListings, getRate])
+  }, [products, priceByProductPlatform, trendyolInventory, trendyolListings, getRate, mappings, singleTrendyol])
 
   const trendyolSummary = useMemo(() => {
     const values = [...trendyolStateByProduct.values()]
@@ -326,6 +336,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   }
 
   function selectReadyProducts() {
+    if(!singleTrendyol||singleTrendyol.is_legacy)return
     const ids = filtered.filter(product => trendyolStateByProduct.get(product.id)?.ready).slice(0, 1000).map(product => product.id)
     setSelectedProducts(new Set(ids))
     if (!ids.length) setMsg({ type:'err', text:'لا توجد منتجات جاهزة الآن. افتح المنتج لمعرفة البيانات الناقصة.' })
@@ -344,12 +355,13 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   }
 
   async function callTrendyol(action: string, body: Record<string, unknown>) {
+    if(!singleTrendyol || singleTrendyol.is_legacy)throw new Error('اختر حساب Trendyol محددًا قبل تنفيذ العملية')
     const { data:{ session } } = await supabase.auth.getSession()
     if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
       method:'POST',
       headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
-      body:JSON.stringify({ merchant_code:merchant!.merchant_code, action, ...body }),
+      body:JSON.stringify({ merchant_code:merchant!.merchant_code, marketplace_account_id:singleTrendyol.id, action, ...body }),
     })
     const result = await response.json().catch(() => ({}))
     if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol العملية')
@@ -535,7 +547,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
             <div style={{ color:'var(--text3)', fontSize:11, marginTop:4, lineHeight:1.7 }}>حدّد المنتجات المرتبطة لإرسال السعر والمخزون في دفعة واحدة. لن تُرسل المنتجات الناقصة أو التي لديها تحديث قيد المعالجة.</div>
           </div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-            <button style={{ ...S.reqBtn, padding:'8px 13px' }} onClick={selectReadyProducts}>تحديد الجاهز ({trendyolSummary.ready.toLocaleString('ar-SA-u-nu-latn')})</button>
+            <button style={{ ...S.reqBtn, padding:'8px 13px' }} disabled={!singleTrendyol || singleTrendyol.is_legacy} onClick={selectReadyProducts}>تحديد الجاهز ({trendyolSummary.ready.toLocaleString('ar-SA-u-nu-latn')})</button>
             {selectedProducts.size ? <button style={{ ...S.reqBtn, padding:'8px 13px' }} onClick={() => setSelectedProducts(new Set())}>إلغاء التحديد</button> : null}
             {trendyolSummary.pending ? <button disabled={bulkRefreshing} style={{ ...S.reqBtn, padding:'8px 13px', opacity:bulkRefreshing ? .6 : 1 }} onClick={() => void refreshPendingBatches()}>{bulkRefreshing ? 'جارٍ التحديث…' : 'تحديث الحالات'}</button> : null}
           </div>
@@ -797,6 +809,8 @@ type AmazonBusinessRow = {
 type AmazonInventoryRow = { asin: string | null; quantity: number | null }
 
 function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [rows, setRows] = useState<AmazonBusinessRow[]>([])
   const [inventory, setInventory] = useState<AmazonInventoryRow[]>([])
   const [latestDate, setLatestDate] = useState<string | null>(null)
@@ -840,7 +854,7 @@ function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) 
     }
     load()
     return () => { alive = false }
-  }, [merchant])
+  }, [merchant, supabase])
 
   const metrics = useMemo(() => {
     const sessions = rows.reduce((a, r) => a + (Number(r.sessions) || 0), 0)
@@ -931,6 +945,8 @@ function AmazonBusinessFunnelPanel({ merchant }: { merchant: Merchant | null }) 
 }
 
 function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [show, setShow] = useState(false)
@@ -946,26 +962,27 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
 
   const stats = useMemo(() => {
     const sold = data.filter(r => r.units_sold > 0)
-    const totalProfit = sold.reduce((a, r) => a + (Number(r.net_profit) || 0), 0)
+    const incomplete = sold.some(r => r.net_profit == null)
+    const totalProfit = incomplete ? null : sold.reduce((a, r) => a + (Number(r.net_profit) || 0), 0)
     const totalRevenue = sold.reduce((a, r) => a + (Number(r.revenue) || 0), 0)
-    const losing = sold.filter(r => Number(r.net_profit) < 0)
+    const losing = sold.filter(r => r.net_profit != null && Number(r.net_profit) < 0)
     const star = [...sold].filter(r => Number(r.profit_margin_pct) > 30).sort((a, b) => Number(b.net_profit) - Number(a.net_profit)).slice(0, 5)
-    const worst = [...sold].sort((a, b) => Number(a.net_profit) - Number(b.net_profit)).slice(0, 5)
-    const margin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
-    return { sold, totalProfit, totalRevenue, losing, star, worst, margin }
+    const worst = sold.filter(r => r.net_profit != null).sort((a, b) => Number(a.net_profit) - Number(b.net_profit)).slice(0, 5)
+    const margin = totalProfit != null && totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : null
+    return { sold, incomplete, totalProfit, totalRevenue, losing, star, worst, margin }
   }, [data])
 
   if (loading || stats.sold.length === 0) return null
-  const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
+  const fmt = (v: number | null) => v == null ? 'غير مكتمل' : Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
   // إن كانت تكاليف الشراء غير مسجلة فالأرقام «قبل تكلفة البضاعة» — ننبّه بدل عرضها كصافٍ نهائي
   const withCost = data.filter(r => Number(r.cost_price) > 0).length
-  const costMissing = data.length > 0 && withCost / data.length < 0.2
+  const costMissing = data.length > 0 && (withCost < data.length || stats.incomplete)
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
       {costMissing && (
         <div style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-bg)', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
-          الأرقام أدناه قبل خصم تكلفة البضاعة — أدخل تكلفة الشراء لمنتجاتك ليظهر الصافي الحقيقي.
+          لا يكتمل تقدير الربحية عند نقص التكلفة أو توزيع رسوم الطلب على المنتجات. أدخل التكاليف وراجع الرسوم؛ القيم غير المعروفة لا تُحسب صفرًا.
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -979,8 +996,8 @@ function ProfitabilityPanel({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <PKpi label="منتجات مبيعة" value={stats.sold.length.toString()} sub={`من ${data.length}`} color="#0f958c" />
         <PKpi label="إجمالي الإيرادات" value={fmt(stats.totalRevenue)} color="var(--green)" />
-        <PKpi label="صافي الربح" value={fmt(stats.totalProfit)} sub={stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
-        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? 'يحتاج مراجعة' : 'كل المنتجات رابحة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
+        <PKpi label="الربح التقديري" value={fmt(stats.totalProfit)} sub={stats.margin == null ? 'بيانات غير مكتملة' : stats.margin.toFixed(1) + '% هامش'} color={stats.totalProfit == null ? 'var(--text2)' : stats.totalProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
+        <PKpi label="منتجات خاسرة" value={stats.losing.length.toString()} sub={stats.losing.length > 0 ? 'يحتاج مراجعة' : stats.incomplete ? 'التقييم غير مكتمل' : 'لا خسارة في المنتجات المحسوبة'} color={stats.losing.length > 0 ? 'var(--red)' : 'var(--green)'} />
       </div>
 
       {show && (
@@ -1033,12 +1050,14 @@ function PKpi({ label, value, sub, color }: { label: string; value: string; sub?
 
 // ─── Inventory Turnover Card ─────────────────────────────────────────────────
 function InventoryTurnoverCard({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any>(null)
   useEffect(() => {
     if (!merchant) return
     supabase.rpc('inventory_turnover', { p_merchant_code: merchant.merchant_code, p_days: 90 })
       .then(({ data }) => setData(data))
-  }, [merchant])
+  }, [merchant, supabase])
   if (!data || !data.turnover_ratio) return null
   const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'
   return (
@@ -1080,11 +1099,13 @@ function kpiBox(color: string): React.CSSProperties {
 
 // ─── Brand Performance ────────────────────────────────────────────────────────
 function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchant) return
     supabase.from('brand_performance').select('*').eq('merchant_code', merchant.merchant_code).order('revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
-  }, [merchant])
+  }, [merchant, supabase])
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
@@ -1118,11 +1139,13 @@ function BrandPerformancePanel({ merchant }: { merchant: Merchant | null }) {
 
 // ─── SKU Lifecycle ────────────────────────────────────────────────────────────
 function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchant) return
     supabase.from('sku_lifecycle').select('*').eq('merchant_code', merchant.merchant_code).then(({ data }) => setData(data || []))
-  }, [merchant])
+  }, [merchant, supabase])
   if (data.length === 0) return null
   const counts: any = { launching: 0, new_no_sales: 0, growing: 0, mature: 0, dormant: 0, unknown: 0 }
   for (const d of data) counts[d.lifecycle_stage]++
@@ -1146,11 +1169,13 @@ function SkuLifecyclePanel({ merchant }: { merchant: Merchant | null }) {
 
 // ─── Variant Performance ──────────────────────────────────────────────────────
 function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchant) return
     supabase.from('variant_performance').select('*').eq('merchant_code', merchant.merchant_code).order('units_sold', { ascending: false }).limit(20).then(({ data }) => setData(data || []))
-  }, [merchant])
+  }, [merchant, supabase])
   if (data.length === 0) return null
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
@@ -1185,11 +1210,13 @@ function VariantPerformancePanel({ merchant }: { merchant: Merchant | null }) {
 
 // ─── Buy Box Warnings ─────────────────────────────────────────────────────────
 function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchant) return
     supabase.from('buybox_warnings').select('*').eq('merchant_code', merchant.merchant_code).order('overprice_pct', { ascending: false }).then(({ data }) => setData(data || []))
-  }, [merchant])
+  }, [merchant, supabase])
   if (data.length === 0) return null
   const losing = data.filter(d => d.buybox_status === 'losing')
   const atRisk = data.filter(d => d.buybox_status === 'at_risk')
@@ -1244,11 +1271,13 @@ function BuyBoxWarningsPanel({ merchant }: { merchant: Merchant | null }) {
 
 // ─── Cross-Platform Performance ───────────────────────────────────────────────
 function CrossPlatformPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchant) return
     supabase.from('cross_platform_product_perf').select('*').eq('merchant_code', merchant.merchant_code).order('total_revenue', { ascending: false }).limit(15).then(({ data }) => setData(data || []))
-  }, [merchant])
+  }, [merchant, supabase])
   if (data.length === 0) return null
 
   return (

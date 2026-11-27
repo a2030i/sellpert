@@ -9,6 +9,7 @@ export type SellpertCommissionOrder = {
   id?: string | null
   merchant_code?: string | null
   platform?: string | null
+  marketplace_account_id?: string | null
   order_id?: string | null
   status?: string | null
   total_amount?: number | string | null
@@ -68,7 +69,7 @@ export function summarizeSellpertCommission(
     if (!isSellpertCommissionEligible(order.status)) continue
     const platform = String(order.platform || 'other').trim().toLowerCase() || 'other'
     const reference = String(order.order_id || order.id || '').trim()
-    const key = `${String(order.merchant_code || '')}:${platform}:${reference || `row-${grouped.size}`}`
+    const key = `${String(order.merchant_code || '')}:${platform}:${order.marketplace_account_id || 'legacy'}:${reference || `row-${grouped.size}`}`
     const current = grouped.get(key)
     if (current) current.total += sellpertCommissionableOrderTotal(order)
     else grouped.set(key, { platform, total: sellpertCommissionableOrderTotal(order) })

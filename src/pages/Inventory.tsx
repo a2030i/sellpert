@@ -1,5 +1,7 @@
+import SellingAccountChooser from '../components/SellingAccountChooser'
+import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo } from 'react'
-import { INVENTORY_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { INVENTORY_SAFE_COLUMNS } from '../lib/supabase'
 import { useMobile } from '../lib/hooks'
 import { InfoIcon, Pagination, PageHeader, PageLoading } from '../components/UI'
 import type { Merchant, InventoryItem } from '../lib/supabase'
@@ -9,7 +11,7 @@ import { createMerchantAction, dueDateFromNow } from '../lib/merchantActions'
 import { toastErr, toastInfo, toastOk } from '../components/Toast'
 import { userErrorMessage } from '../lib/userError'
 import PurchaseCashReadinessPanel from '../components/PurchaseCashReadinessPanel'
-import { fetchAll } from '../lib/db'
+import { fetchAllStrict as fetchAll } from '../lib/db'
 import { inventoryDataLineage, inventoryFreshness, type InventoryDataLineage, type InventoryFreshness, type LineageUpload } from '../lib/dataLineage'
 
 const PAGE_SIZE = 25
@@ -25,12 +27,16 @@ const FRESHNESS_TONE = {
 } as const
 
 export default function Inventory({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+  const selectedAccounts=useSelectedSellingAccounts()
+
   const linkedFilters = useMemo(() => {
     const params = new URLSearchParams(window.location.search)
     const stock = params.get('stock')
     return {
       stock: ['all','low','out','stale'].includes(stock || '') ? stock as 'all'|'low'|'out'|'stale' : 'all',
       platform: params.get('platform') || 'all',
+      platforms: (params.get('platforms') || '').split(',').filter(Boolean),
     }
   }, [])
   const isMobile = useMobile()
@@ -47,6 +53,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
   const [editQty, setEditQty] = useState(0)
   const [saving, setSaving] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [addAccountId,setAddAccountId]=useState('')
   const [addForm, setAddForm] = useState({ sku:'', product_name:'', platform:'warehouse', quantity:0, low_stock_threshold:10, cost_price:0 })
   const [msg, setMsg] = useState<{ type:'ok'|'err'; text:string } | null>(null)
 
@@ -59,8 +66,8 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     setLoadError('')
     try {
       const [inventoryRows, uploads] = await Promise.all([
-        fetchAll<InventoryItem>((from, to) => supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('product_name').range(from, to), 'المخزون'),
-        fetchAll<LineageUpload>((from, to) => supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending:false }).range(from, to), 'ملفات المخزون'),
+        fetchAll<InventoryItem>((from, to) => supabase.from('inventory').select(INVENTORY_SAFE_COLUMNS).eq('merchant_code', merchant!.merchant_code).order('product_name').order('id').range(from, to), 'المخزون'),
+        fetchAll<LineageUpload>((from, to) => supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at').eq('merchant_code', merchant!.merchant_code).order('uploaded_at', { ascending:false }).order('id').range(from, to), 'ملفات المخزون'),
       ])
       setItems(inventoryRows)
       setSourceUploads(new Map(uploads.map(upload => [upload.id, upload])))
@@ -80,9 +87,10 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       d = d.filter(i => i.product_name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q))
     }
     if (filter === 'low') d = d.filter(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
-    if (filter === 'out') d = d.filter(i => i.quantity === 0)
+    if (filter === 'out') d = d.filter(i => Number(i.quantity) - Number(i.reserved_quantity || 0) <= 0)
     if (filter === 'stale') d = d.filter(i => freshnessById.get(i.id)?.status === 'stale' || freshnessById.get(i.id)?.status === 'unknown')
     if (platformFilter !== 'all') d = d.filter(i => i.platform === platformFilter)
+    else if (linkedFilters.platforms.length) d = d.filter(i => linkedFilters.platforms.includes(i.platform))
     d = [...d].sort((a, b) => {
       if (sort === 'name') return a.product_name.localeCompare(b.product_name, 'ar')
       if (sort === 'quantity') return b.quantity - a.quantity
@@ -90,14 +98,15 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       return priority(a) - priority(b) || a.quantity - b.quantity
     })
     return d
-  }, [items, search, filter, platformFilter, sort, freshnessById])
+  }, [items, search, filter, platformFilter, sort, freshnessById, linkedFilters.platforms])
 
-  // Group by SKU
+  // A source SKU is meaningful only within its selling account.
   const bySku = useMemo(() => {
     const map: Record<string, InventoryItem[]> = {}
     for (const item of filtered) {
-      if (!map[item.sku]) map[item.sku] = []
-      map[item.sku].push(item)
+      const key=JSON.stringify([item.marketplace_account_id,item.platform,item.sku])
+      if (!map[key]) map[key] = []
+      map[key].push(item)
     }
     return map
   }, [filtered])
@@ -114,7 +123,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     total:    items.filter(i => i.is_active).length,
     low:      items.filter(i => i.is_active && i.quantity > 0 && i.quantity <= i.low_stock_threshold).length,
     out:      items.filter(i => i.is_active && i.quantity === 0).length,
-    skus:     new Set(items.filter(i=>i.is_active).map(i=>i.sku)).size,
+    skus:     new Set(items.filter(i=>i.is_active).map(i=>JSON.stringify([i.marketplace_account_id,i.sku]))).size,
     units:    items.filter(i => i.is_active).reduce((sum, item) => sum + Number(item.quantity || 0), 0),
     stale:    items.filter(i => i.is_active && ['stale','unknown'].includes(freshnessById.get(i.id)?.status || '')).length,
   }), [items, freshnessById])
@@ -143,10 +152,12 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
     if (!addForm.sku.trim() || !addForm.product_name.trim()) {
       setMsg({ type:'err', text:'SKU واسم المنتج مطلوبان' }); return
     }
+    if(!selectedAccounts.some(account=>account.id===addAccountId)){setMsg({type:'err',text:'اختر الحساب الذي يخصه هذا الرصيد'});return}
     setSaving(true)
     const { error } = await supabase.from('inventory').insert({
       merchant_code: merchant!.merchant_code,
-      sku:              addForm.sku.trim().toUpperCase(),
+      marketplace_account_id:addAccountId,
+      sku:              addForm.sku.trim(),
       product_name:     addForm.product_name.trim(),
       platform:         addForm.platform,
       quantity:         Number(addForm.quantity),
@@ -221,7 +232,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap:14, marginBottom:20 }}>
         {[
           { label:'المنتجات الفريدة', value:stats.skus,  icon:'', color:'var(--accent)' },
-          { label:'إجمالي الوحدات المتاحة', value:stats.units, icon:'', color:'#4cc9f0'     },
+          { label:'الأرصدة المسجلة في القنوات', value:stats.units, icon:'', color:'#4cc9f0'     },
           { label:'مخزون منخفض',     value:stats.low,   icon:'', color:'#ffd166',     active: filter==='low', onClick:()=>setFilter(filter==='low'?'all':'low') },
           { label:'نفد المخزون',      value:stats.out,   icon:'', color:'#ff4d6d',     active: filter==='out', onClick:()=>setFilter(filter==='out'?'all':'out') },
           { label:'بيانات كمية قديمة', value:stats.stale, icon:'', color:'var(--danger-text)', active:filter==='stale', onClick:()=>setFilter(filter==='stale'?'all':'stale') },
@@ -281,6 +292,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
               </select>
             </div>
           </div>
+          {merchant && <SellingAccountChooser key={addForm.platform} merchantCode={merchant.merchant_code} platform={addForm.platform} includeLegacy value={addAccountId} onChange={account=>setAddAccountId(account?.id||'')} helpText="اختر الحساب الذي يخصه هذا الرصيد. لإدارة مخزون مشترك استخدم مصادر المخزون في دليل المنتجات."/>}
           <button style={S.saveBtn} onClick={addItem} disabled={saving}>
             {saving ? 'جارٍ الحفظ...' : 'إضافة'}
           </button>
@@ -312,6 +324,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         <span style={S.badge}>{filtered.length} سجل</span>
       </div>
 
+      <p style={{fontSize:12,color:"var(--text2)",lineHeight:1.8}}>هذه أرصدة القنوات النشطة، وقد تعرض قناتان الوحدات الفعلية نفسها. الإجمالي الفعلي بعد توحيد المصادر متاح في دليل المنتجات؛ لا تستخدم جمع أرصدة القنوات كتوصية شراء.</p>
       {/* PRODUCTS GROUPED BY SKU */}
       {Object.keys(bySku).length === 0 ? (
         <div style={{ ...S.card, padding:60, textAlign:'center', color:'var(--text3)', fontSize:14 }}>
@@ -319,12 +332,13 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {pageEntries.map(([sku, skuItems]) => {
+          {pageEntries.map(([sourceKey, skuItems]) => {
+            const sku=skuItems[0].sku
             const totalQty = skuItems.reduce((s,i) => s + i.quantity, 0)
             const isLow    = skuItems.some(i => i.quantity > 0 && i.quantity <= i.low_stock_threshold)
             const isOut    = skuItems.every(i => i.quantity === 0)
             return (
-              <div key={sku} style={{ ...S.card, borderRight:isOut ? '3px solid var(--red)' : isLow ? '3px solid var(--gold)' : '3px solid transparent' }}>
+              <div key={sourceKey} style={{ ...S.card, borderRight:isOut ? '3px solid var(--red)' : isLow ? '3px solid var(--gold)' : '3px solid transparent' }}>
                 {/* SKU Header */}
                 <div style={{ padding: isMobile ? '12px' : '14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
@@ -333,7 +347,7 @@ export default function Inventory({ merchant }: { merchant: Merchant | null }) {
                     </div>
                     <div>
                       <div style={{ fontWeight:700, fontSize:15 }}>{skuItems[0].product_name}</div>
-                      <div style={{ fontSize:11, fontFamily:'monospace', color:'var(--accent)', marginTop:2 }}>{sku}</div>
+                      <div style={{ fontSize:11, fontFamily:'monospace', color:'var(--accent)', marginTop:2 }}>{sku} · {selectedAccounts.find(account=>account.id===skuItems[0].marketplace_account_id)?.label}</div>
                     </div>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -431,29 +445,39 @@ type ReorderRecommendation = {
   data_as_of: string; data_age_days: number
 }
 
-function ReorderRecommendationsPanel({ merchant }: { merchant: Merchant | null }) {
+function ReorderRecommendationsPanel({merchant}:{merchant:Merchant|null}) {
+  const accounts=useSelectedSellingAccounts()
+  if(accounts.length!==1)return <p role="status" style={{fontSize:12,lineHeight:1.8,color:'var(--text2)'}}>اختر حساب بيع واحدًا لمراجعة احتياجه. توصيات القنوات لا تُجمع تلقائيًا؛ فقد تشترك في المخزون نفسه.</p>
+  return <SingleAccountReorderRecommendations merchant={merchant}/>
+}
+function SingleAccountReorderRecommendations({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [rows, setRows] = useState<ReorderRecommendation[]>([])
-  const [gate, setGate] = useState<'ready' | 'stale' | 'costs' | 'empty'>('empty')
+  const [gate,setGate]=useState<'ready'|'stale'|'costs'|'empty'|'loading'|'error'>('loading')
+  const [reload,setReload]=useState(0)
   const [tracking, setTracking] = useState<string | null>(null)
 
   useEffect(() => {
     if (!merchant?.merchant_code) return
     let alive = true
+    setGate('loading')
     Promise.all([
       supabase.from('inventory_reorder_recommendations').select('*').eq('merchant_code', merchant.merchant_code).order('urgency').order('days_of_stock').limit(20),
-      supabase.from('inventory_health').select('data_age_days,cost_price,daily_velocity').eq('merchant_code', merchant.merchant_code),
+      fetchAll<any>((f,t)=>supabase.from('inventory_health').select('data_age_days,cost_price,daily_velocity').eq('merchant_code',merchant.merchant_code).order('id').range(f,t)),
     ]).then(([recommendations, health]) => {
       if (!alive) return
-      const nextRows = (recommendations.data || []) as ReorderRecommendation[]
-      const healthRows = health.data || []
+      if(recommendations.error)throw recommendations.error
+      const nextRows=(recommendations.data||[]) as ReorderRecommendation[]
+      const healthRows=health
       setRows(nextRows)
       if (nextRows.length) setGate('ready')
       else if (healthRows.some(item => item.data_age_days != null && Number(item.data_age_days) > 2)) setGate('stale')
       else if (healthRows.some(item => Number(item.daily_velocity) > 0 && Number(item.cost_price) <= 0)) setGate('costs')
       else setGate('empty')
-    })
+    }).catch(()=>{if(alive){setRows([]);setGate('error')}})
     return () => { alive = false }
-  }, [merchant?.merchant_code])
+  }, [merchant?.merchant_code,supabase,reload])
 
   const totalCost = useMemo(() => rows.reduce((sum, row) => sum + Number(row.estimated_cost || 0), 0), [rows])
 
@@ -478,7 +502,9 @@ function ReorderRecommendationsPanel({ merchant }: { merchant: Merchant | null }
     }
   }
 
-  if (!merchant) return null
+  if(!merchant)return null
+  if(gate==='loading')return <p role="status">جارٍ فحص اكتمال بيانات الشراء…</p>
+  if(gate==='error')return <p role="alert">تعذر تحميل توصيات الشراء <button onClick={()=>setReload(n=>n+1)}>إعادة المحاولة</button></p>
   if (!rows.length) {
     const content = gate === 'stale'
       ? ['توصيات الشراء متوقفة مؤقتًا', 'بيانات حركة البيع أقدم من يومين. حدّث الطلبات والمخزون قبل إصدار قرار شراء.']
@@ -512,6 +538,8 @@ const S: Record<string, React.CSSProperties> = {
 
 // ─── Inventory Health Panel ──────────────────────────────────────────────────
 function InventoryHealthPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
@@ -627,11 +655,13 @@ function pill(color: string): React.CSSProperties {
 
 // ─── Inventory Ageing Section ─────────────────────────────────────────────────
 function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchantCode) return
     supabase.from('inventory_ageing').select('*').eq('merchant_code', merchantCode).then(({ data }) => setData(data || []))
-  }, [merchantCode])
+  }, [merchantCode, supabase])
 
   const stats = useMemo(() => {
     const counts: any = { fresh: 0, slow: 0, aging: 0, dead_stock: 0, never_sold: 0 }
@@ -686,11 +716,13 @@ function InventoryAgeingSection({ merchantCode }: { merchantCode: string }) {
 
 // ─── Inventory Pipeline (ASN → GRN → Sales) ───────────────────────────────────
 function InventoryPipelinePanel({ merchantCode }: { merchantCode?: string }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => {
     if (!merchantCode) return
     supabase.from('inventory_pipeline').select('*').eq('merchant_code', merchantCode).order('asn_sent_at', { ascending: false }).limit(10).then(({ data }) => setData(data || []))
-  }, [merchantCode])
+  }, [merchantCode, supabase])
   if (data.length === 0) return null
 
   return (

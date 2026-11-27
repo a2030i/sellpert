@@ -1,3 +1,7 @@
+import DataLoadError from '../../components/DataLoadError'
+import { withTimeout } from '../../lib/db'
+import { fetchAllStrict } from '../../lib/db'
+import { uploadDisplayStatus } from '../../lib/uploadStatus'
 import './OverviewView.css'
 import { useEffect, useMemo, useState } from 'react'
 import { fmt, relativeTime, PLATFORM_MAP } from './adminShared'
@@ -46,11 +50,13 @@ function buildFallback(rows:PerformanceData[], start:string, end:string, platfor
   return {range:{start,end,previous_start:previousStart,previous_end:previousEnd},totals:{...totals,fees:current.reduce((sum,row)=>sum+Number(row.platform_fees||0),0),rows:current.length,first_date:current.length?current.map(performanceDateKey).sort()[0]:null,last_date:current.length?current.map(performanceDateKey).sort().slice(-1)[0]||null:null,updated_at:current.length?current.map(row=>row.created_at).sort().slice(-1)[0]||null:null},previous:previousTotals,trend:[...trendMap].map(([date,value])=>({date,...value})),platforms:[...platformMap].map(([platform,value])=>({platform,...value})).sort((a,b)=>b.gmv-a.gmv),merchants:[...merchantMap].map(([merchant_code,value])=>({merchant_code,name:merchant_code,...value})).sort((a,b)=>b.gmv-a.gmv).slice(0,10)}
 }
 
-export default function OverviewView({ merchantOnly, activeIntegrations, totalIntegrations, openTaskCount, syncLogs, perfData, onNavigate }: {merchantOnly:Merchant[];activeIntegrations:number;totalIntegrations:number;openTaskCount:number;syncLogs:SyncLog[];perfData:PerformanceData[];onNavigate:(target:string)=>void}) {
+export default function OverviewView({ merchantOnly, activeIntegrations, totalIntegrations, openTaskCount, syncLogs, perfData, onNavigate }: {merchantOnly:Merchant[];activeIntegrations:number;totalIntegrations:number;openTaskCount:number;syncLogs:SyncLog[];perfData:PerformanceData[];onNavigate:(target:string, query?:Record<string,string>)=>void}) {
   const params = useMemo(()=>new URLSearchParams(window.location.search),[])
   const [preset,setPreset]=useState<Preset>(()=>['7','30','month','custom'].includes(params.get('period')||'')?params.get('period') as Preset:'30')
   const [platforms,setPlatforms]=useState<string[]>(()=>(params.get('platforms')||'').split(',').filter(Boolean))
   const [merchantCode,setMerchantCode]=useState(params.get('merchant')||'')
+  const [sourceScope,setSourceScope]=useState(params.get('source')==='identified'?'identified':'legacy')
+  const [reload,setReload]=useState(0)
   const today=new Date(); const [from,setFrom]=useState(params.get('from')||localDateKey(new Date(today.getFullYear(),today.getMonth(),1))); const [to,setTo]=useState(params.get('to')||localDateKey(today))
   const [start,end]=dateBounds(preset,from,to)
   const [remote,setRemote]=useState<MetricPayload|null>(null); const [metricsError,setMetricsError]=useState(''); const [metricsLoading,setMetricsLoading]=useState(false)
@@ -58,12 +64,30 @@ export default function OverviewView({ merchantOnly, activeIntegrations, totalIn
   const fallback=useMemo(()=>buildFallback(perfData,start,end,platforms,merchantCode),[perfData,start,end,platforms,merchantCode])
   const metrics=remote||fallback
 
-  useEffect(()=>{const next=new URLSearchParams(window.location.search);next.set('period',preset);if(platforms.length)next.set('platforms',platforms.join(','));else next.delete('platforms');if(merchantCode)next.set('merchant',merchantCode);else next.delete('merchant');if(preset==='custom'){next.set('from',from);next.set('to',to)}else{next.delete('from');next.delete('to')}window.history.replaceState(null,'',`${window.location.pathname}?${next.toString()}`)},[preset,platforms,merchantCode,from,to])
-  useEffect(()=>{let cancelled=false;setMetricsLoading(true);setMetricsError('');supabase.rpc('admin_overview_metrics',{p_start_date:start,p_end_date:end,p_platforms:platforms.length?platforms:null,p_merchant_code:merchantCode||null}).then(({data,error})=>{if(cancelled)return;if(error){setRemote(null);setMetricsError('تعذر تشغيل التجميع السريع؛ تم عرض البيانات المحلية المتاحة.')}else setRemote(data as MetricPayload);setMetricsLoading(false)});return()=>{cancelled=true}},[start,end,platforms,merchantCode])
+  useEffect(()=>{const next=new URLSearchParams(window.location.search);next.set('period',preset);next.set('source',sourceScope);if(platforms.length)next.set('platforms',platforms.join(','));else next.delete('platforms');if(merchantCode)next.set('merchant',merchantCode);else next.delete('merchant');if(preset==='custom'){next.set('from',from);next.set('to',to)}else{next.delete('from');next.delete('to')}window.history.replaceState(null,'',`${window.location.pathname}?${next.toString()}`)},[preset,platforms,merchantCode,from,to,sourceScope])
+  useEffect(()=>{let cancelled=false;setMetricsLoading(true);setMetricsError('');setRemote(null)
+    withTimeout(supabase.rpc('admin_overview_metrics_by_account_scope',{p_start_date:start,p_end_date:end,p_platforms:platforms.length?platforms:null,p_merchant_code:merchantCode||null,p_legacy:sourceScope==='legacy'}))
+      .then(({data,error})=>{if(cancelled)return;if(error)throw error;if(!data || !data.totals || !data.previous || !Array.isArray(data.trend) || !Array.isArray(data.platforms) || !Array.isArray(data.merchants))throw new Error('Incomplete overview metrics');setRemote(data as MetricPayload)})
+      .catch(()=>{if(!cancelled)setMetricsError('تعذر تحميل الأرقام الكاملة')}).finally(()=>{if(!cancelled)setMetricsLoading(false)})
+    return()=>{cancelled=true}
+  },[start,end,platforms,merchantCode,sourceScope,reload])
 
+  const [failedImports, setFailedImports] = useState<number | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setFailedImports(null)
+    fetchAllStrict<{status:string;uploaded_at:string}>((f,t) => {
+      let q = supabase.from('platform_file_uploads').select('status,uploaded_at').gte('uploaded_at', `${start}T00:00:00+03:00`).lte('uploaded_at', `${end}T23:59:59.999+03:00`).order('id').range(f,t)
+      if (merchantCode) q = q.eq('merchant_code',merchantCode)
+      if (platforms.length) q = q.in('platform',platforms)
+      return q
+    }).then(rows => { if (!cancelled) setFailedImports(rows.filter(row => ['failed','stalled'].includes(uploadDisplayStatus(row.status,row.uploaded_at))).length) }).catch(() => { if (!cancelled) setFailedImports(null) })
+    return () => { cancelled = true }
+  }, [start,end,platforms,merchantCode])
+  const drilldown = {source:sourceScope,from:start,to:end,platforms:platforms.join(','),merchant:merchantCode}
   const currentGMV=Number(metrics.totals.gmv||0), currentOrders=Number(metrics.totals.orders||0), active=Number(metrics.totals.active_merchants||0)
   const gmvDelta=pct(currentGMV,Number(metrics.previous.gmv||0)), orderDelta=pct(currentOrders,Number(metrics.previous.orders||0))
-  const failedImports=syncLogs.filter(log=>log.status==='error'||log.status==='stalled').length, inactiveIntegrations=Math.max(0,totalIntegrations-activeIntegrations)
+  const inactiveIntegrations=Math.max(0,totalIntegrations-activeIntegrations)
   const oldestDate=metrics.totals.first_date, latestDate=metrics.totals.last_date
   const scopeLabel=`${new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'}).format(new Date(`${start}T00:00:00`))} – ${new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short',year:'numeric'}).format(new Date(`${end}T00:00:00`))}`
   function togglePlatform(platform:string){setPlatforms(current=>current.includes(platform)?current.filter(value=>value!==platform):[...current,platform].sort())}
@@ -75,14 +99,15 @@ export default function OverviewView({ merchantOnly, activeIntegrations, totalIn
       <label><span>الفترة الزمنية</span><b><CalendarDays size={15}/><select aria-label="الفترة الزمنية لجميع بيانات نظرة عامة" value={preset} onChange={event=>setPreset(event.target.value as Preset)}><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="month">هذا الشهر</option><option value="custom">فترة مخصصة</option></select></b></label>
       <details><summary><span>المنصات</span><b><Layers3 size={15}/>{platforms.length?`${platforms.length.toLocaleString('en-US')} منصات`:'كل المنصات'}<ChevronDown size={14}/></b></summary><div className="admin-platform-menu"><label><input type="checkbox" checked={!platforms.length} onChange={()=>setPlatforms([])}/>كل المنصات</label>{availablePlatforms.map(platform=><label key={platform}><input type="checkbox" checked={platforms.includes(platform)} onChange={()=>togglePlatform(platform)}/>{PLATFORM_MAP[platform]||platform}</label>)}</div></details>
       <label><span>التاجر</span><b><Users size={15}/><select aria-label="التاجر لجميع بيانات نظرة عامة" value={merchantCode} onChange={event=>setMerchantCode(event.target.value)}><option value="">كل التجار</option>{merchantOnly.map(merchant=><option key={merchant.id} value={merchant.merchant_code}>{merchant.name}</option>)}</select></b></label>
+      <label><span>مصدر الأرقام المالية</span><select value={sourceScope} onChange={event=>setSourceScope(event.target.value)}><option value="legacy">البيانات القديمة غير المنسوبة</option><option value="identified">الحسابات المحددة الهوية</option></select></label>
       {preset==='custom'&&<div className="admin-custom-range"><label>من<input type="date" value={from} max={to} onChange={event=>setFrom(event.target.value)}/></label><label>إلى<input type="date" value={to} min={from} onChange={event=>setTo(event.target.value)}/></label></div>}
     </section>
-    {metricsError&&<div role="status" className="admin-ops-notice">{metricsError}</div>}
+    {metricsError ? <DataLoadError onRetry={()=>setReload(n=>n+1)}/> : metricsLoading || !remote ? <p role="status">جارٍ تحميل الأرقام الكاملة…</p> : <>
 
     <section className="admin-command-grid">
       <article className="admin-decisions"><header><h2>استثناءات تحتاج تدخّل الفريق</h2><p>مرتبة بحسب أثرها على بيانات التاجر وتشغيله</p></header>
-        <Decision tone="critical" title="ملفات فشل استيرادها" detail={`${failedImports.toLocaleString('en-US')} ملفات تحتاج مراجعة الخطأ وإعادة المعالجة`} value={failedImports} onClick={()=>onNavigate('uploads')}/>
-        <Decision tone="warning" title="مزامنات متأخرة" detail={`${inactiveIntegrations.toLocaleString('en-US')} اتصالات لم تتحدث ضمن الزمن المتوقع`} value={inactiveIntegrations} onClick={()=>onNavigate('operations')}/>
+        <Decision tone="critical" title="محاولات استيراد فاشلة أو متعطلة" detail={`${(failedImports === null ? 'غير متاح' : failedImports.toLocaleString('en-US'))} محاولات ضمن النطاق؛ قد توجد محاولة ناجحة لاحقة`} value={failedImports} onClick={()=>onNavigate('uploads',{...drilldown,status:'attention'})}/>
+        {inactiveIntegrations>0 && <Decision tone="warning" title="اتصالات غير مفعلة" detail="حالة التفعيل، وليست قياسًا لتأخر المزامنة" value={inactiveIntegrations} onClick={()=>onNavigate('operations')}/>}
         <Decision tone="info" title="مهام تشغيل مفتوحة" detail="تحتاج متابعة الفريق وإغلاق الإجراء" value={openTaskCount} onClick={()=>onNavigate('tasks')}/>
       </article>
       <article className="admin-quick-actions"><header><h2>إجراءات سريعة</h2></header>
@@ -94,21 +119,22 @@ export default function OverviewView({ merchantOnly, activeIntegrations, totalIn
 
     <section className="admin-kpi-grid" aria-label="مؤشرات الأداء">
       <Kpi label="التجار النشطون" value={active.toLocaleString('en-US')} sub="ضمن النطاق المحدد" Icon={Users} color="var(--accent)" onClick={()=>onNavigate('merchants')}/>
-      <Kpi label="GMV" value={fmt(currentGMV)} sub="كل التجار والمنصات" delta={gmvDelta} Icon={Wallet} color="var(--text)" onClick={()=>onNavigate('performance')}/>
-      <Kpi label="إجمالي الطلبات" value={currentOrders.toLocaleString('en-US')} sub="خلال الفترة المحددة" delta={orderDelta} Icon={ShoppingCart} color="var(--warning-text)" onClick={()=>onNavigate('performance')}/>
-      <Kpi label="فشل الاستيراد" value={failedImports.toLocaleString('en-US')} sub="يحتاج تدخلًا الآن" Icon={PackageCheck} color="var(--danger-text)" onClick={()=>onNavigate('uploads')}/>
+      <Kpi label="GMV" value={fmt(currentGMV)} sub={sourceScope==='legacy'?'البيانات القديمة ضمن الفلاتر':'الحسابات المحددة الهوية ضمن الفلاتر'} delta={gmvDelta} Icon={Wallet} color="var(--text)" onClick={()=>onNavigate('performance',drilldown)}/>
+      <Kpi label="حجم المبيعات المسجل" value={currentOrders.toLocaleString('en-US')} sub="عدد المصدر: قد يكون وحدات أو طلبات؛ ليس عدد طلبات فريدًا" delta={orderDelta} Icon={ShoppingCart} color="var(--warning-text)" onClick={()=>onNavigate('performance',drilldown)}/>
+      <Kpi label="فشل الاستيراد" value={(failedImports === null ? 'غير متاح' : failedImports.toLocaleString('en-US'))} sub="ضمن الفترة والمنصات والتاجر المحدد" Icon={PackageCheck} color="var(--danger-text)" onClick={()=>onNavigate('uploads',{...drilldown,status:'attention'})}/>
     </section>
 
     <section className="admin-timeline-panel"><header><div><h2>GMV عبر الزمن</h2><p>{scopeLabel} · جميع الفلاتر أعلاه مطبقة</p></div><strong>{fmt(currentGMV)}</strong></header>
       <div className="admin-chart" aria-label={`إجمالي GMV ${fmt(currentGMV)}`}>{metrics.trend.length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={metrics.trend.map(row=>({...row,label:new Date(`${row.date}T00:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'})}))} margin={{top:12,right:0,left:0,bottom:0}}><defs><linearGradient id="adminGmvGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#08786f" stopOpacity={.22}/><stop offset="95%" stopColor="#08786f" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#dce3e3" vertical={false}/><XAxis dataKey="label" tick={{fill:'#8a999f',fontSize:10}} axisLine={false} tickLine={false}/><YAxis tick={{fill:'#8a999f',fontSize:10}} axisLine={false} tickLine={false} tickFormatter={value=>value>=1000?`${(value/1000).toFixed(0)}k`:value}/><Tooltip formatter={(value:number)=>[fmt(value),'GMV']}/><Area type="monotone" dataKey="gmv" stroke="#08786f" strokeWidth={2.5} fill="url(#adminGmvGrad)" dot={false}/></AreaChart></ResponsiveContainer>:<div className="admin-empty">لا توجد بيانات في النطاق</div>}</div>
-      <details className="chart-data"><summary>عرض القيم كجدول</summary><div><table><thead><tr><th>التاريخ</th><th>GMV</th><th>الطلبات</th></tr></thead><tbody>{metrics.trend.map(row=><tr key={row.date}><td>{row.date}</td><td>{fmt(Number(row.gmv))}</td><td>{Number(row.orders).toLocaleString('en-US')}</td></tr>)}</tbody></table></div></details>
+      <details className="chart-data"><summary>عرض القيم كجدول</summary><div><table><thead><tr><th>التاريخ</th><th>GMV</th><th>حجم المبيعات المسجل</th></tr></thead><tbody>{metrics.trend.map(row=><tr key={row.date}><td>{row.date}</td><td>{fmt(Number(row.gmv))}</td><td>{Number(row.orders).toLocaleString('en-US')}</td></tr>)}</tbody></table></div></details>
       <small className="admin-data-coverage">تغطية البيانات: {oldestDate||'—'} إلى {latestDate||'—'}</small>
     </section>
 
     <section className="admin-secondary-grid"><article><h2><Trophy size={16}/>أفضل التجار ضمن النطاق</h2>{metrics.merchants.length?metrics.merchants.slice(0,5).map((row,index)=><button type="button" key={row.merchant_code} onClick={()=>onNavigate('merchants')}><b>{index+1}</b><span>{merchantOnly.find(merchant=>merchant.merchant_code===row.merchant_code)?.name||row.name}</span><strong>{fmt(Number(row.gmv))}</strong></button>):<div className="admin-empty">لا توجد بيانات</div>}</article><article><h2><TrendingUp size={16}/>آخر النشاطات</h2>{syncLogs.length?syncLogs.slice(0,6).map(log=><button type="button" key={log.id} onClick={()=>onNavigate('operations')}><span><b>{log.merchant_code}</b> · {PLATFORM_MAP[log.platform]||log.platform}</span><strong className={log.status==='success'?'success':'danger'}>{relativeTime(log.started_at)}</strong></button>):<div className="admin-empty">لا توجد نشاطات</div>}</article></section>
+    </>}
   </div>
 }
 
-function Decision({tone,title,detail,value,onClick}:{tone:'critical'|'warning'|'info';title:string;detail:string;value:number;onClick:()=>void}) { return <button type="button" className={`admin-decision ${tone}`} onClick={onClick}><span><strong>{title}</strong><small>{detail}</small></span><b>{value.toLocaleString('en-US')}</b></button> }
+function Decision({tone,title,detail,value,onClick}:{tone:'critical'|'warning'|'info';title:string;detail:string;value:number|null;onClick:()=>void}) { return <button type="button" className={`admin-decision ${tone}`} onClick={onClick}><span><strong>{title}</strong><small>{detail}</small></span><b>{value === null ? 'غير متاح' : value.toLocaleString('en-US')}</b></button> }
 function Quick({icon,title,detail,onClick}:{icon:React.ReactNode;title:string;detail:string;onClick:()=>void}) { return <button type="button" className="admin-quick" onClick={onClick}><span><strong>{title}</strong><small>{detail}</small></span><i>{icon}</i></button> }
 function Kpi({label,value,sub,delta,Icon,color,onClick}:{label:string;value:string;sub:string;delta?:number|null;Icon:any;color:string;onClick:()=>void}) { return <button type="button" className="admin-kpi" onClick={onClick} style={{'--metric-color':color} as React.CSSProperties}><span className="admin-kpi-accent"/><div><span>{label}</span><Icon size={16}/></div><strong>{value}</strong><footer><small>{sub}</small>{delta!==undefined&&<b className={delta===null?'neutral':delta>=0?'positive':'negative'}>{delta===null?'جديد':`${delta>=0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}%`}</b>}</footer></button> }

@@ -136,3 +136,32 @@ Relevant tests: `atomic_merchant_file_import.test.sql`,
 `merchant_import_storage_isolation.test.sql`, `largeAtomicImportContract.test.ts`,
 `importArchive.test.ts`, plus provider parser and payload-access contracts.
 Never run deletion/rebuild/import fixtures against production.
+
+## Account identity and immutable catalog lineage
+
+New fact uniqueness includes `marketplace_account_id`; cross-account references
+use tenant/account checks. Existing fact rows are retained and assigned explicit
+legacy buckets when seller identity cannot be proved. Account lineage is immutable
+through ordinary updates. Reassigning historical data is a separate reviewed
+reconciliation, not an implicit side effect of connecting an account.
+
+Browser account reads contain metadata only. Account creation/connection changes
+use the authenticated, MFA-aware server boundary; a pending label cannot establish
+provider ownership. The provider-verified account is injected into server fact
+queries/upserts. Credentials remain encrypted and server-only. Natural-key joins,
+fees, queue dedupe, product mappings and safe operation feeds include the account.
+Provider barcode/content identifiers live on the account listing; shared canonical
+product identifiers are not authority to write another seller's listing.
+
+Family/variant metadata has limited column write grants. Bundle recipe writes use
+a tenant/permission/MFA-checked RPC with an expected-version check and immutable
+versions. Components cannot be nested bundles or self-references. Historical order
+lines capture only a recipe that existed at the sale date. Unknown historical
+recipes/costs and unallocated multi-line fees leave profitability unknown.
+Physical-stock linking is explicit, tenant-checked and audited; no source facts
+are deleted by linking. Virtual capacity is not physical stock.
+
+The new service-request recovery migration creates the documented five-table
+schema only when all five are absent, rejects partial absence, preserves existing
+rows, restores private document storage and MFA/RLS guards. A newly seeded intake
+form is unpublished. It does not repair migration history or publish public forms.

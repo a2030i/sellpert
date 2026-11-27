@@ -13,6 +13,7 @@ export type BankTransaction = {
 }
 
 export type ConfirmedBankMatch = {
+  marketplace_account_id?: string | null
   id: string
   bank_transaction_id: string
   platform: string
@@ -55,11 +56,11 @@ export function reconcileBankReceipts(
   confirmedMatches: ConfirmedBankMatch[] = [],
 ): SettlementBankResult[] {
   const bankById = new Map(bankRows.map(row => [row.id, row]))
-  const used = new Set<string>()
+  const used = new Set(confirmedMatches.map(match=>match.bank_transaction_id))
 
   return settlements.map(settlement => {
     const manual = confirmedMatches.find(match =>
-      match.platform === settlement.platform && match.settlement_id === settlement.reference)
+      match.platform === settlement.platform && match.settlement_id === settlement.reference && (match.marketplace_account_id || null) === (settlement.marketplace_account_id || null))
     if (manual) {
       const bankTransaction = bankById.get(manual.bank_transaction_id) || null
       if (bankTransaction) used.add(bankTransaction.id)
@@ -80,6 +81,19 @@ export function reconcileBankReceipts(
     const referenced = reference.length >= 4
       ? candidates.filter(row => searchable(`${row.reference || ''} ${row.description || ''}`).includes(reference))
       : []
+    // A reference reused by two accounts cannot identify the recipient account.
+    // Reserve existing confirmations before considering any suggested match.
+    const disputed = candidates.some(row => settlements.some(other => {
+      if (other === settlement || !other.transferDate || !sameAmount(other.transferRecorded, amount(row))) return false
+      const alreadyConfirmed = confirmedMatches.some(match => match.platform === other.platform
+        && match.settlement_id === other.reference
+        && (match.marketplace_account_id || null) === (other.marketplace_account_id || null))
+      if (alreadyConfirmed) return false
+      const delta = day(row.value_date || row.transaction_date) - day(other.transferDate)
+      const hasThisReference = reference.length >= 4 && searchable(`${row.reference || ''} ${row.description || ''}`).includes(reference)
+      return delta >= -2 && delta <= 14 && (searchable(other.reference) === reference || !hasThisReference)
+    }))
+    if (disputed) return { settlement, status:'ambiguous', bankTransaction:null, candidateCount:candidates.length, manualMatchId:null }
     if (referenced.length === 1) {
       used.add(referenced[0].id)
       return { settlement, status:'reference_match', bankTransaction:referenced[0], candidateCount:1, manualMatchId:null }
