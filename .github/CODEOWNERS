@@ -25,6 +25,12 @@
 /src/pages/QuickInventory.tsx @a2030i @rakanaljuhani
 /src/pages/DashboardV2.tsx @a2030i @rakanaljuhani
 /src/pages/Marketing.tsx @a2030i @rakanaljuhani
+/src/pages/FeesView.tsx @a2030i @rakanaljuhani
+/src/pages/PricingRequest.tsx @a2030i @rakanaljuhani
+/src/pages/Integrations.tsx @a2030i @rakanaljuhani
+/src/pages/Team.tsx @a2030i @rakanaljuhani
+/src/pages/Login.tsx @a2030i @rakanaljuhani
+/src/pages/PasswordRecovery.tsx @a2030i @rakanaljuhani
 /src/components/SellingAccountScope.tsx @a2030i @rakanaljuhani
 /src/components/AccountSwitcher.tsx @a2030i @rakanaljuhani
 /src/components/AmazonConnectionCard.tsx @a2030i @rakanaljuhani
