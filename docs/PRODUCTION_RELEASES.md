@@ -67,8 +67,10 @@ Before deploying, the workflow authenticates to Vercel and checks that team
 `a2030i/sellpert`. Failure stops the release without printing provider responses.
 This preflight reads the project's `accountId`; it does not require permission to
 list team members. Team membership management requires separate Owner access.
-During setup, validate one Actions release before disabling native Git production
-deployments. Otherwise native Git deployment can bypass the Actions CI gate.
+`vercel.json` disables native Git deployments for main/master. Production deploys
+through the CI-gated Actions workflow; other branches retain native Git previews.
+This avoids duplicate deployments and ensures the immutable merged commit passes
+CI before publication. Do not merge this cutover before verifying an Actions release.
 
 ## Repository reviews and platform access
 
