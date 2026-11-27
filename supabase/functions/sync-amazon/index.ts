@@ -19,12 +19,14 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
-import { HttpError, authorizeMerchantSync, json, numberValue } from '../_shared/sync.ts'
+import { HttpError, json, numberValue } from '../_shared/sync.ts'
+import { authorizeAmazonSync } from '../_shared/amazonSyncAuth.ts'
+import { acquireAmazonSyncLease, readAmazonSyncLease, saveAmazonSyncState, persistAmazonPage, type AmazonSyncLease } from '../_shared/amazonSyncStorage.ts'
 import { resolveSecretPayload } from '../_shared/credentialVault.ts'
 import { loadAmazonAppConfig } from '../_shared/amazonAppConfig.ts'
-import { AMAZON_MARKETPLACES, refreshAccessToken, type AmazonSpRegion } from '../_shared/amazonSpApi.ts'
+import { refreshAccessToken, type AmazonSpRegion } from '../_shared/amazonSpApi.ts'
+import { selectAmazonSyncMarkets } from '../_shared/amazonCurrency.ts'
 import {
-  amazonFeeByOrder,
   mapAmazonFinancialTransaction,
   mapAmazonOrder,
   mapAmazonOrderItems,
@@ -54,14 +56,22 @@ const SP_API_SOURCE = 'sp_api'
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, corsHeaders)
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
   const startedAt = Date.now()
+  // Bound database requests too: a provider timeout must not leave an old run
+  // writing after the 120-second connection lease can be replaced.
+  const hardDeadline = startedAt + 45_000
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { global: { fetch: (input, init) => {
+    const signals = [AbortSignal.timeout(Math.max(1, hardDeadline - Date.now()))]
+    if (init?.signal) signals.push(init.signal)
+    return fetch(input, { ...init, signal: AbortSignal.any(signals) })
+  } } })
   let logId = ''
+  let lease: AmazonSyncLease | undefined
   try {
     const body = await req.json().catch(() => ({}))
     const merchantCode = String(body?.merchant_code || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
-    await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations', 'orders', 'statement'])
+    await authorizeAmazonSync(req, admin, SERVICE_KEY, SUPABASE_URL, createClient, merchantCode)
 
     const { data: merchant } = await admin.from('merchants')
       .select('workspace_status').eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()
@@ -79,9 +89,9 @@ Deno.serve(async req => {
     if (!secret.refresh_token) throw new HttpError(400, 'ربط أمازون غير مكتمل، أعد الربط')
 
     const region = (credential.extra?.region || 'eu') as AmazonSpRegion
-    const marketplaceIds = (Array.isArray(credential.extra?.marketplaces) ? credential.extra.marketplaces : [])
-      .map((market: any) => String(market?.id || '')).filter((id: string) => AMAZON_MARKETPLACES[id])
-    if (!marketplaceIds.length) throw new HttpError(400, 'لا يوجد سوق أمازون مدعوم في هذا الربط')
+    const { marketplaceIds, warning: marketWarning } = selectAmazonSyncMarkets(credential.extra?.marketplaces)
+
+    lease = await acquireAmazonSyncLease(admin, credential)
 
     const { data: log, error: logError } = await admin.from('sync_logs').insert({
       merchant_code: merchantCode, platform: 'amazon', status: 'running', records_synced: 0,
@@ -89,94 +99,107 @@ Deno.serve(async req => {
     if (logError) throw logError
     logId = log.id
 
-    const { accessToken } = await refreshAccessToken(config, secret.refresh_token).catch(error => {
+    const { accessToken } = await refreshAccessToken(config, secret.refresh_token, (input, init) => {
+      const signals = [AbortSignal.timeout(Math.max(1, Math.min(20_000, startedAt + RUN_BUDGET_MS - Date.now())))]
+      if (init?.signal) signals.push(init.signal)
+      return fetch(input, { ...init, signal: AbortSignal.any(signals) })
+    }).catch(error => {
       if (error instanceof HttpError && error.status === 401) {
         throw new HttpError(401, 'انتهى إذن أمازون أو أُلغي. أعد ربط الحساب من صفحة الربط')
       }
       throw error
     })
 
-    const state = readSyncState(credential.extra?.sync, new Date())
+    const state = readSyncState(credential.extra?.sync, new Date(), marketplaceIds)
     const deadline = startedAt + RUN_BUDGET_MS
     const details: Record<string, unknown> = { orders: 0, order_items: 0, transactions: 0, fee_orders: 0 }
-    const warnings: string[] = []
+    const warnings: string[] = marketWarning ? [marketWarning] : []
+    const finishedMarkets = new Set<string>()
+    let ordersDone = false
 
-    // Orders whose fee must be recomputed: new transactions, and orders that
-    // arrive after their transactions were already stored.
-    const touchedOrders = new Set<string>()
-
-    // 1. Orders
-    try {
-      while (Date.now() < deadline) {
-        const { params, phase } = nextOrdersRequest(state.orders, marketplaceIds, new Date())
-        const page = ordersPage(await spApiGet(accessToken, region, '/orders/2026-01-01/orders', params))
-        const syncedAt = new Date().toISOString()
-        // platform_fee comes only from Finances transactions; never let an
-        // order refresh overwrite a fee that was already reconciled.
-        const orders = page.orders.flatMap((order: any) => {
-          const row = mapAmazonOrder(order, merchantCode, syncedAt)
-          if (!row) return []
-          const { platform_fee: _fee, ...rest } = row
-          return [rest]
-        })
-        const items = page.orders.flatMap((order: any) => mapAmazonOrderItems(order, merchantCode, syncedAt))
-        await upsertChunks(admin, 'orders', orders, 'merchant_code,platform,order_id')
-        await upsertChunks(admin, 'order_items', items, 'merchant_code,platform,order_id,line_id')
-        for (const row of orders) touchedOrders.add(row.order_id)
-        details.orders = numberValue(details.orders) + orders.length
-        details.order_items = numberValue(details.order_items) + items.length
-        const done = advanceOrders(state.orders, phase, page.nextToken)
-        await saveState(admin, credential.id, state)
-        if (done) break
+    // Alternate streams so a large order backfill cannot starve financial data.
+    // Stop the whole run on 429, resuming the other stream on the next run.
+    while (Date.now() < deadline && (!ordersDone || finishedMarkets.size < marketplaceIds.length)) {
+      const stream = ordersDone ? 'finances' : finishedMarkets.size === marketplaceIds.length ? 'orders' : state.next_stream
+      await readAmazonSyncLease(admin, lease)
+      try {
+        if (stream === 'orders') {
+          const { params, phase } = nextOrdersRequest(state.orders, marketplaceIds, new Date())
+          const page = ordersPage(await spApiGet(accessToken, region, '/orders/2026-01-01/orders', params, fetch,
+            Math.max(1, Math.min(20_000, deadline - Date.now()))))
+          await readAmazonSyncLease(admin, lease)
+          const syncedAt = new Date().toISOString()
+          const orders = page.orders.flatMap((order: any) => {
+            const row = mapAmazonOrder(order, merchantCode, syncedAt)
+            if (!row) return []
+            const { platform_fee: _fee, ...rest } = row
+            return [rest]
+          })
+          const items = page.orders.flatMap((order: any) => mapAmazonOrderItems(order, merchantCode, syncedAt))
+          details.fee_orders = numberValue(details.fee_orders) + await persistAmazonPage(admin, merchantCode, { orders, items }, async () => {
+            ordersDone = advanceOrders(state.orders, phase, page.nextToken, new Date())
+            state.next_stream = 'finances'
+            await saveAmazonSyncState(admin, lease!, state)
+          })
+          details.orders = numberValue(details.orders) + orders.length
+          details.order_items = numberValue(details.order_items) + items.length
+        } else {
+          // Each marketplace has its own frozen finance window and continuation.
+          let marketIndex = state.finance_market_index % marketplaceIds.length
+          while (finishedMarkets.has(marketplaceIds[marketIndex])) marketIndex = (marketIndex + 1) % marketplaceIds.length
+          const marketplaceId = marketplaceIds[marketIndex]
+          const cursor = state.finances_by_marketplace[marketplaceId]
+          const params = nextFinanceRequest(cursor, new Date(), marketplaceId)
+          const page = financePage(await spApiGet(accessToken, region, '/finances/2024-06-19/transactions', params, fetch,
+            Math.max(1, Math.min(20_000, deadline - Date.now()))))
+          await readAmazonSyncLease(admin, lease)
+          const rows = page.transactions.flatMap((transaction: any) => {
+            const row = mapAmazonFinancialTransaction(transaction, merchantCode)
+            if (!row) return []
+            return [{ ...row, raw: { ...transaction, sellpertSource: SP_API_SOURCE } }]
+          })
+          details.fee_orders = numberValue(details.fee_orders) + await persistAmazonPage(admin, merchantCode, { transactions: rows }, async () => {
+            if (advanceFinances(cursor, page.nextToken, new Date())) finishedMarkets.add(marketplaceId)
+            state.finance_market_index = (marketIndex + 1) % marketplaceIds.length
+            state.next_stream = 'orders'
+            await saveAmazonSyncState(admin, lease!, state)
+          })
+          details.transactions = numberValue(details.transactions) + rows.length
+        }
+      } catch (error) {
+        if (!(error instanceof AmazonRateLimited)) throw error
+        details[`${stream}_rate_limited`] = true
+        warnings.push('وصلت المزامنة لحد طلبات أمازون، وستكمل تلقائيًا في الدورة القادمة')
+        state.next_stream = stream === 'orders' ? 'finances' : 'orders'
+        await saveAmazonSyncState(admin, lease, state)
+        break
       }
-    } catch (error) {
-      if (!(error instanceof AmazonRateLimited)) throw error
-      details.orders_rate_limited = true
     }
-
-    // 2. Financial transactions
-    try {
-      while (Date.now() < deadline) {
-        const params = nextFinanceRequest(state.finances, new Date())
-        const page = financePage(await spApiGet(accessToken, region, '/finances/2024-06-19/transactions', params))
-        const rows = page.transactions.flatMap((transaction: any) => {
-          const row = mapAmazonFinancialTransaction(transaction, merchantCode)
-          if (!row) return []
-          if (row.order_id) touchedOrders.add(row.order_id)
-          return [{ ...row, raw: { ...transaction, sellpertSource: SP_API_SOURCE } }]
-        })
-        await upsertChunks(admin, 'account_transactions', dedupe(rows), 'merchant_code,platform,transaction_no')
-        details.transactions = numberValue(details.transactions) + rows.length
-        const caughtUp = advanceFinances(state.finances, page.nextToken, new Date())
-        await saveState(admin, credential.id, state)
-        if (caughtUp) break
-      }
-    } catch (error) {
-      if (!(error instanceof AmazonRateLimited)) throw error
-      details.finances_rate_limited = true
+    const backfillDone = state.orders.backfill_done && Object.values(state.finances_by_marketplace).every(cursor => cursor.backfill_done)
+    if (!backfillDone) warnings.push('backfill: سحب سجل آخر ١٢ شهرًا مستمر في الدورات القادمة (الأحدث أولًا)')
+    if (!ordersDone || finishedMarkets.size < marketplaceIds.length) {
+      warnings.push('المزامنة مستمرة من آخر موضع محفوظ في الدورة القادمة')
     }
-    details.fee_orders = await recomputeOrderFees(admin, merchantCode, [...touchedOrders])
-
-    if (!state.orders.backfill_done || !state.finances.backfill_done) warnings.push('backfill: سحب سجل آخر ١٢ شهرًا مستمر في الدورات القادمة (الأحدث أولًا)')
 
     const { data: performanceRows, error: performanceError } = await admin.rpc('rebuild_performance_data', {
       p_merchant_code: merchantCode,
     })
     if (performanceError) throw performanceError
     details.performance_days = numberValue(performanceRows)
-    details.backfill_done = state.orders.backfill_done && state.finances.backfill_done
+    details.backfill_done = backfillDone
     details.backfill_reached = state.orders.backfill_done ? state.orders.backfill_floor : state.orders.window_end
     details.warnings = warnings
 
     const now = new Date().toISOString()
     const recordCount = numberValue(details.orders) + numberValue(details.transactions)
     const status = warnings.length ? 'partial' : 'success'
-    await admin.from('sync_logs').update({
+    const { error: finishLogError } = await admin.from('sync_logs').update({
       status, records_synced: recordCount, finished_at: now, details,
       error_message: warnings.length ? warnings.join(' | ').slice(0, 4000) : null,
     }).eq('id', logId)
-    await admin.from('platform_credentials').update({ last_sync_at: now, records_synced: recordCount })
-      .eq('id', credential.id)
+    if (finishLogError) throw finishLogError
+    await saveAmazonSyncState(admin, lease, state, { last_sync_at: now, records_synced: recordCount })
+    lease = undefined
     return json({ ok: true, status, records_synced: recordCount, ...details }, 200, corsHeaders)
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
@@ -187,57 +210,6 @@ Deno.serve(async req => {
     }).eq('id', logId)
     return json({ error: message }, status, corsHeaders)
   }
+  // On any error, leave the bounded lease in place. A transport failure does
+  // not prove that an in-flight database mutation has stopped on the server.
 })
-
-async function upsertChunks(admin: any, table: string, rows: any[], onConflict: string) {
-  for (let index = 0; index < rows.length; index += 100) {
-    const { error } = await admin.from(table).upsert(rows.slice(index, index + 100), { onConflict })
-    if (error) throw error
-  }
-}
-
-function dedupe(rows: any[]) {
-  return [...new Map(rows.map(row => [row.transaction_no, row])).values()]
-}
-
-// Persist the cursor after every page without touching the encrypted secret.
-async function saveState(admin: any, credentialId: string, state: unknown) {
-  const { data: current, error: readError } = await admin.from('platform_credentials')
-    .select('extra').eq('id', credentialId).maybeSingle()
-  if (readError) throw readError
-  if (!current) throw new HttpError(409, 'أُلغي ربط أمازون أثناء المزامنة')
-  const { error } = await admin.from('platform_credentials')
-    .update({ extra: { ...(current.extra || {}), sync: state } }).eq('id', credentialId)
-  if (error) throw error
-}
-
-/**
- * An order's Amazon fees can arrive in several transactions across windows
- * (charges, refunds, reversals). Recompute from every stored SP-API
- * transaction for the order instead of adding page totals.
- */
-async function recomputeOrderFees(admin: any, merchantCode: string, orderIds: string[]) {
-  let updated = 0
-  for (let index = 0; index < orderIds.length; index += 100) {
-    const chunk = orderIds.slice(index, index + 100)
-    const { data, error } = await admin.from('account_transactions').select('raw')
-      .eq('merchant_code', merchantCode).eq('platform', 'amazon').in('order_id', chunk)
-      .eq('raw->>sellpertSource', SP_API_SOURCE)
-    if (error) throw error
-    const fees = amazonFeeByOrder((data || []).map((row: any) => row.raw))
-    const updates = chunk.filter(orderId => fees.has(orderId))
-    // No SP-API transaction yet: keep the existing fee (e.g. from an earlier
-    // file import) instead of overwriting it with zero.
-    for (let start = 0; start < updates.length; start += 25) {
-      const results = await Promise.all(updates.slice(start, start + 25).map(orderId => admin.from('orders')
-        .update({ platform_fee: Math.max(0, Math.round((fees.get(orderId) || 0) * 100) / 100) })
-        .eq('merchant_code', merchantCode).eq('platform', 'amazon').eq('order_id', orderId)
-        .select('id')))
-      for (const { data: changed, error: updateError } of results) {
-        if (updateError) throw updateError
-        updated += changed?.length || 0
-      }
-    }
-  }
-  return updated
-}

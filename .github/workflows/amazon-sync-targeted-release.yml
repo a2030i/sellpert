@@ -1,0 +1,68 @@
+name: Reviewed Amazon synchronization release exception
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Apply requires new explicit owner approval of the Amazon synchronization exception
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, verify, apply]
+      manifest_sha256:
+        description: Exact SHA-256 of the reviewed and owner-approved synchronization manifest
+        required: true
+        type: string
+      reviewed_source_commit:
+        description: Exact reviewed 40-character main commit; must equal this workflow commit and checkout HEAD
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      REVIEWED_SOURCE_COMMIT: ${{ inputs.reviewed_source_commit }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Require the exact reviewed source commit before any production operation
+        run: node --input-type=module -e "import { sourcePinFromEnvironment } from './scripts/release-amazon-sync-exception.mjs'; sourcePinFromEnvironment();"
+      - name: Check release failures, source pinning and exact deployment scope
+        run: node --test scripts/release-amazon-sync-exception.test.mjs scripts/deploy-amazon-sync-functions.test.mjs
+      - name: Verify immutable artifacts and live preconditions before deploying handlers
+        if: inputs.mode == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: node scripts/release-amazon-sync-exception.mjs inspect "$MANIFEST_SHA256"
+      - uses: supabase/setup-cli@v3.0.0
+        if: inputs.mode == 'apply'
+        with:
+          version: 2.111.0
+      - name: Deploy exactly sync-amazon then amazon-connect then queue-worker
+        if: inputs.mode == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/deploy-amazon-sync-functions.mjs
+      - name: Run the selected immutable operation and verify through a fresh request
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: node scripts/release-amazon-sync-exception.mjs "$RELEASE_MODE" "$MANIFEST_SHA256"

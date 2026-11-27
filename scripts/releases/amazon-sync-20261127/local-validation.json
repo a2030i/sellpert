@@ -1,0 +1,15 @@
+{
+  "target": "isolated local DB only",
+  "all_bundle_assertions_passed": true,
+  "inspect_assertions": 17,
+  "verify_assertions": 16,
+  "active_amazon_connection_rejected": true,
+  "search_path_drift_rejected": true,
+  "repeat_migration_rejected": true,
+  "original_local_scheduler_restored_after_rollback": true,
+  "local_test_adapters": [
+    "existing local catalog hashes",
+    "existing local ledger count/hash"
+  ],
+  "production_executed": false
+}

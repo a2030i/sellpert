@@ -93,6 +93,12 @@ The separately reviewed [Amazon-only exception proposal](AMAZON-RELEASE-EXCEPTIO
 does not change these rules. Its manual workflow requires explicit owner approval
 of that exact exception and manifest; ordinary release authorization is insufficient.
 
+The separate [Amazon synchronization proposal](AMAZON-SYNC-RELEASE-PROPOSAL.md)
+covers only `20261127090000` and its three named handlers. Its manual workflow
+pins the reviewed main commit and immutable SQL bundle, requires new approval
+of that specific exception, and preserves the ordinary parity gate. Approval of
+the earlier Amazon connection exception does not extend to this proposal.
+
 ## Historical production state — NEEDS_CONFIRMATION
 
 The previous runbook recorded a 2026-08-05 production-history mismatch after

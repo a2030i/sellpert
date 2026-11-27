@@ -13,7 +13,7 @@ export function mapAmazonOrder(order: any, merchantCode: string, syncedAt = new 
   const externalId = String(order?.orderId || order?.amazonOrderId || '')
   if (!externalId) return null
   const items: any[] = order.orderItems || order.items || []
-  const quantity = items.reduce((sum, item) => sum + numberValue(item.quantityOrdered || item.quantity), 0) || 1
+  const quantity = items.reduce((sum, item) => sum + numberValue(item.quantityOrdered ?? item.quantity), 0)
   const itemNames = items.map(item => item.product?.title || item.title).filter(Boolean)
   const skus = items.map(item => item.product?.sellerSku || item.sellerSku).filter(Boolean)
   const itemProceeds = items.reduce((sum, item) => sum + proceedsValue(item.proceeds), 0)
@@ -55,7 +55,7 @@ export function mapAmazonOrderItems(order: any, merchantCode: string, syncedAt =
   if (!orderId) return []
   return (order.orderItems || order.items || []).flatMap((item: any, index: number) => {
     const lineId = String(item.orderItemId || item.id || index + 1)
-    const quantity = numberValue(item.quantityOrdered || item.quantity) || 1
+    const quantity = numberValue(item.quantityOrdered ?? item.quantity)
     const lineTotal = proceedsValue(item.proceeds)
     const product = item.product || {}
     return [{
@@ -169,13 +169,16 @@ export function amazonFeeByOrder(transactions: any[]) {
 }
 
 export function amazonTransactionFee(transaction: any): number {
-  const roots: any[] = transaction?.breakdowns || []
-  const expenseRoots = roots.filter(entry => /expense|fee|commission/i.test(String(entry.breakdownType)))
-  if (expenseRoots.length) {
-    return -expenseRoots.reduce((sum, entry) => sum + moneyValue(entry.breakdownAmount), 0)
+  // A breakdown amount already includes its children. Count the highest
+  // matching expense/fee category once, including positive refund reversals.
+  // Descend through non-fee groups instead of summing ancestors and leaves.
+  const fee = (entry: any): number => {
+    if (/expense|fee|commission/i.test(String(entry?.breakdownType))) {
+      if (entry?.breakdownAmount != null) return -moneyValue(entry.breakdownAmount)
+    }
+    return (Array.isArray(entry?.breakdowns) ? entry.breakdowns : []).reduce((sum: number, child: any) => sum + fee(child), 0)
   }
-  const leaves = flattenBreakdowns(roots).filter(entry => /fee|commission/i.test(String(entry.breakdownType)))
-  return -leaves.reduce((sum, entry) => sum + moneyValue(entry.breakdownAmount), 0)
+  return (Array.isArray(transaction?.breakdowns) ? transaction.breakdowns : []).reduce((sum: number, entry: any) => sum + fee(entry), 0)
 }
 
 function moneyValue(value: any): number {
