@@ -1,4 +1,6 @@
 {
-  "mode": "apply",
-  "manifest_sha256": "453e6ad8fb0fbbebbc03a355b6e8f58f974c3fd385d94f62018463ad148e080d"
+  "mode": "resume",
+  "manifest_sha256": "24bd0fe8a30e6e2998438a464dc939c89dbe5ef2e986fa3eab28423eea7b634e",
+  "backend_commit": "dddb4fcf34780c3d445e3a08d41ee2ab017538c1",
+  "frontend_commit": "a214b0fcc34e6a376873ff41992ef8dba384662b"
 }

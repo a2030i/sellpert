@@ -55,7 +55,7 @@ export async function publicFrontend() {
   const response = await fetch('https://app.sellpert.com/?release-inspection=1',{redirect:'error',signal:AbortSignal.timeout(30_000),cache:'no-store'})
   if (!response.ok || !response.headers.get('content-security-policy')) throw new Error('FRONTEND_UNAVAILABLE_OR_HEADERS_MISSING')
   const html = await response.text()
-  const paths = [...html.matchAll(/<script\b[^>]*\bsrc="([^" ]+\.js)"/g)].map(match => match[1])
+  const paths = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^" ]+\.js)"/g)].map(match => match[1])
   let code = ''
   for (const path of paths) {
     const url = new URL(path,'https://app.sellpert.com')
