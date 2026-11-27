@@ -85,6 +85,7 @@ begin
   insert into public.inventory_pools(merchant_code,name,location_type) values('ACCT-QA-A','Shared warehouse','warehouse') returning id into pool;
   insert into public.inventory_pool_links(merchant_code,inventory_id,pool_id,product_id) values('ACCT-QA-A',inv1,pool,p1),('ACCT-QA-A',inv2,pool,p1);
   if public.catalog_physical_availability('ACCT-QA-A',p1,array[a,b]) is distinct from 6 then raise exception 'mirrored stock counted twice'; end if;
+  if (select (item->>'inventory')::bigint from jsonb_array_elements(public.unified_product_catalog_by_account('ACCT-QA-A',array[a,b])->'items') item where item->>'id'=p1::text) is distinct from 6 then raise exception 'catalog page lost verified pooled inventory'; end if;
   if public.catalog_physical_availability('ACCT-QA-A',bundle,array[a,b]) is distinct from 2 then raise exception 'bundle capacity is incorrect'; end if;
   update public.inventory set quantity=9 where id=inv2;
   if public.catalog_physical_availability('ACCT-QA-A',p1,array[a,b]) is not null then raise exception 'conflicting pool observations were accepted'; end if;

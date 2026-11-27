@@ -8,6 +8,9 @@ within the authorized merchant so a source can be linked to an existing variant.
 Products uses the named tenant FK to fetch account memberships with its safe
 columns, then filters the complete paginated snapshot before computing counts.
 The catalog RPC applies the equivalent filter before its statistics/pagination.
+Physical availability is calculated only for the selected page, after its counts
+and limit. A variant without any reviewed pool remains unknown without scanning
+its inventory observations. Bundle availability retains its component rules.
 The explicit unassigned flag also preserves manual products before a merchant
 connects any selling account. The original RPC signature remains for old clients;
 the new browser falls back only for a missing signature during staggered rollout,
