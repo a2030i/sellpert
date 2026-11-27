@@ -17,26 +17,25 @@ export function providerRequest(origin, token, fetchImpl = fetch) {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
     } catch { throw new Error('Provider connection failed') }
-    if (!response.ok) throw new Error(`Provider ${method} failed: HTTP ${response.status}`)
+    if (!response.ok) throw new Error(`Provider ${method} ${path.split('?')[0]} failed: HTTP ${response.status}`)
     try { return await response.json() } catch { throw new Error('Invalid provider response') }
   }
 }
 
 export async function verifyVercel(request) {
-  const team = await request(`/v2/teams/${TEAM}`)
   const project = await request(`/v9/projects/${PROJECT}?teamId=${TEAM}`)
-  if (team.id !== TEAM || project.id !== PROJECT || project.accountId !== TEAM || project.name !== 'sellpert') {
+  if (project.id !== PROJECT || project.accountId !== TEAM || project.name !== 'sellpert') {
     throw new Error('Vercel project/team identity mismatch')
   }
   const link = project.link
   if (link?.type !== 'github' || link.org !== 'a2030i' || link.repo !== 'sellpert') {
     throw new Error('Vercel GitHub repository mismatch')
   }
-  return { team, project }
+  return { project }
 }
 
 export async function rakanVercelAccess(request, invite = false) {
-  const { team } = await verifyVercel(request)
+  await verifyVercel(request)
   const result = await request(`/v3/teams/${TEAM}/members?limit=100&search=${encodeURIComponent(EMAIL)}`)
   if (!Array.isArray(result.members)) throw new Error('Invalid Vercel member list')
   const member = result.members.find(m => m.email?.toLowerCase() === EMAIL)
@@ -44,7 +43,8 @@ export async function rakanVercelAccess(request, invite = false) {
   if (member?.role === 'OWNER') return member.confirmed === true ? 'accepted-owner' : 'pending-owner'
   if (pending?.role === 'OWNER') return 'pending-owner'
   if (!invite) return member ? 'member-needs-owner' : 'not-found-or-not-accepted'
-  if (team.membership?.role !== 'OWNER') throw new Error('Vercel team Owner required to invite/promote')
+  const team = await request(`/v2/teams/${TEAM}`)
+  if (team.id !== TEAM || team.membership?.role !== 'OWNER') throw new Error('Vercel team Owner required to invite/promote')
   if (member) {
     if (!member.uid) throw new Error('Missing member identifier')
     await request(`/v1/teams/${TEAM}/members/${encodeURIComponent(member.uid)}`, 'PATCH', { role: 'OWNER' })

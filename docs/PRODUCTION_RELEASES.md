@@ -65,6 +65,8 @@ Before deploying, the workflow authenticates to Vercel and checks that team
 `team_RnIh0txGDI26IavAcpabyqCs` owns project
 `prj_Upq6kKTrMOC3NEfe2NMlrMFEiv8D`, named `sellpert`, linked to
 `a2030i/sellpert`. Failure stops the release without printing provider responses.
+This preflight reads the project's `accountId`; it does not require permission to
+list team members. Team membership management requires separate Owner access.
 During setup, validate one Actions release before disabling native Git production
 deployments. Otherwise native Git deployment can bypass the Actions CI gate.
 

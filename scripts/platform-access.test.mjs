@@ -48,7 +48,14 @@ test('provider failures redact token and response bodies and refuse redirects', 
     assert.equal(options.redirect, 'error')
     return { ok: false, status: 403, json: async () => ({ token: 'private-token' }) }
   })
-  await assert.rejects(request('/v2/teams/example'), { message: 'Provider GET failed: HTTP 403' })
+  await assert.rejects(request('/v2/teams/example'), { message: 'Provider GET /v2/teams/example failed: HTTP 403' })
+})
+test('deployment preflight requires project access without unnecessary team-admin access', async () => {
+  const f = fixture()
+  await verifyVercel(async path => {
+    assert.match(path, /^\/v9\/projects\//)
+    return f.request(path)
+  })
 })
 test('Supabase membership verification never returns unrelated members', async () => {
   assert.equal(await rakanSupabaseAccess(async () => [{ email: 'Rakan@sellpert.com', role_name: 'Owner' }]), 'owner-listed')
