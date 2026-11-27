@@ -24,6 +24,8 @@ import type { Merchant } from './lib/supabase'
 import { hasMerchantPermission, type MerchantPermissionKey } from './lib/merchantPermissions'
 import { requiresMfaChallenge } from './lib/accountSecurity'
 import { userErrorMessage } from './lib/userError'
+import { AMAZON_CALLBACK_PATH, clearAmazonConnectTarget, readAmazonConnectTarget } from './lib/amazonConnection'
+import { withTimeout } from './lib/db'
 
 // Lazy-loaded routes (code splitting)
 // Dashboard lazy أيضاً: استيراده المباشر كان يسحب recharts كاملة (~870KB)
@@ -150,6 +152,13 @@ function MerchantApp() {
     new URLSearchParams(window.location.search).get('flow') === 'invite' ? 'invite' : 'recovery',
   )
   const [impersonating, setImpersonating]   = useState<Merchant | null>(null)
+  // An administrator who started Amazon consent while viewing a merchant
+  // returns with a full page load; restore that workspace so the callback
+  // completes for the merchant that started it.
+  const [amazonReturnCode, setAmazonReturnCode] = useState<string | null>(() =>
+    window.location.pathname.replace(/\/+$/, '') === AMAZON_CALLBACK_PATH ? readAmazonConnectTarget() : null,
+  )
+  const [amazonReturnError, setAmazonReturnError] = useState('')
   const explicitSignOut                     = useRef(false)
   const isMobile                            = useMobile()
   const activeMerchant                      = impersonating || merchant
@@ -165,6 +174,29 @@ function MerchantApp() {
     setView('dashboard')
     window.history.pushState(null, '', '/')
   }
+  useEffect(() => {
+    if (!amazonReturnCode || !merchant || impersonating) return
+    if (!['admin', 'super_admin', 'staff'].includes(merchant.role)) { setAmazonReturnCode(null); return }
+    let cancelled = false
+    const controller = new AbortController()
+    void withTimeout(supabase.from('merchants').select('*')
+      .eq('merchant_code', amazonReturnCode).eq('role', 'merchant').abortSignal(controller.signal).maybeSingle(), 15_000)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error || !data) throw new Error('Workspace unavailable')
+        setImpersonating(data as Merchant)
+        setView('integrations')
+      })
+      .catch(() => {
+        if (cancelled) return
+        clearAmazonConnectTarget()
+        window.history.replaceState(null, '', '/admin/merchants')
+        setAmazonReturnError('تعذر فتح مساحة التاجر لإكمال ربط أمازون. ابدأ الربط من جديد من صفحة الربط والتكاملات.')
+      })
+      .finally(() => { if (!cancelled) setAmazonReturnCode(null); controller.abort() })
+    return () => { cancelled = true; controller.abort() }
+  }, [amazonReturnCode, merchant, impersonating])
+
   function stopImpersonate() {
     setImpersonating(null)
     window.history.pushState(null, '', '/admin/merchants')
@@ -374,8 +406,10 @@ function MerchantApp() {
   )
   // Platform administrators use the administration console. Merchant
   // employees stay inside their owner's store with tenant permissions.
+  if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating && (amazonReturnCode || amazonReturnError))
+    return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, color: 'var(--text2)', fontSize: 14 }}><div className="merchant-page-state data-load-error" style={{ maxWidth: 480 }}><p role={amazonReturnError ? 'alert' : 'status'} aria-busy={!amazonReturnError}>{amazonReturnError || 'جارٍ إكمال ربط أمازون…'}</p>{amazonReturnError ? <button type="button" className="data-load-error__retry" onClick={() => setAmazonReturnError('')}>العودة إلى لوحة الإدارة</button> : null}</div></main>
   if ((merchant?.role === 'admin' || merchant?.role === 'super_admin' || merchant?.role === 'staff') && !impersonating)
-    return <AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} />
+    return <Suspense fallback={<PageFallback />}><AdminPanel merchant={merchant} onImpersonate={startImpersonate} onSignOut={signOut} /></Suspense>
 
   const BANNER_H = 44
 

@@ -33,6 +33,40 @@ export function readAmazonCallback(pathname: string, search: string): AmazonCall
   return { state, selling_partner_id: sellingPartnerId, spapi_oauth_code: code }
 }
 
+const PENDING_CONNECT_KEY = 'sellpert.amazonConnectTarget'
+const PENDING_CONNECT_TTL_MS = 15 * 60_000
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+function sessionStore(): StorageLike | null {
+  try { return typeof window === 'undefined' ? null : window.sessionStorage } catch { return null }
+}
+
+/**
+ * Remembers which merchant workspace started the Amazon consent flow.
+ * Amazon returns with a full page load, which drops in-memory state such as
+ * an administrator viewing a merchant account. Only the merchant code and a
+ * timestamp are stored; the OAuth state itself stays server-side.
+ */
+export function rememberAmazonConnectTarget(merchantCode: string, storage = sessionStore(), now = Date.now()) {
+  try { storage?.setItem(PENDING_CONNECT_KEY, JSON.stringify({ merchant_code: merchantCode, at: now })) } catch { /* best effort */ }
+}
+
+export function readAmazonConnectTarget(storage = sessionStore(), now = Date.now()): string | null {
+  try {
+    const value = JSON.parse(storage?.getItem(PENDING_CONNECT_KEY) || 'null')
+    if (!value || typeof value.merchant_code !== 'string' || !value.merchant_code) return null
+    if (typeof value.at !== 'number' || now - value.at > PENDING_CONNECT_TTL_MS || now < value.at) return null
+    return value.merchant_code
+  } catch {
+    return null
+  }
+}
+
+export function clearAmazonConnectTarget(storage = sessionStore()) {
+  try { storage?.removeItem(PENDING_CONNECT_KEY) } catch { /* best effort */ }
+}
+
 export const AMAZON_MARKETPLACE_NAMES: Record<string, string> = {
   SA: 'السعودية',
   AE: 'الإمارات',
