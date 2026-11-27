@@ -2431,7 +2431,7 @@ insert into release_verified_snapshot values('e562dafc5b7338a30a483c6381a529ad99
 do $entry_20260801000000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260801000000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260801000000') then raise exception 'ENTRY_ALREADY_PRESENT_20260801000000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260801000000','baseline_schema',array[$receipt$-- Reconciled final effects without replay; migration SHA256 eb9cb19f04d2403ec53d2eb722668478963cd4fe988c17df72915f3d8959d000; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260801000000$;
@@ -2440,7 +2440,7 @@ end $entry_20260801000000$;
 do $entry_20260802190000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260802190000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260802190000') then raise exception 'ENTRY_ALREADY_PRESENT_20260802190000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260802190000','marketplace_oauth_states',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9ba86e8cb5897355ec4030733d43e6ab63091e410f7df458a41c53b0475d748a; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260802190000$;
@@ -2458,7 +2458,7 @@ end $entry_20260802193000$;
 do $entry_20260802213000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260802213000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260802213000') then raise exception 'ENTRY_ALREADY_PRESENT_20260802213000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260802213000','complete_trendyol_api_sync',array[$receipt$-- Reconciled final effects without replay; migration SHA256 5e9e7b28757379a312b6113959688129b97eaf9c8ec9f3b015e7eb93c5605180; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260802213000$;
@@ -2467,7 +2467,7 @@ end $entry_20260802213000$;
 do $entry_20260802223000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260802223000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260802223000') then raise exception 'ENTRY_ALREADY_PRESENT_20260802223000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260802223000','trendyol_action_audit',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9ffc16f3c045712f5b5f257d00dad9171e82095469867ab754110183878230db; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260802223000$;
@@ -2476,7 +2476,7 @@ end $entry_20260802223000$;
 do $entry_20260802233000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260802233000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260802233000') then raise exception 'ENTRY_ALREADY_PRESENT_20260802233000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260802233000','trendyol_order_items',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9a76d797c01c21b91d85bf8b08bb49c30c9e58a1c6de02bd762f644866085ba0; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260802233000$;
@@ -2485,7 +2485,7 @@ end $entry_20260802233000$;
 do $entry_20260803105830$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803105830'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803105830') then raise exception 'ENTRY_ALREADY_PRESENT_20260803105830'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803105830','revoke_dangerous_table_privileges',array[$receipt$-- Reconciled final effects without replay; migration SHA256 6d3a704b902460a899d57e23997d6d59b5131036ef45b5614045db84791f0bf1; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803105830$;
@@ -2494,7 +2494,7 @@ end $entry_20260803105830$;
 do $entry_20260803115000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803115000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803115000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803115000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803115000','bootstrap_security_access_context',array[$receipt$-- Reconciled final effects without replay; migration SHA256 771f3962c034cc26b5b3deadd23ef8dce9c246c95df116a1940bc269e5bdfff3; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803115000$;
@@ -2548,7 +2548,7 @@ end $entry_20260803144500$;
 do $entry_20260803145000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803145000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803145000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803145000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803145000','prepare_privileged_rpc_move',array[$receipt$-- Reconciled final effects without replay; migration SHA256 8caa1443e759381026a4dc0030a9a4f17ffedd3974acc8745323509829df607c; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803145000$;
@@ -2575,7 +2575,7 @@ end $entry_20260803150324$;
 do $entry_20260803151000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803151000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803151000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803151000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803151000','bootstrap_analytics_authorization',array[$receipt$-- Reconciled final effects without replay; migration SHA256 0bb2d1d9f763d5590a322278a2566c18b33dc80177eb7dbb11a2bdc9fe6002ab; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803151000$;
@@ -2584,7 +2584,7 @@ end $entry_20260803151000$;
 do $entry_20260803151143$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803151143'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803151143') then raise exception 'ENTRY_ALREADY_PRESENT_20260803151143'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803151143','secure_merchant_request_creation_and_analytics_inputs',array[$receipt$-- Reconciled final effects without replay; migration SHA256 78242267a7dd34eaefb5bc94643002acc4478cd4b12e7efdafddf09c12051fcb; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803151143$;
@@ -2593,7 +2593,7 @@ end $entry_20260803151143$;
 do $entry_20260803151441$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803151441'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803151441') then raise exception 'ENTRY_ALREADY_PRESENT_20260803151441'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803151441','restore_merchant_request_tenant_read',array[$receipt$-- Reconciled final effects without replay; migration SHA256 314cf7331ecc22e2a5cd6ed433277c9d59e3b45797deb0200f3c43ab5f0fa9d1; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803151441$;
@@ -2620,7 +2620,7 @@ end $entry_20260803153500$;
 do $entry_20260803154500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803154500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803154500') then raise exception 'ENTRY_ALREADY_PRESENT_20260803154500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803154500','complete_linked_workspace_operations',array[$receipt$-- Reconciled final effects without replay; migration SHA256 cc7b7ad9308764caf9dfb841903fd9ca5635d3095f0a59aac0973eb2211c23fa; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803154500$;
@@ -2629,7 +2629,7 @@ end $entry_20260803154500$;
 do $entry_20260803154700$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803154700'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803154700') then raise exception 'ENTRY_ALREADY_PRESENT_20260803154700'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803154700','expose_safe_sync_freshness_metric',array[$receipt$-- Reconciled final effects without replay; migration SHA256 f148472d79944868571c0f5fab0ff32b5759406ffed77d81961f822987a1fb4e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803154700$;
@@ -2647,7 +2647,7 @@ end $entry_20260803162500$;
 do $entry_20260803184500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803184500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803184500') then raise exception 'ENTRY_ALREADY_PRESENT_20260803184500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803184500','harden_multi_tenant_access',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9a3dd777eaf9a8365ce236d7c6be74366215e32f6f8479b03b157d003dba42f2; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803184500$;
@@ -2665,7 +2665,7 @@ end $entry_20260803190000$;
 do $entry_20260803193000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803193000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803193000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803193000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803193000','guard_privileged_rpcs',array[$receipt$-- Reconciled final effects without replay; migration SHA256 10a1c07eac5a797c11517b68cad36ab4b7b90e89bdd3d1c85c07b0efaa935ab6; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803193000$;
@@ -2710,7 +2710,7 @@ end $entry_20260803210000$;
 do $entry_20260803214500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803214500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803214500') then raise exception 'ENTRY_ALREADY_PRESENT_20260803214500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803214500','index_marketplace_foreign_keys',array[$receipt$-- Reconciled final effects without replay; migration SHA256 10621aa57a789fe0a0189243b122c3d2965f9b7279a1bae8ae42f4a1fb43112e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803214500$;
@@ -2728,7 +2728,7 @@ end $entry_20260803223000$;
 do $entry_20260803224000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803224000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803224000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803224000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803224000','expand_merchant_roles',array[$receipt$-- Reconciled final effects without replay; migration SHA256 e03a1f2919fd79f2a129384758dcc29af88acc2630ead9391410df34d2289006; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803224000$;
@@ -2836,7 +2836,7 @@ end $entry_20260803262000$;
 do $entry_20260803269000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803269000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803269000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803269000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803269000','restore_product_profitability_view',array[$receipt$-- Reconciled final effects without replay; migration SHA256 62209cf4888876bb12fc0e43a595ef0d72569fd6df339b56db7ee69dc19deb7e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803269000$;
@@ -2845,7 +2845,7 @@ end $entry_20260803269000$;
 do $entry_20260803269100$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803269100'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803269100') then raise exception 'ENTRY_ALREADY_PRESENT_20260803269100'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803269100','restore_operating_analytics_views',array[$receipt$-- Reconciled final effects without replay; migration SHA256 3eefbc52606e5045837c7b4e3e47cf98087266c2fc728babb10072016d9443f9; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803269100$;
@@ -2854,7 +2854,7 @@ end $entry_20260803269100$;
 do $entry_20260803269200$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803269200'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803269200') then raise exception 'ENTRY_ALREADY_PRESENT_20260803269200'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803269200','restore_advertising_analytics_views',array[$receipt$-- Reconciled final effects without replay; migration SHA256 7e5f21715b9811648250360e44b9ca61e05e74db585126d19ca0ddc53350ee1e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803269200$;
@@ -2863,7 +2863,7 @@ end $entry_20260803269200$;
 do $entry_20260803270000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803270000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803270000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803270000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803270000','truthful_merchant_health_and_forecast',array[$receipt$-- Reconciled final effects without replay; migration SHA256 811c08903ee751202c3ac7b6bea7f9b9deac3597f7c07ec4fdd27f0ec564e38a; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803270000$;
@@ -2872,7 +2872,7 @@ end $entry_20260803270000$;
 do $entry_20260803271000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803271000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803271000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803271000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803271000','fix_health_upload_timestamp',array[$receipt$-- Reconciled final effects without replay; migration SHA256 70b9ce6413bf064d70370fce7463251259b31b2916f5f1f8bc90252c55bfc400; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803271000$;
@@ -2881,7 +2881,7 @@ end $entry_20260803271000$;
 do $entry_20260803272000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803272000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803272000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803272000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803272000','require_sufficient_health_coverage',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9d66220de311eb8dad6dd12ba6a886d22d12281b74384ff2e7d956f51f78f788; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803272000$;
@@ -2899,7 +2899,7 @@ end $entry_20260803273000$;
 do $entry_20260803274000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803274000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803274000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803274000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803274000','weekly_operating_cycle',array[$receipt$-- Reconciled final effects without replay; migration SHA256 4e6bb1b0ced8f0e9cf0a3602551404a8e996dacef05cfa019f77d885a74b048b; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803274000$;
@@ -2908,7 +2908,7 @@ end $entry_20260803274000$;
 do $entry_20260803274100$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803274100'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803274100') then raise exception 'ENTRY_ALREADY_PRESENT_20260803274100'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803274100','index_weekly_brief_captured_by',array[$receipt$-- Reconciled final effects without replay; migration SHA256 e97f90617d2fa7df597912f8436b5b6c20b0da792d9a5a9848d62722e5ca255c; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803274100$;
@@ -2935,7 +2935,7 @@ end $entry_20260803275100$;
 do $entry_20260803280000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803280000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803280000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803280000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803280000','monitor_and_recover_stalled_operations',array[$receipt$-- Reconciled final effects without replay; migration SHA256 a6700749f895c6108cb6d43be565f414e1dd7f48de956810dabf3a5c6a932907; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803280000$;
@@ -2953,7 +2953,7 @@ end $entry_20260803290000$;
 do $entry_20260803291000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803291000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803291000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803291000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803291000','account_privacy_lifecycle',array[$receipt$-- Reconciled final effects without replay; migration SHA256 497d7278f487db843bff8f2a85f2d71a3e42b538380da6c0c1ce6612e7143ce0; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803291000$;
@@ -2962,7 +2962,7 @@ end $entry_20260803291000$;
 do $entry_20260803292000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803292000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803292000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803292000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803292000','harden_account_closure_access',array[$receipt$-- Reconciled final effects without replay; migration SHA256 f0178a23381e9d8de6db8a258c9725ebda80cb6953cec77b7945e3bb85c8e237; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803292000$;
@@ -2971,7 +2971,7 @@ end $entry_20260803292000$;
 do $entry_20260803293000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803293000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803293000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803293000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803293000','seal_audit_log_direct_access',array[$receipt$-- Reconciled final effects without replay; migration SHA256 ded0cceb45be0e5fa88224908a208ba72cea995178765837499fed214bf6c38b; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803293000$;
@@ -2980,7 +2980,7 @@ end $entry_20260803293000$;
 do $entry_20260803294000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294000') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294000','client_incident_observability',array[$receipt$-- Reconciled final effects without replay; migration SHA256 016e035551fcae5df2513e677174d42b6c7291d111245f1bbcad50a8fdd3a75e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294000$;
@@ -2998,7 +2998,7 @@ end $entry_20260803294100$;
 do $entry_20260803294200$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294200'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294200') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294200'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294200','restore_complete_db_health_feed',array[$receipt$-- Reconciled final effects without replay; migration SHA256 0612e822adc057a1408f28d651ee8452e0eadec868c2ddd043c42c3fab2b2602; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294200$;
@@ -3007,7 +3007,7 @@ end $entry_20260803294200$;
 do $entry_20260803294300$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294300'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294300') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294300'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294300','restore_linked_workspace_access',array[$receipt$-- Reconciled final effects without replay; migration SHA256 36d4ecc6748ae3d9fce31e05145c1588d75c240be68472f8cdfb76682541b310; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294300$;
@@ -3016,7 +3016,7 @@ end $entry_20260803294300$;
 do $entry_20260803294400$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294400'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294400') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294400'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294400','authorize_linked_workspace_operations',array[$receipt$-- Reconciled final effects without replay; migration SHA256 265f36ce79d5e17f071241c5d0d80e9dff239bad8ce7e2d10ffd453685957d6e; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294400$;
@@ -3025,7 +3025,7 @@ end $entry_20260803294400$;
 do $entry_20260803294500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294500') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294500','restore_linked_workspace_rls',array[$receipt$-- Reconciled final effects without replay; migration SHA256 fd3ac19efe11d87a16876338c12267a82eaf01b03dc64163ea99b29382aa84de; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294500$;
@@ -3034,7 +3034,7 @@ end $entry_20260803294500$;
 do $entry_20260803294600$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294600'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294600') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294600'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294600','secure_linked_workspace_cost_import',array[$receipt$-- Reconciled final effects without replay; migration SHA256 a4aa7e28ebc152a09db99b65a23f31ae155594059f1e62fac55a71f02b14f5ab; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294600$;
@@ -3043,7 +3043,7 @@ end $entry_20260803294600$;
 do $entry_20260803294700$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294700'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294700') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294700'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294700','restore_private_rpc_boundary',array[$receipt$-- Reconciled final effects without replay; migration SHA256 0090eb49a207b5532f6f2b5863e0d2ed12fbc3f75c28274a979245025b67b941; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294700$;
@@ -3052,7 +3052,7 @@ end $entry_20260803294700$;
 do $entry_20260803294800$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260803294800'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260803294800') then raise exception 'ENTRY_ALREADY_PRESENT_20260803294800'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260803294800','enable_scoped_sales_targets',array[$receipt$-- Reconciled final effects without replay; migration SHA256 2972760fa5d936ab266bb6e590536d7f5afc69692a8c289a94e49d9138b4d391; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260803294800$;
@@ -3088,7 +3088,7 @@ end $entry_20260803295100$;
 do $entry_20260804004347$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260804004347'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260804004347') then raise exception 'ENTRY_ALREADY_PRESENT_20260804004347'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260804004347','persist_trendyol_customer_questions',array[$receipt$-- Reconciled final effects without replay; migration SHA256 37d29f0c152415950c6986d0a5cd0f5f3c041ece9b03be990ed9415875f1e2cd; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260804004347$;
@@ -3097,7 +3097,7 @@ end $entry_20260804004347$;
 do $entry_20260804010232$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260804010232'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260804010232') then raise exception 'ENTRY_ALREADY_PRESENT_20260804010232'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260804010232','index_trendyol_question_reply_actor',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9b1421184bfd7992b10fb341b991b8c76b4c3746b21cbbdcc1cf6502cf368aa6; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260804010232$;
@@ -3142,7 +3142,7 @@ end $entry_20260804120000$;
 do $entry_20260804171343$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260804171343'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260804171343') then raise exception 'ENTRY_ALREADY_PRESENT_20260804171343'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260804171343','harden_pg_net_access',array[$receipt$-- Reconciled final effects without replay; migration SHA256 19ed0982167a05e262decf49bfd5ee3fad839ec16f24d1f31fddf7a88f62cbb9; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260804171343$;
@@ -3178,7 +3178,7 @@ end $entry_20260804204219$;
 do $entry_20260804205500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260804205500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260804205500') then raise exception 'ENTRY_ALREADY_PRESENT_20260804205500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260804205500','enforce_trendyol_customer_name_privacy',array[$receipt$-- Reconciled final effects without replay; migration SHA256 f825421a20615e307d4c2a7ef1550b219b19e8e6afa5151b1d651963a1af2534; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260804205500$;
@@ -3232,7 +3232,7 @@ end $entry_20260804220409$;
 do $entry_20260804221824$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260804221824'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260804221824') then raise exception 'ENTRY_ALREADY_PRESENT_20260804221824'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260804221824','verify_merchant_email_before_activation',array[$receipt$-- Reconciled final effects without replay; migration SHA256 8ab2a28032a510e1c435be195eadb55664e5652e63576027c77fbff36dcc1383; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260804221824$;
@@ -3295,7 +3295,7 @@ end $entry_20260804232625$;
 do $entry_20260805003857$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260805003857'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260805003857') then raise exception 'ENTRY_ALREADY_PRESENT_20260805003857'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260805003857','record_merchant_legal_acceptance',array[$receipt$-- Reconciled final effects without replay; migration SHA256 cb5f8f5a383648f1c09ee1573193d2d686c3f52c209db1d466457e052f31c62a; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260805003857$;
@@ -3331,7 +3331,7 @@ end $entry_20260810141500$;
 do $entry_20260810162000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260810162000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260810162000') then raise exception 'ENTRY_ALREADY_PRESENT_20260810162000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260810162000','aggregate_admin_ad_performance',array[$receipt$-- Reconciled final effects without replay; migration SHA256 f19f5e59d1beaba9716985f9e591873c68a8d673b4fe12f5f4f804ddd1a821b3; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260810162000$;
@@ -3340,7 +3340,7 @@ end $entry_20260810162000$;
 do $entry_20260810162500$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260810162500'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260810162500') then raise exception 'ENTRY_ALREADY_PRESENT_20260810162500'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260810162500','secure_admin_ad_performance',array[$receipt$-- Reconciled final effects without replay; migration SHA256 322b1396ab934d01162dbcf69e501275a0f8f340b6fb4dc6fb5c91be3f7ac109; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260810162500$;
@@ -3349,7 +3349,7 @@ end $entry_20260810162500$;
 do $entry_20260810180331$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260810180331'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260810180331') then raise exception 'ENTRY_ALREADY_PRESENT_20260810180331'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260810180331','remove_retired_integrations_and_billing',array[$receipt$-- Reconciled final effects without replay; migration SHA256 1503bce92b7c856d08bd20839a40c64a5b4cf0a00865c58f6e721b5781e18025; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260810180331$;
@@ -3376,7 +3376,7 @@ end $entry_20260810193000$;
 do $entry_20260810194000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260810194000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260810194000') then raise exception 'ENTRY_ALREADY_PRESENT_20260810194000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260810194000','guard_product_mapping_actor',array[$receipt$-- Reconciled final effects without replay; migration SHA256 84ce955724f31a6d381caadd01ea423ef995d767fd21e68d8f287d465f065c94; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260810194000$;
@@ -3448,7 +3448,7 @@ end $entry_20260814103000$;
 do $entry_20260814110000$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260814110000'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260814110000') then raise exception 'ENTRY_ALREADY_PRESENT_20260814110000'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260814110000','index_admin_overview_performance',array[$receipt$-- Reconciled final effects without replay; migration SHA256 1c4261276662b71c533df34e451213a5aa502d5e6624916601ead7972f99ae44; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260814110000$;
@@ -3475,7 +3475,7 @@ end $entry_20260816125000$;
 do $entry_20260816194539$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260816194539'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260816194539') then raise exception 'ENTRY_ALREADY_PRESENT_20260816194539'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260816194539','omniful_noon_trendyol_shadow_trial',array[$receipt$-- Reconciled final effects without replay; migration SHA256 938a27de3db79ed656a66a455bfc50d492248cb84fc13f595d18ea7660e062ee; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260816194539$;
@@ -3502,7 +3502,7 @@ end $entry_20260817092059$;
 do $entry_20260818160316$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260818160316'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260818160316') then raise exception 'ENTRY_ALREADY_PRESENT_20260818160316'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260818160316','omniful_merchant_account_credentials',array[$receipt$-- Reconciled final effects without replay; migration SHA256 888cb06061097da2d7b8fa9c8aed86300b234480a703a382d864cbd04faa16cc; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260818160316$;
@@ -3520,7 +3520,7 @@ end $entry_20260818182242$;
 do $entry_20260818183726$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260818183726'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260818183726') then raise exception 'ENTRY_ALREADY_PRESENT_20260818183726'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260818183726','index_omniful_assignment_actor',array[$receipt$-- Reconciled final effects without replay; migration SHA256 ac9509f39cd3eb4a26e6cc93f5928da14bebfd30c23c80a0089e0bfecbe7ab8a; proof final_effects_and_supersession; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260818183726$;
@@ -3529,7 +3529,7 @@ end $entry_20260818183726$;
 do $entry_20260828083527$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20260828083527'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20260828083527') then raise exception 'ENTRY_ALREADY_PRESENT_20260828083527'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20260828083527','pricing_requests',array[$receipt$-- Reconciled final effects without replay; migration SHA256 562c8f6bf11b99d64b95084de831a44e036397a3c2694730ada7d3fcb2a3637d; proof missing_effect_requires_correction; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20260828083527$;
@@ -3538,7 +3538,7 @@ end $entry_20260828083527$;
 do $entry_20261126092428$ begin
  if not exists(select 1 from release_verified_snapshot where digest='e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b') then raise exception 'MISSING_ENTRY_PROOF_20261126092428'; end if;
  perform pg_temp.assert_original_history();
- 
+
  if exists(select 1 from supabase_migrations.schema_migrations where version='20261126092428') then raise exception 'ENTRY_ALREADY_PRESENT_20261126092428'; end if;
  insert into supabase_migrations.schema_migrations(version,name,statements) values('20261126092428','enforce_remaining_table_boundaries',array[$receipt$-- Reconciled final effects without replay; migration SHA256 9e5cf1383d1db24a9566abdba3a64bdbef11231efed2f7b6d9e68d3f0587afd9; proof missing_effect_requires_correction; corrected catalog SHA256 e562dafc5b7338a30a483c6381a529ad998bd21f8862775d9c7df7fbeb73e33b.$receipt$]);
 end $entry_20261126092428$;

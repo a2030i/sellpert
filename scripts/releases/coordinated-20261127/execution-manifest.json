@@ -403,7 +403,7 @@
     "scripts/releases/coordinated-20261127/enter.sql": "a7ac263eb871de7d6aa9fdc99b5a461922a43d0b54e686091241fe9bb71b1d64",
     "scripts/releases/coordinated-20261127/expected-catalog-digests.json": "a4ee0296fbdb121476c564f3e64f6991791cd757cedf0c8f916ed3d7b912e59d",
     "scripts/releases/coordinated-20261127/inspect-before.sql": "19ef257b0078bb05c00b909c8c8534b77c0faea046cc5236581d98b4511bd426",
-    "scripts/releases/coordinated-20261127/recover.sql": "cbc63aa70bbffcf02a0c9fcbdf82c2c8b16166b198828b368e7a7f1fda576535",
+    "scripts/releases/coordinated-20261127/recover.sql": "d50653b55652f32f62bb06f4cfb4a88a7657e01ceda2cf92d4bb35294bcdb663",
     "scripts/releases/coordinated-20261127/recovery-inspect.sql": "148a1362d8142a3c4fdd30a8058cb08cf2315e0548ff50968b009427fd60c270",
     "scripts/releases/coordinated-20261127/resume.sql": "9f067614acba8dbd6022bfc1fd55b978de6f01029f2c7c6c54207198a2841aeb",
     "scripts/releases/coordinated-20261127/verify-final.sql": "66ef0d2d9756f87a06e3c5589c3f4ac02aa8e6b5ba551886aa94205c180612e1",
