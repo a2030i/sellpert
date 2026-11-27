@@ -23,7 +23,7 @@ never enable/disable gateway checks as a generic fix.
 | Edge Function(s) | Contract / purpose |
 | --- | --- |
 | `manage-platform-credentials` | Trendyol credential list/save/delete, queue sync, sync status; returns safe status rather than secret material |
-| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect. No data sync |
+| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect |
 | `test-platform-connection`, `sync-trendyol` | Connection validation and normalized marketplace synchronization |
 | `trendyol-actions` | Fixed action registry for products, pricing/stock, packages, invoices, claims, questions and provider reference operations |
 | `trendyol-webhook` | Validated provider callbacks, event dedupe and order/queue updates |
@@ -95,11 +95,33 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   `extra.secret_blob`).
   A partial unique index prevents concurrent active connections for the same
   Amazon seller in different workspaces; a conflict returns HTTP 409.
-- Not included yet: order, finance, inventory or listing sync. Amazon is not in
-  `enqueue_active_marketplace_syncs` or queue dispatch. Adding canonical Amazon
-  orders/financials must respect the source precedence with Amazon file imports
-  (`amazon_daily_sales`, `security.rebuild_performance_data`) to avoid double
-  counting. Live enablement and configured secrets are `NEEDS_CONFIRMATION`.
+- Sync (`sync-amazon`, dispatched by `queue-worker` for `platform = 'amazon'`;
+  `enqueue_active_marketplace_syncs` includes Amazon from migration
+  `20261127090000`). Each run continues a cursor in
+  `platform_credentials.extra.sync` (no secrets) and stops after ~30 s or on
+  HTTP 429, because Orders v2026-01-01 `searchOrders` allows 0.0056 req/s
+  (burst 20):
+  - Orders: 730-day backfill by `createdAfter/createdBefore`, then incremental
+    by `lastUpdatedAfter/lastUpdatedBefore` with a 10-minute overlap.
+    `includedData` is only `PROCEEDS` and `FULFILLMENT` (no BUYER/RECIPIENT).
+    Items are embedded and upserted into `order_items`. Order refreshes never
+    write `platform_fee`.
+  - Finances v2024-06-19 `listTransactions` in ≤180-day windows, then a 2-day
+    re-read overlap once caught up. Rows go to `account_transactions` with
+    `raw.sellpertSource = 'sp_api'`; each touched order's `platform_fee` is
+    recomputed from all stored SP-API transactions for that order.
+  - `rebuild_performance_data` runs once per run.
+  - Not included: inventory, listings/pricing, ads (separate Amazon Ads API),
+    returns as `returns` rows. Fee classification by breakdown type
+    (`amazonTransactionFee`) and the response shapes are verified only against
+    Amazon's published models, not live data: `NEEDS_CONFIRMATION` with a
+    consenting merchant before wider rollout.
+  - Historical Amazon file rows in `account_transactions` are kept; for
+    overlapping periods the statement ledger can contain both file and SP-API
+    rows (performance and P&L are unaffected because API orders take
+    precedence). Deciding how to retire those rows is `NEEDS_CONFIRMATION`.
+  - During the first backfill, dashboards show only the API history fetched so
+    far, because any API order overrides file-based Amazon performance.
 - Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
   is the authoritative Amazon source and Amazon file uploads are retired for
   that merchant. Note the existing precedence in `security.rebuild_performance_data`:
@@ -166,7 +188,7 @@ authorize promoting this feed. Actual merchant enablement is `NEEDS_CONFIRMATION
 ### File-only and retired paths
 
 Amazon/Noon report imports remain in `platformParsers.ts` (Amazon also has the
-SP-API connection above, without data sync yet); other named parser
+SP-API connection and sync above); other named parser
 formats are not evidence of direct provider APIs. The migration
 `20260810180331_remove_retired_integrations_and_billing.sql` contains SQL to remove
 retired provider/billing paths while keeping imported data. Whether that migration
