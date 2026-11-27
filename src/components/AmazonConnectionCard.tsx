@@ -83,18 +83,18 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
   const connected = Boolean(connection?.is_active)
   const markets = (connection?.marketplaces || []).map(m => AMAZON_MARKETPLACE_NAMES[m.country] || m.name || m.country).join('، ')
 
-  return <article aria-busy={busy !== null || (!status && !loadError)} style={{ maxWidth: 760, marginTop: 16, background: 'var(--surface)', border: `1px solid ${connected ? `${AMAZON_COLOR}66` : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+  return <article aria-busy={busy !== null || (!status && !loadError)} style={{ maxWidth: 'var(--integration-card-max-width, 760px)', marginTop: 'var(--integration-section-gap, 16px)', background: 'var(--surface)', border: `1px solid ${connected ? `${AMAZON_COLOR}66` : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
     <div style={{ height: 3, background: connected ? AMAZON_COLOR : 'var(--border2)' }} />
     <div style={{ padding: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div aria-hidden style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: `${AMAZON_COLOR}18`, color: '#b36b00', fontWeight: 900 }}>A</div>
-        <div style={{ flex: 1 }}>
+      <div className="amazon-connection-header">
+        <div className="amazon-connection-logo" aria-hidden style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 12, background: `${AMAZON_COLOR}18`, color: '#b36b00', fontWeight: 900 }}>A</div>
+        <div className="amazon-connection-copy">
           <strong>Amazon</strong>
           <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
             ربط مباشر بسوق أمازون السعودية بالريال السعودي. تُحدَّث الطلبات والمعاملات المالية تلقائيًا كل ٣٠ دقيقة تقريبًا. يُسحب سجل آخر ١٢ شهرًا بدءًا من الأحدث، وقد يستغرق السحب الأول عدة ساعات. الأسواق الأخرى غير مشمولة حاليًا.
           </div>
         </div>
-        <span style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>
+        <span className="amazon-connection-status" style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>
           {busy === 'complete' ? 'جارٍ الربط…' : loadError ? 'تعذر التحقق' : !status ? 'جارٍ التحقق…' : connected ? 'متصل' : 'غير مربوط'}
         </span>
       </div>

@@ -50,15 +50,15 @@ export default function MarketplaceConnections({ merchants, lockedMerchantCode, 
     [credentials, merchantCode],
   )
 
-  return <section style={{ marginBottom: 28 }}>
-    <div style={{ ...S.tableCard, padding: 18, marginBottom: 16 }}>
+  return <section style={{ marginBottom: 'var(--integration-block-end, 28px)' }}>
+    <div style={{ ...S.tableCard, padding: 18, marginBottom: 'var(--integration-section-gap, 16px)' }}>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 16 }}>
             <PlugZap size={18} color="var(--accent)" /> ربط Trendyol
           </div>
           <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 5 }}>
-            Amazon وNoon يعملان عبر استيراد Excel فقط. مفاتيح Trendyol تُحفظ مشفرة ولا تُعرض مجددًا.
+            مفاتيح Trendyol تُحفظ مشفرة ولا تُعرض مجددًا. يمكنك إدارة ربط أمازون واستيراد ملفات المنصات من الأقسام المخصصة لها.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -191,7 +191,7 @@ function TrendyolCard({ merchantCode, credential, onChanged, setNotice, merchant
     } finally { setBusy(null) }
   }
 
-  return <article style={{ maxWidth: 760, background: 'var(--surface)', border: `1px solid ${credential?.is_active ? `${TRENDYOL_COLOR}66` : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+  return <article style={{ maxWidth: 'var(--integration-card-max-width, 760px)', background: 'var(--surface)', border: `1px solid ${credential?.is_active ? `${TRENDYOL_COLOR}66` : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
     <div style={{ height: 3, background: credential?.is_active ? TRENDYOL_COLOR : 'var(--border2)' }} />
     <div style={{ padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
