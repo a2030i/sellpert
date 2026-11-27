@@ -31,6 +31,13 @@ state requires complete current sales evidence and known costs; partial or
 absent evidence is disclosed. Valid recommendations can still be shown for the
 covered subset with an explicit coverage note.
 
+Health resolves source identifiers in one relational join instead of invoking
+the catalog resolver for every inventory record before applying the account
+filter. Multiple aliases of one product do not multiply stock, and conflicting
+product candidates remain unresolved. Cost precedence and reserved quantities
+are unchanged. A read-only production comparison found identical results for
+all 1,755 inventory records in the reviewed workspace before deployment.
+
 ## Amazon and financial review
 
 Connection copy distinguishes unconfigured, ready-to-connect, connected and
