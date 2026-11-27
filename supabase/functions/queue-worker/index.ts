@@ -11,6 +11,7 @@ const JOB_TIMEOUT  = 55000
 const PLATFORM_FUNCTION: Record<string, string> = {
   salla:    'salla-sync',
   trendyol: 'sync-trendyol',
+  amazon:   'sync-amazon',
 }
 
 Deno.serve(async (req) => {
@@ -112,6 +113,9 @@ async function processJob(admin: any, job: any): Promise<{ success: boolean; err
     let body: Record<string, any> = { merchant_code }
     if (platform === 'salla') {
       body = { merchant_code, job_type: job_type || 'sync_all', payload: payload || {} }
+    } else if (platform === 'amazon') {
+      // Amazon keeps its own resumable cursor; no date range is passed.
+      body = { merchant_code }
     } else {
       // Trendyol — pass date range from payload if present
       body = {

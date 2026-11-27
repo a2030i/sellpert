@@ -1,0 +1,55 @@
+{
+  "status": "PROPOSAL_REQUIRES_NEW_EXPLICIT_APPROVAL",
+  "project_ref": "urdyzbsukcuibadlaath",
+  "source_commit": "ba825b265cd29e67fbdb4bbcdb422305fc4ea5db",
+  "migration_version": "20261127090000",
+  "migration_sha256": "b59cfe4d9583b41eb7d6253c971b90099f5fd4cac50fbd1b9923e4a3ddd38384",
+  "scheduler_before_sha256": "6087384485f9159a1c4e94838f8558ce764c78c250f691047f56baa1cf79f882",
+  "scheduler_after_sha256": "76cc71419ab4b62bdae012732105223941ba282ac36a76674c5f8ca641f3ef50",
+  "original_ledger_count": 226,
+  "original_ledger_sha256": "f3ff95b89dbd0f58380a1e47261d24f4e242081481976268f92b26272a055dc2",
+  "files": {
+    "inspect.sql": "a319a4142672ca16584aa8b7426311d0a3d915be3a54dd3859312e914e140b4c",
+    "apply.sql": "61d6854d629c47cccf1bb54e47851b7f406e2a02820badf2c5d0b0a99fc235fa",
+    "verify.sql": "60d57ec21cc662c36f8e69e0ad0d767c36483fe741bb142fe6c1b7d888a6fc7b"
+  },
+  "checks": {
+    "inspect": [
+      "expected_actor",
+      "scheduler_boundary",
+      "service_role_only",
+      "scheduler_cron_unchanged",
+      "original_history_preserved",
+      "prior_amazon_history_present",
+      "routines_unchanged",
+      "relations_unchanged",
+      "columns_unchanged",
+      "constraints_unchanged",
+      "indexes_unchanged",
+      "policies_unchanged",
+      "triggers_unchanged",
+      "scheduler_exact_definition",
+      "total_history_expected",
+      "new_history_absent",
+      "no_active_amazon_connections"
+    ],
+    "verify": [
+      "expected_actor",
+      "scheduler_boundary",
+      "service_role_only",
+      "scheduler_cron_unchanged",
+      "original_history_preserved",
+      "prior_amazon_history_present",
+      "routines_unchanged",
+      "relations_unchanged",
+      "columns_unchanged",
+      "constraints_unchanged",
+      "indexes_unchanged",
+      "policies_unchanged",
+      "triggers_unchanged",
+      "scheduler_exact_definition",
+      "total_history_expected",
+      "new_history_exact"
+    ]
+  }
+}

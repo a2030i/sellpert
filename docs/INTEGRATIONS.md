@@ -23,7 +23,7 @@ never enable/disable gateway checks as a generic fix.
 | Edge Function(s) | Contract / purpose |
 | --- | --- |
 | `manage-platform-credentials` | Trendyol credential list/save/delete, queue sync, sync status; returns safe status rather than secret material |
-| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect. No data sync |
+| `amazon-connect` | Amazon SP-API website authorization for a signed-in user: status, start (single-use hashed state + Seller Central consent URL), complete (state check, LWA code exchange, seller verification, encrypted refresh token), disconnect |
 | `test-platform-connection`, `sync-trendyol` | Connection validation and normalized marketplace synchronization |
 | `trendyol-actions` | Fixed action registry for products, pricing/stock, packages, invoices, claims, questions and provider reference operations |
 | `trendyol-webhook` | Validated provider callbacks, event dedupe and order/queue updates |
@@ -95,11 +95,77 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
   `extra.secret_blob`).
   A partial unique index prevents concurrent active connections for the same
   Amazon seller in different workspaces; a conflict returns HTTP 409.
-- Not included yet: order, finance, inventory or listing sync. Amazon is not in
-  `enqueue_active_marketplace_syncs` or queue dispatch. Adding canonical Amazon
-  orders/financials must respect the source precedence with Amazon file imports
-  (`amazon_daily_sales`, `security.rebuild_performance_data`) to avoid double
-  counting. Live enablement and configured secrets are `NEEDS_CONFIRMATION`.
+- Sync (`sync-amazon`, dispatched by `queue-worker` for `platform = 'amazon'`;
+  `enqueue_active_marketplace_syncs` includes Amazon from migration
+  `20261127090000`). Each run continues a cursor in
+  `platform_credentials.extra.sync` (no secrets) and stops after ~30 s or on
+  HTTP 429. Pages alternate between orders and per-marketplace finances so
+  neither stream is starved; the next run starts with the other stream after
+  a rate limit. Orders v2026-01-01 `searchOrders` allows 0.0056 req/s
+  (burst 20):
+  - Financial sync currently covers **Amazon Saudi Arabia / SAR only**
+    (`A17E79C6D8DWNP`). Existing aggregates have no currency conversion layer.
+    Accounts must participate in Saudi Arabia before OAuth completion can save
+    the connection; an account selling only in UAE/Egypt is rejected, so this
+    connection attempt does not disable its file imports. For multi-market
+    accounts only Saudi data is requested, with a warning that other markets
+    are excluded. Explicit non-SAR amounts anywhere in an incoming provider page
+    or mapped row fail closed before that page is written or its cursor advances.
+    Stored fee payloads are also checked before recalculating order fees.
+    Missing amounts on pending orders remain allowed. No exchange
+    rate, conversion or cross-currency total is inferred.
+  - Orders: 365-day backfill walking backwards in 30-day windows (newest
+    month first) by `createdAfter/createdBefore`, then incremental by
+    `lastUpdatedAfter/lastUpdatedBefore` from the backfill start with a
+    10-minute overlap. Expired 24-hour pagination tokens replay their frozen
+    window without skipping it. Query array parameters use CSV serialization. `includedData` is only `PROCEEDS` and `FULFILLMENT`
+    (no BUYER/RECIPIENT). Items are embedded and upserted into `order_items`.
+    Order refreshes never write `platform_fee`.
+  - Finances v2024-06-19 `listTransactions`: the same 365-day backward
+    backfill in 30-day windows independently for each connected marketplace
+    (the request always includes `marketplaceId`), then forward windows (≤180 days) from the
+    backfill start, with a 2-day re-read once caught up. Rows go to
+    `account_transactions` with
+    `raw.sellpertSource = 'sp_api'`; each touched order's `platform_fee` is
+    recomputed from all stored SP-API transactions for that order, paging through
+    the database results. Each page reconciles fees before its cursor advances;
+    failures replay the page idempotently. Orders with no SP-API transaction keep
+    their current fee. Nested fee aggregates are counted once, including reversals.
+  - `rebuild_performance_data` runs once per completed run.
+  - User-triggered sync enforces the same user-context MFA actor check as Amazon
+    authorization before privileged work; the internal service-token queue path
+    remains supported. Each run takes a conditional 120-second credential lease.
+    Concurrent runs and reconnect/disconnect during that lease fail closed;
+    credential writes compare revisions or lease IDs and cannot restore old
+    ciphertext over a replacement account. Provider fetching stops at ~30 seconds
+    and database HTTP calls at 45 seconds. Failed runs retain their expiring lease
+    because a transport failure does not prove server-side writes have stopped.
+    Release requires checking the production PostgREST statement timeout stays
+    below the remaining lease margin (read-only inspection on 2026-11-27 found authenticator configured at 8 seconds,
+    with no service-role or database-level override).
+  - Malformed successful API responses fail closed without advancing a window.
+    Cursor version 3 validates the connected marketplace scope; incompatible
+    checkpoints replay the bounded backfill rather than skipping history.
+  - Not included: inventory, listings/pricing, ads (separate Amazon Ads API),
+    returns as `returns` rows. Fee classification by breakdown type
+    (`amazonTransactionFee`) and the response shapes are verified only against
+    Amazon's published models, not live data: `NEEDS_CONFIRMATION` with a
+    consenting merchant before wider rollout. Orders v2026 does not establish
+    delivery beyond SHIPPED; do not infer DELIVERED or delivered-only commission
+    eligibility. Whether a deferred finance transaction released later than the
+    two-day reread window changes its posted date remains NEEDS_CONFIRMATION.
+  - Historical Amazon file rows in `account_transactions` are kept; for
+    overlapping periods the statement ledger can contain both file and SP-API
+    rows (performance and P&L are unaffected because API orders take
+    precedence). Per the 2026-11-27 owner decision these file rows are low
+    priority; any cleanup still needs explicit approval as a data change.
+  - During the first backfill, dashboards show only the API history fetched so
+    far (newest months first), because any API order overrides file-based
+    Amazon performance for all dates. File-based Amazon history older than
+    12 months therefore stops appearing in performance once API orders exist.
+    Owner decision 2026-11-27: accepted. The platform is in a trial phase and
+    uploaded Amazon files cover scattered periods, so they are not a reliable
+    source; no per-date precedence change is planned.
 - Owner decision 2026-11-26: once a merchant's SP-API connection works, the API
   is the authoritative Amazon source and Amazon file uploads are retired for
   that merchant. Note the existing precedence in `security.rebuild_performance_data`:
@@ -117,7 +183,7 @@ available. A permission-checked boolean RPC, `amazon_file_import_allowed`, also
 supports the existing platform-staff import flow without exposing credentials.
 The atomic import RPC enforces the rule for all callers, checking both the upload
 platform and Amazon payload rows so relabeling a file cannot bypass it. This does
-not delete previous imports or enable order/settlement sync.
+not delete previous imports; synchronization is dispatched separately as above.
 
 Release dependency: the new import-policy RPC must be available before publishing
 the frontend. On a missing RPC or failed status check, Amazon imports fail closed;
@@ -166,7 +232,7 @@ authorize promoting this feed. Actual merchant enablement is `NEEDS_CONFIRMATION
 ### File-only and retired paths
 
 Amazon/Noon report imports remain in `platformParsers.ts` (Amazon also has the
-SP-API connection above, without data sync yet); other named parser
+SP-API connection and sync above); other named parser
 formats are not evidence of direct provider APIs. The migration
 `20260810180331_remove_retired_integrations_and_billing.sql` contains SQL to remove
 retired provider/billing paths while keeping imported data. Whether that migration
@@ -184,7 +250,7 @@ direct integrations or paid-subscription behavior from baseline tables or old do
 - `QUEUE_WORKER_SECRET` is read from `app_settings`, not from a frontend variable.
   The worker accepts dedicated internal authorization or service-role bearer;
   public anon credentials must never become worker authorization.
-- Queue dispatch currently maps Salla and Trendyol, not Omniful. SQL cron/
+- Queue dispatch maps Salla, Trendyol and Amazon, not Omniful. SQL cron/
   `pg_net` authorization and timeouts are versioned in migrations.
 - See [environment inventory](DEVELOPMENT.md#environment-inventory) for names only.
   Provider credentials also live in protected DB records; an env-name inventory

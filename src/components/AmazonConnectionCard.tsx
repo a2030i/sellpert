@@ -91,7 +91,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         <div style={{ flex: 1 }}>
           <strong>Amazon</strong>
           <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 4, lineHeight: 1.7 }}>
-            ربط مباشر بحساب البائع. المرحلة الحالية تحفظ الربط فقط، ومزامنة الطلبات والتسويات تُفعَّل في التحديث القادم.
+            ربط مباشر بسوق أمازون السعودية بالريال السعودي. تُحدَّث الطلبات والمعاملات المالية تلقائيًا كل ٣٠ دقيقة تقريبًا. يُسحب سجل آخر ١٢ شهرًا بدءًا من الأحدث، وقد يستغرق السحب الأول عدة ساعات. الأسواق الأخرى غير مشمولة حاليًا.
           </div>
         </div>
         <span style={{ borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 800, background: connected ? `${AMAZON_COLOR}24` : 'var(--surface2)', color: connected ? '#8a5200' : 'var(--text2)', whiteSpace: 'nowrap' }}>
@@ -103,6 +103,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         <dt style={{ color: 'var(--text2)' }}>معرّف البائع</dt><dd style={{ margin: 0 }} className="latin-number">{connection.seller_id}</dd>
         <dt style={{ color: 'var(--text2)' }}>الأسواق</dt><dd style={{ margin: 0 }}>{markets || '—'}</dd>
         <dt style={{ color: 'var(--text2)' }}>تاريخ الربط</dt><dd style={{ margin: 0 }}>{formatDate(connection.connected_at)}</dd>
+        <dt style={{ color: 'var(--text2)' }}>آخر مزامنة</dt><dd style={{ margin: 0 }}>{connection.last_sync_at ? formatDate(connection.last_sync_at) : 'بانتظار أول مزامنة'}</dd>
       </dl> : null}
 
       {loadError ? <div style={{ marginTop: 12 }}><p role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--danger-text)' }}>{loadError}</p><button type="button" onClick={() => void load()} disabled={busy !== null} style={{ ...dangerButton(busy !== null), marginTop: 8, color: 'var(--text)', borderColor: 'var(--border)' }}>إعادة التحقق من الربط</button></div> : null}

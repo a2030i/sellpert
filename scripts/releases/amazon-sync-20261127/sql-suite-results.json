@@ -1,0 +1,194 @@
+[
+  {
+    "test": "account_privacy_lifecycle.test.sql",
+    "passed": true
+  },
+  {
+    "test": "action_effectiveness_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "admin_overview_metrics_security.test.sql",
+    "passed": true
+  },
+  {
+    "test": "amazon_connection_security.test.sql",
+    "passed": true
+  },
+  {
+    "test": "amazon_file_import_policy.test.sql",
+    "passed": true
+  },
+  {
+    "test": "amazon_sync_scheduler.test.sql",
+    "passed": true
+  },
+  {
+    "test": "atomic_merchant_file_import.test.sql",
+    "passed": true
+  },
+  {
+    "test": "audit_activity_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "audit_log.test.sql",
+    "passed": true
+  },
+  {
+    "test": "client_incident_observability.test.sql",
+    "passed": true
+  },
+  {
+    "test": "credential_and_email_authorization.test.sql",
+    "passed": true
+  },
+  {
+    "test": "data_api_grants.test.sql",
+    "passed": true
+  },
+  {
+    "test": "executive_brief_financials.test.sql",
+    "passed": true
+  },
+  {
+    "test": "fee_reference_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "fulfillment_raw_data_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "inventory_payload_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "marketplace_operation_feed_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "merchant_action_tenant_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "merchant_executive_brief_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "merchant_health_forecast_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "merchant_import_storage_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "mfa_enforcement.test.sql",
+    "passed": true
+  },
+  {
+    "test": "mfa_recovery_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "multi_workspace_identity_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "operational_function_execution.test.sql",
+    "passed": true
+  },
+  {
+    "test": "operations_monitoring.test.sql",
+    "passed": true
+  },
+  {
+    "test": "order_customer_data_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "order_item_payload_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "performance_source_precedence.test.sql",
+    "passed": true
+  },
+  {
+    "test": "pg_net_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "pnl_statement_coverage.test.sql",
+    "passed": true
+  },
+  {
+    "test": "privileged_rpc_authorization.test.sql",
+    "passed": true
+  },
+  {
+    "test": "privileged_rpc_schema_boundary.test.sql",
+    "passed": true
+  },
+  {
+    "test": "product_cost_tenant_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "product_provider_payload_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "purchase_cash_readiness_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "queue_worker_authorization.test.sql",
+    "passed": true
+  },
+  {
+    "test": "rebuild_authorization.test.sql",
+    "passed": true
+  },
+  {
+    "test": "remaining_provider_payload_access.test.sql",
+    "passed": true
+  },
+  {
+    "test": "salla_token_vault.test.sql",
+    "passed": true
+  },
+  {
+    "test": "self_service_signup_provisioning.test.sql",
+    "passed": true
+  },
+  {
+    "test": "sellpert_order_commission.test.sql",
+    "passed": true
+  },
+  {
+    "test": "sync_health_monitor.test.sql",
+    "passed": true
+  },
+  {
+    "test": "tenant_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "tenant_policy_coverage.test.sql",
+    "passed": true
+  },
+  {
+    "test": "trendyol_question_inbox_security.test.sql",
+    "passed": true
+  },
+  {
+    "test": "weekly_operating_cycle_isolation.test.sql",
+    "passed": true
+  },
+  {
+    "test": "workspace_suspension.test.sql",
+    "passed": true
+  }
+]

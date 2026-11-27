@@ -19,6 +19,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 import { loadAmazonCaller } from '../_shared/amazonActor.ts'
 import { loadAmazonAppConfig } from '../_shared/amazonAppConfig.ts'
+import { deleteAmazonConnection, saveAmazonConnection } from '../_shared/amazonConnectionMutex.ts'
+import { selectAmazonSyncMarkets } from '../_shared/amazonCurrency.ts'
 import { HttpError, json } from '../_shared/sync.ts'
 import {
   AMAZON_MARKETPLACES,
@@ -143,8 +145,10 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
   const region = AMAZON_MARKETPLACES[consumed.marketplace_id]?.region || 'eu'
   const participations = supportedParticipations(await fetchMarketplaceParticipations(tokens.accessToken, region))
   if (!participations.length) {
-    throw new HttpError(409, 'حساب أمازون هذا لا يبيع في سوق تدعمه سيلبرت (السعودية أو الإمارات أو مصر)')
+    throw new HttpError(409, 'الربط والمزامنة متاحان حاليًا لحساب يبيع في أمازون السعودية فقط')
   }
+  // Connecting disables file imports; require a market the SAR pipeline can sync.
+  selectAmazonSyncMarkets(participations.map(row => ({ id: row.marketplaceId })))
   await verifyAmazonSellerIdentity(tokens.accessToken, sellingPartnerId, participations[0].marketplaceId, region)
 
   const { data: duplicate, error: duplicateError } = await admin.from('platform_credentials')
@@ -155,7 +159,7 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
 
   const now = new Date().toISOString()
   const marketplaces = participations.map(row => ({ id: row.marketplaceId, country: row.countryCode, name: row.name }))
-  const { error } = await admin.from('platform_credentials').upsert({
+  await saveAmazonConnection(admin, merchantCode, {
     merchant_code: merchantCode,
     platform: 'amazon',
     seller_id: sellingPartnerId,
@@ -172,16 +176,12 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
     test_status: 'success',
     last_tested_at: now,
     updated_at: now,
-  }, { onConflict: 'merchant_code,platform' })
-  if (error?.code === '23505') throw new HttpError(409, 'حساب أمازون هذا مرتبط بمساحة عمل أخرى')
-  if (error) throw error
+  })
   return { ok: true, seller_id: sellingPartnerId, marketplaces }
 }
 
 async function disconnect(admin: any, merchantCode: string) {
-  const { error } = await admin.from('platform_credentials').delete()
-    .eq('merchant_code', merchantCode).eq('platform', 'amazon')
-  if (error) throw error
+  await deleteAmazonConnection(admin, merchantCode)
   return { ok: true }
 }
 
