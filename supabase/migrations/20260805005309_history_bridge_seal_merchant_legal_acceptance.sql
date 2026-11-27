@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260805005309
+-- Original remote name: seal_merchant_legal_acceptance
+-- Original recorded SQL SHA-256: 9eebcd11aa00379a92fa2ff693d1061cd69d455b71e2d62a2f62da5f4e414ad0
+-- Reconstructed final schema mapping:
+--   20260805005228_seal_merchant_legal_acceptance.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

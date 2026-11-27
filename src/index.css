@@ -881,3 +881,19 @@ main :where(p, li, td, th, label, button, input, select, textarea) {
   body p, body li { font-size: var(--t-sm); }
   table, table th, table td { font-size: var(--t-cap); }
 }
+
+/* Account and catalog forms share bounded controls inside narrow RTL drawers. */
+.catalog-structure-editor,.catalog-pool-editor,.selling-account-chooser{min-width:0;font-size:12px}
+.catalog-structure-editor label,.catalog-pool-editor label,.selling-account-chooser label{display:grid;gap:6px;min-width:0;font-size:12px;font-weight:600}
+.catalog-structure-editor input,.catalog-structure-editor select,.catalog-pool-editor input,.catalog-pool-editor select,.selling-account-chooser input,.selling-account-chooser select{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit}
+.catalog-structure-editor button,.catalog-pool-editor button,.selling-account-chooser button{box-sizing:border-box;min-width:0;max-width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
+.catalog-structure-editor button:disabled,.catalog-pool-editor button:disabled,.selling-account-chooser button:disabled{opacity:.55;cursor:default}
+.catalog-structure-editor summary,.catalog-pool-editor summary{cursor:pointer;font-weight:700;line-height:1.8}
+.catalog-structure-editor [role=alert],.catalog-pool-editor [role=alert],.selling-account-chooser [role=alert]{color:var(--danger-text);line-height:1.7}
+
+.selling-account-scope{min-width:0;max-width:100%;box-sizing:border-box}.selling-account-scope select{box-sizing:border-box;text-overflow:ellipsis}
+
+.data-load-error { display:flex; flex-direction:column; align-items:center; gap:16px; line-height:1.8; }
+.data-load-error p { margin:0; }
+.data-load-error__retry { min-height:40px; padding:9px 16px; border:1px solid var(--accent-strong); border-radius:8px; background:var(--accent-strong); color:#fff; font:inherit; font-weight:600; }
+.data-load-error__retry:hover { filter:brightness(.95); }

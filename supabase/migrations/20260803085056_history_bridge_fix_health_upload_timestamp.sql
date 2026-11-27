@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803085056
+-- Original remote name: fix_health_upload_timestamp
+-- Original recorded SQL SHA-256: dd64327451dc8f2213d11c78d0bea0d6ed6dd0d0292f4836dbb6ff5222b3d215
+-- Reconstructed final schema mapping:
+--   20260803271000_fix_health_upload_timestamp.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

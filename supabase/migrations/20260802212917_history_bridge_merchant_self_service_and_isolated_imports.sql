@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802212917
+-- Original remote name: merchant_self_service_and_isolated_imports
+-- Original recorded SQL SHA-256: e38a59355f9e44eb7abf8c66316b4236a26ba1c76b41d7f5c17e3d0022169f8f
+-- Reconstructed final schema mapping:
+--   20260803143000_merchant_self_service_and_isolated_imports.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

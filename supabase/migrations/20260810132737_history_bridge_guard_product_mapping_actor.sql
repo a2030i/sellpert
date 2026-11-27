@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260810132737
+-- Original remote name: guard_product_mapping_actor
+-- Original recorded SQL SHA-256: 4af5c6b2de702494e38adc5d76e7f30dc918f112ce06085a585126194b742b9c
+-- Reconstructed final schema mapping:
+--   20260810194000_guard_product_mapping_actor.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260423134245
+-- Original remote name: add_openrouter_to_platform_connections
+-- Original recorded SQL SHA-256: f605d3f5b544ff96cd88119d2e3450039f144fe7d5725c2643052fb0fd016b9c
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

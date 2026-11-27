@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802234321
+-- Original remote name: separate_platform_staff_role
+-- Original recorded SQL SHA-256: 7e0c5b8a96c3b5e2428e3ae6f1ac30710eb8156ad1f5bf6e0dfb30007601c685
+-- Reconstructed final schema mapping:
+--   20260803223000_separate_platform_staff_role.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

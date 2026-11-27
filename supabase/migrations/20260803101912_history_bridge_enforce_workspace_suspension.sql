@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803101912
+-- Original remote name: enforce_workspace_suspension
+-- Original recorded SQL SHA-256: c33e4fc64bfd034455a65661d1e78495c339e04c9880b048f8807b2b3a0d52bb
+-- Reconstructed final schema mapping:
+--   20260803275100_enforce_workspace_suspension.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

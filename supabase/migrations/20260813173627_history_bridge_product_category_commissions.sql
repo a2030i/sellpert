@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260813173627
+-- Original remote name: product_category_commissions
+-- Original recorded SQL SHA-256: e48e3f0ba19acfb30c0eb513f0ec82683c9fd15a268c0b6a4692d2217b4d7d8c
+-- Reconstructed final schema mapping:
+--   20260813193000_product_category_commissions.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802232151
+-- Original remote name: enforce_merchant_employee_permissions
+-- Original recorded SQL SHA-256: 3536351f240be4928bdb0d74f5506a1c35cf1343ad40211495b31589b36374db
+-- Reconstructed final schema mapping:
+--   20260803203000_enforce_merchant_employee_permissions.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

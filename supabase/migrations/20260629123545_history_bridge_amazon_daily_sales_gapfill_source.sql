@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260629123545
+-- Original remote name: amazon_daily_sales_gapfill_source
+-- Original recorded SQL SHA-256: 435078499e9ea2dd47b4d0f2e39e2eef9dc7ecca0a2062a430d6d1fd245ece80
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

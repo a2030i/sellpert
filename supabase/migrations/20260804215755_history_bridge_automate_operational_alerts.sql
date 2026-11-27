@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804215755
+-- Original remote name: automate_operational_alerts
+-- Original recorded SQL SHA-256: ec0b2c971dd95085d0d807a0c68a8dc0cde380a00af3deb691acf77f8dd944ac
+-- Reconstructed final schema mapping:
+--   20260804215429_automate_operational_alerts.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

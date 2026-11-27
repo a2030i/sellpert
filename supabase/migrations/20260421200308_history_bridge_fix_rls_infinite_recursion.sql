@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260421200308
+-- Original remote name: fix_rls_infinite_recursion
+-- Original recorded SQL SHA-256: 01d7c4c455b13fea0fd24ffe04aa11cdd01ee20f9b6b534571d23047d7300598
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

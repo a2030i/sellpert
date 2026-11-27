@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260504074253
+-- Original remote name: weekly_digest_function
+-- Original recorded SQL SHA-256: 7133a483d8ddc48e6fda47dd4b483435e82df025a258946eeebafddb56b0de6a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
 import { useMobile } from '../lib/hooks'
+import DataLoadError from '../components/DataLoadError'
+import { fetchAllStrict } from '../lib/db'
 import { uploadDisplayStatus } from '../lib/uploadStatus'
 // كل الشاشات الإدارية lazy: الاستيراد المباشر كان يحمّل 24 شاشة (459KB +
 // سلسلة xlsx 424KB) لكل مستخدم حتى لو كانت صلاحياته شاشتين فقط
@@ -265,7 +267,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
   const mobileTabKeys = useMemo(() => mobileTabs.map(t => t.key), [mobileTabs])
   const isManager = adminMerchant?.role === 'admin' || adminMerchant?.role === 'super_admin'
 
-  function navTo(v: AdminView) {
+  function navTo(v: AdminView, query?: Record<string,string>) {
     if (!canAccessView(adminMerchant, v)) {
       // Redirect to first allowed view if employee tries to access blocked
       const first = visibleNavFlat[0]?.key || 'overview'
@@ -273,7 +275,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
     }
     setView(v)
     setMobileMore(false)
-    window.history.pushState(null, '', '/admin/' + v)
+    window.history.pushState(null, '', '/admin/' + v + (query ? '?' + new URLSearchParams(query).toString() : ''))
     const gk = findGroupKey(v)
     if (gk) setOpenGroups(prev => new Set([...prev, gk]))
   }
@@ -310,6 +312,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
   const [merchants, setMerchants] = useState<Merchant[]>([])
   const [perfData, setPerfData]   = useState<PerformanceData[]>([])
   const [performanceLoaded, setPerformanceLoaded] = useState(false)
+  const [performanceError,setPerformanceError]=useState(false)
   const [credentials, setCredentials] = useState<PlatformCredential[]>([])
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([])
   const [openTaskCount, setOpenTaskCount] = useState(0)
@@ -351,17 +354,11 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
 
   async function loadPerformance() {
     if (performanceLoaded) return
-    const pageSize = 1000
-    const rows: PerformanceData[] = []
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase.from('performance_data').select('*')
-        .order('data_date', { ascending:false }).order('merchant_code').order('platform').range(from, from + pageSize - 1)
-      if (error) { console.error('load administration performance', error); break }
-      rows.push(...(data || []) as PerformanceData[])
-      if (!data || data.length < pageSize) break
-    }
-    setPerfData(rows)
-    setPerformanceLoaded(true)
+    setPerformanceError(false)
+    try {
+      const rows=await fetchAllStrict<PerformanceData>((from,to)=>supabase.from('performance_data').select('*').order('data_date',{ascending:false}).order('id').range(from,to))
+      setPerfData(rows);setPerformanceLoaded(true)
+    } catch {setPerformanceError(true)}
   }
 
   useEffect(() => {
@@ -484,7 +481,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
         </div>
 
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}><div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}>
-        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} syncLogs={syncLogs} perfData={perfData} onNavigate={target => navTo(target as AdminView)} />}
+        {view === 'overview'    && <OverviewView merchantOnly={merchantOnly} activeIntegrations={activeIntegrations} totalIntegrations={credentials.length} openTaskCount={openTaskCount} syncLogs={syncLogs} perfData={perfData} onNavigate={(target, query) => navTo(target as AdminView, query)} />}
         {view === 'team'        && <TeamDashboardView />}
         {view === 'merchants'   && (
           timelineCode
@@ -492,7 +489,7 @@ export default function AdminPanel({ merchant: adminMerchant, onImpersonate, onS
             : <MerchantsView currentUser={adminMerchant} merchants={merchants} gmvByMerchant={gmvByMerchant} credentials={credentials} onRefresh={() => loadAll(true)} onImpersonate={onImpersonate} onOpenTimeline={openTimeline} />
         )}
         {view === 'employees'   && <EmployeesView merchants={merchants} currentUser={adminMerchant} currentUserId={adminMerchant?.id} onRefresh={() => loadAll(true)} />}
-        {view === 'performance' && <PerformanceView merchants={merchantOnly} perfData={perfData} />}
+        {view === 'performance' && (performanceError ? <DataLoadError onRetry={()=>void loadPerformance()}/> : performanceLoaded ? <PerformanceView merchants={merchantOnly} perfData={perfData} /> : <p role="status">جارٍ تحميل سجل الأداء كاملًا…</p>)}
         {view === 'entry'       && <EntryView merchants={merchantOnly} />}
         {view === 'import'      && <ImportFilesView merchants={merchantOnly} />}
         {view === 'uploads'     && <UploadsLogView merchants={merchants} />}

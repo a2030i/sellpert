@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useSellingAccountClient } from './SellingAccountScope'
+import { fetchAllStrict, withTimeout } from '../lib/db'
+import DataLoadError from './DataLoadError'
 import { PLATFORM_MAP } from '../lib/constants'
 
 type Scheduled = { platform: string; payout_date: string; amount: number; status: string; note?: string }
@@ -19,26 +21,39 @@ function relDays(d: string) {
   return `بعد ${days} يوم`
 }
 
-/**
- * رزنامة الكاش — «القادم لحسابك: كم ومتى». سؤال التاجر الأول.
- * المواعيد المؤكّدة يُدخلها فريق الحسابات (النموذج مُدار)؛ وبدونها نعرض «مبيعات
- * بانتظار التحويل» (قبل الرسوم) كتقدير خام مع توضيح أن الصافي والموعد يؤكّدهما الفريق.
- */
+/** Workspace-scheduled payouts and separately labelled account-scoped recent sales. */
 export default function PayoutCalendar({ merchantCode, compact }: { merchantCode?: string; compact?: boolean }) {
+  const supabase = useSellingAccountClient()
+  const [error,setError] = useState(false)
+  const [retry,setRetry] = useState(0)
   const [scheduled, setScheduled] = useState<Scheduled[]>([])
   const [pending, setPending] = useState<Pending[]>([])
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     if (!merchantCode) return
-    supabase.rpc('merchant_payouts', { p_merchant_code: merchantCode }).then(({ data }) => {
-      const d: any = data || {}
-      setScheduled(d.scheduled || [])
-      setPending((d.pending_sales || []).filter((item: Pending) => Number(item.sales) > 0))
-      setLoaded(true)
-    })
-  }, [merchantCode])
+    let active = true; setError(false); setLoaded(false)
+    const start = new Date(); start.setUTCDate(start.getUTCDate()-29)
+    Promise.all([
+      withTimeout(supabase.rpc('merchant_payouts', { p_merchant_code: merchantCode })),
+      fetchAllStrict<any>((from,to)=>supabase.from('performance_data').select('platform,total_sales,data_date').eq('merchant_code',merchantCode).gte('data_date',start.toISOString().slice(0,10)).lte('data_date',new Date().toISOString().slice(0,10)).order('id').range(from,to),'مبيعات الحسابات المحددة'),
+    ]).then(([result,rows])=>{
+      if (!active) return
+      if (result.error) throw result.error
+      setScheduled((result.data as any)?.scheduled || [])
+      const groups = new Map<string,Pending>()
+      for (const row of rows) {
+        const group=groups.get(row.platform)||{platform:row.platform,sales:0,last_data_date:''}
+        group.sales+=Number(row.total_sales)||0
+        if (row.data_date>group.last_data_date) group.last_data_date=row.data_date
+        groups.set(row.platform,group)
+      }
+      setPending([...groups.values()].filter(row=>row.sales>0)); setLoaded(true)
+    }).catch(()=>{if(active)setError(true)})
+    return ()=>{active=false}
+  }, [merchantCode,supabase,retry])
 
+  if (error) return <DataLoadError onRetry={()=>setRetry(value=>value+1)} />
   if (!loaded) return null
   const upcoming = scheduled.filter(s => s.status === 'expected')
   const next = upcoming[0]
@@ -49,7 +64,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
   if (compact) {
     return (
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 20, borderRight: '4px solid var(--accent)' }}>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontWeight: 700 }}>المستحقات القادمة</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontWeight: 700 }}>مواعيد التحويل — المتجر كاملًا</div>
         {next ? (
           <>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fmtSAR(next.amount)}</div>
@@ -58,7 +73,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
         ) : (
           <>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text2)' }}>لا يوجد موعد تحويل مؤكد حاليًا</div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>مبيعات بانتظار التحويل: {fmtSAR(pending.reduce((a, p) => a + p.sales, 0))} (قبل الرسوم)</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>مبيعات آخر 30 يومًا للحسابات المحددة: {fmtSAR(pending.reduce((a, p) => a + p.sales, 0))} (قبل الرسوم، ليست رصيدًا مستحقًا)</div>
           </>
         )}
       </div>
@@ -68,8 +83,8 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
   // بطاقة كاملة (كشف الحساب)
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>المستحقات القادمة</div>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>متى تصلك مستحقاتك وكم — مواعيد يؤكّدها فريق الحسابات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>مواعيد التحويل — المتجر كاملًا</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>مواعيد فريق الحسابات تخص المتجر كاملًا؛ ملخص المبيعات أدناه يخص حسابات البيع المحددة فقط.</div>
 
       {upcoming.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: pending.length ? 16 : 0 }}>
@@ -95,7 +110,7 @@ export default function PayoutCalendar({ merchantCode, compact }: { merchantCode
 
       {pending.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>مبيعات بانتظار التحويل <span style={{ fontWeight: 500, color: 'var(--text3)' }}>(قبل رسوم المنصة — الصافي يؤكّده فريقك)</span></div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>مبيعات آخر 30 يومًا <span style={{ fontWeight: 500, color: 'var(--text3)' }}>(الحسابات المحددة، قبل الرسوم؛ لا تثبت مبالغ لم تُحوّل)</span></div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {pending.map((p, i) => (
               <div key={i} style={{ flex: '1 1 160px', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 9 }}>

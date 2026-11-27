@@ -1,0 +1,54 @@
+{
+  "target": "urdyzbsukcuibadlaath",
+  "owner_authorization": "Owner explicitly approved deployment and then the reconciliation work with موافق ع كل شي; do not ask for the same approval again.",
+  "production_applied": false,
+  "execution_ready": false,
+  "original_ledger_count": 227,
+  "original_ledger_sha256": "54eeb8a4b5b2cda4080c1f18851043c2d1e55679afed48052022aa417e5c744b",
+  "history_markers": 189,
+  "historical_versions_for_individual_reconciliation": 124,
+  "additional_corrective_migrations": [
+    {
+      "path": "supabase/migrations/20261126092419_restore_omitted_analytics_baseline.sql",
+      "sha256": "8d205971577e86a73f87b77fa78ffeac758d1b4b6ae4f1c7927aaf0e91d62f20"
+    },
+    {
+      "path": "supabase/migrations/20261126092426_reconcile_confirmed_security_schema_gaps.sql",
+      "sha256": "c4bfb6eb6b65434adc5d0861fc9d164f6e755aeb43c81910816b863a403be7a9"
+    },
+    {
+      "path": "supabase/migrations/20261126092919_preserve_production_rpc_and_audit_behavior.sql",
+      "sha256": "7913a6f500770e7f3acb418f0cd73bd5cb47af3a307e9038be4dcb79e0b3b26e"
+    },
+    {
+      "path": "supabase/migrations/20261126094647_reconcile_analytics_validation_and_arabic_labels.sql",
+      "sha256": "d54da82644fa869724f9285385829573c23561399e7355e28803cc953434d98a"
+    },
+    {
+      "path": "supabase/migrations/20261127123615_preserve_reviewed_policy_contracts.sql",
+      "sha256": "767cedfc3aa980593f55e6c817461edeab6feba5c8237ac1f012f3f074d1ce26"
+    }
+  ],
+  "blockers": [],
+  "files": {
+    "catalog-metadata.sql": "6a5acf87ef9583de69df34acb16c9d24cc8ec329ee8afef505ea1f16e046ae6c",
+    "catalog-refresh-delta.json": "cb0ff45313f594f743c1024d1e9c4ee737285d86279f7726f39e5b540350db86",
+    "history-marker-manifest.json": "db2293220c7c2805063d5dac877e7743bb4272573815355731f32c4a7336dbb3",
+    "original-history-preserved.sql": "eaefc30ec5230780a1171a75e5b284e2af536614422191a9f0306c26c8792055",
+    "original-ledger-hashes.json": "33a7be926a45147dae55448b5c470a747cbd0e04b44db35d8c079ce631a9784b",
+    "per-entry-review.json": "0c4988cd4936810f04d6da82ad3cb738a944f082cd7318e8a40854d11611a670",
+    "policy-apply-repeat-results.json": "3f8218c852826c84b7e914850aec7d89d5ec0c399cb2eb46d8b708de7abe3f9b",
+    "policy-guard-test-results.json": "ee9cb435a91099f9bcff19261f48e296008b50a32914604b592029d1c201679c",
+    "production-catalog-before.json": "6410b66bfbb4a0be38e12538b0f71b39ea856a5b629566e46d3f22c5acceeead",
+    "production-policy-sql-results.json": "631a050d2b0268fe8c5efdab24381d7c33ee808044ea5b3efda2542f129d032f",
+    "rebuilt-schema-sql-results.json": "631a050d2b0268fe8c5efdab24381d7c33ee808044ea5b3efda2542f129d032f",
+    "sellpert-core-routine-semantic-classification.json": "25bb479eba6dc1b7a63f31bf45780c2e1f90ef04b53f7f600ca8e460e0ff74d1",
+    "sellpert-five-analytics-classification.json": "7f8daf804a56b0b27ed157a2ae3b746a34130f49194ddac4c32eeb0eaefe9f14",
+    "sellpert-policy-reconciliation.json": "ced44d255d575d304a67246c810921ac0d2119fd7631d7bc2952aac4286507ed",
+    "sellpert-routine-case-lexical-comparison.json": "dc8ed38994d35a63b10422f8b06536bf164c6b4a4e464defa0b7e2b27178e315",
+    "sellpert-view-extra-reconciliation.json": "795c646f9af52cb16dc133b664015b473e4fff09fa1c4570744f5470382df250",
+    "local-cli-history-shape.json": "2802248ec7e5312f8557aa1f1949ad37020aeeb05b26438ec3881b60e86b24e0"
+  },
+  "backup_check": "explicitly_waived_by_owner",
+  "execution_bundle": "scripts/releases/coordinated-20261127/execution-manifest.json"
+}

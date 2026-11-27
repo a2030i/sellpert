@@ -1,35 +1,45 @@
+import { useSellingAccountClient } from '../components/SellingAccountScope'
 import { useState, useEffect } from 'react'
-import { PRODUCT_SAFE_COLUMNS, supabase } from '../lib/supabase'
+import { PRODUCT_SAFE_COLUMNS } from '../lib/supabase'
 import { useMemo } from 'react'
 import type { Merchant } from '../lib/supabase'
 import { fmtCurrency, fmtNumber, fmtPercent } from '../lib/formatters'
 import { ChevronLeft, X, Scale } from 'lucide-react'
+import DataLoadError from '../components/DataLoadError'
 import { PageHeader } from '../components/UI'
 
 export default function ProductCompare({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const params = new URLSearchParams(window.location.search)
   const idsParam = params.get('ids') || ''
   const ids = useMemo(() => idsParam.split(',').filter(Boolean), [idsParam])
   const [products, setProducts] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState(false),[reload,setReload]=useState(0)
 
   useEffect(() => {
     if (!merchant || ids.length === 0) { setLoading(false); return }
+    let cancelled=false;setLoading(true);setError(false)
     Promise.all([
       supabase.from('products').select(PRODUCT_SAFE_COLUMNS).in('id', ids).eq('merchant_code', merchant.merchant_code),
       supabase.from('product_profitability').select('*').in('product_id', ids).eq('merchant_code', merchant.merchant_code),
-    ]).then(([p, prof]) => {
+    ]).then(([p,prof])=>{
+      if(p.error||prof.error)throw p.error||prof.error
+      if(cancelled)return
       const profMap = new Map((prof.data || []).map((r: any) => [r.product_id, r]))
       setProducts((p.data || []).map((prod: any) => ({ ...prod, ...(profMap.get(prod.id) || {}) })))
       setLoading(false)
-    })
-  }, [merchant, ids])
+    }).catch(()=>{if(!cancelled){setError(true);setLoading(false)}})
+    return()=>{cancelled=true}
+  },[merchant,ids,supabase,reload])
 
   function back() {
     window.history.pushState(null, '', '/products')
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
+  if(error)return <DataLoadError onRetry={()=>setReload(n=>n+1)}/>
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}>جاري التحميل...</div>
   if (products.length === 0) return (
     <div style={{ padding: 60, textAlign: 'center' }}>
@@ -87,7 +97,7 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
           </thead>
           <tbody>
             {metrics.map((m, mi) => {
-              const vals = products.map(p => Number(p[m.key])).filter(v => !isNaN(v))
+              const vals = products.filter(p=>p[m.key]!=null).map(p=>Number(p[m.key])).filter(Number.isFinite)
               const best  = vals.length === 0 ? null : (m.lower ? Math.min(...vals) : Math.max(...vals))
               const worst = vals.length === 0 ? null : (m.lower ? Math.max(...vals) : Math.min(...vals))
               return (
@@ -95,12 +105,12 @@ export default function ProductCompare({ merchant }: { merchant: Merchant | null
                   <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>{m.label}</td>
                   {products.map((p, i) => {
                     const v = p[m.key]
-                    const isBest  = best !== null && Number(v) === best
-                    const isWorst = worst !== null && Number(v) === worst && best !== worst
+                    const isBest  = v != null && best !== null && Number(v) === best
+                    const isWorst = v != null && worst !== null && Number(v) === worst && best !== worst
                     const bg = isBest ? 'rgba(0,184,148,0.08)' : isWorst ? 'rgba(232,64,64,0.06)' : 'transparent'
                     return (
                       <td key={i} style={{ padding: '12px 14px', fontSize: 13, fontWeight: isBest || isWorst ? 800 : 600, color: isBest ? '#00b894' : isWorst ? '#e84040' : 'var(--text)', background: bg }}>
-                        {m.format(v)}
+                        {v==null?'غير مكتمل':m.format(v)}
                         {isBest && products.length > 1 && <span style={{ fontSize: 9, marginRight: 6, color: '#00b894' }}>الأفضل</span>}
                       </td>
                     )

@@ -1,3 +1,4 @@
+import { useSelectedSellingAccounts } from './SellingAccountScope'
 import { useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useMobile } from '../lib/hooks'
@@ -29,6 +30,8 @@ export default function SettlementReconciliationPanel({ transactions, refreshing
   onRefresh?:() => void
 }) {
   const isMobile = useMobile()
+  const selectedAccounts = useSelectedSellingAccounts()
+  const accountLabel = (id?:string|null) => selectedAccounts.find(account=>account.id===id)?.label || 'بيانات قديمة غير منسوبة'
   const reconciliation = useMemo(() => reconcileSettlements(transactions), [transactions])
   const hasIssues = reconciliation.variance + reconciliation.review > 0
 
@@ -64,10 +67,10 @@ export default function SettlementReconciliationPanel({ transactions, refreshing
         <div style={{ padding:isMobile ? 10 : '12px 14px', display:'grid', gap:8 }}>
           {reconciliation.groups.slice(0, 20).map(group => {
             const meta = STATUS[group.status]
-            return <details key={`${group.platform}:${group.reference}`} style={{ border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
+            return <details key={`${group.marketplace_account_id}:${group.platform}:${group.reference}`} style={{ border:'1px solid var(--border)', borderRadius:10, background:'var(--surface2)' }}>
               <summary style={{ listStyle:'none', cursor:'pointer', padding:isMobile ? 11 : '12px 14px', display:'grid', gridTemplateColumns:isMobile ? '1fr auto' : 'minmax(130px,1fr) repeat(4,minmax(110px,.8fr))', alignItems:'center', gap:10 }}>
                 <div>
-                  <div style={{ fontSize:11, fontWeight:800 }}>{PLATFORM_MAP[group.platform] || group.platform} · تسوية {reference(group.reference)}</div>
+                  <div style={{ fontSize:11, fontWeight:800 }}>{PLATFORM_MAP[group.platform] || group.platform} · {accountLabel(group.marketplace_account_id)} · تسوية {reference(group.reference)}</div>
                   <div style={{ fontSize:9, color:'var(--text3)', marginTop:3 }}>{group.transactionCount.toLocaleString('ar-SA-u-nu-latn')} حركة · حتى {date(group.lastActivity)}</div>
                 </div>
                 {!isMobile ? <>

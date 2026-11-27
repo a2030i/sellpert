@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260818183555
+-- Original remote name: omniful_central_channel_assignments
+-- Original recorded SQL SHA-256: 639faa8d1200cc60ea92f65dd8cc7fee359e9b2d6c72974c32e57a344d72d6dc
+-- Reconstructed final schema mapping:
+--   20260818182242_omniful_central_channel_assignments.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

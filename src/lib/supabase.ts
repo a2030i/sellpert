@@ -40,6 +40,8 @@ function makeStorage(): Storage {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: {
+    // Existing CORS-approved header also identifies the account-aware contract.
+    headers: { 'x-client-info': 'sellpert-accounts-v1' },
     fetch: createMonitoredFetch(globalThis.fetch.bind(globalThis), dispatchApiIncident),
   },
   auth: {
@@ -85,6 +87,7 @@ export type InventoryPlatform  = 'trendyol' | 'noon' | 'amazon' | 'warehouse'
 export type ConnectionPlatform = 'trendyol'
 
 export interface PerformanceData {
+  marketplace_account_id?: string
   id: string
   merchant_code: string
   created_at: string
@@ -99,6 +102,7 @@ export interface PerformanceData {
 }
 
 export interface PlatformCredential {
+  marketplace_account_id?: string
   id: string
   merchant_code: string
   platform: ConnectionPlatform
@@ -114,6 +118,7 @@ export interface PlatformCredential {
 }
 
 export interface SyncLog {
+  marketplace_account_id?: string
   id: string
   merchant_code: string
   platform: string
@@ -127,6 +132,7 @@ export interface SyncLog {
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
 
 export interface Order {
+  marketplace_account_id?: string
   id: string
   merchant_code: string
   platform: OrderPlatform
@@ -158,6 +164,7 @@ export interface Order {
 }
 
 export interface InventoryItem {
+  marketplace_account_id?: string
   id: string
   merchant_code: string
   sku: string

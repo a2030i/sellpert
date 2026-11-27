@@ -1,0 +1,40 @@
+{
+  "formatting_equivalent": [
+    "public.ad_kpi_summary(p_merchant_code text, p_days integer, p_platform text)",
+    "public.current_merchant_code()",
+    "public.delete_upload_cascade(p_upload_id uuid)",
+    "public.delete_upload_with_data(p_upload_id uuid)",
+    "public.get_db_health()",
+    "public.get_db_health_internal()",
+    "public.is_staff()",
+    "public.list_marketplace_operation_facts(p_merchant_code text, p_platform text, p_product_id uuid, p_order_id text, p_package_id text, p_limit integer)",
+    "public.merchant_executive_brief(p_merchant_code text)",
+    "public.merchant_payouts(p_merchant_code text)",
+    "public.rebuild_all_derived_data(p_merchant_code text)",
+    "public.rebuild_performance_data(p_merchant_code text)",
+    "public.team_dashboard_kpis()",
+    "public.update_updated_at()",
+    "security.check_budget_alerts()",
+    "security.guard_product_mapping_actor()",
+    "security.list_marketplace_operation_facts(p_merchant_code text, p_platform text, p_product_id uuid, p_order_id text, p_package_id text, p_limit integer)"
+  ],
+  "remaining": [
+    "public.bulk_update_product_costs(p_updates jsonb, p_merchant_code text)",
+    "public.data_freshness(p_merchant_code text)",
+    "public.delete_upload_cascade_internal(p_upload_id uuid)",
+    "public.delete_upload_with_data_internal(p_upload_id uuid)",
+    "public.merchant_health_score(p_merchant_code text)",
+    "public.process_sync_queue(batch_size integer)",
+    "public.revenue_forecast(p_merchant_code text)",
+    "security.admin_ad_performance(p_merchant_code text, p_upload_id uuid, p_platform text, p_group_by text, p_search text)",
+    "security.can_access_merchant(p_merchant_code text)",
+    "security.close_stale_imports()",
+    "security.commit_merchant_file_import(p_upload_id uuid, p_payloads jsonb)",
+    "security.handle_self_service_merchant_signup()",
+    "security.merchant_executive_brief_base(p_merchant_code text)",
+    "security.process_due_account_closures()",
+    "security.rebuild_all_derived_data(p_merchant_code text)",
+    "security.redact_audit_values(p_values jsonb)",
+    "security.write_audit_log()"
+  ]
+}

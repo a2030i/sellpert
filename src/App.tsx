@@ -1,3 +1,4 @@
+import SellingAccountScope from './components/SellingAccountScope'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useMobile } from './lib/hooks'
@@ -60,7 +61,7 @@ const PageFallback = () => (
 export type View = 'dashboard' | 'actions' | 'integrations' | 'store-status' | 'activity' | 'security' | 'orders' | 'customers' | 'inventory' | 'settings' | 'products' | 'product-catalog' | 'requests' | 'statement' | 'marketing' | 'notifications' | 'product-detail' | 'product-compare' | 'help' | 'quick-inventory' | 'team'
 
 const VALID_VIEWS: View[] = ['dashboard', 'actions', 'integrations', 'store-status', 'activity', 'security', 'orders', 'customers', 'inventory', 'settings', 'products', 'product-catalog', 'requests', 'statement', 'marketing', 'notifications', 'product-detail', 'product-compare', 'help', 'quick-inventory', 'team']
-const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-catalog', 'product-detail', 'quick-inventory', 'marketing', 'settings'])
+const PHASE_ONE_VIEWS = new Set<View>(['dashboard', 'integrations', 'orders', 'inventory', 'products', 'product-catalog', 'product-detail', 'quick-inventory', 'marketing', 'settings', 'statement', 'security', 'store-status'])
 
 type NavItem = { Icon: LucideIcon; label: string; key: View; permission?: MerchantPermissionKey }
 type NavGroup = { key: string; label: string; placement?: 'primary' | 'secondary'; items: NavItem[] }
@@ -469,7 +470,8 @@ function MerchantApp() {
           </header>
         )}
         <PageErrorBoundary resetKey={view} onGoHome={() => goTo('dashboard')}>
-          <Suspense fallback={<PageFallback />}>
+          <SellingAccountScope key={activeMerchant?.merchant_code} merchantCode={activeMerchant?.merchant_code || ''} enabled={['dashboard','orders','inventory','marketing','statement','products','product-catalog','product-detail','product-compare','quick-inventory','customers'].includes(view)}>
+          <Suspense key={activeMerchant?.merchant_code} fallback={<PageFallback />}>
             {view === 'dashboard'    && <Dashboard merchant={activeMerchant} onNavigate={goTo} />}
             {view === 'actions'      && <Actions      merchant={activeMerchant} />}
             {view === 'products'     && <Products     merchant={activeMerchant} />}
@@ -492,6 +494,7 @@ function MerchantApp() {
             {view === 'team'            && <Team            merchant={activeMerchant} />}
             {view === 'settings'     && <Settings     merchant={activeMerchant} onUpdate={m => { if (!impersonating) setMerchant(m) }} />}
           </Suspense>
+          </SellingAccountScope>
         </PageErrorBoundary>
       </main>
       <ToastContainer />

@@ -20,8 +20,9 @@ describe('safe marketplace operation feed contract', () => {
 
   it('routes every browser operation read through the tenant-checked RPC helper', () => {
     const helper = readFileSync('src/lib/marketplaceOperations.ts', 'utf8')
-    expect(helper).toContain("supabase.rpc('list_marketplace_operation_facts'")
+    expect(helper).toContain("supabase.rpc('list_marketplace_operation_facts_by_account'")
     expect(helper).toContain('p_merchant_code: options.merchantCode')
+    expect(helper).toContain('p_account_ids:options.accountIds')
     expect(helper).not.toContain('request')
     expect(helper).not.toContain('response')
   })

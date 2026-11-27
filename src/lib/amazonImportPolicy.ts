@@ -1,4 +1,4 @@
-export const AMAZON_IMPORT_CONNECTED_MESSAGE = 'رفع ملفات أمازون متوقف لهذا الحساب بعد تفعيل الربط المباشر. البيانات السابقة محفوظة، ومزامنة الطلبات والتسويات ستتاح في تحديث لاحق.'
+export const AMAZON_IMPORT_CONNECTED_MESSAGE = 'رفع ملفات أمازون متوقف لهذا الحساب بعد تفعيل الربط المباشر. البيانات السابقة محفوظة، وتُحدَّث الطلبات والمعاملات المالية عبر الربط المباشر.'
 export const AMAZON_IMPORT_UNKNOWN_MESSAGE = 'تعذر التأكد من حالة ربط أمازون. أعد التحقق قبل رفع ملف أمازون؛ يمكنك رفع ملفات المنصات الأخرى.'
 
 /** Unknown or malformed status must never enable Amazon file ingestion. */
@@ -10,6 +10,10 @@ export function amazonFileImportAllowedFromStatus(status: unknown): boolean | nu
   if (!status || typeof status !== 'object') return null
   const value = status as Record<string, unknown>
   if (typeof value.app_configured !== 'boolean') return null
+  if (Array.isArray(value.connections)) {
+    if (value.connections.some(row => !row || typeof row.is_active !== 'boolean')) return null
+    return !value.connections.some(row => row.is_active)
+  }
   if (value.connection === null) return true
   if (!value.connection || typeof value.connection !== 'object') return null
   const active = (value.connection as Record<string, unknown>).is_active

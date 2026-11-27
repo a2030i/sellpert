@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import SellingAccountChooser from './SellingAccountChooser'
 import { ExternalLink, Unplug } from 'lucide-react'
 import {
   AMAZON_MARKETPLACE_NAMES,
@@ -15,6 +16,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
   merchantCode: string
   onStatusChange?: (merchantCode: string, status: AmazonConnectionStatus | null) => void
 }) {
+  const [accountId, setAccountId] = useState('')
   const [status, setStatus] = useState<AmazonConnectionStatus | null>(null)
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState<'start' | 'complete' | 'disconnect' | null>(null)
@@ -56,7 +58,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
   async function start() {
     setBusy('start'); setNotice(null)
     try {
-      const result = await callAmazonConnect({ action: 'start', merchant_code: merchantCode })
+      const result = await callAmazonConnect({ action: 'start', merchant_code: merchantCode, marketplace_account_id: accountId })
       if (typeof result?.consent_url !== 'string' || !result.consent_url.startsWith('https://sellercentral.amazon.')) {
         throw new Error('تعذر تجهيز رابط الربط')
       }
@@ -71,7 +73,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
     if (!window.confirm('إلغاء ربط حساب أمازون من سيلبرت؟ يمكنك أيضًا إلغاء الإذن من حسابك في أمازون: الإعدادات ← إدارة التطبيقات.')) return
     setBusy('disconnect'); setNotice(null)
     try {
-      await callAmazonConnect({ action: 'disconnect', merchant_code: merchantCode })
+      await callAmazonConnect({ action: 'disconnect', merchant_code: merchantCode, marketplace_account_id: accountId })
       setNotice({ type: 'ok', text: 'تم إلغاء ربط أمازون.' })
       await load()
     } catch (error) {
@@ -79,7 +81,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
     } finally { setBusy(null) }
   }
 
-  const connection = status?.connection || null
+  const connection = status?.connections?.find(row => row.marketplace_account_id === accountId) || null
   const connected = Boolean(connection?.is_active)
   const markets = (connection?.marketplaces || []).map(m => AMAZON_MARKETPLACE_NAMES[m.country] || m.name || m.country).join('، ')
 
@@ -99,6 +101,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         </span>
       </div>
 
+      <SellingAccountChooser merchantCode={merchantCode} platform="amazon" disabled={Boolean(busy)} value={accountId} onChange={account => { setAccountId(account?.id || ''); setNotice(null) }} allowCreate={Boolean(status?.app_configured) && !busy} />
       {connected && connection ? <dl style={{ margin: '14px 0 0', fontSize: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px' }}>
         <dt style={{ color: 'var(--text2)' }}>معرّف البائع</dt><dd style={{ margin: 0 }} className="latin-number">{connection.seller_id}</dd>
         <dt style={{ color: 'var(--text2)' }}>الأسواق</dt><dd style={{ margin: 0 }}>{markets || '—'}</dd>
@@ -111,7 +114,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
       {notice ? <p role={notice.type === 'err' ? 'alert' : 'status'} style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 700, color: notice.type === 'ok' ? 'var(--success-text)' : 'var(--danger-text)' }}>{notice.text}</p> : null}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-        {!connected && status?.app_configured ? <button type="button" onClick={start} disabled={busy !== null} style={primaryButton(busy !== null)}>
+        {!connected && status?.app_configured ? <button type="button" onClick={start} disabled={busy !== null || !accountId} style={primaryButton(busy !== null)}>
           <ExternalLink size={15} /> {busy === 'start' ? 'جارٍ التحويل إلى أمازون…' : 'ربط حساب أمازون'}
         </button> : null}
         {connected ? <button type="button" onClick={disconnect} disabled={busy !== null} style={dangerButton(busy !== null)}>

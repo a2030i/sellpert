@@ -1,22 +1,25 @@
+import { useSellingAccountClient } from '../components/SellingAccountScope'
 import { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AlertTriangle, Boxes, CalendarDays, CheckCircle2, ChevronDown, Clock3, Layers3, Package, RefreshCw, ShoppingCart, WalletCards } from 'lucide-react'
-import { fetchAll } from '../lib/db'
+import { fetchAllStrict as fetchAll } from '../lib/db'
 import { listPlatformCredentials } from '../lib/platformCredentialManager'
 import { PLATFORM_MAP } from '../lib/constants'
-import { supabase, type Merchant, type PlatformCredential } from '../lib/supabase'
+import { type Merchant, type PlatformCredential } from '../lib/supabase'
 import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
+import { dateScope, orderIsPending } from '../lib/dataScope'
+import DataLoadError from '../components/DataLoadError'
 import './DashboardV2.css'
 import './DashboardV2.next.css'
 
 type PhaseOneView = 'orders' | 'products' | 'product-catalog' | 'inventory' | 'integrations'
 type DatePreset = '7' | '30' | '90' | 'month' | 'custom'
-type OrderRow = { order_id:string; platform:string; status:string; product_name:string|null; sku:string|null; quantity:number; total_amount:number; currency:string; order_date:string }
-type OrderItemRow = { order_id:string; platform:string; barcode:string|null; sku:string|null; product_name:string|null; quantity:number; line_total:number }
-type StockRow = { sku:string; product_name:string|null; platform:string; quantity:number; reserved_quantity:number|null }
-type ReturnRow = { sku:string|null; product_name:string|null; platform:string; quantity:number|null; return_amount:number|null; return_date:string }
+type OrderRow = { marketplace_account_id?:string; order_id:string; platform:string; status:string; product_name:string|null; sku:string|null; quantity:number; total_amount:number; currency:string; order_date:string }
+type OrderItemRow = { marketplace_account_id?:string; order_id:string; platform:string; barcode:string|null; sku:string|null; product_name:string|null; quantity:number; line_total:number }
+type StockRow = { marketplace_account_id?:string; sku:string; product_name:string|null; platform:string; quantity:number; reserved_quantity:number|null }
+type ReturnRow = { marketplace_account_id?:string; sku:string|null; product_name:string|null; platform:string; quantity:number|null; return_amount:number|null; return_date:string }
 
-const STATUS_PENDING = new Set(['pending', 'processing', 'new', 'confirmed', 'ready_to_ship'])
+
 
 function money(value:number) { return new Intl.NumberFormat('ar-SA-u-nu-latn', { style:'currency', currency:'SAR', maximumFractionDigits:0 }).format(value || 0) }
 function number(value:number) { return new Intl.NumberFormat('ar-SA-u-nu-latn').format(value || 0) }
@@ -46,6 +49,8 @@ function relativeTime(value?:string|null) {
 }
 
 export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchant|null; onNavigate:(view:PhaseOneView, query?:Record<string,string>)=>void }) {
+  const supabase = useSellingAccountClient()
+
   const initial = useMemo(initialFilters, [])
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([])
@@ -56,6 +61,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
   const [credentials, setCredentials] = useState<PlatformCredential[]>([])
   const [loading, setLoading] = useState(true)
   const [partial, setPartial] = useState(false)
+  const [loadVersion, setLoadVersion] = useState(0)
   const [preset, setPreset] = useState<DatePreset>(initial.preset)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initial.platforms)
   const [from, setFrom] = useState(initial.from)
@@ -86,10 +92,10 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     let cancelled = false
     setLoading(true)
     Promise.allSettled([
-      fetchAll<OrderRow>((f,t) => supabase.from('orders').select('order_id,platform,status,product_name,sku,quantity,total_amount,currency,order_date').eq('merchant_code', code).order('order_date', { ascending:false }).range(f,t), 'طلبات لوحة التحكم'),
-      fetchAll<OrderItemRow>((f,t) => supabase.from('order_items').select('order_id,platform,barcode,sku,product_name,quantity,line_total').eq('merchant_code', code).order('order_id').range(f,t), 'بنود طلبات لوحة التحكم'),
-      fetchAll<StockRow>((f,t) => supabase.from('inventory').select('sku,product_name,platform,quantity,reserved_quantity').eq('merchant_code', code).eq('is_active', true).range(f,t), 'مخزون لوحة التحكم'),
-      fetchAll<ReturnRow>((f,t) => supabase.from('returns').select('sku,product_name,platform,quantity,return_amount,return_date').eq('merchant_code', code).order('return_date', { ascending:false }).range(f,t), 'مرتجعات لوحة التحكم'),
+      fetchAll<OrderRow>((f,t) => supabase.from('orders').select('order_id,platform,status,product_name,sku,quantity,total_amount,currency,order_date').eq('merchant_code', code).order('order_date', { ascending:false }).order('id').range(f,t), 'طلبات لوحة التحكم'),
+      fetchAll<OrderItemRow>((f,t) => supabase.from('order_items').select('order_id,platform,barcode,sku,product_name,quantity,line_total').eq('merchant_code', code).order('order_id').order('id').range(f,t), 'بنود طلبات لوحة التحكم'),
+      fetchAll<StockRow>((f,t) => supabase.from('inventory').select('sku,product_name,platform,quantity,reserved_quantity').eq('merchant_code', code).eq('is_active', true).order('id').range(f,t), 'مخزون لوحة التحكم'),
+      fetchAll<ReturnRow>((f,t) => supabase.from('returns').select('sku,product_name,platform,quantity,return_amount,return_date').eq('merchant_code', code).order('return_date', { ascending:false }).order('id').range(f,t), 'مرتجعات لوحة التحكم'),
       fetchAll<CatalogProductIdentity>((f,t) => supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', code).order('id').range(f,t), 'دليل منتجات لوحة التحكم'),
       fetchAll<CatalogChannelMapping>((f,t) => supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', code).order('id').range(f,t), 'روابط دليل المنتجات'),
       listPlatformCredentials(code),
@@ -107,16 +113,9 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
       setLoading(false)
     })
     return () => { cancelled = true }
-  }, [merchant?.merchant_code])
+  }, [merchant?.merchant_code, loadVersion, supabase])
 
-  const bounds = useMemo(() => {
-    const end = new Date(); end.setHours(23,59,59,999)
-    let start:Date
-    if (preset === 'custom') { start = new Date(`${from}T00:00:00`); const customEnd = new Date(`${to}T23:59:59`); return [start, customEnd] as const }
-    if (preset === 'month') start = new Date(end.getFullYear(), end.getMonth(), 1)
-    else { start = new Date(end); start.setDate(start.getDate() - Number(preset) + 1); start.setHours(0,0,0,0) }
-    return [start,end] as const
-  }, [preset, from, to])
+  const bounds = useMemo(() => dateScope(preset, from, to)!, [preset, from, to])
 
   const availablePlatforms = useMemo(() => [...new Set([
     ...orders.map(row => row.platform),
@@ -134,9 +133,9 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     return d >= bounds[0] && d <= bounds[1] && (!activePlatformSet || activePlatformSet.has(r.platform))
   }), [returns,bounds,activePlatformSet])
   const selectedStock = useMemo(() => stock.filter(row => !activePlatformSet || activePlatformSet.has(row.platform)), [stock, activePlatformSet])
-  const uniqueOrders = useMemo(() => Array.from(new Map(selected.map(o => [`${o.platform}:${o.order_id}`, o])).values()), [selected])
+  const uniqueOrders = useMemo(() => Array.from(new Map(selected.map(o => [`${o.marketplace_account_id || "legacy"}:${o.platform}:${o.order_id}`, o])).values()), [selected])
   const revenue = selected.reduce((sum,o) => sum + Number(o.total_amount || 0), 0)
-  const pending = new Set(orders.filter(o => (!activePlatformSet || activePlatformSet.has(o.platform)) && STATUS_PENDING.has(String(o.status).toLowerCase())).map(o => `${o.platform}:${o.order_id}`)).size
+  const pending = new Set(orders.filter(o => (!activePlatformSet || activePlatformSet.has(o.platform)) && orderIsPending(o)).map(o => `${o.marketplace_account_id || "legacy"}:${o.platform}:${o.order_id}`)).size
   const outStock = selectedStock.filter(s => Number(s.quantity || 0) - Number(s.reserved_quantity || 0) <= 0).length
   const outStockRate = selectedStock.length ? outStock / selectedStock.length * 100 : 0
 
@@ -167,7 +166,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     selected.forEach(o => {
       const key = riyadhDateKey(o.order_date)
       if (!days.has(key)) days.set(key, { date:key, sales:0, orders:new Set() })
-      const day = days.get(key)!; day.sales += Number(o.total_amount || 0); day.orders.add(`${o.platform}:${o.order_id}`)
+      const day = days.get(key)!; day.sales += Number(o.total_amount || 0); day.orders.add(`${o.marketplace_account_id || "legacy"}:${o.platform}:${o.order_id}`)
     })
     return [...days.values()].sort((a,b) => a.date.localeCompare(b.date)).map(day => ({ ...day, label:new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn',{day:'numeric',month:'short'}).format(new Date(day.date)), orderCount:day.orders.size }))
   }, [selected, bounds])
@@ -176,30 +175,30 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
 
   const topProducts = useMemo(() => {
     const values = new Map<string,{ name:string; sales:number; qty:number }>()
-    const selectedOrders = new Map(selected.map(order => [`${order.platform}:${order.order_id}`, order]))
+    const selectedOrders = new Map(selected.map(order => [`${order.marketplace_account_id || "legacy"}:${order.platform}:${order.order_id}`, order]))
     const ordersWithItems = new Set<string>()
-    const add = (platform:string, orderId:string, identifiers:Array<string|null|undefined>, sourceName:string|null, qty:number, sales:number) => {
-      const product = resolveCatalogProduct({ platform, identifiers, sourceName })
+    const add = (accountId:string|undefined, platform:string, orderId:string, identifiers:Array<string|null|undefined>, sourceName:string|null, qty:number, sales:number) => {
+      const product = resolveCatalogProduct({ marketplace_account_id:accountId, platform, identifiers, sourceName })
       const fallback = sourceName || identifiers.find(Boolean) || 'منتج غير معروف'
-      const key = product?.id || `${platform}:${String(fallback)}`
+      const key = product?.id || `${accountId}:${platform}:${String(fallback)}`
       const value = values.get(key) || { name:product?.name || String(fallback), sales:0, qty:0 }
       value.sales += Number(sales || 0); value.qty += Number(qty || 1); values.set(key, value)
-      ordersWithItems.add(`${platform}:${orderId}`)
+      ordersWithItems.add(`${accountId || "legacy"}:${platform}:${orderId}`)
     }
     orderItems.forEach(item => {
-      if (!selectedOrders.has(`${item.platform}:${item.order_id}`)) return
-      add(item.platform, item.order_id, [item.barcode,item.sku], item.product_name, item.quantity, item.line_total)
+      if (!selectedOrders.has(`${item.marketplace_account_id || "legacy"}:${item.platform}:${item.order_id}`)) return
+      add(item.marketplace_account_id, item.platform, item.order_id, [item.barcode,item.sku], item.product_name, item.quantity, item.line_total)
     })
     selected.forEach(order => {
-      if (ordersWithItems.has(`${order.platform}:${order.order_id}`)) return
-      add(order.platform, order.order_id, [order.sku], order.product_name, order.quantity, order.total_amount)
+      if (ordersWithItems.has(`${order.marketplace_account_id || "legacy"}:${order.platform}:${order.order_id}`)) return
+      add(order.marketplace_account_id, order.platform, order.order_id, [order.sku], order.product_name, order.quantity, order.total_amount)
     })
     return [...values.values()].sort((a,b)=>b.sales-a.sales).slice(0,5)
   }, [selected, orderItems, resolveCatalogProduct])
 
   const topReturns = useMemo(() => {
     const values = new Map<string,{ name:string; qty:number; amount:number }>()
-    selectedReturns.forEach(r => { const product=resolveCatalogProduct({platform:r.platform,identifiers:[r.sku],sourceName:r.product_name}); const key=product?.id||r.sku||r.product_name||'—'; const v=values.get(key)||{name:product?.name||r.product_name||key,qty:0,amount:0}; v.qty+=Number(r.quantity||1); v.amount+=Number(r.return_amount||0); values.set(key,v) })
+    selectedReturns.forEach(r => { const product=resolveCatalogProduct({marketplace_account_id:r.marketplace_account_id,platform:r.platform,identifiers:[r.sku],sourceName:r.product_name}); const key=product?.id||`${r.marketplace_account_id}:${r.platform}:${r.sku||r.product_name||'—'}`; const v=values.get(key)||{name:product?.name||r.product_name||key,qty:0,amount:0}; v.qty+=Number(r.quantity||1); v.amount+=Number(r.return_amount||0); values.set(key,v) })
     return [...values.values()].sort((a,b)=>b.qty-a.qty).slice(0,5)
   }, [selectedReturns, resolveCatalogProduct])
 
@@ -210,9 +209,13 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
   const navigationQuery = useMemo(() => ({
     period:preset,
     ...(preset === 'custom' ? { from, to } : {}),
-    ...(selectedPlatforms.length === 1 ? { platform:selectedPlatforms[0] } : {}),
-  }), [preset, from, to, selectedPlatforms])
-  const navigate = (view:PhaseOneView, extra:Record<string,string>={}) => onNavigate(view, { ...navigationQuery, ...extra })
+    platform:selectedPlatforms.length === 1 ? selectedPlatforms[0] : 'all',
+    platforms:selectedPlatforms.join(','),
+    from: riyadhDateKey(bounds[0]), to: riyadhDateKey(bounds[1]),
+  }), [preset, from, to, selectedPlatforms, bounds])
+  const navigate = (view:PhaseOneView, extra:Record<string,string>={}) => onNavigate(view, { ...navigationQuery, ...(extra.period === 'all' ? {from:'',to:''} : {}), ...extra })
+
+  if (partial && !loading) return <main className="merchant-page"><h1 className="merchant-page-title">لوحة المتجر</h1><DataLoadError onRetry={() => setLoadVersion(v => v + 1)} /></main>
 
   return <main className="merchant-dashboard merchant-page" dir="rtl">
     <header className="dashboard-header">
@@ -229,12 +232,11 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
       </div>
     </header>
     {preset === 'custom' && <div className="custom-range"><label>من <input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)}/></label><label>إلى <input type="date" value={to} min={from} onChange={e=>setTo(e.target.value)}/></label></div>}
-    {partial && !loading && <div className="quiet-notice">تعذر تحديث بعض البيانات الآن، وتم عرض أحدث بيانات متاحة.</div>}
 
     <section className="dashboard-command-grid">
       <article className="decision-panel">
         <header><h2>ما الذي يحتاج انتباهك الآن؟</h2><p>مرتبة حسب أثر الإجراء على التشغيل والمبيعات</p></header>
-        <DecisionItem tone="critical" title="طلبات تحتاج معالجة الآن" detail={`${number(pending)} طلبًا مفتوحًا يحتاج متابعة`} value={loading?'—':number(pending)} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
+        <DecisionItem tone="critical" title="طلبات معلقة تحتاج متابعة" detail={`${number(pending)} طلبًا مفتوحًا يحتاج متابعة`} value={loading?'—':number(pending)} onClick={()=>navigate('orders',{preset:'pending',period:'all'})}/>
         <DecisionItem tone="warning" title="منتجات نفدت من المخزون" detail={`${number(outStock)} منتجات توقف بيعها في قناة واحدة أو أكثر`} value={loading?'—':number(outStock)} onClick={()=>navigate('inventory',{stock:'out'})}/>
       </article>
       <article className="quick-panel">
@@ -247,7 +249,7 @@ export default function DashboardV2({ merchant, onNavigate }: { merchant:Merchan
     <section className="kpi-grid" aria-label="ملخص الأداء">
       <Kpi icon={<WalletCards/>} label="إجمالي المبيعات" value={loading?'—':money(revenue)} hint="خلال الفترة المحددة" tone="teal" onClick={()=>navigate('orders')}/>
       <Kpi icon={<ShoppingCart/>} label="إجمالي الطلبات" value={loading?'—':number(uniqueOrders.length)} hint="من كل القنوات المحددة" onClick={()=>navigate('orders')}/>
-      <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'طلبات تحتاج متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'needsAction',period:'all'})}/>
+      <Kpi icon={<Clock3/>} label="قيد المعالجة" value={loading?'—':number(pending)} hint={pending?'طلبات تحتاج متابعة':'لا توجد طلبات معلقة'} tone={pending?'amber':'green'} onClick={()=>navigate('orders',{preset:'pending',period:'all'})}/>
       <Kpi icon={<Boxes/>} label="منتجات نافدة الآن" value={loading?'—':number(outStock)} hint={selectedStock.length?`${number(outStock)} من ${number(selectedStock.length)} · ${outStockRate.toFixed(1)}%`:'لا توجد بيانات مخزون'} tone={outStock?'red':'green'} onClick={()=>navigate('inventory',{stock:'out'})}/>
     </section>
 

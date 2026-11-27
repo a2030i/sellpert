@@ -1,0 +1,85 @@
+{
+  "base_commit": "e879bcb45c30405de70c2a93de9be51ea59d48c2",
+  "production_authorized": true,
+  "migration_count": 19,
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261127100524_marketplace_account_catalog_foundation.sql",
+      "sha256": "fc51dcf185ab6961362361bc95c22107bf4d420f58bffee5088f8f140c15415a"
+    },
+    {
+      "path": "supabase/migrations/20261127100909_catalog_bundle_operations.sql",
+      "sha256": "cea1569bab9ef84c341cf0803d0a41ce2687eef93dfaec778c6e94ce387a0a0a"
+    },
+    {
+      "path": "supabase/migrations/20261127101208_marketplace_account_keys.sql",
+      "sha256": "aadc801bed34af0cd91781e661675e6d9c139f4f49a5af763cd01be384aa4bf3"
+    },
+    {
+      "path": "supabase/migrations/20261127101716_marketplace_account_aggregates.sql",
+      "sha256": "a765169b35424380210ba6da44f23dd00c5f077c7e10d7302b6c143fab3f7832"
+    },
+    {
+      "path": "supabase/migrations/20261127101835_marketplace_account_connection_operations.sql",
+      "sha256": "d30589e76fbdd632c72910e92c8612c0d4e43bdac2894bbf023076f65d20c913"
+    },
+    {
+      "path": "supabase/migrations/20261127102130_marketplace_account_queue.sql",
+      "sha256": "c5844c010e7d676fdd76ea2f32de7b0d571e81e7694faa8c938669b1445640e9"
+    },
+    {
+      "path": "supabase/migrations/20261127103116_marketplace_account_fact_projections.sql",
+      "sha256": "43ada4f4e22963182e97c68bbd3c91f2358ae8698dd2d7bd3d79b3b88f2d5f9a"
+    },
+    {
+      "path": "supabase/migrations/20261127103336_catalog_account_read_model.sql",
+      "sha256": "6dfa3c0cfce84f37c73a1fd6335ba409a0cf6767804d6dffb64db71e43c331e1"
+    },
+    {
+      "path": "supabase/migrations/20261127103510_marketplace_product_ingestion.sql",
+      "sha256": "1ccd5ecd28c53c71c4cfe6a2b8a058f0693d5e23aa20ed919d90bd83c1bc3959"
+    },
+    {
+      "path": "supabase/migrations/20261127104006_account_aware_derived_data.sql",
+      "sha256": "a723cff96b260cb9d2348f92b61862bce6d015dd4060f65f35b1c88aaf8ee5cc"
+    },
+    {
+      "path": "supabase/migrations/20261127104411_catalog_recipe_lineage.sql",
+      "sha256": "a7e0cb065f65efed364b76e06ad5178a553e5e6e9c3bdf75a0543e20ff92cdee"
+    },
+    {
+      "path": "supabase/migrations/20261127104523_marketplace_account_analytics_views.sql",
+      "sha256": "4b7fb0f7395e1610103e8ef5b614f1c1774c8da53c187bb0eb53d10abc413738"
+    },
+    {
+      "path": "supabase/migrations/20261127104847_canonical_product_account_performance.sql",
+      "sha256": "1a8c028b939811070ca70128825ddc35abe002d1143b9663990363e8b4471416"
+    },
+    {
+      "path": "supabase/migrations/20261127110528_account_operation_feed.sql",
+      "sha256": "501dae7f897ea2950f35cb278c812aed6d623b160160f9045fd90f6d2ab69aee"
+    },
+    {
+      "path": "supabase/migrations/20261127110655_account_cost_and_statement_metrics.sql",
+      "sha256": "cae66d9b7777729c8f2676247faa2adba15648df952cbe96b5feca28d6034c1d"
+    },
+    {
+      "path": "supabase/migrations/20261127111042_admin_account_metric_scope.sql",
+      "sha256": "087cf2382b89f924026893e69037adbad5db5e31dd8cc98216e797b3e3a971b8"
+    },
+    {
+      "path": "supabase/migrations/20261127111449_service_request_recovery.sql",
+      "sha256": "9835887fcb35adea4b9b46e0e027f96aebb57dafdbf8377a05738894bdf6d0b9"
+    },
+    {
+      "path": "supabase/migrations/20261127111914_account_product_provider_identity.sql",
+      "sha256": "bdc4040d7948ab71fefb7e12a5056855fc2b01f25e659cdac63970d420df7b11"
+    },
+    {
+      "path": "supabase/migrations/20261127123000_account_bank_settlement_scope.sql",
+      "sha256": "06220abeb64e2c9dc5a95802b7f72a40d211aa5b2266674d56b9b0ff31514e26"
+    }
+  ],
+  "production_applied": false,
+  "history_recovery_manifest": "scripts/releases/recovery-20261127/manifest.json"
+}

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803121521
+-- Original remote name: remove_email_authorization_and_seal_credentials
+-- Original recorded SQL SHA-256: d59942f4c2fea4ebb75ea6f07ea1e599866230330134e5f8a41ecb174bce16e4
+-- Reconstructed final schema mapping:
+--   20260803152500_remove_email_authorization_and_seal_credentials.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

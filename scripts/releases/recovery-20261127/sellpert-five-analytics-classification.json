@@ -1,0 +1,32 @@
+[
+  {
+    "name": "public.merchant_health_score",
+    "classification": "production adds explicit null/blank merchant argument rejection; all other source identical",
+    "recommended_direction": "preserve production guard and restore it in ordered local migrations",
+    "financial_formula_difference": false
+  },
+  {
+    "name": "public.revenue_forecast",
+    "classification": "production adds explicit null/blank merchant argument rejection; all other source identical",
+    "recommended_direction": "preserve production guard and restore it in ordered local migrations",
+    "financial_formula_difference": false
+  },
+  {
+    "name": "security.merchant_executive_brief_base",
+    "classification": "production adds explicit null/blank merchant argument rejection; all other source identical",
+    "recommended_direction": "preserve production guard and restore it in ordered local migrations",
+    "financial_formula_difference": false
+  },
+  {
+    "name": "security.admin_ad_performance",
+    "classification": "production fallback labels are mojibake; replacing exactly two string values produces identical local source",
+    "recommended_direction": "review narrow repair to Arabic no-name and em-dash labels; preserve authorization/filtering/aggregation",
+    "financial_formula_difference": false
+  },
+  {
+    "name": "public.data_freshness",
+    "classification": "equivalent result; keyword case, optional output-expression aliases and int/integer spelling differ",
+    "recommended_direction": "no behavior correction needed",
+    "financial_formula_difference": false
+  }
+]

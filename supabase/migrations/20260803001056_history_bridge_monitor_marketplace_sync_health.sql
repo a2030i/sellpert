@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803001056
+-- Original remote name: monitor_marketplace_sync_health
+-- Original recorded SQL SHA-256: 7c129472adae088a89b3109d1d54a85210ae11ffe6fc1403fe859f4fa4daf94a
+-- Reconstructed final schema mapping:
+--   20260803241000_monitor_marketplace_sync_health.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

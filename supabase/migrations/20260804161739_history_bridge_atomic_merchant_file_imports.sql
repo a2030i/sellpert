@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804161739
+-- Original remote name: atomic_merchant_file_imports
+-- Original recorded SQL SHA-256: 4b0f1d8e4c80cd4522db4da09cdb26e639ecb422280fd83f9105e8598da087de
+-- Reconstructed final schema mapping:
+--   20260804190659_atomic_merchant_file_imports.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

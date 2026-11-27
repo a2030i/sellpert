@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422092439
+-- Original remote name: queue_worker_cron_trigger
+-- Original recorded SQL SHA-256: b79d3b2e97e84e1d522af267a8ae5ed2b069896148feb49c3891ceff7fc35514
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804182016
+-- Original remote name: seal_admin_integration_settings
+-- Original recorded SQL SHA-256: adc538773feced99db83faaa45a1ad47d37c144abc324c551be5b38bddf18428
+-- Reconstructed final schema mapping:
+--   20260804120000_seal_admin_integration_settings.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

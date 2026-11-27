@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611170459
+-- Original remote name: ad_metrics_dedup_and_unique_guard
+-- Original recorded SQL SHA-256: 735eb2b327af836dfa022fb52a1013b3d521541dd05d2ef48220706f7ee94f55
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

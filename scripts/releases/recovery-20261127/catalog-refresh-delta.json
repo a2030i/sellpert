@@ -1,0 +1,90 @@
+{
+  "columns": {
+    "added": [
+      "public.amazon_oauth_states.consumed_at",
+      "public.amazon_oauth_states.created_at",
+      "public.amazon_oauth_states.expires_at",
+      "public.amazon_oauth_states.marketplace_id",
+      "public.amazon_oauth_states.merchant_code",
+      "public.amazon_oauth_states.state_hash",
+      "public.amazon_oauth_states.user_id"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "indexes": {
+    "added": [
+      "public.amazon_oauth_states_expires_at_idx",
+      "public.amazon_oauth_states_merchant_code_idx",
+      "public.amazon_oauth_states_pkey",
+      "public.amazon_oauth_states_user_id_idx",
+      "public.platform_credentials_active_amazon_seller_uidx"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "policies": {
+    "added": [
+      "public.amazon_oauth_states.amazon_oauth_states_server_only",
+      "public.amazon_oauth_states.sellpert_require_mfa_if_enrolled",
+      "public.amazon_oauth_states.tenant_boundary"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "routines": {
+    "added": [
+      "public.amazon_file_import_allowed(p_merchant_code text)",
+      "security.amazon_file_import_allowed(p_merchant_code text)"
+    ],
+    "removed": [],
+    "changed": [
+      {
+        "key": "security.commit_merchant_file_import(p_upload_id uuid, p_payloads jsonb)",
+        "fields": {
+          "source_hash": {
+            "before": "792f218ea6d26c3993418ae773bd0363",
+            "now": "747b38fe2e60537f1aade641c6eef9b6"
+          }
+        }
+      },
+      {
+        "key": "security.enqueue_active_marketplace_syncs()",
+        "fields": {
+          "source_hash": {
+            "before": "14c7aafd5cc2b20ce0a23b5587655567",
+            "now": "7f7d730aabe2743b377ee9182d4a7d9a"
+          }
+        }
+      }
+    ]
+  },
+  "relations": {
+    "added": [
+      "public.amazon_oauth_states"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "constraints": {
+    "added": [
+      "public.amazon_oauth_states.amazon_oauth_states_check",
+      "public.amazon_oauth_states.amazon_oauth_states_merchant_code_fkey",
+      "public.amazon_oauth_states.amazon_oauth_states_pkey",
+      "public.amazon_oauth_states.amazon_oauth_states_state_hash_check",
+      "public.amazon_oauth_states.amazon_oauth_states_user_id_fkey"
+    ],
+    "removed": [],
+    "changed": [
+      {
+        "key": "public.platform_credentials.platform_credentials_platform_check",
+        "fields": {
+          "definition_hash": {
+            "before": "c71b9c045145870f370195b178f89e39",
+            "now": "e88ef1ce68c9b0de6f415d4621ab7cd4"
+          }
+        }
+      }
+    ]
+  }
+}

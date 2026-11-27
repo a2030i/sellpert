@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611174455
+-- Original remote name: estimate_noon_fees_in_profitability
+-- Original recorded SQL SHA-256: fe91f381a2c184ba8e6d419b9bcc894c24bce8af2342a38ac400be3f55507c78
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

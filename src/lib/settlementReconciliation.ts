@@ -3,6 +3,7 @@ import { financialTransactionMeta } from './trendyolFinance'
 export type SettlementStatus = 'matched' | 'awaiting_transfer' | 'variance' | 'review'
 
 export type SettlementTransaction = {
+  marketplace_account_id?: string | null
   platform?: string | null
   settlement_id?: string | null
   transaction_date?: string | null
@@ -14,6 +15,7 @@ export type SettlementTransaction = {
 }
 
 export type SettlementReconciliation = {
+  marketplace_account_id?: string | null
   reference: string
   platform: string
   status: SettlementStatus
@@ -57,6 +59,10 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+export function settlementIdentity(row: Pick<SettlementTransaction,'marketplace_account_id'|'platform'|'settlement_id'>) {
+  return JSON.stringify([row.marketplace_account_id || null,String(row.platform || 'other').toLowerCase(),String(row.settlement_id || '').trim()])
+}
+
 export function reconcileSettlements(rows: SettlementTransaction[]): SettlementReconciliationSummary {
   const linked = new Map<string, SettlementTransaction[]>()
   let unlinkedTransactions = 0
@@ -64,14 +70,14 @@ export function reconcileSettlements(rows: SettlementTransaction[]): SettlementR
   for (const row of rows) {
     const reference = String(row.settlement_id || '').trim()
     if (!reference) { unlinkedTransactions++; continue }
-    const key = `${String(row.platform || 'other').toLowerCase()}:${reference}`
+    const key = settlementIdentity(row)
     const current = linked.get(key) || []
     current.push(row)
     linked.set(key, current)
   }
 
-  const groups: SettlementReconciliation[] = [...linked.entries()].map(([key, transactions]) => {
-    const reference = key.slice(key.indexOf(':') + 1)
+  const groups: SettlementReconciliation[] = [...linked.values()].map(transactions => {
+    const reference = String(transactions[0].settlement_id || '').trim()
     const platform = String(transactions[0]?.platform || 'other').toLowerCase()
     let sales = 0, returns = 0, deductions = 0, additions = 0, entitlement = 0, transferRecorded = 0
     const dates: string[] = []
@@ -108,7 +114,7 @@ export function reconcileSettlements(rows: SettlementTransaction[]): SettlementR
     const orderedDates = [...dates].sort()
     const orderedTransferDates = [...transferDates].sort()
     return {
-      reference, platform, status, transactionCount:transactions.length,
+      marketplace_account_id:transactions[0].marketplace_account_id, reference, platform, status, transactionCount:transactions.length,
       firstActivity:orderedDates[0] || '', lastActivity:orderedDates[orderedDates.length - 1] || '',
       transferDate:orderedTransferDates[orderedTransferDates.length - 1] || '',
       sales:roundCurrency(sales), returns:roundCurrency(returns), deductions:roundCurrency(deductions), additions:roundCurrency(additions),

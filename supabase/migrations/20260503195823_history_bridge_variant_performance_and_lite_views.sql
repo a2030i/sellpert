@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503195823
+-- Original remote name: variant_performance_and_lite_views
+-- Original recorded SQL SHA-256: 748ed4c21c991dd4bfc83a7aa9b400cd3638c6a40c99f73d17627f7f44d6829b
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

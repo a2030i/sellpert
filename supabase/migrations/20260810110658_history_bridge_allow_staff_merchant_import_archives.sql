@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260810110658
+-- Original remote name: allow_staff_merchant_import_archives
+-- Original recorded SQL SHA-256: 688086b8ef9fa5373ea07583707da82b4cbc48e67a49ae26178f844a34cbdbc5
+-- Reconstructed final schema mapping:
+--   20260810141500_allow_staff_merchant_import_archives.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

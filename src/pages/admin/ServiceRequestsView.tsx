@@ -1,3 +1,5 @@
+import { fetchAllStrict } from '../../lib/db'
+import { userErrorMessage } from '../../lib/userError'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -40,21 +42,22 @@ export default function ServiceRequestsView({ currentUserId }: { currentUserId?:
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [unavailable, setUnavailable] = useState(false)
   const [notice, setNotice] = useState('')
 
   const selected = requests.find(item => item.id === selectedId) || null
   const selectedQuestion = questions.find(item => item.id === selectedQuestionId) || null
 
   async function load() {
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setUnavailable(false)
     try {
       const { data: formData, error: formError } = await supabase.from('service_request_forms').select('*').eq('slug', 'sellpert-service-request').maybeSingle()
-      if (formError) throw formError
-      if (!formData) throw new Error('شغّل ترحيل قاعدة البيانات الخاص بطلبات الخدمة أولاً.')
+      if (formError) { setUnavailable(['42P01','PGRST205'].includes(formError.code)); throw formError }
+      if (!formData) { setUnavailable(true); throw new Error('نموذج طلبات الخدمة غير متاح حاليًا. يحتاج إكمال التهيئة من إدارة المنصة.') }
       const [questionResult, stageResult, requestResult] = await Promise.all([
         supabase.from('service_request_questions').select('*').eq('form_id', formData.id).order('position'),
         supabase.from('service_request_stages').select('*').eq('form_id', formData.id).order('position'),
-        supabase.from('service_request_submissions').select('*').eq('form_id', formData.id).order('submitted_at', { ascending: false }),
+        fetchAllStrict<RequestRow>((f,t) => supabase.from('service_request_submissions').select('*').eq('form_id', formData.id).order('submitted_at', { ascending: false }).order('id').range(f,t)).then(data => ({data,error:null})),
       ])
       if (questionResult.error) throw questionResult.error
       if (stageResult.error) throw stageResult.error
@@ -63,7 +66,7 @@ export default function ServiceRequestsView({ currentUserId }: { currentUserId?:
       setQuestions((questionResult.data || []) as ServiceQuestion[]); setInitialQuestionIds((questionResult.data || []).map(item => item.id))
       setStages((stageResult.data || []) as Stage[]); setInitialStageIds((stageResult.data || []).map(item => item.id))
       setRequests((requestResult.data || []) as RequestRow[])
-    } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تحميل طلبات الخدمة') }
+    } catch (err) { setError(userErrorMessage(err, 'تعذر تحميل طلبات الخدمة. تحقق من الاتصال والصلاحية ثم أعد المحاولة.')) }
     finally { setLoading(false) }
   }
 
@@ -165,7 +168,7 @@ export default function ServiceRequestsView({ currentUserId }: { currentUserId?:
       const { error: stageError } = await supabase.from('service_request_stages').upsert(stages.map((stage, position) => ({ ...stage, form_id: form.id, position })), { onConflict: 'id' })
       if (stageError) throw stageError
       const { error: formError } = await supabase.from('service_request_forms').update({ title: form.title, description: form.description, is_published: true, version: form.version + 1 }).eq('id', form.id)
-      if (formError) throw formError
+      if (formError) { setUnavailable(['42P01','PGRST205'].includes(formError.code)); throw formError }
       setForm({ ...form, is_published: true, version: form.version + 1 })
       setInitialQuestionIds(questions.map(item => item.id)); setInitialStageIds(stages.map(item => item.id)); setNotice('تم حفظ النموذج ونشره بنجاح')
     } catch (err) { setError(err instanceof Error ? err.message : 'تعذر حفظ النموذج') }
@@ -177,7 +180,7 @@ export default function ServiceRequestsView({ currentUserId }: { currentUserId?:
   function moveStage(id: string, direction: -1 | 1) { setStages(current => moveItem(current, id, direction).map((stage, position) => ({ ...stage, position }))) }
 
   if (loading) return <div className="sr-loading"><span /> جاري تحميل نظام الطلبات...</div>
-  if (!form) return <div className="sr-empty"><ClipboardList /><h2>نظام طلبات الخدمة غير مهيأ</h2><p>{error}</p><button onClick={() => void load()}>إعادة المحاولة</button></div>
+  if (!form) return <div className="sr-empty"><ClipboardList /><h2>{unavailable ? 'طلبات الخدمة غير متاحة حاليًا' : 'تعذر تحميل طلبات الخدمة'}</h2><p>{error}</p><button onClick={() => void load()}>إعادة المحاولة</button></div>
 
   return <div className="sr-page" dir="rtl">
     <header className="sr-topbar"><div>{mode === 'builder' && <h2>إعداد نموذج طلب الخدمة</h2>}<p>{mode === 'pipeline' ? 'تابع طلبات التجار من التسجيل حتى توقيع العقد.' : 'عدّل الأسئلة ومراحل المتابعة ثم انشر التغييرات.'}</p></div><div>{mode === 'pipeline' ? <button className="sr-button sr-button--primary" onClick={() => setMode('builder')}><Settings2 /> إعداد النموذج</button> : <><a className="sr-button" href="/pricing-request" target="_blank" rel="noreferrer"><ExternalLink /> معاينة</a><button className="sr-button sr-button--primary" onClick={() => void saveBuilder()} disabled={saving}><Save /> {saving ? 'جارٍ الحفظ...' : 'حفظ ونشر'}</button></>}</div></header>

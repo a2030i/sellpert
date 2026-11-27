@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260511072038
+-- Original remote name: remove_super_admin_add_department
+-- Original recorded SQL SHA-256: 35a629e75970a79a0bf28d25bcd6e8272ad4f738ad942996ab7671af7dec6ebf
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

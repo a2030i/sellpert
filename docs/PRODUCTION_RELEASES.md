@@ -126,3 +126,12 @@ See [Incident response](INCIDENT-RESPONSE.md) for triage and
 A successful isolated rebuild does not prove backup retention, Storage object
 recovery, PITR configuration or an achieved RPO/RTO. These remain operator
 confirmation items in [Development](DEVELOPMENT.md#needs_confirmation-register).
+
+## Coordinated account-identity release
+
+PR #23 uses the separately authorized sequence documented in
+[the recovery record](PRODUCTION-HISTORY-RECOVERY-2026-11-27.md#owner-authorized-coordinated-execution).
+Its new handlers require the account schema, so they deploy during API maintenance
+before the matching frontend. A merge commit tagged `[coordinated-backend-ready]`
+skips the ordinary Supabase job after that backend has already passed parity.
+This does not waive the parity guard for subsequent releases.

@@ -7,6 +7,7 @@ export type AmazonCallbackParams = {
 }
 
 export type AmazonConnection = {
+  marketplace_account_id: string
   seller_id: string
   is_active: boolean
   test_status: string | null
@@ -16,7 +17,7 @@ export type AmazonConnection = {
   marketplaces: { id: string; country: string; name: string }[]
 }
 
-export type AmazonConnectionStatus = { app_configured: boolean; connection: AmazonConnection | null }
+export type AmazonConnectionStatus = { app_configured: boolean; connections?: AmazonConnection[]; connection: AmazonConnection | null }
 
 /**
  * Reads Amazon's redirect parameters. Returns null outside the callback path,

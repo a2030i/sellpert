@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804231658
+-- Original remote name: action_effectiveness_analytics
+-- Original recorded SQL SHA-256: 0f1dcc7a3e4dbd7ab384d5af84e5a32ae160ec5cf3286966e71588356100d1a7
+-- Reconstructed final schema mapping:
+--   20260804230938_action_effectiveness_analytics.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802230413
+-- Original remote name: allow_employee_owner_identity
+-- Original recorded SQL SHA-256: 481a4b2a9c90eeae931a533dcf770a3de3ba9fca62df8c9d5deacdd3c138924f
+-- Reconstructed final schema mapping:
+--   20260803190000_allow_employee_owner_identity.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

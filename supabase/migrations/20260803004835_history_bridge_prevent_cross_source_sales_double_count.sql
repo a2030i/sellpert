@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803004835
+-- Original remote name: prevent_cross_source_sales_double_count
+-- Original recorded SQL SHA-256: 124cf6fbc5803c3a4df89fef486fa026424a4b94b812976ade52122d83713014
+-- Reconstructed final schema mapping:
+--   20260803243000_prevent_cross_source_sales_double_count.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

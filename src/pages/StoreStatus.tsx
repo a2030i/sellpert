@@ -1,3 +1,5 @@
+import DataLoadError from '../components/DataLoadError'
+import { withTimeout } from '../lib/db'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, AlertCircle, CheckCircle2, CircleDot, Clock3, Database, FileSpreadsheet, Link2, RefreshCw, Wrench } from 'lucide-react'
 import { supabase, type Merchant, type PlatformCredential } from '../lib/supabase'
@@ -33,10 +35,10 @@ export default function StoreStatus({ merchant }: { merchant: Merchant | null })
     setLoadError('')
     const code = merchant.merchant_code
     const results = await Promise.allSettled([
-      listPlatformCredentials(code),
-      supabase.from('sync_logs').select('id,platform,status,records_synced,error_message,started_at,finished_at').eq('merchant_code', code).order('started_at', { ascending: false }).limit(40),
-      supabase.from('sync_queue').select('id,platform,status,error_message,attempts,max_attempts,created_at,started_at,finished_at').eq('merchant_code', code).order('created_at', { ascending: false }).limit(40),
-      supabase.from('platform_file_uploads').select('id,platform,status,error_message,rows_processed,uploaded_at,finished_at').eq('merchant_code', code).order('uploaded_at', { ascending: false }).limit(40),
+      withTimeout(listPlatformCredentials(code)),
+      supabase.from('sync_logs').select('id,platform,status,records_synced,error_message,started_at,finished_at').eq('merchant_code', code).order('started_at', { ascending: false }).limit(40).abortSignal(AbortSignal.timeout(25000)),
+      supabase.from('sync_queue').select('id,platform,status,error_message,attempts,max_attempts,created_at,started_at,finished_at').eq('merchant_code', code).order('created_at', { ascending: false }).limit(40).abortSignal(AbortSignal.timeout(25000)),
+      supabase.from('platform_file_uploads').select('id,platform,status,error_message,rows_processed,uploaded_at,finished_at').eq('merchant_code', code).order('uploaded_at', { ascending: false }).limit(40).abortSignal(AbortSignal.timeout(25000)),
     ])
 
     const failures: string[] = []
@@ -72,9 +74,10 @@ export default function StoreStatus({ merchant }: { merchant: Merchant | null })
   }
 
   if (loading) return <StatusSkeleton />
+  if (loadError) return <div className="merchant-page"><PageHeader title="حالة المتجر" /><DataLoadError message={loadError} onRetry={() => load()} /></div>
 
   return (
-    <div className="store-status-page">
+    <div className="store-status-page merchant-page">
       <PageHeader
         title="حالة المتجر"
         description="راقب صحة الربط وتحديث البيانات والعمليات الجارية من مكان واحد."
@@ -161,7 +164,7 @@ function EmptySource({ text }: { text: string }) {
 }
 
 function StatusSkeleton() {
-  return <div className="store-status-page"><Skeleton width="38%" height={34} style={{ marginBottom: 12 }} /><Skeleton width="65%" height={18} style={{ marginBottom: 28 }} /><Skeleton height={142} radius={16} style={{ marginBottom: 16 }} /><div className="status-kpis">{[1, 2, 3].map(i => <Skeleton key={i} height={112} radius={14} />)}</div></div>
+  return <div className="store-status-page merchant-page"><Skeleton width="38%" height={34} style={{ marginBottom: 12 }} /><Skeleton width="65%" height={18} style={{ marginBottom: 28 }} /><Skeleton height={142} radius={16} style={{ marginBottom: 16 }} /><div className="status-kpis">{[1, 2, 3].map(i => <Skeleton key={i} height={112} radius={14} />)}</div></div>
 }
 
 function latestPerPlatform<T extends { platform: string }>(items: T[], dateOf: (item: T) => string | null | undefined) {

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802232457
+-- Original remote name: secure_store_profile_updates
+-- Original recorded SQL SHA-256: cff39e53c0b23403965225c706b1c99dee8a9089e3181d5e710eb674b6adbf1b
+-- Reconstructed final schema mapping:
+--   20260803204500_secure_store_profile_updates.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

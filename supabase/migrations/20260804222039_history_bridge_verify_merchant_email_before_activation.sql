@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804222039
+-- Original remote name: verify_merchant_email_before_activation
+-- Original recorded SQL SHA-256: 6709000d7b75e1ada05f544eb83c8b4344a581bc2d17dd4de1dbeb331ebfbae2
+-- Reconstructed final schema mapping:
+--   20260804221824_verify_merchant_email_before_activation.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

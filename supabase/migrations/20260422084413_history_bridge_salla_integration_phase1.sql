@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422084413
+-- Original remote name: salla_integration_phase1
+-- Original recorded SQL SHA-256: 543d308774fa93f8554e68f9c00046b9444b5cdb88e4ed732fded23c78d7b5e9
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

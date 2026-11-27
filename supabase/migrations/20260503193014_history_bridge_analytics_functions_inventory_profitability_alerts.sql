@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503193014
+-- Original remote name: analytics_functions_inventory_profitability_alerts
+-- Original recorded SQL SHA-256: 6bf287162122df7ebe33b36e23afab6977e920466b9e35a83d4223b2c68a0081
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

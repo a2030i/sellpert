@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804010150
+-- Original remote name: persist_trendyol_customer_questions
+-- Original recorded SQL SHA-256: d874288bfb68109413a2c500a31dae8d05082eb1e2ffc37af233909c383d65be
+-- Reconstructed final schema mapping:
+--   20260804004347_persist_trendyol_customer_questions.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

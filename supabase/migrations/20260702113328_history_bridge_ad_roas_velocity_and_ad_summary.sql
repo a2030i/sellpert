@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260702113328
+-- Original remote name: ad_roas_velocity_and_ad_summary
+-- Original recorded SQL SHA-256: f9cc20008ea0e57f78cfff7e1cf46bad99dd95d351eb065f58c07f4798fe1f0d
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

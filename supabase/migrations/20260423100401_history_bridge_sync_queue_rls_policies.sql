@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260423100401
+-- Original remote name: sync_queue_rls_policies
+-- Original recorded SQL SHA-256: b1d82f5e3e12fe1370be75521130ba86291844fe553cd2fa85a49674404f2be4
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

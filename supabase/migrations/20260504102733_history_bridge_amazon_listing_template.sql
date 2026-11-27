@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260504102733
+-- Original remote name: amazon_listing_template
+-- Original recorded SQL SHA-256: 24042c831327bda989687e9afb0af88e2522ab66f79122354c4c22cb22290f6a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

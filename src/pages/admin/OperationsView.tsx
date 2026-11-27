@@ -1,3 +1,5 @@
+import DataLoadError from '../../components/DataLoadError'
+import { withTimeout } from '../../lib/db'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
@@ -11,24 +13,30 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
   const [shipping, setShipping] = useState<any>(null)
   const [fulfillment, setFulfillment] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     if (!merchantCode) return
-    setLoading(true)
-    Promise.all([
+    let cancelled = false
+    setLoading(true); setLoadError(false); setShipping(null); setFulfillment([])
+    withTimeout(Promise.all([
       supabase.rpc('shipping_analytics', { p_merchant_code: merchantCode }),
       supabase.from('fulfillment_performance').select('*').eq('merchant_code', merchantCode),
-    ]).then(([s, f]) => {
+    ])).then(([s, f]) => {
+      if (cancelled) return
+      if (s.error || f.error) throw s.error || f.error
       setShipping(s.data || null)
       setFulfillment((f.data || []) as any[])
       setLoading(false)
-    })
-  }, [merchantCode])
+    }).catch(() => { if (!cancelled) setLoadError(true) }).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [merchantCode, version])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 1200, margin: '0 auto' }}>
       <div>
-        <p style={{ fontSize: 13, color: 'var(--text3)' }}>تحليل أداء الشحن وقنوات الإيفاء (FBN/FBP/FBA)</p>
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>ملخص الشحن: سجلات طلبات آخر 90 يومًا التي لها تاريخ شحن. جدول الإيفاء: سجلات آخر 180 يومًا بكل الحالات، بما فيها الملغي والمرتجع. اختلاف العدد متوقع لاختلاف الفترة والحالات؛ السجل لا يساوي دائمًا طلبًا فريدًا.</p>
       </div>
 
       <div style={{ ...S.formCard, padding: 18 }}>
@@ -41,7 +49,9 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
         </select>
       </div>
 
-      {merchantCode && !loading && (
+      {loading && <p role="status">جاري تحميل الشحن والإيفاء…</p>}
+      {loadError && <DataLoadError onRetry={() => setVersion(v => v + 1)} />}
+      {merchantCode && !loading && !loadError && (
         <>
           {/* Shipping KPIs */}
           {shipping && Number(shipping.total_orders) > 0 && (
@@ -50,7 +60,7 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
                 <Clock size={16} /> تحليل الشحن (آخر 90 يوم)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                <KpiBox label="إجمالي الطلبات المشحونة" value={fmtNumber(Number(shipping.total_orders))} color="#0f958c" />
+                <KpiBox label="سجلات طلبات لها تاريخ شحن" value={fmtNumber(Number(shipping.total_orders))} color="#0f958c" />
                 <KpiBox label="متوسط وقت الشحن" value={Number(shipping.avg_ship_hours).toFixed(1) + ' ساعة'} color="#4cc9f0" />
                 <KpiBox label="متوسط وقت التسليم" value={Number(shipping.avg_delivery_hours).toFixed(1) + ' ساعة'} color="#00b894" />
                 <KpiBox label="إجمالي الأيام للوصول" value={Number(shipping.avg_total_days).toFixed(1) + ' يوم'} color="#a598ff" />
@@ -65,13 +75,13 @@ export default function OperationsView({ merchants }: { merchants: Merchant[] })
             <div style={{ ...S.tableCard }}>
               <div style={{ ...S.tableHeader }}>
                 <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Package size={16} /> أداء قنوات الإيفاء (FBN vs FBP vs FBA)
+                  <Package size={16} /> أداء قنوات الإيفاء — آخر 180 يومًا، كل الحالات
                 </div>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={S.table}>
                   <thead>
-                    <tr>{['المنصة','القناة','عدد الطلبات','الإيرادات','متوسط الطلب','الرسوم','ملغي','مرتجع','شحن (ساعة)','تسليم (ساعة)'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                    <tr>{['المنصة','القناة','سجلات الطلبات','الإيرادات','متوسط الطلب','الرسوم','ملغي','مرتجع','شحن (ساعة)','تسليم (ساعة)'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {fulfillment.map((f, i) => {

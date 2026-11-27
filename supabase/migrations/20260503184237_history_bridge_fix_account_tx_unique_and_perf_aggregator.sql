@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503184237
+-- Original remote name: fix_account_tx_unique_and_perf_aggregator
+-- Original recorded SQL SHA-256: 5d7fd6a4cf2700176b8813eb3dabd41fffcd20518f0b99450226ce0ac6ae25f8
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

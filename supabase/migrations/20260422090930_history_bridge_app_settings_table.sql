@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422090930
+-- Original remote name: app_settings_table
+-- Original recorded SQL SHA-256: a0fc9e8e3389b8c5b322ec42489eb4538d3799aaa4c751b018419f7900cbdb9a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

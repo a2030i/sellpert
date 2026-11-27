@@ -1,11 +1,13 @@
+import { useSellingAccountClient } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
-import { fetchAll } from '../lib/db'
+
+import { fetchAllStrict as fetchAll } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PageHeader, PageLoading, PageTabs } from '../components/UI'
 import type { Merchant, Order, OrderStatus } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { dateScope, orderIsPending } from '../lib/dataScope'
 import { orderFinancialIssue, orderNeedsAction } from '../lib/orderQuality'
 import { userErrorMessage } from '../lib/userError'
 import { trendyolPackageWorkflow } from '../lib/trendyolOrderWorkflow'
@@ -77,11 +79,14 @@ const SOURCE_TONE = {
 } as const
 
 export default function Orders({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const linkedFilters = useMemo(() => {
     const params = new URLSearchParams(window.location.search)
     const period = params.get('period')
-    const mappedPeriod = period === '7' ? 'last7' : period === '30' ? 'last30' : period === 'month' ? 'thisMonth' : period === '90' ? 'all' : period
+    const mappedPeriod = period === '7' ? 'last7' : period === '30' ? 'last30' : period === 'month' ? 'thisMonth' : period === '90' ? 'last90' : period
     return {
+      linked: params.size > 0, platforms: (params.get('platforms') || '').split(',').filter(Boolean),
       platform: params.get('platform'), status: params.get('status'), preset: params.get('preset') || mappedPeriod,
       from: params.get('from'), to: params.get('to'),
     }
@@ -98,11 +103,15 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [loadVersion, setLoadVersion] = useState(0)
   // Filter persistence — حفظ الفلاتر في localStorage
   const FK = 'sellpert-orders-filters:v2'
-  const saved = (() => { try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
-  const [platform, setPlatform] = useState(linkedFilters.platform || saved.platform || 'all')
+  const saved = (() => { if (linkedFilters.linked) return {}; try { return JSON.parse(localStorage.getItem(FK) || '{}') } catch { return {} } })()
+  const [platform, setPlatformValue] = useState(linkedFilters.platform || saved.platform || 'all')
   const [status, setStatus]     = useState(linkedFilters.status || saved.status   || 'all')
   const [search, setSearch]     = useState(saved.search   || '')
-  const [preset, setPreset]     = useState(linkedFilters.preset || saved.preset   || 'all')
+  const [preset, setPresetValue]     = useState(linkedFilters.preset || saved.preset   || 'all')
+  const [linkedPlatforms, setLinkedPlatforms] = useState(linkedFilters.platforms)
+  const [linkedBounds, setLinkedBounds] = useState(() => linkedFilters.from && linkedFilters.to ? dateScope('custom', linkedFilters.from, linkedFilters.to) : null)
+  function setPlatform(value: string) { setPlatformValue(value); setLinkedPlatforms([]) }
+  function setPreset(value: string) { setPresetValue(value); setLinkedBounds(null) }
   const [tab, setTab] = useState<'list' | 'compare' | 'chart'>(saved.tab || 'list')
   const [orderPage, setOrderPage] = useState(0)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -116,7 +125,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const [orderActionMessage, setOrderActionMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
   const [packageForm, setPackageForm] = useState({ invoiceNumber:'', invoiceLink:'', trackingNumber:'', providerCode:'STARLINKS' })
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
-  const [bulkPickingRows, setBulkPickingRows] = useState<Array<{ orderId:string; packageId:string; lines:Array<{ lineId:number; quantity:number }> }>>([])
+  const [bulkPickingRows, setBulkPickingRows] = useState<Array<{ accountId?:string; orderId:string; packageId:string; lines:Array<{ lineId:number; quantity:number }> }>>([])
   const [bulkPickingOpen, setBulkPickingOpen] = useState(false)
   const [bulkPickingLoading, setBulkPickingLoading] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<{ type:'ok'|'err'; text:string } | null>(null)
@@ -131,27 +140,31 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
 
   useEffect(() => {
     if (!merchantCode) return
+    let cancelled = false
     setLoading(true)
     setLoadError('')
+    setOrders([])
+    setSelectedOrder(null)
     Promise.all([
       // fetchAll: كانت limit(2000) تقصّ الإجماليات بصمت بينما فلتر «الكل» يوحي بالشمول
       fetchAll<any>((f, t) =>
-        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,last_synced_at,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).range(f, t), 'الطلبات'),
+        supabase.from('orders').select('id,merchant_code,platform,order_id,status,product_name,sku,quantity,unit_price,total_amount,gross_amount,platform_fee,shipping_cost,currency,customer_city,order_date,upload_id,last_synced_at,shipment_package_id,cargo_tracking_number,cargo_provider,commission_rate,vat_rate,discount_amount,created_at').eq('merchant_code', merchantCode).order('order_date', { ascending: false }).order('id').range(f, t), 'الطلبات'),
       fetchAll<any>((f, t) =>
         supabase.from('order_packages').select('id,order_id,shipment_package_id,status,provider_status,cargo_tracking_number,invoice_number,invoice_status,invoice_rejected_reasons,modified_at,raw')
-          .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).range(f, t), 'شحنات الطلبات'),
+          .eq('merchant_code', merchantCode).eq('platform', 'trendyol').order('modified_at', { ascending:false }).order('id').range(f, t), 'شحنات الطلبات'),
       supabase.from('returns').select('id', { count:'exact', head:true }).eq('merchant_code',merchantCode).eq('platform','trendyol').eq('status','pending'),
       supabase.from('merchant_contract_terms').select('sellpert_fee_type,sellpert_fee_value').eq('merchant_code',merchantCode).limit(1).maybeSingle(),
       fetchAll<LineageUpload>((f, t) =>
         supabase.from('platform_file_uploads').select('id,platform,file_name,file_type,uploaded_at')
-          .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).range(f, t), 'سجل ملفات المصادر'),
+          .eq('merchant_code', merchantCode).order('uploaded_at', { ascending:false }).order('id').range(f, t), 'سجل ملفات المصادر'),
       fetchAll<CatalogProductIdentity>((f,t) => supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', merchantCode).order('id').range(f,t), 'دليل أسماء الطلبات'),
       fetchAll<CatalogChannelMapping>((f,t) => supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', merchantCode).order('id').range(f,t), 'روابط أسماء الطلبات'),
     ]).then(([sourceOrders, packageRows, returnResult, contractResult, uploads, products, mappings]) => {
+      if (cancelled) return
       if (returnResult.error || contractResult.error) throw returnResult.error || contractResult.error
       const resolve = createCatalogResolver(products, mappings)
       const unifiedOrders = sourceOrders.map(order => {
-        const product = resolve({ platform:order.platform, identifiers:[order.sku], sourceName:order.product_name })
+        const product = resolve({ marketplace_account_id:order.marketplace_account_id, platform:order.platform, identifiers:[order.sku], sourceName:order.product_name })
         return product ? { ...order, product_name:product.name } : order
       })
       setCatalogProducts(products)
@@ -166,17 +179,19 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       if (linkedOrder) void openOrder(linkedOrder, resolve)
       setLoading(false)
     }).catch(error => {
-      console.error('load orders', error)
+      if (cancelled) return
       setLoadError(userErrorMessage(error, 'تعذّر تحميل الطلبات الآن.'))
       setLoading(false)
     })
+    return () => { cancelled = true }
     // openOrder is a local event handler; adding it would restart this data load on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantCode, loadVersion])
+  }, [merchantCode, loadVersion, supabase])
 
   const filtered = useMemo(() => {
     let d = orders
     if (platform !== 'all') d = d.filter(o => o.platform === platform)
+    else if (linkedPlatforms.length) d = d.filter(o => linkedPlatforms.includes(o.platform))
     if (status !== 'all') d = d.filter(o => o.status === status)
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -187,19 +202,13 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         o.cargo_tracking_number?.toLowerCase().includes(q)
       )
     }
-    const now = Date.now()
-    if (preset === 'today') d = d.filter(o => new Date(o.order_date).toDateString() === new Date().toDateString())
-    else if (preset === 'last7')  d = d.filter(o => new Date(o.order_date).getTime() >= now - 7 * 86400000)
-    else if (preset === 'last30') d = d.filter(o => new Date(o.order_date).getTime() >= now - 30 * 86400000)
-    else if (preset === 'thisMonth') {
-      const s = new Date(); s.setDate(1); s.setHours(0,0,0,0)
-      d = d.filter(o => new Date(o.order_date) >= s)
-    } else if (preset === 'needsAction') d = d.filter(orderNeedsAction)
+    const scope = linkedBounds || dateScope(preset)
+    if (scope) d = d.filter(o => new Date(o.order_date) >= scope[0] && new Date(o.order_date) <= scope[1])
+    if (preset === 'needsAction') d = d.filter(orderNeedsAction)
+    else if (preset === 'pending') d = d.filter(orderIsPending)
     else if (preset === 'financialReview') d = d.filter(o => Boolean(orderFinancialIssue(o)))
-    if (linkedFilters.from) d = d.filter(o => o.order_date.slice(0, 10) >= linkedFilters.from!)
-    if (linkedFilters.to) d = d.filter(o => o.order_date.slice(0, 10) <= linkedFilters.to!)
     return d
-  }, [orders, platform, status, search, preset, linkedFilters])
+  }, [orders, platform, status, search, preset, linkedBounds, linkedPlatforms])
 
   useEffect(() => { setOrderPage(0) }, [platform, status, search, preset])
 
@@ -278,18 +287,18 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setBulkPickingLoading(true); setBulkMessage(null)
     try {
       const orderIds = [...new Set(candidates.map(row => row.order.order_id))]
-      const { data:items,error } = await supabase.from('order_items').select('order_id,shipment_package_id,line_id,quantity')
+      const { data:items,error } = await supabase.from('order_items').select('marketplace_account_id,order_id,shipment_package_id,line_id,quantity')
         .eq('merchant_code',merchant.merchant_code).eq('platform','trendyol').in('order_id',orderIds)
       if (error) throw error
       const packageCountByOrder = new Map<string,number>()
-      for (const row of operationQueue.rows) packageCountByOrder.set(row.order.order_id,(packageCountByOrder.get(row.order.order_id) || 0) + 1)
+      for (const row of operationQueue.rows) packageCountByOrder.set(`${row.order.marketplace_account_id}:${row.order.order_id}`,(packageCountByOrder.get(`${row.order.marketplace_account_id}:${row.order.order_id}`) || 0) + 1)
       const prepared = candidates.map(row => {
         const packageId = String(row.package.shipment_package_id)
-        const lines = (items || []).filter(item => item.order_id === row.order.order_id &&
-          (String(item.shipment_package_id || '') === packageId || (!item.shipment_package_id && packageCountByOrder.get(row.order.order_id) === 1)))
+        const lines = (items || []).filter(item => item.order_id === row.order.order_id && item.marketplace_account_id === row.order.marketplace_account_id &&
+          (String(item.shipment_package_id || '') === packageId || (!item.shipment_package_id && packageCountByOrder.get(`${row.order.marketplace_account_id}:${row.order.order_id}`) === 1)))
           .map(item => ({ lineId:Number(item.line_id), quantity:Number(item.quantity) }))
           .filter(line => Number.isFinite(line.lineId) && Number.isInteger(line.quantity) && line.quantity > 0)
-        return { orderId:row.order.order_id, packageId, lines }
+        return { accountId:row.order.marketplace_account_id, orderId:row.order.order_id, packageId, lines }
       }).filter(row => row.lines.length)
       if (!prepared.length) throw new Error('تفاصيل بنود الشحنات غير مكتملة. حدّث الطلبات من Trendyol ثم حاول مجددًا.')
       setBulkPickingRows(prepared)
@@ -313,7 +322,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
             method:'POST',
             headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
-            body:JSON.stringify({ merchant_code:merchant.merchant_code, action:'packages.status', confirm:true, storefront:'SA', path:{ packageId:row.packageId }, payload:{ status:'Picking', lines:row.lines, params:{} } }),
+            body:JSON.stringify({ merchant_code:merchant.merchant_code, marketplace_account_id:row.accountId, action:'packages.status', confirm:true, storefront:'SA', path:{ packageId:row.packageId }, payload:{ status:'Picking', lines:row.lines, params:{} } }),
           })
           const result = await response.json().catch(() => ({}))
           if (!response.ok || result.error) throw new Error(result.error || 'رفض Trendyol بدء التجهيز')
@@ -336,17 +345,17 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     setSelectedOrder(order); setSelectedItems([]); setSelectedPackages([]); setActivePackageId(''); setSelectedActions([]); setSelectedProductCosts(new Map()); setInvoiceFile(null); setPackageForm(current => ({ ...current, invoiceNumber:'', invoiceLink:'' })); setDetailLoading(true); setOrderActionMessage(null)
     const [detail, items, packages, actions] = await Promise.all([
       supabase.from('orders').select('raw,shipment_address,invoice_address,last_synced_at,gross_amount').eq('merchant_code', order.merchant_code).eq('id', order.id).maybeSingle(),
-      supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('line_id'),
-      supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).order('modified_at', { ascending:false }),
+      supabase.from('order_items').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).eq('marketplace_account_id', order.marketplace_account_id).order('line_id'),
+      supabase.from('order_packages').select('*').eq('merchant_code', order.merchant_code).eq('platform', order.platform).eq('order_id', order.order_id).eq('marketplace_account_id', order.marketplace_account_id).order('modified_at', { ascending:false }),
       order.platform === 'trendyol'
-        ? listMarketplaceOperationFacts({ merchantCode:order.merchant_code, platform:'trendyol', orderId:order.order_id, limit:8 })
+        ? listMarketplaceOperationFacts({ merchantCode:order.merchant_code, platform:'trendyol', orderId:order.order_id, accountIds:[order.marketplace_account_id!], limit:8 })
         : Promise.resolve({data:[] as any[], error:null}),
     ])
     if (detail.data) setSelectedOrder(current => current ? ({ ...current, ...detail.data } as Order) : current)
     const packageRows = packages.data || []
     const initialPackageId = String(packageRows[0]?.shipment_package_id || order.shipment_package_id || '')
     const unifiedItems = (items.data || []).map(item => {
-      const product = catalogResolver({ platform:order.platform, identifiers:[item.barcode,item.sku], sourceName:item.product_name })
+      const product = catalogResolver({ marketplace_account_id:order.marketplace_account_id, platform:order.platform, identifiers:[item.barcode,item.sku], sourceName:item.product_name })
       return product ? { ...item, product_name_ar:product.name } : item
     })
     setSelectedItems(unifiedItems)
@@ -392,7 +401,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
     const packageRow = selectedPackages.find(item => String(item.shipment_package_id) === packageId)
     setPackageForm(current => ({ ...current, invoiceNumber:String(packageRow?.invoice_number || ''), invoiceLink:'' }))
     const { data } = await listMarketplaceOperationFacts({
-      merchantCode:selectedOrder.merchant_code,
+      merchantCode:selectedOrder.merchant_code, accountIds:[selectedOrder.marketplace_account_id!],
       platform:'trendyol',
       packageId,
       limit:8,
@@ -412,7 +421,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   async function refreshSelectedOrder() {
     if (!merchant || !selectedOrder || selectedOrder.platform !== 'trendyol') return
     setOrderActionLoading(true); setOrderActionMessage(null)
-    const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code } })
+    const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code, marketplace_account_id:selectedOrder.marketplace_account_id } })
     if (error || data?.error) {
       setOrderActionMessage({ type:'err', text:data?.error || error?.message || 'تعذر تحديث الطلب من Trendyol.' })
       setOrderActionLoading(false); return
@@ -439,7 +448,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       if (!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
         method:'POST', headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
-        body:JSON.stringify({ merchant_code:merchant.merchant_code, action, confirm:true, storefront:'SA', path:{ packageId:activePackageId }, payload }),
+        body:JSON.stringify({ merchant_code:merchant.merchant_code, marketplace_account_id:selectedOrder?.marketplace_account_id, action, confirm:true, storefront:'SA', path:{ packageId:activePackageId }, payload }),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok || result.error) throw new Error(result.error || `رفض Trendyol ${label}`)
@@ -484,7 +493,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`, {
         method:'POST', headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
         body:JSON.stringify({
-          merchant_code:merchant.merchant_code, action, confirm:true, storefront:'SA',
+          merchant_code:merchant.merchant_code, marketplace_account_id:selectedOrder?.marketplace_account_id, action, confirm:true, storefront:'SA',
           path:{ cargoTrackingNumber:trackingNumber },
           payload:creating ? { format:'ZPL', boxQuantity:1 } : undefined,
         }),
@@ -542,7 +551,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         method:'POST',
         headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
         body:JSON.stringify({
-          merchant_code:merchant.merchant_code,
+          merchant_code:merchant.merchant_code, marketplace_account_id:selectedOrder?.marketplace_account_id,
           action:'invoices.send_file',
           confirm:true,
           storefront:'SA',
@@ -590,7 +599,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
         method:'POST',
         headers:{ Authorization:`Bearer ${session.access_token}`, apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, 'Content-Type':'application/json', 'idempotency-key':crypto.randomUUID() },
         body:JSON.stringify({
-          merchant_code:merchant.merchant_code, action:'invoices.send_link', confirm:true,
+          merchant_code:merchant.merchant_code, marketplace_account_id:selectedOrder?.marketplace_account_id, action:'invoices.send_link', confirm:true,
           payload:{ shipmentPackageId:activePackageId, invoiceLink, ...(microExportNumber ? { invoiceNumber:microExportNumber, invoiceDateTime:String(Date.now()) } : {}) },
         }),
       })
@@ -707,6 +716,8 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
           {[
             { k:'today', l:'اليوم' }, { k:'last7', l:'7 أيام' },
             { k:'last30', l:'30 يوم' }, { k:'thisMonth', l:'هذا الشهر' },
+            { k:'last90', l:'آخر 90 يومًا' },
+            { k:'pending', l:'الطلبات المعلقة' },
             { k:'needsAction', l:`تحتاج إجراء (${needsActionCount.toLocaleString('ar-SA-u-nu-latn')})` },
             { k:'financialReview', l:`مراجعة مالية (${financialReviewCount.toLocaleString('ar-SA-u-nu-latn')})` },
             { k:'all', l:'الكل' },
@@ -954,7 +965,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
             <div style={S.modalHeader}><div><div style={{ fontSize:12, color:'var(--text3)', marginBottom:4 }}>إجراء جماعي</div><div style={{ fontSize:18, fontWeight:800 }}>مراجعة بدء تجهيز الشحنات</div></div><button disabled={bulkPickingLoading} onClick={() => setBulkPickingOpen(false)} style={S.closeBtn} aria-label="إغلاق">×</button></div>
             <p style={{ fontSize:12, color:'var(--text2)', lineHeight:1.8, margin:'0 0 12px' }}>سيُرسل طلب مستقل وآمن لكل شحنة. نجاح شحنة لا يعتمد على بقية الدفعة، ولن نكرر الشحنات التي نجحت إذا تعثرت أخرى.</p>
             <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', maxHeight:300, overflowY:'auto' }}>
-              {bulkPickingRows.map((row,index) => <div key={row.packageId} style={{ display:'grid', gridTemplateColumns:'36px minmax(0,1fr) 100px', gap:8, alignItems:'center', padding:'10px 12px', borderBottom:index < bulkPickingRows.length - 1 ? '1px solid var(--border)' : 'none', fontSize:11 }}><span style={{ color:'var(--text3)' }}>{index + 1}</span><strong style={{ fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis' }}>{row.orderId}</strong><span>{row.lines.length.toLocaleString('ar-SA-u-nu-latn')} بند</span></div>)}
+              {bulkPickingRows.map((row,index) => <div key={`${row.accountId}:${row.packageId}`} style={{ display:'grid', gridTemplateColumns:'36px minmax(0,1fr) 100px', gap:8, alignItems:'center', padding:'10px 12px', borderBottom:index < bulkPickingRows.length - 1 ? '1px solid var(--border)' : 'none', fontSize:11 }}><span style={{ color:'var(--text3)' }}>{index + 1}</span><strong style={{ fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis' }}>{row.orderId}</strong><span>{row.lines.length.toLocaleString('ar-SA-u-nu-latn')} بند</span></div>)}
             </div>
             <div style={{ padding:'10px 12px', borderRadius:9, background:'var(--warning-bg)', color:'var(--warning-text)', fontSize:11, lineHeight:1.7 }}>سيتم تغيير حالة هذه الشحنات إلى «قيد التجهيز» مباشرة في Trendyol. الحد الأقصى في الدفعة الواحدة 20 شحنة.</div>
             <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}><button disabled={bulkPickingLoading} onClick={() => setBulkPickingOpen(false)} style={S.actionBtn}>العودة</button><button disabled={bulkPickingLoading} onClick={() => void submitBulkPicking()} style={S.primaryBtn}>{bulkPickingLoading ? 'جارٍ تنفيذ الدفعة…' : `تأكيد بدء تجهيز ${bulkPickingRows.length.toLocaleString('ar-SA-u-nu-latn')} شحنة`}</button></div>

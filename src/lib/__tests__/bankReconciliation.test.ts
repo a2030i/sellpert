@@ -41,3 +41,12 @@ describe('bank receipt reconciliation', () => {
     expect(bankReconciliationSummary(results, rows).unmatchedCredits).toBe(1)
   })
 })
+
+it('does not attribute a shared reference to the first account',()=>{
+  const groups=[{...settlement('SAME-1',90),marketplace_account_id:'a'},{...settlement('SAME-1',90),marketplace_account_id:'b'}]
+  const bank=[{id:'bank',transaction_date:'2026-08-04',credit:90,reference:'SAME-1'}]
+  expect(reconcileBankReceipts(groups,bank).map(row=>row.status)).toEqual(['ambiguous','ambiguous'])
+  const confirmed=[{id:'match',bank_transaction_id:'bank',platform:'trendyol',marketplace_account_id:'b',settlement_id:'SAME-1',expected_amount:90,confirmed_at:'2026-08-05'}]
+  expect(reconcileBankReceipts(groups,bank,confirmed).map(row=>row.status)).toEqual(['missing','confirmed'])
+  expect(reconcileBankReceipts([groups[0]],bank,confirmed)[0].status).toBe('missing')
+})

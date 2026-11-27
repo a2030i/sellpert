@@ -135,3 +135,14 @@ constitute permission to execute them.
 
 Resolve these only when a task needs them; record evidence and update this
 register. None authorizes production access, deployment or credential changes.
+
+## Reliability/account expansion validation
+
+See [the dated implementation record](OPERATIONAL-RELIABILITY-2026-11-27.md).
+New focused SQL coverage is in `marketplace_accounts_catalog.test.sql` and
+`service_request_recovery.test.sql`; shared-server coverage includes
+`marketplaceAccountScope.test.ts`. Run shared Deno tests with `--allow-env` because
+the encryption tests set and restore synthetic test key material. Never supply
+production provider credentials to those tests. A targeted Vitest invocation is
+`node node_modules/vitest/vitest.mjs run <file>`; appending a file to `npm test`
+still includes the script's `src` discovery argument.

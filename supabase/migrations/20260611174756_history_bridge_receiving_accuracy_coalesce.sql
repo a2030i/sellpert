@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611174756
+-- Original remote name: receiving_accuracy_coalesce
+-- Original recorded SQL SHA-256: 89f05ef0668361757e624f2087e4a59ac521e54fd453a6fc78ccb91840ed2d0a
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

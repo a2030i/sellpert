@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803155807
+-- Original remote name: client_incident_observability
+-- Original recorded SQL SHA-256: fd2df2b8a42cd1c091bf8bc2d7fec8d1c22faf3d35d5f79eb172c480fb2d6b7d
+-- Reconstructed final schema mapping:
+--   20260803294000_client_incident_observability.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

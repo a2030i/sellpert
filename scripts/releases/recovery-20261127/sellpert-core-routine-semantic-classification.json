@@ -1,0 +1,14 @@
+{
+  "public.bulk_update_product_costs": "REAL_GAP: private SECURITY DEFINER implementation missing; scoped draft restores private implementation and invoker wrapper with authorization intact.",
+  "public.delete_upload_cascade_internal": "LOCAL_BASELINE_DEFECT: local wrapper recursively routes back through authorized outer routine; preserve production delegation to security.delete_upload_cascade_internal.",
+  "public.delete_upload_with_data_internal": "LOCAL_BASELINE_DEFECT: local wrapper recursively routes back through authorized outer routine; preserve production delegation to security.delete_upload_with_data_internal.",
+  "public.process_sync_queue": "EQUIVALENT: only public table qualification/case/formatting; exact matching fixed search_path=public, pg_temp binds public tables first; invoker/grants match.",
+  "security.can_access_merchant": "RLS_ACCEPTANCE_EQUIVALENT: production composes exact-matching active-staff/access-code helpers; local inlines same active own/link/employee checks; NULL versus false outside RLS remains a scalar distinction.",
+  "security.close_stale_imports": "REAL_LITERAL_DRIFT: production Arabic fallback is mojibake; draft restores reviewed correct Arabic; no existing imports are updated by DDL.",
+  "security.commit_merchant_file_import": "EXPECTED_FORWARD_DIFFERENCE: only pending Amazon direct-connection import guard differs; all preexisting source bytes match after removing that block.",
+  "security.handle_self_service_merchant_signup": "REAL_LITERAL_DRIFT: production fallback store name is mojibake; draft corrects future default only; no existing merchant data updated.",
+  "security.process_due_account_closures": "EQUIVALENT: formatting/spacing only including commas and parentheses; same closure, suspension and audit operations.",
+  "security.rebuild_all_derived_data": "AUTHORIZATION_EQUIVALENT: local extra can_access_merchant conjunction is redundant because exact-matching has_merchant_permission already ANDs the same access helper.",
+  "security.redact_audit_values": "EQUIVALENT: only spacing between array members. Production literals all match known static local whitelist; no settings/credential/table/network/dynamic-SQL references; ordered keys and recursion identical.",
+  "security.write_audit_log": "PRESERVE_PRODUCTION: production uses immutable auth.uid()::text before existing fallback; local uses auth.email(); scoped compatibility draft keeps production UUID actor."
+}

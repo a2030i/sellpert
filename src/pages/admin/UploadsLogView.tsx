@@ -80,6 +80,7 @@ function nextDayStart(value: string) {
 }
 
 export default function UploadsLogView({ merchants }: { merchants: Merchant[] }) {
+  const initial = useMemo(() => new URLSearchParams(window.location.search), [])
   const [records, setRecords] = useState<UploadRecord[]>([])
   const [selected, setSelected] = useState<UploadRecord | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,13 +89,13 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [merchantFilter, setMerchantFilter] = useState('')
-  const [platformFilter, setPlatformFilter] = useState('')
+  const [merchantFilter, setMerchantFilter] = useState(initial.get('merchant') || '')
+  const [platformFilter, setPlatformFilter] = useState(initial.get('platforms') || '')
   const [typeFilter, setTypeFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(initial.get('status') || '')
   const [employeeFilter, setEmployeeFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(initial.get('from') || '')
+  const [dateTo, setDateTo] = useState(initial.get('to') || '')
 
   const merchantList = useMemo(() => merchants.filter(item => item.role === 'merchant'), [merchants])
   const staffList = useMemo(() => merchants.filter(item => item.role !== 'merchant'), [merchants])
@@ -114,11 +115,12 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
     if (merchantFilter) query = query.eq('merchant_code', merchantFilter)
-    if (platformFilter) query = query.eq('platform', platformFilter)
+    if (platformFilter) query = query.in('platform', platformFilter.split(',').filter(Boolean))
     if (typeFilter) query = query.eq('file_type', typeFilter)
     const stalledCutoff = new Date(Date.now() - UPLOAD_STALLED_AFTER_MS).toISOString()
     if (statusFilter === 'success') query = query.in('status', ['success', 'completed'])
     else if (statusFilter === 'failed') query = query.in('status', ['failed', 'error'])
+    else if (statusFilter === 'attention') query = query.or(`status.in.(failed,error),and(status.in.(processing,running),uploaded_at.lt.${stalledCutoff})`)
     else if (statusFilter === 'processing') query = query.in('status', ['processing', 'running']).gte('uploaded_at', stalledCutoff)
     else if (statusFilter === 'stalled') query = query.in('status', ['processing', 'running']).lt('uploaded_at', stalledCutoff)
     else if (statusFilter) query = query.eq('status', statusFilter)
@@ -167,14 +169,14 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
             {merchantList.map(item => <option key={item.id} value={item.merchant_code}>{item.name} ({item.merchant_code})</option>)}
           </select>
           <select aria-label="تصفية حسب المنصة" value={platformFilter} onChange={event => { setPlatformFilter(event.target.value); setPage(1) }} style={inputStyle}>
-            <option value="">كل المنصات</option><option value="noon">نون</option><option value="amazon">أمازون</option><option value="trendyol">تراندايول</option>
+            <option value="">كل المنصات</option>{platformFilter.includes(',')?<option value={platformFilter}>{platformFilter.split(',').map(value=>PLATFORM_MAP[value]||value).join('، ')}</option>:null}<option value="noon">نون</option><option value="amazon">أمازون</option><option value="trendyol">تراندايول</option>
           </select>
           <select aria-label="تصفية حسب نوع الملف" value={typeFilter} onChange={event => { setTypeFilter(event.target.value); setPage(1) }} style={inputStyle}>
             <option value="">كل أنواع الملفات</option>
             {Object.entries(FILE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           <select aria-label="تصفية حسب الحالة" value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setPage(1) }} style={inputStyle}>
-            <option value="">كل الحالات</option><option value="success">ناجح</option><option value="partial">جزئي</option><option value="failed">فشل</option><option value="processing">قيد المعالجة</option><option value="stalled">متعطل (أكثر من 30 دقيقة)</option>
+            <option value="">كل الحالات</option><option value="attention">فاشلة أو متعطلة</option><option value="success">ناجح</option><option value="partial">جزئي</option><option value="failed">فشل</option><option value="processing">قيد المعالجة</option><option value="stalled">متعطل (أكثر من 30 دقيقة)</option>
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 9, marginTop: 9, alignItems: 'center' }}>
@@ -206,7 +208,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
                 const merchant = merchantMap.get(record.merchant_code)
                 return (
                   <tr key={record.id} style={S.tr}>
-                    <td style={{ ...S.td, whiteSpace: 'nowrap', fontSize: 11 }}><div style={{ fontWeight: 700 }}>{fullDate(record.uploaded_at)}</div><div style={{ color: 'var(--text3)', marginTop: 3 }}>{duration(record.uploaded_at, record.finished_at)}</div></td>
+                    <td style={{ ...S.td, whiteSpace: 'nowrap', fontSize: 11 }}><div style={{ fontWeight: 700 }}>{fullDate(record.uploaded_at)}</div><div style={{ color: 'var(--text3)', marginTop: 3 }}>من الرفع: {duration(record.uploaded_at, record.finished_at)}</div></td>
                     <td style={S.td}><div style={{ fontSize: 12, fontWeight: 700 }}>{merchant?.name || record.merchant_code}</div><div style={{ fontSize: 10, color: 'var(--text3)' }}>{record.merchant_code}</div></td>
                     <td style={S.td}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: PLATFORM_COLORS[record.platform] || 'var(--text3)' }} />{PLATFORM_MAP[record.platform] || record.platform}</span></td>
                     <td style={{ ...S.td, fontSize: 11 }}>{record.detected_report || FILE_TYPE_LABELS[record.file_type || ''] || record.file_type || '—'}</td>
@@ -243,7 +245,7 @@ export default function UploadsLogView({ merchants }: { merchants: Merchant[] })
               <Detail label="حجم الملف" value={fileSize(selected.file_size)} />
               <Detail label="بدأ في" value={fullDate(selected.uploaded_at)} />
               <Detail label="انتهى في" value={fullDate(selected.finished_at)} />
-              <Detail label="مدة المعالجة" value={duration(selected.uploaded_at, selected.finished_at)} />
+              <Detail label="الزمن بين الرفع والإغلاق (يشمل الانتظار)" value={duration(selected.uploaded_at, selected.finished_at)} />
               <Detail label="الحالة" value={STATUS_META[uploadDisplayStatus(selected.status, selected.uploaded_at)].label} />
               <Detail label="الصفوف المعالجة" value={(selected.rows_processed || 0).toLocaleString('ar-SA-u-nu-latn')} />
               <Detail label="الصفوف المحفوظة" value={(selected.rows_inserted || 0).toLocaleString('ar-SA-u-nu-latn')} />

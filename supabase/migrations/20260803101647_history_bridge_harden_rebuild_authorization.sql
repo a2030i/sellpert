@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803101647
+-- Original remote name: harden_rebuild_authorization
+-- Original recorded SQL SHA-256: 8df59812e79a11d0c2f44e9e615d74529b901807dbf5c3eac623995075f0c33d
+-- Reconstructed final schema mapping:
+--   20260803275000_harden_rebuild_authorization.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

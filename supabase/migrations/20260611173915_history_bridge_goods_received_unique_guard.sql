@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611173915
+-- Original remote name: goods_received_unique_guard
+-- Original recorded SQL SHA-256: 467b0ca59a871b8cc2dce517ba52597ebed1cc905af74f08a857f2d9c9abd49d
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611175018
+-- Original remote name: true_ad_effectiveness_resolve_noon_product_v2
+-- Original recorded SQL SHA-256: 1d9d2b415669eced730f9f0186dadef1474fea4cbe209340edcb050dd59801be
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

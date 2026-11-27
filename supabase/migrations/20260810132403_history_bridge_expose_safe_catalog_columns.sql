@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260810132403
+-- Original remote name: expose_safe_catalog_columns
+-- Original recorded SQL SHA-256: 1483f0cf620963791e67c1c87c3147656f9d6929093ac5f7cf3dfcf8a9f57398
+-- Reconstructed final schema mapping:
+--   20260810193000_expose_safe_catalog_columns.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

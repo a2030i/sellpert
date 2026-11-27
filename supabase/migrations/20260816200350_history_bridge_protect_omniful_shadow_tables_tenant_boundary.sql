@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260816200350
+-- Original remote name: protect_omniful_shadow_tables_tenant_boundary
+-- Original recorded SQL SHA-256: a5506c7e36b8a0b4ecce6c0a873c355b1a36fbeb04d1321ff09b5a022420bc07
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

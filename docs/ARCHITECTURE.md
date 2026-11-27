@@ -113,3 +113,28 @@ These are observed implementation choices, not newly proposed architecture.
 For database/business invariants read [Data and security](DATA_AND_SECURITY.md).
 For supported providers and environment placement read [Integrations](INTEGRATIONS.md)
 and [Development](DEVELOPMENT.md).
+
+## Selling accounts and canonical variants (2026-11-27 working change)
+
+The operational-reliability change introduces `marketplace_accounts` beneath a
+merchant workspace. Platform is a provider type; an account is one seller/store
+on that provider. Account IDs travel through OAuth, queue jobs, synchronizers,
+webhooks, import provenance and fact queries. Identically numbered orders/SKUs in
+two accounts are independent until a reviewed product mapping says otherwise.
+Merchant report scope is one account or the aggregate of identified accounts.
+Historical facts with unproven seller identity remain in separate legacy sources;
+the UI does not silently add those to newly connected accounts.
+
+`products.id` remains the canonical sellable variant. `product_families` groups
+variants; color/size stay on the variant. Account-scoped exact identifiers or a
+confirmed manual mapping connect provider listings to variants. Names/model codes
+alone never merge variants. `product_bundle_versions` and components represent
+virtual kits with immutable recipe/cost snapshots. Shared physical stock is
+explicitly reviewed through `inventory_pools`/links, counted once per pool, and
+shown as unverified if observations disagree, are missing or exceed two days.
+A bundle's capacity is the minimum complete component capacity, not added stock.
+
+The explicitly requested `/statement`, `/security`, and `/store-status` routes
+are enabled by this change. Other launch exclusions remain unchanged. Internal
+staff roles are unchanged. See [implementation/release record](OPERATIONAL-RELIABILITY-2026-11-27.md)
+for tested behavior, limitations and the production boundary.

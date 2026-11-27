@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260703154150
+-- Original remote name: data_freshness_rpc
+-- Original recorded SQL SHA-256: 867235177712fd33264f16c6d6ffea4b0cbb8c275f04e6df69ecd665bdfb4fa2
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

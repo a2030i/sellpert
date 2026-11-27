@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260426104608
+-- Original remote name: fix_products_unique_constraint
+-- Original recorded SQL SHA-256: f87de4d7f8253758b6caf401313afe899eb7ae03eb8970be6f8d15c98bef8a3e
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

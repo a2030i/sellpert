@@ -1,6 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import { fetchAll } from '../lib/db'
+import { settlementIdentity } from '../lib/settlementReconciliation'
+import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
+import DataLoadError from '../components/DataLoadError'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+
+import { fetchAllStrict as fetchAll, withTimeout } from '../lib/db'
 import { useMobile } from '../lib/hooks'
 import { PageTabs } from '../components/UI'
 import PayoutCalendar from '../components/PayoutCalendar'
@@ -63,6 +66,10 @@ function requestedStatementTab(): StatementTab {
 }
 
 export default function Statement({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+  const accounts = useSelectedSellingAccounts()
+  const trendyolAccounts = accounts.filter(account => account.platform === 'trendyol' && !account.is_legacy && account.status === 'active')
+
   const now = new Date()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -83,6 +90,9 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   })
   const [loading, setLoading]       = useState(true)
   const [periodReady, setPeriodReady] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const generation = useRef(0)
   const isMobile = useMobile()
   const merchantCode = merchant?.merchant_code
 
@@ -99,26 +109,32 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
   // calendar month should not make the first merchant view look empty.
   useEffect(() => {
     if (!merchantCode) return
-    setPeriodReady(false); setLoading(true)
-    supabase.from('performance_data').select('data_date')
+    let active = true
+    setLoadError(false); setPeriodReady(false); setLoading(true)
+    withTimeout(supabase.from('performance_data').select('data_date')
       .eq('merchant_code', merchantCode)
-      .order('data_date', { ascending:false }).limit(1).maybeSingle()
-      .then(({ data }) => {
+      .order('data_date', { ascending:false }).limit(1).maybeSingle())
+      .then(({ data, error }) => {
+        if (!active) return
+        if (error) throw error
         if (data?.data_date) {
           const latest = new Date(`${data.data_date}T00:00:00`)
           setYear(latest.getFullYear()); setMonth(latest.getMonth() + 1)
         }
         setPeriodReady(true)
-      })
-  }, [merchantCode])
+      }).catch(() => { if (active) { setLoadError(true); setLoading(false) } })
+    return () => { active = false }
+  }, [merchantCode, retry, supabase])
 
   const load = useCallback(async (code: string) => {
-    setLoading(true)
+    const request = ++generation.current
+    setLoading(true); setLoadError(false)
+    try {
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}`
 
-    const [perf, rets, { data: tgts }, monthOrders, productCosts, monthTransactions, monthAds, contractResult] = await Promise.all([
+    const [perf, rets, targetResult, monthOrders, costResult, monthTransactions, monthAds, contractResult] = await Promise.all([
       // fetchAll: كشف حساب مالي — لا نقبل اقتطاع PostgREST الصامت عند 1000 صف
       fetchAll<any>((f, t) => supabase.from('performance_data').select('*')
         .eq('merchant_code', code)
@@ -131,52 +147,47 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         .eq('merchant_code', code)
         .eq('year', year).eq('month', month),
       fetchAll<any>((f, t) => supabase.rpc('list_order_operating_facts', { p_merchant_code: code, p_sku: null })
-        .gte('order_date', `${start}T00:00:00`).lte('order_date', `${end}T23:59:59`)
+        .gte('order_date', `${start}T00:00:00+03:00`).lte('order_date', `${end}T23:59:59.999+03:00`)
         .order('id').range(f, t), 'تكلفة الطلبات'),
-      fetchAll<any>((f, t) => supabase.from('products').select('sku,cost_price')
-        .eq('merchant_code', code).order('id').range(f, t), 'تكلفة المنتجات'),
+      supabase.rpc('statement_costs',{p_merchant_code:code,p_start:`${start}T00:00:00+03:00`,p_end:new Date(Date.parse(`${end}T00:00:00+03:00`)+86400000).toISOString()}).single(),
       fetchAll<any>((f, t) => supabase.from('account_transactions').select('id,platform,settlement_id,transaction_date,posted_date,transaction_type,debit,credit,net_amount,currency,upload_id')
-        .eq('merchant_code', code).gte('transaction_date', `${start}T00:00:00`).lte('transaction_date', `${end}T23:59:59`)
+        .eq('merchant_code', code).gte('transaction_date', `${start}T00:00:00+03:00`).lte('transaction_date', `${end}T23:59:59.999+03:00`)
         .order('id').range(f, t), 'معاملات الشهر'),
       fetchAll<any>((f, t) => supabase.from('ad_metrics').select('id,platform,report_date,upload_id')
         .eq('merchant_code', code).gte('report_date', start).lte('report_date', end)
         .order('id').range(f, t), 'بيانات إعلانات الشهر'),
       supabase.from('merchant_contract_terms').select('sellpert_fee_type,sellpert_fee_value').eq('merchant_code',code).limit(1).maybeSingle(),
     ])
-    if (contractResult.error) throw contractResult.error
+    if (request !== generation.current) return
+    if (contractResult.error || targetResult.error || costResult.error) throw contractResult.error || targetResult.error || costResult.error
+    const tgts = targetResult.data
     setPerfData(perf)
     setReturns(rets)
     setTargets(tgts || [])
     setFinancialTransactions(monthTransactions)
-    const costs = new Map<string, number>()
-    for (const product of productCosts) if (product.sku && Number(product.cost_price) > 0) costs.set(String(product.sku).toLowerCase(), Number(product.cost_price))
-    let cogs = 0, costedUnits = 0, missingUnits = 0
+    const {cogs,costed_units:costedUnits,missing_units:missingUnits}=costResult.data as {cogs:number;costed_units:number;missing_units:number}
     const ledgerOrders = monthOrders.filter((row: any) => row.status !== 'cancelled')
     const activeOrders = ledgerOrders.filter((row: any) => row.status !== 'returned')
     setSellpertCommissionInfo(summarizeSellpertCommission(monthOrders, contractResult.data))
-    for (const order of activeOrders) {
-      const units = Number(order.quantity || 1)
-      const cost = order.sku ? costs.get(String(order.sku).toLowerCase()) : undefined
-      if (cost) { cogs += cost * units; costedUnits += units } else missingUnits += units
-    }
     setCostInfo({ cogs, costedUnits, missingUnits })
     const totalUnits = costedUnits + missingUnits
     setQualityInfo({
-      orders: new Set(ledgerOrders.map((row: any) => row.order_id || row.id)).size,
-      apiOrders: new Set(ledgerOrders.filter((row: any) => !row.upload_id).map((row: any) => row.order_id || row.id)).size,
-      uploadedOrders: new Set(ledgerOrders.filter((row: any) => row.upload_id).map((row: any) => row.order_id || row.id)).size,
+      orders: new Set(ledgerOrders.map((row: any) => `${row.marketplace_account_id}:${row.platform}:${row.order_id || row.id}`)).size,
+      apiOrders: new Set(ledgerOrders.filter((row: any) => !row.upload_id).map((row: any) => `${row.marketplace_account_id}:${row.platform}:${row.order_id || row.id}`)).size,
+      uploadedOrders: new Set(ledgerOrders.filter((row: any) => row.upload_id).map((row: any) => `${row.marketplace_account_id}:${row.platform}:${row.order_id || row.id}`)).size,
       detailedRevenue: ledgerOrders.reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0),
       costCoverage: totalUnits > 0 ? costedUnits / totalUnits * 100 : 0,
       transactions: monthTransactions.length,
-      settlements: new Set(monthTransactions.map((row: any) => row.settlement_id).filter(Boolean)).size,
+      settlements: new Set(monthTransactions.filter(row => String(row.settlement_id || '').trim()).map(settlementIdentity)).size,
       adRows: monthAds.length,
       uploadedAdRows: monthAds.filter((row: any) => row.upload_id).length,
       latestSync: activeOrders.map((row: any) => row.last_synced_at).filter(Boolean).sort().slice(-1)[0] || '',
       latestTransaction: monthTransactions.map((row: any) => row.transaction_date).filter(Boolean).sort().slice(-1)[0] || '',
       latestAdReport: monthAds.map((row: any) => row.report_date).filter(Boolean).sort().slice(-1)[0] || '',
     })
-    setLoading(false)
-  }, [month, year])
+    } catch { if (request === generation.current) setLoadError(true) }
+    finally { if (request === generation.current) setLoading(false) }
+  }, [month, year, supabase])
 
   // Reload only for the selected merchant and accounting period.
   useEffect(() => { if (merchantCode && periodReady) load(merchantCode) }, [load, merchantCode, periodReady])
@@ -248,7 +259,8 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     if (!merchantCode || refreshingFinance) return
     setRefreshingFinance(true); setFinanceMessage(null)
     try {
-      const { data, error } = await supabase.functions.invoke('sync-trendyol', { body:{ merchant_code:merchantCode } })
+      if (trendyolAccounts.length !== 1) throw new Error('اختر حساب Trendyol واحدًا متصلًا لتحديث بياناته.')
+      const { data, error } = await supabase.functions.invoke('sync-trendyol', { body:{ merchant_code:merchantCode, marketplace_account_id:trendyolAccounts[0].id } })
       if (error || data?.error) throw new Error(data?.error || error?.message || 'تعذر تحديث Trendyol')
       await load(merchantCode)
       setFinanceMessage({ type:'ok', text:'تم تحديث معاملات وتسويات Trendyol وإعادة المطابقة.' })
@@ -257,6 +269,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
     } finally { setRefreshingFinance(false) }
   }
 
+  if (loadError) return <div className="merchant-page"><h1 className="merchant-page-title">الأرباح والتحصيل</h1><DataLoadError onRetry={() => setRetry(v => v + 1)} /></div>
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
       <div style={{ width: 36, height: 36, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -283,7 +296,7 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
         </div>
       </div>
 
-      <div role="tablist" aria-label="أقسام الأرباح والتحصيل" style={{ display:'flex', gap:6, background:'var(--surface2)', padding:4, borderRadius:10, marginBottom:20, width:isMobile ? '100%' : 'fit-content', overflowX:'auto' }}>
+      <div role="tablist" aria-label="أقسام الأرباح والتحصيل" style={{ display:'flex', gap:6, background:'var(--surface2)', padding:4, borderRadius:10, marginBottom:20, width:isMobile ? '100%' : 'fit-content', maxWidth:'100%', minWidth:0, overflowX:'auto' }}>
         {[{ k:'month', l:'الملخص المالي' }, { k:'settlements', l:'التسويات والتحويلات' }, { k:'trends', l:'تحليلات واتجاهات' }, { k:'returns', l:'المرتجعات' }].map(t => (
           <button role="tab" aria-selected={stab === t.k} key={t.k} onClick={() => selectStatementTab(t.k as StatementTab)} style={{
             padding:'7px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit', whiteSpace:'nowrap',
@@ -542,24 +555,30 @@ export default function Statement({ merchant }: { merchant: Merchant | null }) {
 
 // ── Account Transactions Ledger ──────────────────────────────────────────────
 function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | null; month: number; year: number }) {
+  const supabase = useSellingAccountClient()
+
+  const [sectionError, setSectionError] = useState(false)
   const [tx, setTx] = useState<any[]>([])
   const [filter, setFilter] = useState<'all' | 'amazon' | 'trendyol'>('all')
   const [loading, setLoading] = useState(false)
   useEffect(() => { if (merchant) loadTx() /* eslint-disable-line */ }, [merchant?.merchant_code, month, year])
   async function loadTx() {
     if (!merchant) return
+    setSectionError(false)
+    try {
     setLoading(true)
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const endDate = new Date(year, month, 0)
     const end   = `${year}-${String(month).padStart(2,'0')}-${endDate.getDate()}T23:59:59`
-    const { data } = await supabase.from('account_transactions')
+    const data = await fetchAll<any>((f,t) => supabase.from('account_transactions')
       .select('platform, transaction_date, transaction_type, order_id, description, debit, credit, net_amount, currency, amount_description')
       .eq('merchant_code', merchant.merchant_code)
       .gte('transaction_date', start).lte('transaction_date', end)
-      .order('transaction_date', { ascending: false })
-      .limit(500)
+      .order('transaction_date', { ascending: false }).order('id').range(f,t))
     setTx(data || [])
     setLoading(false)
+    } catch { setSectionError(true) }
+    finally { setLoading(false) }
   }
   const filtered = filter === 'all' ? tx : tx.filter(r => r.platform === filter)
   const totals = useMemo(() => filtered.reduce((a, r) => ({
@@ -568,6 +587,7 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
     net: a.net + (Number(r.net_amount) || 0),
   }), { debit: 0, credit: 0, net: 0 }), [filtered])
 
+  if (sectionError) return <DataLoadError onRetry={loadTx} />
   if (loading) return null
   if (tx.length === 0) return null
 
@@ -628,14 +648,18 @@ function TransactionsLedger({ merchant, month, year }: { merchant: Merchant | nu
 // ── Cash flow forecast ────────────────────────────────────────────────────────
 // ── التدفق النقدي التاريخي الشهري (كم دخل/خرج فعلياً من كشوف الحسابات) ──────────
 function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [rows, setRows] = useState<any[]>([])
+  const [error, setError] = useState(false)
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
   async function load() {
     if (!merchant) return
-    const { data } = await supabase.from('monthly_cashflow')
-      .select('*').eq('merchant_code', merchant.merchant_code)
-      .order('month', { ascending: false }).limit(18)
-    setRows(data || [])
+    setError(false)
+    try {
+      const data = await fetchAll<any>((f,t) => supabase.from('monthly_cashflow').select('*').eq('merchant_code',merchant.merchant_code).order('month',{ascending:false}).order('marketplace_account_id').range(f,t))
+      setRows(data)
+    } catch { setRows([]); setError(true) }
   }
   // تجميع كل المنصات لكل شهر
   const byMonth = useMemo(() => {
@@ -649,6 +673,7 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
     }
     return Object.values(m).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 6)
   }, [rows])
+  if (error) return <DataLoadError message="تعذر تحميل التدفق النقدي" onRetry={() => void load()} />
   if (byMonth.length === 0) return null
   const maxAbs = Math.max(...byMonth.map(m => Math.max(m.cash_in, m.cash_out)), 1)
   const totalIn = byMonth.reduce((a, m) => a + m.cash_in, 0)
@@ -701,6 +726,8 @@ function MonthlyCashflowPanel({ merchant }: { merchant: Merchant | null }) {
 // because marketplace payout debits were incorrectly presented as cash outflows.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CashFlowForecastLegacy({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
   async function load() {
@@ -746,42 +773,34 @@ function CashFlowForecastLegacy({ merchant }: { merchant: Merchant | null }) {
 
 // ── Returns analytics ─────────────────────────────────────────────────────────
 function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenue?: number }) {
+  const supabase = useSellingAccountClient()
+
+  const [sectionError, setSectionError] = useState(false)
   const [data, setData] = useState<any[]>([])
   const [orderCount, setOrderCount] = useState(0)
   const [allTimeRevenue, setAllTimeRevenue] = useState(0)
-  const [commissionByProduct, setCommissionByProduct] = useState<Map<string, number>>(() => new Map())
-  const [shippingByPlatform, setShippingByPlatform] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { if (merchant) load() /* eslint-disable-line */ }, [merchant?.merchant_code])
   async function load() {
     if (!merchant) return
+    setSectionError(false)
+    try {
     setLoading(true)
-    const [rows, { count }, { data: shippingRates }, perfRows, { data: products }, { data: productRates }] = await Promise.all([
+    const [rows, orderResult, perfRows] = await Promise.all([
       fetchAll<any>((f, t) => supabase.rpc('list_return_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }).order('id').range(f, t), 'المرتجعات'),
       supabase.rpc('list_order_operating_facts', { p_merchant_code: merchant.merchant_code, p_sku: null }, { count: 'exact', head: true }),
-      supabase.from('platform_commission_rates').select('platform, shipping_fee'),
       // إيراد كل الفترات: المرتجعات هنا تاريخية كاملة، فيجب أن يكون مقام النسبة تاريخياً كاملاً أيضاً
       // (كانت تُقسم على إيراد الشهر المعروض فقط → نسب عبثية مثل 911%)
       fetchAll<any>((f, t) => supabase.from('performance_data').select('total_sales').eq('merchant_code', merchant.merchant_code).order('id').range(f, t), 'الإيراد الكلي'),
-      supabase.from('products').select('id,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,commission_rate').eq('merchant_code', merchant.merchant_code),
-      supabase.from('product_platform_prices').select('product_id,platform,commission_rate').eq('merchant_code', merchant.merchant_code),
     ])
     setData(rows)
-    setOrderCount(count || 0)
+    if (orderResult.error) throw orderResult.error
+    setOrderCount(orderResult.count || 0)
     setAllTimeRevenue(perfRows.reduce((a: number, r: any) => a + (Number(r.total_sales) || 0), 0))
-    const productById = new Map((products || []).map(product => [product.id, product]))
-    const cm = new Map<string, number>(), sh: Record<string, number> = {}
-    const addAliases = (platform:string, product:any, rate:number) => {
-      for (const alias of [product?.sku,product?.barcode,product?.psku_code,product?.noon_sku_child,product?.asin,product?.external_id,product?.supplier_sku]) {
-        const key=String(alias||'').trim().toLowerCase(); if (key) cm.set(`${platform}:${key}`,rate)
-      }
-    }
-    for (const rate of (productRates || [])) addAliases(rate.platform, productById.get(rate.product_id), Number(rate.commission_rate) || 0)
-    for (const product of (products || [])) if (Number(product.commission_rate || 0) > 0) addAliases('trendyol', product, Number(product.commission_rate))
-    for (const rate of (shippingRates || [])) sh[rate.platform] = Number(rate.shipping_fee) || 0
-    setCommissionByProduct(cm); setShippingByPlatform(sh)
     setLoading(false)
+    } catch { setSectionError(true) }
+    finally { setLoading(false) }
   }
 
   const stats = useMemo(() => {
@@ -790,22 +809,11 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
     const refunded = data.filter(r => r.status === 'refunded' || r.status === 'processed').length
     const pending  = data.filter(r => r.status === 'pending').length
     const rateOfRevenue = allTimeRevenue > 0 ? (total / allTimeRevenue) * 100 : 0
-    const rateOfOrders  = orderCount > 0 ? (count / orderCount) * 100 : 0
+    const returnedOrders = new Set(data.filter(row=>row.order_id).map(row=>JSON.stringify([row.marketplace_account_id,row.platform,row.order_id]))).size
+    const rateOfOrders = orderCount > 0 ? (returnedOrders / orderCount) * 100 : null
 
-    // الخسائر المتكبدة = العمولات + الشحن على القيم المرتجعة
-    let lossFees = 0, lossShipping = 0
-    for (const r of data) {
-      const sku = String(r.sku || '').trim().toLowerCase()
-      const cmRate = commissionByProduct.get(`${r.platform}:${sku}`) || 0
-      const shFee  = shippingByPlatform[r.platform] || 0
-      const ret    = Number(r.return_amount) || 0
-      const qty    = Number(r.quantity) || 1
-      lossFees     += (ret * cmRate) / 100
-      lossShipping += shFee * qty
-    }
-    const lossTotal = lossFees + lossShipping
-    return { total, count, refunded, pending, rateOfRevenue, rateOfOrders, lossFees, lossShipping, lossTotal }
-  }, [data, allTimeRevenue, orderCount, commissionByProduct, shippingByPlatform])
+    return { total, count, refunded, pending, rateOfRevenue, rateOfOrders }
+  }, [data, allTimeRevenue, orderCount])
 
   const byPlatform = useMemo(() => {
     const m: Record<string, { count: number; amount: number }> = {}
@@ -837,6 +845,7 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
     return Object.entries(m).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.count - a.count).slice(0, 5)
   }, [data])
 
+  if (sectionError) return <DataLoadError onRetry={load} />
   if (loading || data.length === 0) return null
 
   return (
@@ -848,16 +857,16 @@ function ReturnsAnalytics({ merchant }: { merchant: Merchant | null; grossRevenu
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatCard label="عدد المرتجعات" value={stats.count.toString()} sub={`من ${orderCount} طلب`} color="var(--warning-text)" />
-          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders.toFixed(1) + '%'} sub={stats.rateOfOrders > 10 ? 'مرتفعة' : stats.rateOfOrders > 5 ? 'متوسطة' : 'طبيعية'} color={stats.rateOfOrders > 10 ? 'var(--danger-text)' : stats.rateOfOrders > 5 ? 'var(--warning-text)' : 'var(--success-text)'} />
+          <StatCard label="نسبة الإرجاع" value={stats.rateOfOrders === null ? 'غير قابل للحساب' : stats.rateOfOrders.toFixed(1) + '%'} sub="طلبات مميزة مرتبطة بمرتجع، كل الفترات" color="var(--text)" />
           <StatCard label="القيمة المرتجعة (كل الفترات)" value={fmt(stats.total)} sub={stats.rateOfRevenue.toFixed(1) + '% من إجمالي الإيراد الكلي'} color="var(--danger-text)" />
-          <StatCard label="الخسائر المتكبدة" value={fmt(stats.lossTotal)} sub={`عمولة ${fmt(stats.lossFees)} · شحن ${fmt(stats.lossShipping)}`} color="var(--danger-text)" />
+          <StatCard label="تكلفة المرتجعات الفعلية" value="تحتاج مطابقة" sub="تُراجع من المعاملات؛ لا نستنتج خسارة من نسبة العمولة أو رسوم الشحن الافتراضية." color="var(--text2)" />
           <StatCard label="مُسترد" value={stats.refunded.toString()} sub={stats.pending > 0 ? `${stats.pending} قيد المراجعة` : 'مكتمل'} color="#0f958c" />
         </div>
 
         {/* صدق: المرتجعات تعتمد على التقارير المرفوعة — صفر لا يعني «لا مرتجعات» بل قد يعني «لم يُرفع الملف» */}
         <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 800 }}>ملاحظة</span>
-          تعكس هذه الأرقام تقارير المرتجعات المرفوعة فقط — إن كانت منصة بلا مرتجعات فقد يكون تقريرها لم يُرفع بعد.
+          تعكس هذه الأرقام المرتجعات المحفوظة للحسابات المحددة من الربط والملفات. غياب البيانات لا يثبت غياب المرتجعات.
         </div>
 
         {/* By platform */}
@@ -934,6 +943,11 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 // ── Returns mini-section ──────────────────────────────────────────────────────
 
 function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchant | null; month: number; year: number; onUpdate: () => void }) {
+  const supabase = useSellingAccountClient()
+  const accounts = useSelectedSellingAccounts()
+  const trendyolAccounts = accounts.filter(account => account.platform === 'trendyol' && !account.is_legacy && account.status === 'active')
+
+  const [sectionError, setSectionError] = useState(false)
   const canManageReturns = hasMerchantPermission(merchant, 'orders')
   const [returns, setReturns] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -954,6 +968,8 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
 
   async function loadReturns() {
     if (!merchant) return
+    setSectionError(false)
+    try {
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const end = new Date(year, month, 0).toISOString().split('T')[0]
     const [periodRows, pendingRows] = await Promise.all([
@@ -966,49 +982,56 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     ])
     const rowsById = new Map([...pendingRows, ...periodRows].map(row => [row.id, row]))
     setReturns([...rowsById.values()])
+    } catch { setSectionError(true) }
   }
 
   async function refreshClaims() {
     if (!merchant || syncingClaims) return
     setSyncingClaims(true); setReturnActionMessage(null)
-    const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code } })
-    if (error || data?.error) {
-      setReturnActionMessage({ type:'err', text:data?.error || error?.message || 'تعذر تحديث المرتجعات من Trendyol.' })
-    } else {
+    try {
+      if (trendyolAccounts.length !== 1) throw new Error('اختر حساب Trendyol واحدًا متصلًا لتحديث مرتجعاته.')
+      const { data, error } = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant.merchant_code, marketplace_account_id:trendyolAccounts[0].id } })
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'تعذر تحديث المرتجعات.')
       await loadReturns(); onUpdate()
       setReturnActionMessage({ type:'ok', text:'تم تحديث طلبات المرتجعات من Trendyol.' })
-    }
-    setSyncingClaims(false)
+    } catch (error) {
+      setReturnActionMessage({ type:'err', text:error instanceof Error ? error.message : 'تعذر تحديث المرتجعات.' })
+    } finally { setSyncingClaims(false) }
   }
 
   async function addReturn() {
-    if (!form.return_amount) return
-    setSaving(true)
-    await supabase.from('returns').insert({
-      merchant_code: merchant!.merchant_code,
-      platform: form.platform,
-      order_id: form.order_id || null,
-      product_name: form.product_name || null,
-      quantity: parseInt(form.quantity) || 1,
-      return_amount: parseFloat(form.return_amount) || 0,
-      reason: form.reason || null,
-      return_date: form.return_date,
-      status: form.status,
-    })
-    setSaving(false)
-    setShowForm(false)
-    setForm(f => ({ ...f, order_id: '', product_name: '', quantity: '1', return_amount: '', reason: '' }))
-    loadReturns()
-    onUpdate()
+    if (!merchant || saving) return
+    setSaving(true); setReturnActionMessage(null)
+    try {
+      const selected = accounts.filter(account => account.platform === form.platform)
+      if (selected.length !== 1) throw new Error('اختر حساب بيع واحدًا للمنصة قبل إضافة مرتجع.')
+      const quantity = Number(form.quantity), amount = Number(form.return_amount)
+      if (!form.return_amount.trim() || !Number.isFinite(amount) || amount < 0 || !Number.isInteger(quantity) || quantity < 1) throw new Error('أدخل مبلغًا صالحًا وكمية صحيحة أكبر من صفر.')
+      const { error } = await supabase.from('returns').insert({
+        merchant_code: merchant.merchant_code, marketplace_account_id:selected[0].id,
+        platform: form.platform, order_id: form.order_id || null,
+        product_name: form.product_name || null, quantity, return_amount: amount,
+        reason: form.reason || null, return_date: form.return_date, status: form.status,
+      })
+      if (error) throw new Error('تعذر حفظ المرتجع. راجع البيانات ثم أعد المحاولة.')
+      setShowForm(false)
+      setForm(f => ({ ...f, order_id: '', product_name: '', quantity: '1', return_amount: '', reason: '' }))
+      await loadReturns(); onUpdate()
+    } catch (error) {
+      setReturnActionMessage({type:'err',text:error instanceof Error ? error.message : 'تعذر حفظ المرتجع.'})
+    } finally { setSaving(false) }
   }
 
   async function loadRejectReasons(row: any) {
+    if (!trendyolAccounts.some(account=>account.id===row.marketplace_account_id)) {
+      setReturnActionMessage({type:'err',text:'اختر الحساب المتصل الذي ينتمي إليه المرتجع.'}); return
+    }
     setRejectingReturn(row)
     setReturnActionMessage(null)
-    if (rejectReasons.length) return
+    setRejectReasons([]); setRejectReasonId('')
     setReturnActionId(String(row.id))
     const { data, error } = await supabase.functions.invoke('trendyol-actions', {
-      body: { merchant_code: merchant!.merchant_code, action: 'claims.issue_reasons', storefront: 'SA' },
+      body: { merchant_code: merchant!.merchant_code, marketplace_account_id: row.marketplace_account_id, action: 'claims.issue_reasons', storefront: 'SA' },
     })
     setReturnActionId(null)
     if (error || data?.error) {
@@ -1027,7 +1050,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   }
 
   async function runReturnDecision(row: any, decision: 'approve' | 'reject') {
-    if (!row.claim_id || !row.provider_claim_item_id) {
+    if (!row.claim_id || !row.provider_claim_item_id || !trendyolAccounts.some(account => account.id === row.marketplace_account_id)) {
       setReturnActionMessage({ type: 'err', text: 'بيانات المرتجع غير مكتملة. حدّث بيانات Trendyol ثم حاول مرة أخرى.' })
       return
     }
@@ -1040,6 +1063,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
     const body = decision === 'approve'
       ? {
           merchant_code: merchant!.merchant_code,
+          marketplace_account_id: row.marketplace_account_id,
           action: 'claims.approve',
           path: { claimId: row.claim_id },
           payload: { claimLineItemIdList: [row.provider_claim_item_id] },
@@ -1048,6 +1072,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
         }
       : {
           merchant_code: merchant!.merchant_code,
+          marketplace_account_id: row.marketplace_account_id,
           action: 'claims.reject',
           path: { claimId: row.claim_id },
           query: {
@@ -1064,7 +1089,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
       setReturnActionId(null)
       return
     }
-    const syncResult = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant!.merchant_code } })
+    const syncResult = await supabase.functions.invoke('sync-trendyol', { body: { merchant_code: merchant!.merchant_code, marketplace_account_id:row.marketplace_account_id } })
     await loadReturns()
     onUpdate()
     setRejectingReturn(null); setApprovingReturn(null); setRejectDescription(''); setReturnActionId(null)
@@ -1081,6 +1106,7 @@ function ReturnsSection({ merchant, month, year, onUpdate }: { merchant: Merchan
   const rejectedDecisions = returns.filter(row => String(row.status || '').toLowerCase() === 'rejected').length
   const totalReturns = returns.reduce((s, r) => s + Number(r.return_amount || 0), 0)
 
+  if (sectionError) return <DataLoadError onRetry={loadReturns} />
   return (
     <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:12, flexWrap:'wrap' }}>
@@ -1263,11 +1289,21 @@ function PnLPanel({ summary, knownCogs }: { summary: FinancialSummary; knownCogs
 
 // ── Revenue Forecast ─────────────────────────────────────────────────────────
 function RevenueForecastPanel({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any>(null)
+  const [error, setError] = useState(false)
+  const [reload, setReload] = useState(0)
   useEffect(() => {
     if (!merchant) return
-    supabase.rpc('revenue_forecast', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data))
-  }, [merchant])
+    let cancelled=false; setError(false)
+    withTimeout(supabase.rpc('revenue_forecast', { p_merchant_code: merchant.merchant_code })).then(({ data,error }) => {
+      if (cancelled) return
+      if (error) { setError(true); setData(null) } else setData(data)
+    }).catch(() => { if(!cancelled) setError(true) })
+    return () => {cancelled=true}
+  }, [merchant, supabase, reload])
+  if (error) return <DataLoadError message="تعذر تحميل توقع المبيعات" onRetry={() => setReload(n=>n+1)} />
   if (!data || !Number(data.avg_daily)) return null
   const growth = data.growth_rate_pct
   const confidence = ({ high: 'مرتفعة', medium: 'متوسطة', low: 'منخفضة' } as Record<string, string>)[data.confidence] || 'منخفضة'
@@ -1303,11 +1339,23 @@ function ForecastBox({ label, value, color }: { label: string; value: string; co
 
 // ── Return Reasons Deep Dive ──────────────────────────────────────────────────
 function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
+  const supabase = useSellingAccountClient()
+
   const [data, setData] = useState<any[]>([])
+  const [error, setError] = useState(false)
+  const [retry, setRetry] = useState(0)
   useEffect(() => {
     if (!merchant) return
-    supabase.rpc('return_reasons_breakdown', { p_merchant_code: merchant.merchant_code }).then(({ data }) => setData(data || []))
-  }, [merchant])
+    let active = true; setError(false)
+    fetchAll<any>((from,to) => supabase.rpc('list_return_facts',{p_merchant_code:merchant.merchant_code,p_sku:null}).order('id').range(from,to),'أسباب المرتجعات').then(rows => {
+      if (!active) return
+      const counts = new Map<string,number>()
+      for (const row of rows) { const reason = String(row.reason || 'غير محدد'); counts.set(reason,(counts.get(reason)||0)+1) }
+      setData([...counts].map(([reason,count])=>({reason,count,percentage:rows.length ? count/rows.length*100 : 0})).sort((a,b)=>b.count-a.count))
+    }).catch(()=>{if(active)setError(true)})
+    return ()=>{active=false}
+  }, [merchant, supabase, retry])
+  if (error) return <DataLoadError onRetry={()=>setRetry(value=>value+1)} />
   if (data.length === 0) return null
   const labels: Record<string, string> = {
     customer: 'ألغاها العميل', trendyol: 'ألغتها المنصة', seller: 'ألغيتها أنت',
@@ -1321,7 +1369,7 @@ function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
   }
   return (
     <div style={{ ...S.card, padding: 18, marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>تحليل أسباب المرتجعات</div>
+      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>أسباب المرتجعات — كل الفترات للنطاق المحدد</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {data.slice(0, 10).map((r, i) => {
           const pct = Number(r.percentage)
@@ -1329,9 +1377,9 @@ function ReturnReasonsBreakdown({ merchant }: { merchant: Merchant | null }) {
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ minWidth: 130, fontSize: 12, fontWeight: 600 }}>{labels[r.reason] || r.reason}</span>
               <div style={{ flex: 1, height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.min(pct * 2, 100)}%`, background: '#ff6b6b', borderRadius: 4 }} />
+                <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: '#ff6b6b', borderRadius: 4 }} />
               </div>
-              <span style={{ minWidth: 60, textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#ff6b6b' }}>{r.count} ({pct}%)</span>
+              <span style={{ minWidth: 60, textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#ff6b6b' }}>{r.count} ({pct.toFixed(1)}%)</span>
             </div>
           )
         })}

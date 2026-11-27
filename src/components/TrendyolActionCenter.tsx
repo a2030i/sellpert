@@ -65,11 +65,11 @@ const CAPABILITIES: Capability[] = [
   { action:'finance.other',label:'الحركات المالية الأخرى',group:'الماليات',risk:'read',queryHint:'{"transactionType":"PaymentOrder","startDate":0,"endDate":0,"page":0,"size":500}' },
 ]
 
-export default function TrendyolActionCenter({ merchantCode, onClose, merchantMode=false }:{ merchantCode:string; onClose:()=>void; merchantMode?:boolean }) {
-  return merchantMode ? <MerchantTrendyolCenter merchantCode={merchantCode} onClose={onClose}/> : <AdvancedTrendyolActionCenter merchantCode={merchantCode} onClose={onClose}/>
+export default function TrendyolActionCenter({ merchantCode, marketplaceAccountId, onClose, merchantMode=false }:{ merchantCode:string; marketplaceAccountId?:string; onClose:()=>void; merchantMode?:boolean }) {
+  return merchantMode ? <MerchantTrendyolCenter marketplaceAccountId={marketplaceAccountId} merchantCode={merchantCode} onClose={onClose}/> : <AdvancedTrendyolActionCenter marketplaceAccountId={marketplaceAccountId} merchantCode={merchantCode} onClose={onClose}/>
 }
 
-function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:string; onClose:()=>void }) {
+function AdvancedTrendyolActionCenter({ merchantCode, marketplaceAccountId, onClose }:{ merchantCode:string; marketplaceAccountId?:string; onClose:()=>void }) {
   const [selected,setSelected] = useState(CAPABILITIES[0].action)
   const [path,setPath] = useState('{}'); const [query,setQuery] = useState('{}'); const [payload,setPayload] = useState('{}')
   const [confirmed,setConfirmed] = useState(false); const [busy,setBusy] = useState(false)
@@ -89,7 +89,7 @@ function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:s
       const { data:{ session } }=await supabase.auth.getSession()
       const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`,{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session?.access_token || ''}`},
-        body:JSON.stringify({merchant_code:merchantCode,action:selected,path:parsedPath,query:parsedQuery,payload:parsedPayload,
+        body:JSON.stringify({merchant_code:merchantCode,marketplace_account_id:marketplaceAccountId,action:selected,path:parsedPath,query:parsedQuery,payload:parsedPayload,
           confirm:capability.risk==='read'||confirmed,idempotency_key:capability.risk==='read'?undefined:crypto.randomUUID(),storefront:'SA'}),
       })
       const data=await response.json().catch(()=>({}))
@@ -118,7 +118,7 @@ function AdvancedTrendyolActionCenter({ merchantCode, onClose }:{ merchantCode:s
 
 type MerchantAction = 'questions'|'label'|'status'|'tracking'|'carrier'|'stock'|'approve_return'
 
-function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onClose:()=>void}) {
+function MerchantTrendyolCenter({merchantCode,marketplaceAccountId,onClose}:{merchantCode:string;marketplaceAccountId?:string;onClose:()=>void}) {
   const [action,setAction]=useState<MerchantAction>('questions')
   const [form,setForm]=useState<Record<string,string>>({status:'Picking'})
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState<{type:'ok'|'err';text:string}|null>(null)
@@ -144,7 +144,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   async function run() {
     setBusy(true); setMessage(null)
     try {
-      let request:any={merchant_code:merchantCode,confirm:true,storefront:'SA',idempotency_key:crypto.randomUUID()}
+      let request:any={merchant_code:merchantCode,marketplace_account_id:marketplaceAccountId,confirm:true,storefront:'SA',idempotency_key:crypto.randomUUID()}
       if(action==='label') {
         if(!form.tracking?.trim()) throw new Error('أدخل رقم تتبع الشحنة')
         request={...request,action:'packages.common_label_get',path:{cargoTrackingNumber:form.tracking.trim()}}
@@ -189,7 +189,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   return <div style={M.backdrop} onClick={onClose}><div style={{...M.modal,width:'min(760px,100%)'}} onClick={e=>e.stopPropagation()}>
     <div style={M.header}><div><b style={{fontSize:18}}>خدمات Trendyol</b><div style={M.sub}>نفّذ خدمات متجرك مباشرة دون أكواد أو خطوات تقنية</div></div><button aria-label="إغلاق خدمات Trendyol" style={M.close} onClick={onClose}><X size={18}/></button></div>
     <div style={F.actions}>{actions.map(([id,title,desc,Icon])=><button key={id} onClick={()=>chooseAction(id)} style={{...F.action,borderColor:action===id?'#f27a1a':'var(--border)',background:action===id?'rgba(242,122,26,.08)':'var(--surface2)'}}><Icon size={20} color={action===id?'#f27a1a':'var(--text3)'}/><span style={{display:'grid',gap:3}}><b>{title}</b><small style={{color:'var(--text3)',lineHeight:1.4}}>{desc}</small></span></button>)}</div>
-    {action==='questions'?<TrendyolCustomerInbox merchantCode={merchantCode}/>:<div style={F.form}>
+    {action==='questions'?<TrendyolCustomerInbox merchantCode={merchantCode} marketplaceAccountId={marketplaceAccountId}/>:<div style={F.form}>
       {action==='label'?input('رقم تتبع الشحنة','tracking','مثال: 3941019487'):
        action==='status'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم بند الطلب','lineId','Line ID','number')}{input('الكمية في البند','quantity','1','number')}<label style={F.field}><span>الحالة الجديدة</span><select style={M.input} value={form.status||'Picking'} onChange={e=>set('status',e.target.value)}><option value="Picking">قيد التجهيز</option><option value="Invoiced">تم إصدار الفاتورة</option></select></label>{(form.status||'Picking')==='Invoiced'?input('رقم الفاتورة','invoiceNumber','رقم الفاتورة'):null}</>:
        action==='tracking'?<>{input('رقم حزمة الشحنة','packageId','Shipment Package ID')}{input('رقم التتبع','tracking','رقم التتبع الجديد')}{input('رمز شركة الشحن','carrier','مثال: STARLINKS')}</>:
@@ -202,7 +202,7 @@ function MerchantTrendyolCenter({merchantCode,onClose}:{merchantCode:string;onCl
   </div></div>
 }
 
-export function TrendyolCustomerInbox({merchantCode,standalone=false}:{merchantCode:string;standalone?:boolean}) {
+export function TrendyolCustomerInbox({merchantCode,marketplaceAccountId,standalone=false}:{merchantCode:string;marketplaceAccountId?:string;standalone?:boolean}) {
   const [questions,setQuestions]=useState<any[]>([])
   const [replies,setReplies]=useState<any[]>([])
   const [waitingCount,setWaitingCount]=useState(0)
@@ -221,12 +221,12 @@ export function TrendyolCustomerInbox({merchantCode,standalone=false}:{merchantC
     if(!session?.access_token) throw new Error('انتهت جلسة الدخول. حدّث الصفحة ثم حاول مجددًا.')
     const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trendyol-actions`,{
       method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'idempotency-key':crypto.randomUUID()},
-      body:JSON.stringify({merchant_code:merchantCode,action,storefront:'SA',...extra}),
+      body:JSON.stringify({merchant_code:merchantCode,marketplace_account_id:marketplaceAccountId,action,storefront:'SA',...extra}),
     })
     const data=await response.json().catch(()=>({}))
     if(!response.ok||data.error) throw new Error(data.error||'تعذّر الاتصال بـ Trendyol')
     return data
-  },[merchantCode])
+  },[merchantCode,marketplaceAccountId])
 
   const readInbox=useCallback(async () => {
     const data=await call('questions.inbox',{query:{limit:100}})

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260810181753
+-- Original remote name: remove_retired_integrations_and_billing
+-- Original recorded SQL SHA-256: 89692264c8adafb354d557d7861d91f2a325acbe186a988bf81b23a22d41795d
+-- Reconstructed final schema mapping:
+--   20260810180331_remove_retired_integrations_and_billing.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

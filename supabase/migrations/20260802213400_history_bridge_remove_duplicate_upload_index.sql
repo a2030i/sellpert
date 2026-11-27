@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802213400
+-- Original remote name: remove_duplicate_upload_index
+-- Original recorded SQL SHA-256: d09a806528f6313cbd724a72439cb7d7a0f6a125d8f5ce0447d8bfc4a0619007
+-- Reconstructed final schema mapping:
+--   20260803144500_remove_duplicate_upload_index.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802234350
+-- Original remote name: expand_merchant_roles
+-- Original recorded SQL SHA-256: f50b42cb109ff35a874ea56daaf726a148f7e5e13aae97beee8b488f348bee03
+-- Reconstructed final schema mapping:
+--   20260803224000_expand_merchant_roles.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

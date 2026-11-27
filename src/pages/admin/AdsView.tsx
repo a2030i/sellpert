@@ -1,3 +1,4 @@
+import { ratio, formatRatio } from '../../lib/dataScope'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { S, PLATFORM_MAP, PLATFORM_COLORS } from './adminShared'
@@ -91,8 +92,8 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
     setLoading(false)
   }
 
-  const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0
-  const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
+  const roas = ratio(totals.revenue, totals.spend)
+  const ctr = ratio(totals.clicks, totals.impressions)
   const cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0
 
 
@@ -129,13 +130,13 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             <KpiCard label="الإنفاق" value={Math.round(totals.spend).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="#e84040" icon={<TrendingDown size={20} />} />
             <KpiCard label="الإيرادات" value={Math.round(totals.revenue).toLocaleString('ar-SA-u-nu-latn') + ' ر.س'} color="#00b894" icon={<TrendingUp size={20} />} />
-            <KpiCard label="ROAS"  value={roas.toFixed(2) + 'x'} sub={roas >= 3 ? 'ممتاز' : roas >= 1.5 ? 'جيد' : 'منخفض'} color={roas >= 3 ? '#00b894' : roas >= 1.5 ? '#ff9900' : '#e84040'} />
+            <KpiCard label="ROAS"  value={formatRatio(roas, 'x')} sub="عائد قبل التكاليف والرسوم؛ لا يثبت الربحية" color="var(--text)" />
             <KpiCard label="عدد المعاملات" value={totals.rows.toLocaleString('ar-SA-u-nu-latn')} sub={`${totals.orders} طلب`} color="#0f958c" icon={<Megaphone size={20} />} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <SubKpi label="الظهور" value={totals.impressions.toLocaleString('ar-SA-u-nu-latn')} />
-            <SubKpi label="النقرات" value={totals.clicks.toLocaleString('ar-SA-u-nu-latn') + ` (${ctr.toFixed(2)}% CTR)`} />
+            <SubKpi label="النقرات" value={totals.clicks.toLocaleString('ar-SA-u-nu-latn') + ` (${formatRatio(ctr, '%', 100)} CTR)`} />
             <SubKpi label="معدّل التحويل" value={cvr.toFixed(2) + '%'} />
           </div>
 
@@ -195,8 +196,8 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                 </thead>
                 <tbody>
                   {groups.map((g, i) => {
-                    const r = g.spend > 0 ? g.revenue / g.spend : 0
-                    const ct = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0
+                    const r = ratio(g.revenue, g.spend)
+                    const ct = ratio(g.clicks, g.impressions)
                     const color = PLATFORM_COLORS[g.platform] || '#0f958c'
                     return (
                       <tr key={i} style={S.tr}>
@@ -204,11 +205,11 @@ export default function AdsView({ merchants }: { merchants: Merchant[] }) {
                         <td style={{ ...S.td, fontSize: 11, color, fontWeight: 700 }}>{PLATFORM_MAP[g.platform] || g.platform}</td>
                         <td style={{ ...S.td, fontSize: 11 }}>{g.impressions.toLocaleString('ar-SA-u-nu-latn')}</td>
                         <td style={{ ...S.td, fontSize: 11 }}>{g.clicks.toLocaleString('ar-SA-u-nu-latn')}</td>
-                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{ct.toFixed(2)}%</td>
+                        <td style={{ ...S.td, fontSize: 11, color: 'var(--text3)' }}>{formatRatio(ct, '%', 100)}</td>
                         <td style={{ ...S.td, fontSize: 11, fontWeight: 700 }}>{g.orders}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--danger-text)', fontFamily: 'monospace' }}>{g.spend.toFixed(2)}</td>
                         <td style={{ ...S.td, fontSize: 11, color: 'var(--success-text)', fontFamily: 'monospace' }}>{g.revenue.toFixed(2)}</td>
-                        <td style={{ ...S.td, fontSize: 11, fontWeight: 800, color: r >= 3 ? 'var(--success-text)' : r >= 1 ? 'var(--warning-text)' : 'var(--danger-text)' }}>{r.toFixed(2)}x</td>
+                        <td style={{ ...S.td, fontSize: 11, fontWeight: 800, color: 'var(--text)' }}>{formatRatio(r, 'x')}</td>
                       </tr>
                     )
                   })}

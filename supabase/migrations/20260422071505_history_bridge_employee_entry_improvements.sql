@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260422071505
+-- Original remote name: employee_entry_improvements
+-- Original recorded SQL SHA-256: c050e04ff1e993ee94f7c532d3b3cf47ef83679896d4bd0bef44e1fee2725870
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

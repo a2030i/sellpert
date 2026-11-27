@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260503203528
+-- Original remote name: data_utilization_round_5
+-- Original recorded SQL SHA-256: ba897d6017f924bbad083face2d6793b861906bf5bb4cfb21a9bf9aa3462eb04
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

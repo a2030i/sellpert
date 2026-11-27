@@ -1,0 +1,22 @@
+[
+  {
+    "database": "sellpert_recovery_candidate",
+    "attempt": 1,
+    "passed": true
+  },
+  {
+    "database": "sellpert_recovery_candidate",
+    "attempt": 2,
+    "passed": true
+  },
+  {
+    "database": "sellpert_production_policy_candidate",
+    "attempt": 1,
+    "passed": true
+  },
+  {
+    "database": "sellpert_production_policy_candidate",
+    "attempt": 2,
+    "passed": true
+  }
+]

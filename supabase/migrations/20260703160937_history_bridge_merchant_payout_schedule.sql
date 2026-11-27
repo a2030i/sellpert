@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260703160937
+-- Original remote name: merchant_payout_schedule
+-- Original recorded SQL SHA-256: 6d811845068c3b14fbbc0f3de5adc29a9008031dab5d3908909487331b0698d0
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

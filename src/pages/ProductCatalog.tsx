@@ -1,16 +1,19 @@
+import CatalogStructureEditor from '../components/CatalogStructureEditor'
+import { useSellingAccountClient } from '../components/SellingAccountScope'
+import { fetchAllStrict } from '../lib/db'
 import { PageHeader } from '../components/UI'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Calculator, ChevronLeft, Download, Link2, PackageSearch, Save, Search, Truck, Unlink, X } from 'lucide-react'
-import { supabase, type Merchant } from '../lib/supabase'
+import { type Merchant } from '../lib/supabase'
 import { toastErr, toastOk } from '../components/Toast'
 import { categoryCommission, type FeeCategory } from '../lib/commission'
 import { calculateProductProfitability, type ProductProfitability, type SellpertFeeType } from '../lib/productProfitability'
 
-type Mapping = { id:string; platform:string; identifier_type:string; identifier_value:string; status:'linked'|'review'|'unknown' }
-type CatalogItem = { id:string|null; name:string; name_en:string|null; sku:string|null; barcode:string|null; brand:string|null; category:string|null; image_url:string|null; cost_price:number; sale_price:number|null; target_net_price:number; catalog_status:string; inventory:number; mappings:Mapping[]; match_status:'linked'|'review'|'unknown' }
+type Mapping = { id:string; marketplace_account_id:string; account_label:string; platform:string; identifier_type:string; identifier_value:string; status:'linked'|'review'|'unknown' }
+type CatalogItem = { id:string|null; name:string; name_en:string|null; sku:string|null; barcode:string|null; brand:string|null; category:string|null; image_url:string|null; cost_price:number; sale_price:number|null; target_net_price:number; catalog_status:string; inventory:number|null; mappings:Mapping[]; match_status:'linked'|'review'|'unknown' }
 type Stats = { total:number; linked:number; review:number; unknown:number }
 type CatalogResult = { items:CatalogItem[]; stats:Stats; filtered_count:number }
-type LinkTarget = { id:string; name:string; sku:string|null }
+type LinkTarget = { id:string; name:string; sku:string|null; variant_attributes?:Record<string,string> }
 type PlatformPrice = { product_id:string; platform:string; selling_price:number; override_price:number|null; commission_rate:number; category_key:string|null; commission_source:string|null }
 type FinanceSetting = { platform:string; shipping_cost_tax_inclusive:number }
 type ContractTerm = { sellpert_fee_type:SellpertFeeType; sellpert_fee_value:number }
@@ -26,6 +29,8 @@ function initialPlatform() {
 }
 
 export default function ProductCatalog({ merchant }: { merchant:Merchant|null }) {
+  const supabase = useSellingAccountClient()
+
   const [items,setItems] = useState<CatalogItem[]>([]), [stats,setStats] = useState(EMPTY_STATS)
   const [filteredCount,setFilteredCount] = useState(0), [status,setStatus] = useState<'all'|'linked'|'review'|'unknown'>('all')
   const [platform,setPlatform] = useState(initialPlatform), [search,setSearch] = useState(''), deferredSearch = useDeferredValue(search)
@@ -34,6 +39,10 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   const [linkTargets,setLinkTargets] = useState<LinkTarget[]>([]), [targetId,setTargetId] = useState('')
   const [prices,setPrices] = useState<PlatformPrice[]>([]), [feeCategories,setFeeCategories] = useState<FeeCategory[]>([])
   const [financeLoading,setFinanceLoading] = useState(true)
+  const [financeError,setFinanceError] = useState(false)
+  const [linkSearch,setLinkSearch] = useState('')
+  const deferredLinkSearch = useDeferredValue(linkSearch)
+  const [linkError,setLinkError] = useState(false)
   const [exactRates,setExactRates] = useState<ExactProductRate[]>([]), [financeSettings,setFinanceSettings] = useState<FinanceSetting[]>([])
   const [contractTerm,setContractTerm] = useState<ContractTerm|null>(null)
   const [shippingInput,setShippingInput] = useState('0'), [savingShipping,setSavingShipping] = useState(false)
@@ -52,14 +61,14 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
         setLoading(false)
       })
     return () => { cancelled=true }
-  }, [merchant,status,platform,deferredSearch,page,reload])
+  }, [merchant,status,platform,deferredSearch,page,reload, supabase])
   useEffect(() => {
     if (!merchant) return
     let cancelled=false
-    setFinanceLoading(true)
+    setFinanceLoading(true); setFinanceError(false)
     Promise.all([
-      supabase.from('product_platform_prices').select('product_id,platform,selling_price,override_price,commission_rate,category_key,commission_source').eq('merchant_code',merchant.merchant_code),
-      supabase.from('products').select('id,commission_rate').eq('merchant_code',merchant.merchant_code),
+      fetchAllStrict<PlatformPrice>((f,t) => supabase.from('product_platform_prices').select('product_id,platform,selling_price,override_price,commission_rate,category_key,commission_source').eq('merchant_code',merchant.merchant_code).order('id').range(f,t)).then(data => ({data,error:null})),
+      fetchAllStrict<ExactProductRate>((f,t) => supabase.from('products').select('id,commission_rate').eq('merchant_code',merchant.merchant_code).order('id').range(f,t)).then(data => ({data,error:null})),
       supabase.from('platform_fee_categories').select('platform,category_key,commission_rate,commission_fbn_fba,min_fee_sar'),
       supabase.from('merchant_platform_finance_settings').select('platform,shipping_cost_tax_inclusive').eq('merchant_code',merchant.merchant_code),
       supabase.from('merchant_contract_terms').select('sellpert_fee_type,sellpert_fee_value').eq('merchant_code',merchant.merchant_code).limit(1),
@@ -67,7 +76,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
       if (cancelled) return
       setFinanceLoading(false)
       if (priceResult.error || productResult.error || categoryResult.error || settingResult.error || contractResult.error) {
-        console.error('load catalog profitability', priceResult.error || productResult.error || categoryResult.error || settingResult.error || contractResult.error)
+        setFinanceError(true); setPrices([]); setExactRates([]); setContractTerm(null)
         return
       }
       setPrices((priceResult.data||[]) as PlatformPrice[])
@@ -75,9 +84,9 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
       setFeeCategories((categoryResult.data||[]) as FeeCategory[])
       setFinanceSettings((settingResult.data||[]) as FinanceSetting[])
       setContractTerm(((contractResult.data||[])[0] as ContractTerm|undefined) || null)
-    })
+    }).catch(() => { if (!cancelled) { setFinanceError(true); setFinanceLoading(false) } })
     return () => { cancelled=true }
-  },[merchant])
+  },[merchant,reload, supabase])
   useEffect(() => {
     const shipping=financeSettings.find(row=>row.platform===platform)?.shipping_cost_tax_inclusive || 0
     setShippingInput(String(shipping))
@@ -85,11 +94,12 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   useEffect(() => {
     if (!merchant || !selected || selected.id) { setLinkTargets([]); setTargetId(''); return }
     let cancelled=false
-    supabase.from('products').select('id,name,sku').eq('merchant_code',merchant.merchant_code).order('name').limit(300).then(({data})=>{
-      if (!cancelled) setLinkTargets((data||[]) as LinkTarget[])
-    })
+    setLinkError(false); setTargetId('')
+    fetchAllStrict<LinkTarget>((f,t) => supabase.from('products').select('id,name,sku,variant_attributes').eq('merchant_code',merchant.merchant_code).order('name').order('id').range(f,t)).then(data=>{
+      if (!cancelled) setLinkTargets(data)
+    }).catch(() => { if (!cancelled) { setLinkTargets([]); setLinkError(true) } })
     return () => { cancelled=true }
-  },[merchant,selected])
+  },[merchant,selected, supabase])
 
   const pageCount=Math.max(1,Math.ceil(filteredCount/PAGE_SIZE))
   const cards=useMemo(()=>[['all','كل المنتجات',stats.total,'#2563eb'],['linked','مرتبط',stats.linked,'#0f958c'],['review','يحتاج مراجعة',stats.review,'#d97706'],['unknown','غير معروف',stats.unknown,'#64748b']] as const,[stats])
@@ -97,7 +107,14 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
     const available=new Set([...prices.map(row=>row.platform),...financeSettings.map(row=>row.platform),...items.flatMap(item=>item.mappings.map(mapping=>mapping.platform))])
     return platformPriority.filter(value=>available.has(value))
   },[prices,financeSettings,items])
-  const priceByProduct=useMemo(()=>new Map(prices.filter(row=>row.platform===platform).map(row=>[row.product_id,row])),[prices,platform])
+  const priceByProduct=useMemo(()=>{
+    const result=new Map<string,PlatformPrice|null>()
+    for(const row of prices.filter(row=>row.platform===platform)) {
+      const old=result.get(row.product_id)
+      result.set(row.product_id,old === undefined ? row : old && old.selling_price===row.selling_price && old.override_price===row.override_price && old.commission_rate===row.commission_rate ? old : null)
+    }
+    return result
+  },[prices,platform])
   const exactRateByProduct=useMemo(()=>new Map(exactRates.map(row=>[row.id,Number(row.commission_rate||0)])),[exactRates])
   const shippingCost=Number(financeSettings.find(row=>row.platform===platform)?.shipping_cost_tax_inclusive||0)
   const financialMode=Boolean(platform&&platform!=='all')
@@ -133,8 +150,9 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   }
 
   function profitabilityFor(item:CatalogItem): ProductProfitability | null {
-    if (!financialMode || !item.id) return null
+    if (financeLoading || financeError || !financialMode || !item.id) return null
     const price=priceByProduct.get(item.id)
+    if (price === null) return null
     const exactRate=platform==='trendyol' ? exactRateByProduct.get(item.id)||0 : 0
     const categoryRate=categoryCommission(feeCategories,platform,item.category)
     const commissionRate=Number(price?.commission_rate||0)>0 ? Number(price!.commission_rate) : exactRate>0 ? exactRate : categoryRate?.rate ?? null
@@ -143,7 +161,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   }
 
   async function saveShippingCost() {
-    if (!merchant || !financialMode) return
+    if (!merchant || !financialMode || financeLoading || financeError) return
     const value=Number(shippingInput)
     if (!Number.isFinite(value) || value<0) return toastErr('أدخل تكلفة شحن صحيحة تساوي صفرًا أو أكثر')
     setSavingShipping(true)
@@ -164,6 +182,8 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
   async function linkUnknown() {
     if (!merchant || !selected || selected.id || !targetId) return
     const mapping=selected.mappings[0]
+    const target=linkTargets.find(item=>item.id===targetId)
+    if (!target || !confirm(`ربط ${mapping.account_label} / ${platformNames[mapping.platform] || mapping.platform} / ${mapping.identifier_value} بالمتغير ${target.name} (${target.sku || 'بدون SKU'}) في ${merchant.name}؟`)) return
     const {error}=await supabase.from('product_channel_mappings').update({product_id:targetId,match_status:'linked',match_method:'manual',confidence:1,reviewed_at:new Date().toISOString()}).eq('id',mapping.id).eq('merchant_code',merchant.merchant_code)
     if (error) return toastErr('تعذر اعتماد الربط')
     toastOk('تم ربط المعرّف بالمنتج الموحد'); setSelected(null); setReload(value=>value+1)
@@ -173,7 +193,7 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
     const financial=financialMode
     const rows=financial
       ? [['المنتج','SKU','المنصة','سعر البيع','تكلفة المنتج','نسبة عمولة المنصة','قيمة عمولة المنصة شاملة الضريبة','الشحن شامل الضريبة','عمولة Sellpert للطلب الناجح','صافي المبلغ الواصل','صافي الربح','الجدوى'],...items.map(item=>{const value=profitabilityFor(item);return [item.name,item.sku||'',platformNames[platform]||platform,value?.salePrice??'',item.cost_price,value?.commissionRate??'',value?.commissionValue??'',value?.shippingCost??'',value?.sellpertCommissionValue??'',value?.netReceived??'',value?.netProfit??'',value?viabilityLabel(value.viability):'بيانات ناقصة']})]
-      : [['الاسم العربي','الاسم الإنجليزي','SKU','الباركود','الحالة','المخزون','معرّفات المنصات'],...items.map(item=>[item.name,item.name_en||'',item.sku||'',item.barcode||'',statusLabel(item.match_status),String(item.inventory),item.mappings.map(m=>`${platformNames[m.platform]||m.platform}:${m.identifier_value}`).join(' | ')])]
+      : [['الاسم العربي','الاسم الإنجليزي','SKU','الباركود','الحالة','المخزون','معرّفات المنصات'],...items.map(item=>[item.name,item.name_en||'',item.sku||'',item.barcode||'',statusLabel(item.match_status),item.inventory == null ? 'غير متحقق' : String(item.inventory),item.mappings.map(m=>`${platformNames[m.platform]||m.platform}:${m.identifier_value}`).join(' | ')])]
     const csv='\uFEFF'+rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n'), url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), a=document.createElement('a')
     a.href=url; a.download=`product-catalog-${merchant?.merchant_code||'store'}.csv`; a.click(); URL.revokeObjectURL(url)
   }
@@ -184,16 +204,18 @@ export default function ProductCatalog({ merchant }: { merchant:Merchant|null })
       action={<button className="catalog-secondary" onClick={exportCsv}><Download size={16}/> تصدير</button>} />
     <section className="catalog-stats" aria-label="ملخص حالة ربط المنتجات">{cards.map(([key,label,value,color])=><button key={key} className={status===key?'active':''} onClick={()=>setStatus(key)} style={{'--metric-color':color} as React.CSSProperties}><span>{label}</span><strong>{Number(value).toLocaleString('en-US')}</strong><ChevronLeft size={16}/></button>)}</section>
     <section className="catalog-toolbar"><label className="catalog-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="البحث بالاسم أو SKU أو الباركود"/></label><select aria-label="اختيار منصة حساب الربحية" value={platform} onChange={e=>setPlatform(e.target.value)}>{!platform?<option value="" disabled>جاري تحديد المنصة…</option>:null}<option value="all">كل المنصات — عرض الربط</option>{Object.entries(platformNames).slice(0,-1).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><select aria-label="تصفية حسب حالة الربط" value={status} onChange={e=>setStatus(e.target.value as typeof status)}><option value="all">كل الحالات</option><option value="linked">مرتبط</option><option value="review">يحتاج مراجعة</option><option value="unknown">غير معروف</option></select></section>
-    {financialMode?<section className="catalog-profitability-section" aria-labelledby="catalog-profitability-title"><header className="catalog-profitability-head"><div><Calculator size={18}/><span><h2 id="catalog-profitability-title">تحليل التسعير والربحية</h2><small>تتحدث جميع القيم حسب منصة {platformNames[platform]||platform}</small></span></div><em>تقدير أسوأ الأحوال</em></header><div className="catalog-shipping"><div><Truck size={18}/><span><strong>تكلفة الشحن في {platformNames[platform]||platform}</strong><small>أدخل أسوأ تكلفة متوقعة للطلب الواحد، شاملة ضريبة القيمة المضافة.</small></span></div><label><span>الشحن شامل الضريبة</span><input aria-label="تكلفة الشحن شاملة الضريبة" type="number" min="0" step="0.01" value={shippingInput} onChange={event=>setShippingInput(event.target.value)}/><em>ر.س</em></label><button disabled={savingShipping} onClick={saveShippingCost}><Save size={15}/>{savingShipping?'جارٍ الحفظ':'حفظ'}</button></div><div className="catalog-finance-hint">عمولة Sellpert المعروضة تفترض طلبًا ناجحًا يحتوي هذا المنتج فقط: النسبة على سعر البيع والشحن، والمبلغ الثابت مرة واحدة للطلب. لا تُستحق العمولة على الطلب الملغي أو المرتجع.</div></section>:<div className="catalog-finance-hint">عرض ربط المنتجات عبر كل المنصات. اختر منصة من الفلتر للعودة إلى تحليل التسعير والربحية.</div>}
+    {financialMode?<section className="catalog-profitability-section" aria-labelledby="catalog-profitability-title"><header className="catalog-profitability-head"><div><Calculator size={18}/><span><h2 id="catalog-profitability-title">تحليل التسعير والربحية</h2><small>تتحدث جميع القيم حسب منصة {platformNames[platform]||platform}</small></span></div><em>تقدير أسوأ الأحوال</em></header><div className="catalog-shipping"><div><Truck size={18}/><span><strong>تكلفة الشحن في {platformNames[platform]||platform}</strong><small>أدخل أسوأ تكلفة متوقعة للطلب الواحد، شاملة ضريبة القيمة المضافة.</small></span></div><label><span>الشحن شامل الضريبة</span><input aria-label="تكلفة الشحن شاملة الضريبة" type="number" min="0" step="0.01" value={shippingInput} onChange={event=>setShippingInput(event.target.value)}/><em>ر.س</em></label><button disabled={savingShipping || financeLoading || financeError} onClick={saveShippingCost}><Save size={15}/>{savingShipping?'جارٍ الحفظ':'حفظ'}</button></div><div className="catalog-finance-hint">عمولة Sellpert المعروضة تفترض طلبًا ناجحًا يحتوي هذا المنتج فقط: النسبة على سعر البيع والشحن، والمبلغ الثابت مرة واحدة للطلب. لا تُستحق العمولة على الطلب الملغي أو المرتجع.</div></section>:<div className="catalog-finance-hint">عرض ربط المنتجات عبر كل المنصات. اختر منصة من الفلتر للعودة إلى تحليل التسعير والربحية.</div>}
     {error?<div className="catalog-error">تعذر تحميل دليل المنتجات: {error}</div>:null}
     <section className={`catalog-table-wrap ${financialMode?'financial':''}`} aria-busy={loading}>
       <p className="table-scroll-hint">اسحب الجدول أفقيًا لعرض بقية الأعمدة</p>
+      {financialMode && [...priceByProduct.values()].some(value => value === null) ? <p role="status">تختلف أسعار بعض المنتجات بين الحسابات. اختر حساب بيع واحدًا لعرض تسعيره.</p> : null}
+      {financeError && <div role="alert">تعذر تحميل بيانات التسعير. أوقفنا الحساب والحفظ. <button onClick={()=>setReload(v=>v+1)}>إعادة المحاولة</button></div>}
       {financialMode?<div ref={topScrollRef} className="catalog-table-top-scroll" role="region" aria-label="تمرير الجدول أفقيًا من الأعلى" tabIndex={0} onScroll={()=>syncHorizontalScroll('top')}><div ref={scrollSpacerRef}/></div>:null}
-      <div ref={tableScrollRef} className="catalog-table-scroll" tabIndex={0} role="region" aria-label="جدول دليل المنتجات" onScroll={()=>syncHorizontalScroll('table')}><table ref={tableRef} className="catalog-table"><thead>{!financialMode?<tr><th>المنتج الموحد</th><th>المعرّفات المرتبطة</th><th>حالة الربط</th><th>إجمالي المخزون</th><th></th></tr>:<tr><th>المنتج الموحد</th><th>سعر البيع</th><th>تكلفة المنتج</th><th>نسبة عمولة المنصة</th><th>قيمة عمولة المنصة<br/><small>شاملة الضريبة</small></th><th>تكلفة الشحن<br/><small>شاملة الضريبة</small></th><th>عمولة Sellpert<br/><small>للطلب الناجح فقط</small></th><th>صافي المبلغ الواصل</th><th>جدوى التسعير<br/><small>في أسوأ الأحوال</small></th><th></th></tr>}</thead><tbody>{!loading&&items.map((item,index)=>{const financial=profitabilityFor(item);return <tr key={item.id||item.mappings[0]?.id||index} className={selected===item?'selected':''} onClick={()=>setSelected(item)}><td><div className="catalog-product-cell">{item.image_url?<img src={item.image_url} alt=""/>:<span className="catalog-placeholder"><PackageSearch size={19}/></span>}<div><strong>{item.name||'منتج بلا اسم'}</strong><small>{item.sku||item.barcode||'—'}</small></div></div></td>{!financialMode?<><td><div className="catalog-mappings">{item.mappings.length?item.mappings.map(m=><span key={m.id}><b>{platformNames[m.platform]||m.platform}</b>{m.identifier_value}</span>):<span>لا توجد معرّفات</span>}</div></td><td><Status value={item.match_status}/></td><td><strong className="latin-number">{Number(item.inventory).toLocaleString('en-US')}</strong></td></>:<><MoneyCell value={financial?.salePrice}/><MoneyCell value={item.cost_price}/><td><strong className="latin-number">{financial?.commissionRate!=null?`${formatNumber(financial.commissionRate)}%`:'—'}</strong></td><MoneyCell value={financial?.commissionValue}/><MoneyCell value={financial?.shippingCost}/><MoneyCell value={financial?.sellpertCommissionValue}/><MoneyCell value={financial?.netReceived} strong tone={financial?.netReceived!=null&&financial.netReceived<0?'danger':undefined}/><td><Viability value={financial}/></td></>}<td><button className="catalog-row-action" aria-label={`عرض ${item.name}`}><ChevronLeft size={17}/></button></td></tr>})}</tbody></table></div>
+      <div ref={tableScrollRef} className="catalog-table-scroll" tabIndex={0} role="region" aria-label="جدول دليل المنتجات" onScroll={()=>syncHorizontalScroll('table')}><table ref={tableRef} className="catalog-table"><thead>{!financialMode?<tr><th>المنتج الموحد</th><th>المعرّفات المرتبطة</th><th>حالة الربط</th><th>إجمالي المخزون</th><th></th></tr>:<tr><th>المنتج الموحد</th><th>سعر البيع</th><th>تكلفة المنتج</th><th>نسبة عمولة المنصة</th><th>قيمة عمولة المنصة<br/><small>شاملة الضريبة</small></th><th>تكلفة الشحن<br/><small>شاملة الضريبة</small></th><th>عمولة Sellpert<br/><small>للطلب الناجح فقط</small></th><th>صافي المبلغ الواصل</th><th>جدوى التسعير<br/><small>في أسوأ الأحوال</small></th><th></th></tr>}</thead><tbody>{!loading&&items.map((item,index)=>{const financial=profitabilityFor(item);return <tr key={item.id||item.mappings[0]?.id||index} className={selected===item?'selected':''} onClick={()=>setSelected(item)}><td><div className="catalog-product-cell">{item.image_url?<img src={item.image_url} alt=""/>:<span className="catalog-placeholder"><PackageSearch size={19}/></span>}<div><strong>{item.name||'منتج بلا اسم'}</strong><small>{item.sku||item.barcode||'—'}</small></div></div></td>{!financialMode?<><td><div className="catalog-mappings">{item.mappings.length?item.mappings.map(m=><span key={m.id}><b>{platformNames[m.platform]||m.platform} · {m.account_label}</b>{m.identifier_value}</span>):<span>لا توجد معرّفات</span>}</div></td><td><Status value={item.match_status}/></td><td><strong className="latin-number">{item.inventory == null ? 'غير متحقق' : Number(item.inventory).toLocaleString('en-US')}</strong></td></>:<><MoneyCell value={financial?.salePrice}/><MoneyCell value={item.cost_price}/><td><strong className="latin-number">{financial?.commissionRate!=null?`${formatNumber(financial.commissionRate)}%`:'—'}</strong></td><MoneyCell value={financial?.commissionValue}/><MoneyCell value={financial?.shippingCost}/><MoneyCell value={financial?.sellpertCommissionValue}/><MoneyCell value={financial?.netReceived} strong tone={financial?.netReceived!=null&&financial.netReceived<0?'danger':undefined}/><td><Viability value={financial}/></td></>}<td><button className="catalog-row-action" aria-label={`عرض ${item.name}`}><ChevronLeft size={17}/></button></td></tr>})}</tbody></table></div>
       {loading?<div className="catalog-empty">جاري تحميل دليل المنتجات…</div>:!items.length?<div className="catalog-empty"><PackageSearch size={34}/><strong>لا توجد نتائج ضمن هذا الفلتر</strong><span>غيّر البحث أو اعرض كل المنتجات.</span></div>:null}
       <footer className="catalog-pagination"><span>عرض {items.length?((page-1)*PAGE_SIZE+1):0}–{Math.min(page*PAGE_SIZE,filteredCount)} من {Number(filteredCount).toLocaleString('en-US')}</span><div><button disabled={page===1} onClick={()=>setPage(p=>p-1)}>السابق</button><b>{page} / {pageCount}</b><button disabled={page===pageCount} onClick={()=>setPage(p=>p+1)}>التالي</button></div></footer>
     </section>
-    {selected?<aside className="catalog-drawer" aria-label="تفاصيل المنتج"><div className="catalog-drawer-head"><strong>تفاصيل المنتج</strong><button onClick={()=>setSelected(null)} aria-label="إغلاق"><X size={18}/></button></div><div className="catalog-drawer-product">{selected.image_url?<img src={selected.image_url} alt=""/>:<span className="catalog-placeholder large"><PackageSearch/></span>}<div><h2>{selected.name}</h2><p>{selected.name_en||'لا يوجد اسم إنجليزي'}</p><Status value={selected.match_status}/></div></div><Details item={selected}/><div className="catalog-linked"><h3><Link2 size={16}/> المعرّفات على المنصات</h3>{selected.mappings.map(m=><div key={m.id}><span><b>{platformNames[m.platform]||m.platform}</b><small>{m.identifier_type}</small></span><code>{m.identifier_value}</code>{selected.id?<button onClick={()=>unlinkMapping(m)} title="فصل الربط"><Unlink size={15}/></button>:null}</div>)}</div>{!selected.id?<div className="catalog-link-review"><h3>ربط بمنتج موحد</h3><p>اختر المنتج الصحيح لاعتماد اسمه في جميع التقارير.</p><select value={targetId} onChange={e=>setTargetId(e.target.value)}><option value="">اختر المنتج…</option>{linkTargets.map(product=><option key={product.id} value={product.id}>{product.name} · {product.sku||'بدون SKU'}</option>)}</select><button disabled={!targetId} onClick={linkUnknown}><Link2 size={15}/> اعتماد الربط</button></div>:null}</aside>:null}
+    {selected?<aside className="catalog-drawer" aria-label="تفاصيل المنتج"><div className="catalog-drawer-head"><strong>تفاصيل المنتج</strong><button onClick={()=>setSelected(null)} aria-label="إغلاق"><X size={18}/></button></div><div className="catalog-drawer-product">{selected.image_url?<img src={selected.image_url} alt=""/>:<span className="catalog-placeholder large"><PackageSearch/></span>}<div><h2>{selected.name}</h2><p>{selected.name_en||'لا يوجد اسم إنجليزي'}</p><Status value={selected.match_status}/></div></div><Details item={selected}/>{selected.id && merchant ? <CatalogStructureEditor key={selected.id} merchantCode={merchant.merchant_code} productId={selected.id} onSaved={() => { setSelected(null); setReload(value => value + 1) }} /> : null}<div className="catalog-linked"><h3><Link2 size={16}/> المعرّفات على المنصات</h3>{selected.mappings.map(m=><div key={m.id}><span><b>{platformNames[m.platform]||m.platform} · {m.account_label}</b><small>{m.identifier_type}</small></span><code>{m.identifier_value}</code>{selected.id?<button onClick={()=>unlinkMapping(m)} title="فصل الربط"><Unlink size={15}/></button>:null}</div>)}</div>{!selected.id?<div className="catalog-link-review"><h3>ربط بمنتج موحد</h3><p>اختر المنتج الصحيح لاعتماد اسمه في جميع التقارير.</p><label>بحث بالاسم أو SKU <input value={linkSearch} onChange={e=>setLinkSearch(e.target.value)}/></label>{linkError && <p role="alert">تعذر تحميل المنتجات المرشحة. أغلق النافذة وأعد المحاولة.</p>}<select value={targetId} onChange={e=>setTargetId(e.target.value)}><option value="">اختر المنتج…</option>{linkTargets.filter(product => `${product.name} ${product.sku || ''}`.toLocaleLowerCase().includes(deferredLinkSearch.toLocaleLowerCase())).map(product=><option key={product.id} value={product.id}>{product.name} · {product.sku||'بدون SKU'} · {Object.values(product.variant_attributes || {}).filter(Boolean).join(' / ')}</option>)}</select><button disabled={!targetId} onClick={linkUnknown}><Link2 size={15}/> اعتماد الربط</button></div>:null}</aside>:null}
   </div>
 }
 

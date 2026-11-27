@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802230200
+-- Original remote name: harden_multi_tenant_access
+-- Original recorded SQL SHA-256: 8837f72b874d8d774bd70f5023f373a32b5a54c6d3c5390c53a553a94aa73624
+-- Reconstructed final schema mapping:
+--   20260803184500_harden_multi_tenant_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

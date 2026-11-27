@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803142525
+-- Original remote name: add_mfa_recovery_codes
+-- Original recorded SQL SHA-256: 70f1df394056c60ff3dec81edc9417f8606c2154ef8cf3cbbc66cd818db581d6
+-- Reconstructed final schema mapping:
+--   20260803142203_add_mfa_recovery_codes.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

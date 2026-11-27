@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803140908
+-- Original remote name: seal_audit_log_direct_access
+-- Original recorded SQL SHA-256: 6756fb682ff012606cd8955f752b18ac14d8957184335a22630ef4c6d101fe05
+-- Reconstructed final schema mapping:
+--   20260803293000_seal_audit_log_direct_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260810132146
+-- Original remote name: create_unified_product_catalog
+-- Original recorded SQL SHA-256: e12a4d6cadcc1d421a0f7d2981c2152f72d0e1ff950d11513d74306c476b73cd
+-- Reconstructed final schema mapping:
+--   20260810190000_create_unified_product_catalog.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

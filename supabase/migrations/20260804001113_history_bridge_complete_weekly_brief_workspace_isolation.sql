@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804001113
+-- Original remote name: complete_weekly_brief_workspace_isolation
+-- Original recorded SQL SHA-256: 99676da670eab13431a754f5b6425f850c3979956b9d886936b3e411a9681cfc
+-- Reconstructed final schema mapping:
+--   20260804030000_complete_weekly_brief_workspace_isolation.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

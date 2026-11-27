@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802223158
+-- Original remote name: product_listing_delivery_status
+-- Original recorded SQL SHA-256: 78ea9f3d407244d33edf938464aa6dba7187bafd44f88905de966f0b65c4dbaa
+-- Reconstructed final schema mapping:
+--   20260803162500_product_listing_delivery_status.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

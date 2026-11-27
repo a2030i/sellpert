@@ -1,3 +1,5 @@
+import { withTimeout } from '../lib/db'
+import DataLoadError from '../components/DataLoadError'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { userErrorMessage } from '../lib/userError'
@@ -20,6 +22,7 @@ export default function FeesView() {
   const [otherFees, setOtherFees]     = useState<any[]>([])
   const [models, setModels]           = useState<any[]>([])
   const [loading, setLoading]         = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [editCat, setEditCat]         = useState<any | null>(null)
   const [saving, setSaving]           = useState(false)
   const [msg, setMsg]                 = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -36,24 +39,28 @@ export default function FeesView() {
   // Set default model & category when platform changes
   useEffect(() => {
     const defModel = models.find(m => m.platform === activePlt && m.is_default)
-    if (defModel) setCalcModel(defModel.model_key)
+    setCalcModel(defModel?.model_key || models.find(m => m.platform === activePlt)?.model_key || '')
     const firstCat = categories.find(c => c.platform === activePlt)
-    if (firstCat) setCalcCategory(firstCat.category_key)
+    setCalcCategory(firstCat?.category_key || '')
   }, [activePlt, models, categories])
 
   async function load() {
-    setLoading(true)
-    const [{ data: cats }, { data: ship }, { data: other }, { data: mdls }] = await Promise.all([
+    setLoading(true); setLoadError(false)
+    try {
+    const results = await withTimeout(Promise.all([
       supabase.from('platform_fee_categories').select('*').order('sort_order,category_ar'),
       supabase.from('platform_shipping_tiers').select('*').order('sort_order'),
       supabase.from('platform_other_fees').select('*').order('platform,fee_type'),
       supabase.from('platform_fulfillment_models').select('*').order('platform,is_default'),
-    ])
-    setCategories(cats || [])
+    ]))
+    if (results.some(r => r.error)) throw new Error('Fee reference unavailable')
+    const [cats, ship, other, mdls] = results.map(r => r.data || [])
+    setCategories(cats)
     setShipping(ship || [])
     setOtherFees(other || [])
     setModels(mdls || [])
-    setLoading(false)
+    } catch { setLoadError(true); setCategories([]); setModels([]) }
+    finally { setLoading(false) }
   }
 
   async function saveCat() {
@@ -72,7 +79,7 @@ export default function FeesView() {
     const price      = parseFloat(calcPrice) || 0
     const weight     = parseFloat(calcWeight) || 0
     const asp        = parseFloat(calcAsp) || price
-    if (!price || !calcCategory) return null
+    if (loadError || loading || !price || !calcCategory || !models.some(m => m.platform === activePlt && m.model_key === calcModel)) return null
 
     const cat = categories.find(c => c.platform === activePlt && c.category_key === calcCategory)
     if (!cat) return null
@@ -119,14 +126,14 @@ export default function FeesView() {
       storageFeeNote,
       usesFBx,
     }
-  }, [calcPrice, calcWeight, calcCategory, calcModel, calcAsp, activePlt, categories, shipping, otherFees])
+  }, [calcPrice, calcWeight, calcCategory, calcModel, calcAsp, activePlt, categories, shipping, otherFees, loading, loadError, models])
 
   // Reverse calculator: what price to list for a target net
   const [targetNet, setTargetNet] = useState('')
   const reversePrice = useMemo(() => {
     const net = parseFloat(targetNet) || 0
     const weight = parseFloat(calcWeight) || 0
-    if (!net || !calcCategory) return null
+    if (loadError || loading || !net || !calcCategory || !models.some(m => m.platform === activePlt && m.model_key === calcModel)) return null
     const cat = categories.find(c => c.platform === activePlt && c.category_key === calcCategory)
     if (!cat) return null
     const usesFBx  = calcModel === 'FBA' || calcModel === 'FBN'
@@ -143,7 +150,7 @@ export default function FeesView() {
     }
     const listPrice = Math.ceil((net + shippingFee) / (1 - totalFeeRate))
     return { listPrice, shippingFee }
-  }, [targetNet, calcWeight, calcCategory, calcModel, activePlt, categories, shipping])
+  }, [targetNet, calcWeight, calcCategory, calcModel, activePlt, categories, shipping, loading, loadError, models])
 
   const pltCats     = categories.filter(c => c.platform === activePlt)
   const pltModels   = models.filter(m => m.platform === activePlt)
@@ -152,6 +159,7 @@ export default function FeesView() {
     .sort((a, b) => a.sort_order - b.sort_order)
   const meta = PLT_META[activePlt]
 
+  if (loadError) return <DataLoadError message="تعذّر تحميل مرجع الرسوم والتصنيفات. الحاسبة متوقفة حتى اكتمال البيانات." onRetry={load} />
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>جاري تحميل بيانات الرسوم...</div>
 
   return (
@@ -170,7 +178,7 @@ export default function FeesView() {
             flex: 1, padding: '14px 10px', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
             border: `2px solid ${activePlt === p ? PLT_META[p].color : 'var(--border)'}`,
             background: activePlt === p ? PLT_META[p].color + '18' : 'var(--surface)',
-            color: activePlt === p ? PLT_META[p].color : 'var(--text2)',
+            color: activePlt === p ? 'var(--text)' : 'var(--text2)',
             fontWeight: 700, fontSize: 14,
           }}>
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: PLT_META[p].color, margin: '0 auto 8px' }} />
@@ -321,14 +329,14 @@ export default function FeesView() {
             </div>
             <div style={S.calcField}>
               <label style={S.calcLabel}>التصنيف</label>
-              <select style={S.calcInput} value={calcCategory} onChange={e => setCalcCategory(e.target.value)}>
+              <select style={S.calcInput} disabled={!pltCats.length} value={calcCategory} onChange={e => setCalcCategory(e.target.value)}>
                 <option value="">— اختر —</option>
                 {pltCats.map(c => <option key={c.category_key} value={c.category_key}>{c.category_ar} ({c.commission_rate}%)</option>)}
               </select>
             </div>
             <div style={S.calcField}>
               <label style={S.calcLabel}>نموذج التوصيل</label>
-              <select style={S.calcInput} value={calcModel} onChange={e => setCalcModel(e.target.value)}>
+              <select style={S.calcInput} disabled={!pltModels.length} value={calcModel} onChange={e => setCalcModel(e.target.value)}>
                 {pltModels.map(m => <option key={m.model_key} value={m.model_key}>{m.model_label}</option>)}
               </select>
             </div>
@@ -365,7 +373,7 @@ export default function FeesView() {
                     {calcResult.netProfit.toLocaleString()} ر.س
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                    هامش {calcResult.margin}%
+                    المتبقي من السعر {calcResult.margin}% قبل تكلفة المنتج والإعلانات
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>
                     التخزين: {calcResult.storageFeeNote}
@@ -373,7 +381,7 @@ export default function FeesView() {
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>اختر تصنيف لرؤية النتيجة</div>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>{!pltCats.length || !pltModels.length ? 'بيانات التصنيفات أو التوصيل لهذه المنصة غير مكتملة؛ الحاسبة متوقفة حتى استكمال المرجع.' : 'اختر تصنيفًا ونموذج توصيل وأدخل السعر لرؤية التقدير.'}</div>
             )}
 
             {/* Divider */}

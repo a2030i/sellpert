@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803010053
+-- Original remote name: hide_zero_pending_payouts
+-- Original recorded SQL SHA-256: eb311773ab27d952c1bafa124d5b334190f30685694faaf291c9738453502a02
+-- Reconstructed final schema mapping:
+--   20260803250000_hide_zero_pending_payouts.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

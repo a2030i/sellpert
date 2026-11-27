@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802190931
+-- Original remote name: marketplace_oauth_states
+-- Original recorded SQL SHA-256: 1dfb82dc48bd6e1385e2f415e8fbc7291a629cd692142c7c8ee5184b223a82ad
+-- Reconstructed final schema mapping:
+--   20260802190000_marketplace_oauth_states.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

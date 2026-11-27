@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260504071128
+-- Original remote name: capture_more_excel_fields
+-- Original recorded SQL SHA-256: a332df740bd36b58ec3c25ad4b8d3dde76e4ee62db7781a048840a0d7c22c7c6
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

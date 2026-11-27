@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260816193743
+-- Original remote name: omniful_amazon_shadow_trial
+-- Original recorded SQL SHA-256: 7d9488fffc8bef490fb8aef3a50ec144e7157d6846f961257262aef06ab4c322
+-- Reconstructed final schema mapping:
+--   20260816123000_omniful_amazon_shadow_trial.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

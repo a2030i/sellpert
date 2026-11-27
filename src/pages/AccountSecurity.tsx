@@ -1,3 +1,5 @@
+import DataLoadError from '../components/DataLoadError'
+import { withTimeout } from '../lib/db'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, CheckCircle2, Clock3, Copy, Download, KeyRound, Laptop, LockKeyhole, LogOut, Plus, ShieldCheck, Smartphone, Trash2, X } from 'lucide-react'
 import type { Merchant } from '../lib/supabase'
@@ -14,6 +16,9 @@ const dateTime = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { dateStyle: 'medium
 export default function AccountSecurity({ merchant }: { merchant: Merchant | null }) {
   const [session, setSession] = useState<CurrentSessionSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const [actorEmail, setActorEmail] = useState('')
   const [revoking, setRevoking] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -30,10 +35,13 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
   const device = useMemo(() => describeBrowser(window.navigator.userAgent), [])
 
   const refreshMfa = useCallback(async () => {
-    const [{ data: factorData }, { data: assurance }] = await Promise.all([
+    setMfaLoading(true)
+    const results = await withTimeout(Promise.all([
       supabase.auth.mfa.listFactors(),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-    ])
+    ]))
+    if (results.some(r => r.error)) throw new Error('MFA unavailable')
+    const [{data:factorData},{data:assurance}] = results
     setAllFactors((factorData?.all || []).filter(item => item.factor_type === 'totp') as TotpFactor[])
     setFactors((factorData?.totp || []) as TotpFactor[])
     const { data: { session: activeSession } } = await supabase.auth.getSession()
@@ -46,14 +54,17 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
 
   useEffect(() => {
     let active = true
-    Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]).then(([sessionResult, userResult]) => {
+    setLoading(true); setLoadError(false)
+    withTimeout(Promise.all([supabase.auth.getSession(), supabase.auth.getUser()])).then(([sessionResult, userResult]) => {
       if (!active) return
+      if (sessionResult.error || userResult.error || !userResult.data.user) throw new Error('Session unavailable')
+      setActorEmail(userResult.data.user.email || '')
       setSession(summarizeCurrentSession(sessionResult.data.session, userResult.data.user))
       setLoading(false)
-    })
-    refreshMfa()
+    }).catch(() => { if (active) { setLoadError(true); setLoading(false) } })
+    refreshMfa().catch(() => { if (active) { setLoadError(true); setMfaLoading(false) } })
     return () => { active = false }
-  }, [refreshMfa])
+  }, [refreshMfa, retry])
 
   async function revokeOtherSessions() {
     setRevoking(true); setNotice(null)
@@ -65,7 +76,7 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
   }
 
   async function sendPasswordReset() {
-    const email = merchant?.account_email || merchant?.email
+    const email = actorEmail
     if (!email) return
     setResetting(true); setNotice(null)
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/recovery` })
@@ -154,6 +165,8 @@ export default function AccountSecurity({ merchant }: { merchant: Merchant | nul
     const link = document.createElement('a'); link.href = url; link.download = 'sellpert-recovery-codes.txt'
     document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
   }
+
+  if (loadError) return <div className="merchant-page"><h1 className="merchant-page-title">الأمان والجلسات</h1><DataLoadError onRetry={() => setRetry(v => v + 1)} /></div>
 
   return (
     <div className="security-page" dir="rtl">

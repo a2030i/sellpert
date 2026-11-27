@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260802231147
+-- Original remote name: employee_tenant_read_access
+-- Original recorded SQL SHA-256: 78291d13a356d1cab421505be277c5d84b9f78ed03d4607cf19f5a99559ad597
+-- Reconstructed final schema mapping:
+--   20260803194500_employee_tenant_read_access.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

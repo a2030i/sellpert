@@ -19,7 +19,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import { encryptCredentialPayload } from '../_shared/credentialVault.ts'
 import { loadAmazonCaller } from '../_shared/amazonActor.ts'
 import { loadAmazonAppConfig } from '../_shared/amazonAppConfig.ts'
-import { deleteAmazonConnection, saveAmazonConnection } from '../_shared/amazonConnectionMutex.ts'
+import { authorizeMarketplaceWorkspace } from '../_shared/marketplaceAccountActor.ts'
+import { requireMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 import { selectAmazonSyncMarkets } from '../_shared/amazonCurrency.ts'
 import { HttpError, json } from '../_shared/sync.ts'
 import {
@@ -58,12 +59,12 @@ Deno.serve(async req => {
 
     const body = await req.json().catch(() => ({}))
     const action = String(body?.action || 'status')
-    const merchantCode = await authorizeMerchantScope(admin, caller, user.id, body?.merchant_code)
+    const merchantCode = await authorizeMarketplaceWorkspace(admin, caller, user.id, body?.merchant_code)
 
     if (action === 'status') return json(await connectionStatus(admin, merchantCode), 200, corsHeaders)
-    if (action === 'start') return json(await startAuthorization(admin, merchantCode, user.id, body?.marketplace_id), 200, corsHeaders)
+    if (action === 'start') return json(await startAuthorization(admin, merchantCode, user.id, body?.marketplace_id, body?.marketplace_account_id), 200, corsHeaders)
     if (action === 'complete') return json(await completeAuthorization(admin, merchantCode, user.id, body), 200, corsHeaders)
-    if (action === 'disconnect') return json(await disconnect(admin, merchantCode), 200, corsHeaders)
+    if (action === 'disconnect') return json(await disconnect(admin, merchantCode, body?.marketplace_account_id), 200, corsHeaders)
     throw new HttpError(400, 'Unsupported action')
   } catch (error: any) {
     const status = error instanceof HttpError ? error.status : 500
@@ -75,24 +76,19 @@ Deno.serve(async req => {
 async function connectionStatus(admin: any, merchantCode: string) {
   const config = await loadAmazonAppConfig(admin, Deno.env)
   const { data, error } = await admin.from('platform_credentials')
-    .select('seller_id,is_active,test_status,last_tested_at,last_sync_at,created_at,updated_at,extra')
-    .eq('merchant_code', merchantCode).eq('platform', 'amazon').maybeSingle()
+    .select('marketplace_account_id,seller_id,is_active,test_status,last_tested_at,last_sync_at,created_at,updated_at,extra')
+    .eq('merchant_code', merchantCode).eq('platform', 'amazon').order('created_at')
   if (error) throw error
-  return {
-    app_configured: Boolean(config),
-    connection: data ? {
-      seller_id: data.seller_id,
-      is_active: data.is_active,
-      test_status: data.test_status,
-      last_tested_at: data.last_tested_at,
-      last_sync_at: data.last_sync_at,
-      connected_at: data.extra?.connected_at || data.created_at,
-      marketplaces: Array.isArray(data.extra?.marketplaces) ? data.extra.marketplaces : [],
-    } : null,
-  }
+  const connections = (data || []).map((row: any) => ({
+    marketplace_account_id: row.marketplace_account_id, seller_id: row.seller_id, is_active: row.is_active,
+    test_status: row.test_status, last_tested_at: row.last_tested_at, last_sync_at: row.last_sync_at,
+    connected_at: row.extra?.connected_at || row.created_at,
+    marketplaces: Array.isArray(row.extra?.marketplaces) ? row.extra.marketplaces : [],
+  }))
+  return { app_configured: Boolean(config), connections, connection: connections[0] || null }
 }
 
-async function startAuthorization(admin: any, merchantCode: string, userId: string, requestedMarketplace: unknown) {
+async function startAuthorization(admin: any, merchantCode: string, userId: string, requestedMarketplace: unknown, requestedAccount: unknown) {
   const config = await loadAmazonAppConfig(admin, Deno.env)
   if (!config) throw new HttpError(503, 'ربط أمازون غير مهيأ بعد على الخادم')
   const marketplaceId = String(requestedMarketplace || DEFAULT_AMAZON_MARKETPLACE)
@@ -102,10 +98,12 @@ async function startAuthorization(admin: any, merchantCode: string, userId: stri
   await admin.from('amazon_oauth_states').delete().lt('expires_at', new Date().toISOString())
   await admin.from('amazon_oauth_states').delete().eq('user_id', userId).not('consumed_at', 'is', null)
 
+  const account = await requireMarketplaceAccount(admin, merchantCode, 'amazon', requestedAccount, false)
   const state = createOAuthState()
   const now = new Date()
   const { error } = await admin.from('amazon_oauth_states').insert({
     state_hash: await hashOAuthState(state),
+    marketplace_account_id: account.id,
     merchant_code: merchantCode,
     user_id: userId,
     marketplace_id: marketplaceId,
@@ -136,11 +134,12 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
     .eq('merchant_code', merchantCode)
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
-    .select('marketplace_id')
+    .select('marketplace_id,marketplace_account_id')
     .maybeSingle()
   if (consumeError) throw consumeError
   if (!consumed) throw new HttpError(400, 'انتهت صلاحية طلب الربط أو استُخدم من قبل، ابدأ الربط من جديد')
 
+  const account = await requireMarketplaceAccount(admin, merchantCode, 'amazon', consumed.marketplace_account_id, false)
   const tokens = await exchangeAuthorizationCode(config, code)
   const region = AMAZON_MARKETPLACES[consumed.marketplace_id]?.region || 'eu'
   const participations = supportedParticipations(await fetchMarketplaceParticipations(tokens.accessToken, region))
@@ -159,69 +158,17 @@ async function completeAuthorization(admin: any, merchantCode: string, userId: s
 
   const now = new Date().toISOString()
   const marketplaces = participations.map(row => ({ id: row.marketplaceId, country: row.countryCode, name: row.name }))
-  await saveAmazonConnection(admin, merchantCode, {
-    merchant_code: merchantCode,
-    platform: 'amazon',
-    seller_id: sellingPartnerId,
-    api_key: null,
-    api_secret: null,
-    extra: {
-      secret_blob: await encryptCredentialPayload({ refresh_token: tokens.refreshToken }),
-      region,
-      marketplaces,
-      connected_at: now,
-      connected_by: userId,
-    },
-    is_active: true,
-    test_status: 'success',
-    last_tested_at: now,
-    updated_at: now,
+  const {error:saveError} = await admin.rpc('save_marketplace_credential', {
+    p_account_id:account.id,p_merchant_code:merchantCode,p_platform:'amazon',p_seller_id:sellingPartnerId,
+    p_extra:{secret_blob:await encryptCredentialPayload({ refresh_token: tokens.refreshToken }),region,marketplaces,connected_at:now,connected_by:userId},
   })
+  if (saveError) throw new HttpError(409, 'تعذر حفظ الربط. تأكد أن حساب البائع غير مرتبط مسبقًا وأن المزامنة متوقفة.')
   return { ok: true, seller_id: sellingPartnerId, marketplaces }
 }
 
-async function disconnect(admin: any, merchantCode: string) {
-  await deleteAmazonConnection(admin, merchantCode)
-  return { ok: true }
+async function disconnect(admin: any, merchantCode: string, requestedAccount: unknown) {
+  const account = await requireMarketplaceAccount(admin,merchantCode,'amazon',requestedAccount,false)
+  const {error} = await admin.rpc('disconnect_marketplace_account',{p_account_id:account.id,p_merchant_code:merchantCode})
+  if (error) throw new HttpError(409,'تعذر إلغاء الربط أثناء المزامنة. أعد المحاولة لاحقًا.')
+  return {ok:true}
 }
-
-// Same workspace rules as manage-platform-credentials.
-async function authorizeMerchantScope(admin: any, caller: any, userId: string, requestedCode: unknown): Promise<string> {
-  const requested = clean(requestedCode)
-  if (['admin', 'super_admin'].includes(caller.role)) {
-    if (!requested) throw new HttpError(400, 'merchant_code is required')
-    await requireActiveWorkspace(admin, requested)
-    return requested
-  }
-  if (caller.role === 'merchant' && caller.merchant_code) {
-    if (!requested || requested === caller.merchant_code) {
-      await requireActiveWorkspace(admin, caller.merchant_code)
-      return caller.merchant_code
-    }
-    const { data: link } = await admin.from('merchant_account_links').select('id')
-      .eq('user_id', userId).eq('merchant_code', requested).maybeSingle()
-    if (!link) throw new HttpError(403, 'Forbidden')
-    await requireActiveWorkspace(admin, requested)
-    return requested
-  }
-  if (caller.role === 'employee' && caller.owner_merchant_code && permissionEnabled(caller.permissions, 'integrations')) {
-    if (requested && requested !== caller.owner_merchant_code) throw new HttpError(403, 'Forbidden')
-    await requireActiveWorkspace(admin, caller.owner_merchant_code)
-    return caller.owner_merchant_code
-  }
-  throw new HttpError(403, 'Forbidden')
-}
-
-async function requireActiveWorkspace(admin: any, merchantCode: string) {
-  const { data: workspace, error } = await admin.from('merchants')
-    .select('is_active').eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()
-  if (error) throw error
-  if (!workspace || workspace.is_active === false) throw new HttpError(403, 'Merchant account is inactive')
-}
-
-function permissionEnabled(value: unknown, permission: string): boolean {
-  if (Array.isArray(value)) return value.includes(permission)
-  return !!value && typeof value === 'object' && (value as Record<string, unknown>)[permission] === true
-}
-
-function clean(value: unknown) { return String(value || '').trim() }

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803151458
+-- Original remote name: restore_merchant_request_tenant_read
+-- Original recorded SQL SHA-256: e5305631b569bd426c59b5c6a3f27efd6cf9e9aed736d5fca605814ee359f217
+-- Reconstructed final schema mapping:
+--   20260803151441_restore_merchant_request_tenant_read.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260803002450
+-- Original remote name: model_marketplace_order_packages
+-- Original recorded SQL SHA-256: 499d60173a8d53fce2c96ae8747ea4ee74d69cbf22ea4548c876b3bc9566478a
+-- Reconstructed final schema mapping:
+--   20260803242000_model_marketplace_order_packages.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

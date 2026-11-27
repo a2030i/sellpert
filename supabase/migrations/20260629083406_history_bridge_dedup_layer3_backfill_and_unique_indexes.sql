@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260629083406
+-- Original remote name: dedup_layer3_backfill_and_unique_indexes
+-- Original recorded SQL SHA-256: 293cf53a1c0966b54c0b20d16984e6777422f2157cda967b9a0a94fd9d96cb2d
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

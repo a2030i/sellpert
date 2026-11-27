@@ -1,3 +1,5 @@
+import { upsertMarketplaceProducts } from '../_shared/marketplaceProducts.ts'
+import { accountScopedClient, resolveMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.104.0'
 import {
   HttpError,
@@ -43,7 +45,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, corsHeaders)
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY)
   let logId = ''
 
   try {
@@ -54,6 +56,8 @@ Deno.serve(async (req) => {
     // receiving access to marketplace credentials. RLS still limits which
     // synchronized records that employee can read in the application.
     await authorizeMerchantSync(req, admin, SERVICE_KEY, merchantCode, ['integrations','orders','products','statement','customers'])
+    const account=await resolveMarketplaceAccount(admin,merchantCode,'trendyol',body.marketplace_account_id)
+    admin=accountScopedClient(admin,account)
 
     const { data: merchant } = await admin.from('merchants')
       .select('workspace_status').eq('merchant_code', merchantCode).maybeSingle()
@@ -518,10 +522,7 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
   const now = new Date().toISOString()
   const normalized = normalizeTrendyolV2Products(merchantCode, approvedContent, unapprovedContent, now)
   const products = normalized.products
-  for (let index = 0; index < products.length; index += 100) {
-    const { error } = await admin.from('products').upsert(products.slice(index, index + 100), { onConflict: 'merchant_code,sku' })
-    if (error) throw error
-  }
+  const productIds = await upsertMarketplaceProducts(admin, merchantCode, products)
   const inventory = normalized.inventory
   for (let index = 0; index < inventory.length; index += 100) {
     const { error } = await admin.from('inventory').upsert(inventory.slice(index, index + 100), { onConflict: 'merchant_code,sku,platform' })
@@ -529,18 +530,12 @@ async function syncProducts(admin: any, merchantCode: string, sellerId: string, 
   }
   const listingSkus = normalized.listings.map((listing:any) => String(listing.sku || '')).filter(Boolean)
   if (listingSkus.length) {
-    const productIds = new Map<string,string>()
-    for (let index = 0; index < listingSkus.length; index += 200) {
-      const { data:storedProducts,error:storedProductsError } = await admin.from('products')
-        .select('id,sku').eq('merchant_code',merchantCode).in('sku',listingSkus.slice(index,index + 200))
-      if (storedProductsError) throw storedProductsError
-      for (const product of storedProducts || []) productIds.set(String(product.sku || ''),String(product.id))
-    }
     const listings = normalized.listings.flatMap((listing:any) => {
       const productId = productIds.get(String(listing.sku || ''))
       if (!productId) return []
       const { sku:_sku,...row } = listing
-      return [{ ...row, product_id:productId }]
+      const providerProduct=products.find(product=>String(product.sku)===String(listing.sku))
+      return [{ ...row, product_id:productId,provider_barcode:providerProduct?.barcode||null,provider_product_id:providerProduct?.external_id||null }]
     })
     for (let index = 0; index < listings.length; index += 100) {
       const { error } = await admin.from('product_platform_listings').upsert(listings.slice(index,index + 100), { onConflict:'product_id,platform' })

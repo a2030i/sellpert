@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804224934
+-- Original remote name: restore_authorized_operational_alert_refresh
+-- Original recorded SQL SHA-256: d4a2962edab503c8b2ae51808bf19d5049004c5d5b95fcd2f64ad99545fc905b
+-- Reconstructed final schema mapping:
+--   20260804224913_restore_authorized_operational_alert_refresh.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

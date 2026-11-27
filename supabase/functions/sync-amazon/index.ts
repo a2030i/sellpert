@@ -1,3 +1,4 @@
+import { accountScopedClient, resolveMarketplaceAccount } from '../_shared/marketplaceAccountScope.ts'
 /**
  * sync-amazon
  * ─────────────────────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ Deno.serve(async req => {
   // Bound database requests too: a provider timeout must not leave an old run
   // writing after the 120-second connection lease can be replaced.
   const hardDeadline = startedAt + 45_000
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { global: { fetch: (input, init) => {
+  let admin = createClient(SUPABASE_URL, SERVICE_KEY, { global: { fetch: (input, init) => {
     const signals = [AbortSignal.timeout(Math.max(1, hardDeadline - Date.now()))]
     if (init?.signal) signals.push(init.signal)
     return fetch(input, { ...init, signal: AbortSignal.any(signals) })
@@ -72,6 +73,8 @@ Deno.serve(async req => {
     const merchantCode = String(body?.merchant_code || '')
     if (!merchantCode) throw new HttpError(400, 'merchant_code مطلوب')
     await authorizeAmazonSync(req, admin, SERVICE_KEY, SUPABASE_URL, createClient, merchantCode)
+    const account=await resolveMarketplaceAccount(admin,merchantCode,'amazon',body.marketplace_account_id)
+    admin=accountScopedClient(admin,account)
 
     const { data: merchant } = await admin.from('merchants')
       .select('workspace_status').eq('merchant_code', merchantCode).eq('role', 'merchant').maybeSingle()

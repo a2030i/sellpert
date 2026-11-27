@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804183920
+-- Original remote name: seal_salla_oauth_tokens
+-- Original recorded SQL SHA-256: a6e0c143bfd8af00d8d300733f7c98d91a8c69b29b444c44632b3680d834ae55
+-- Reconstructed final schema mapping:
+--   20260804183053_seal_salla_oauth_tokens.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804214122
+-- Original remote name: index_bank_reconciliation_foreign_keys
+-- Original recorded SQL SHA-256: 61dc13639c4aa32d6e5881410773a76ca7d5d667806007bde1f9f4ea758dce0d
+-- Reconstructed final schema mapping:
+--   20260804214110_index_bank_reconciliation_foreign_keys.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

@@ -28,7 +28,7 @@ jobs:
       - name: Tests
         run: npm test
       - name: Amazon release artifact and failure-path checks
-        run: node --test scripts/release-amazon-exception.test.mjs scripts/release-amazon-sync-exception.test.mjs scripts/deploy-amazon-sync-functions.test.mjs
+        run: node --test scripts/release-amazon-exception.test.mjs scripts/release-amazon-sync-exception.test.mjs scripts/deploy-amazon-sync-functions.test.mjs scripts/inspect-production-recovery.test.mjs
       - name: Production build
         run: npm run build
       - name: Install browser for end-to-end checks

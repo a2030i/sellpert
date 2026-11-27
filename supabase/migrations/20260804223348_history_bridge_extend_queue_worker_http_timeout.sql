@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260804223348
+-- Original remote name: extend_queue_worker_http_timeout
+-- Original recorded SQL SHA-256: 510ed87eb161f9f9bbda510d99a7d44d09e72df981e3ee55a98a749324e7dd38
+-- Reconstructed final schema mapping:
+--   20260804223236_extend_queue_worker_http_timeout.sql
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.

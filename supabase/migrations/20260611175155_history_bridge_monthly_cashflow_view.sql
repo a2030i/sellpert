@@ -1,0 +1,8 @@
+-- REVIEW PROPOSAL ONLY: preserve an existing production history entry.
+-- No historical SQL is replayed by this compatibility marker.
+-- Original remote version: 20260611175155
+-- Original remote name: monthly_cashflow_view
+-- Original recorded SQL SHA-256: 0d884aa01e54ca9f532e304fa8adc15b57aae9d6494479b4cb49ae85c5512df8
+-- Reconstructed final schema mapping:
+--   20260801000000_baseline_schema.sql + explicitly reviewed forward compatibility corrections
+-- See the per-entry recovery manifest; this marker alone is not equivalence proof.
