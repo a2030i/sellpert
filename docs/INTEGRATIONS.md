@@ -78,6 +78,14 @@ so Amazon is a direct connection again. Commitments made to Amazon are in
 - `amazon_oauth_states` stores only a SHA-256 hash of the state, bound to the
   user and workspace, expiring within 15 minutes and consumed once. The table is
   server-only.
+- When a platform administrator starts consent while viewing a merchant, the
+  browser retains only the workspace code and a timestamp in session storage
+  for 15 minutes. On the callback it restores that workspace through the
+  signed-in actor's normal RLS-protected read before mounting the connection
+  card. A failed or timed-out read shows a persistent restart message, clears
+  the callback URL, and never submits completion for a different workspace.
+  The server's user/workspace/state checks remain authoritative. This does not
+  add restoration for a merchant switching between linked workspaces.
 - Every action first verifies the session and reads the actor through a
   user-context Data API client. The existing restrictive MFA policy on
   `merchants` therefore denies enrolled users with AAL1 sessions before any

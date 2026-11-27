@@ -45,7 +45,7 @@ describe('administrator return from Amazon consent', () => {
 
   it('restores the merchant view before the admin console can replace the callback URL', () => {
     expect(app).toContain('readAmazonConnectTarget()')
-    expect(app.indexOf('&& amazonReturnCode)')).toBeLessThan(app.indexOf('return <AdminPanel'))
+    expect(app.indexOf('&& (amazonReturnCode || amazonReturnError)')).toBeLessThan(app.indexOf('<AdminPanel'))
     expect(app).toContain("setView('integrations')")
   })
 

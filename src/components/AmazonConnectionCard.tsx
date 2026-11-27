@@ -109,7 +109,7 @@ export default function AmazonConnectionCard({ merchantCode, onStatusChange }: {
         </span>
       </div>
 
-      <SellingAccountChooser merchantCode={merchantCode} platform="amazon" disabled={Boolean(busy)} value={accountId} onChange={account => { setAccountId(account?.id || ''); setNotice(null) }} allowCreate={Boolean(status?.app_configured) && !busy} />
+      <SellingAccountChooser merchantCode={merchantCode} platform="amazon" disabled={Boolean(busy)} value={accountId} onChange={account => { setAccountId(account?.id || ''); if (accountId) setNotice(null) }} allowCreate={Boolean(status?.app_configured) && !busy} />
       {connected && connection ? <dl style={{ margin: '14px 0 0', fontSize: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px' }}>
         <dt style={{ color: 'var(--text2)' }}>معرّف البائع</dt><dd style={{ margin: 0 }} className="latin-number">{connection.seller_id}</dd>
         <dt style={{ color: 'var(--text2)' }}>الأسواق</dt><dd style={{ margin: 0 }}>{markets || '—'}</dd>
