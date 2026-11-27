@@ -1,9 +1,8 @@
 import { useSellingAccountClient } from '../components/SellingAccountScope'
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { fetchAllStrict } from '../lib/db'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { loadMarketingData, type AdRow } from '../lib/marketingLoad'
 import { ratio, formatRatio } from '../lib/dataScope'
 import DataLoadError from '../components/DataLoadError'
-import { AD_METRIC_SAFE_COLUMNS } from '../lib/supabase'
 import type { Merchant } from '../lib/supabase'
 import { PLATFORM_MAP, PLATFORM_COLORS } from '../lib/constants'
 import { TrendingUp, TrendingDown, Megaphone, Search } from 'lucide-react'
@@ -11,26 +10,6 @@ import { Pagination, Tooltip, PageHeader, PageLoading } from '../components/UI'
 import BudgetAlertsPanel from '../components/BudgetAlertsPanel'
 import { createCatalogResolver, type CatalogChannelMapping, type CatalogProductIdentity } from '../lib/catalogIdentity'
 
-interface AdRow {
-  marketplace_account_id?: string
-  id: string
-  platform: string
-  campaign_name: string | null
-  ad_group_name: string | null
-  sku: string | null
-  search_query: string | null
-  impressions: number
-  clicks: number
-  orders: number
-  spend: number
-  revenue: number
-  ctr: number | null
-  roas: number | null
-  cpc: number | null
-  acos: number | null
-  report_date: string
-  upload_id: string | null
-}
 
 export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const supabase = useSellingAccountClient()
@@ -40,7 +19,7 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const [catalogMappings, setCatalogMappings] = useState<CatalogChannelMapping[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const generation = useRef(0)
+  const activeLoad = useRef<AbortController | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [groupBy, setGroupBy] = useState<'campaign' | 'sku' | 'query'>('campaign')
@@ -48,27 +27,22 @@ export default function Marketing({ merchant }: { merchant: Merchant | null }) {
   const PAGE_SIZE = 50
   const resolveCatalogProduct = useMemo(() => createCatalogResolver(catalogProducts, catalogMappings), [catalogProducts, catalogMappings])
 
-  useEffect(() => { if (merchant) void load(); return () => { generation.current++ } /* eslint-disable-line */ }, [merchant?.merchant_code])
-
-  async function load() {
-    if (!merchant) return
-    const request = ++generation.current
-    const code = merchant.merchant_code
-    setLoading(true); setLoadError(false); setRows([])
+  const merchantCode=merchant?.merchant_code
+  const load=useCallback(async () => {
+    activeLoad.current?.abort()
+    const controller=new AbortController()
+    activeLoad.current=controller
+    setLoading(true);setLoadError(false);setRows([])
     try {
-      const [data, products, mappings] = await Promise.all([
-        fetchAllStrict<AdRow>((f,t) => supabase.from('ad_metrics').select(AD_METRIC_SAFE_COLUMNS).eq('merchant_code', code).order('id').range(f,t)),
-        fetchAllStrict<CatalogProductIdentity>((f,t) => supabase.from('products').select('id,name,name_en,sku,barcode,psku_code,noon_sku_child,asin,external_id,supplier_sku,model_code').eq('merchant_code', code).order('id').range(f,t)),
-        fetchAllStrict<CatalogChannelMapping>((f,t) => supabase.from('product_channel_mappings').select('product_id,platform,identifier_value,source_sku,source_barcode,source_name,match_status').eq('merchant_code', code).order('id').range(f,t)),
-      ])
-      if (request !== generation.current) return
-      setRows(data); setCatalogProducts(products); setCatalogMappings(mappings)
+      if(!merchantCode)throw new Error('Workspace missing')
+      const {data,products,mappings}=await loadMarketingData(supabase,merchantCode,controller.signal)
+      if(controller.signal.aborted || activeLoad.current!==controller)return
+      setRows(data);setCatalogProducts(products);setCatalogMappings(mappings)
     } catch {
-      if (request === generation.current) setLoadError(true)
-    } finally {
-      if (request === generation.current) setLoading(false)
-    }
-  }
+      if(!controller.signal.aborted && activeLoad.current===controller)setLoadError(true)
+    } finally {if(activeLoad.current===controller)setLoading(false)}
+  },[merchantCode,supabase])
+  useEffect(()=>{void load();return ()=>{activeLoad.current?.abort();activeLoad.current=null}},[load])
   useEffect(() => { setPage(1) }, [platformFilter, search, groupBy])
 
   const filteredRows = useMemo(() => {

@@ -27,7 +27,7 @@ function key(kind: 'sku' | 'barcode', value: unknown) {
   return `${kind}:${String(value || '').trim().toLowerCase()}`
 }
 
-export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], costs: Map<string, number>, exactFees?: number, sellpertCommission = 0): OrderProfitSummary {
+export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], costs: Map<string, number>, exactFees?: number, sellpertCommission = 0, financialReviewRequired = false): OrderProfitSummary {
   const netOrderAmount = Number(order.total_amount || 0)
   const grossOrderAmount = Number(order.gross_amount || 0)
   const usesGrossAmount = grossOrderAmount > netOrderAmount
@@ -53,7 +53,7 @@ export function calculateOrderProfit(order: ProfitOrder, items: ProfitItem[], co
   const costComplete = lines.length > 0 && missingCostUnits === 0
   return {
     revenue, fees, shipping, discounts, sellpertCommission:normalizedSellpertCommission, productCost, missingCostUnits, costComplete, usesGrossAmount,
-    netProfit: costComplete ? revenue - fees - shipping - discounts - normalizedSellpertCommission - productCost : null,
+    netProfit: costComplete && !financialReviewRequired ? revenue - fees - shipping - discounts - normalizedSellpertCommission - productCost : null,
   }
 }
 

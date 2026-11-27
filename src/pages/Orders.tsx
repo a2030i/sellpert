@@ -628,8 +628,9 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
   const selectedSellpertCommission = selectedOrder
     ? calculateSellpertOrderCommission(selectedOrder, contractTerm)
     : 0
+  const selectedFinancialReview=Boolean(selectedOrder && orderFinancialIssue(selectedOrder))
   const selectedOrderProfit = selectedOrder
-    ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees, selectedSellpertCommission)
+    ? calculateOrderProfit(selectedOrder, selectedItems, selectedProductCosts, selectedOrderFees, selectedSellpertCommission, selectedFinancialReview)
     : null
   const selectedSource = selectedOrder ? sourceFor(selectedOrder) : null
 
@@ -1001,7 +1002,7 @@ export default function Orders({ merchant }: { merchant: Merchant | null }) {
                   <strong style={{ display:'block', fontSize:18, color:selectedOrderProfit.netProfit === null ? 'var(--warning-text)' : selectedOrderProfit.netProfit >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
                     {selectedOrderProfit.netProfit === null ? 'غير مكتمل' : fmtExact(selectedOrderProfit.netProfit)}
                   </strong>
-                  <small style={{ color:'var(--text3)', fontSize:9 }}>{selectedOrderProfit.costComplete ? 'محسوب من البيانات المتاحة' : `ينقص تكلفة ${selectedOrderProfit.missingCostUnits.toLocaleString('ar-SA-u-nu-latn')} وحدة`}</small>
+                  <small style={{ color:'var(--text3)', fontSize:9 }}>{selectedFinancialReview ? 'معلّق للمراجعة المالية؛ لم تُعتمد الربحية' : selectedOrderProfit.costComplete ? 'محسوب من البيانات المتاحة' : `ينقص تكلفة ${selectedOrderProfit.missingCostUnits.toLocaleString('ar-SA-u-nu-latn')} وحدة`}</small>
                 </div>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(105px,1fr))', gap:7 }}>

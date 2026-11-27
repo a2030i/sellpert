@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { calculateOrderProfit, orderContributionBeforeProductCost } from '../orderProfit'
 
 describe('order profit', () => {
+  it('withholds profit during financial review even when product costs are complete', () => {
+    const result=calculateOrderProfit({total_amount:7,platform_fee:18,quantity:1,sku:'A'},[],new Map([['sku:a',2]]),undefined,0,true)
+    expect(result).toMatchObject({revenue:7,fees:18,productCost:2,costComplete:true,netProfit:null})
+  })
   it('calculates the order net only when every line has a known cost', () => {
     const result = calculateOrderProfit(
       { total_amount: 100, gross_amount: 103, platform_fee: 11.5, shipping_cost: 5, discount_amount: 3, quantity: 2, sku: 'A' },

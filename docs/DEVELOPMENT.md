@@ -123,6 +123,10 @@ production parity and live provider behavior were not verified in that run.
 
 ## Environments and releases
 
+Merchant review regression coverage is summarized in
+[Merchant review follow-ups](MERCHANT-REVIEW-FOLLOWUPS.md). The focused browser
+journey is `e2e/merchant-review-followups.spec.ts`; it uses synthetic data.
+
 Repository release workflows target Vercel for the browser and Supabase for
 backend releases; app code uses Supabase Auth/DB/Storage/Edge Functions.
 Actual Production hosting, deployed versions and enabled integrations are

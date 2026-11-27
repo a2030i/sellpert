@@ -9,6 +9,15 @@ function fixture() {
   return {client,calls}
 }
 describe('selling-account data boundary', () => {
+  it('scopes ageing and shipment analytics before returning any rows',()=>{
+    for(const table of ['inventory_ageing','inventory_pipeline']){
+      const {client,calls}=fixture()
+      sellingAccountDataClient(client,'workspace-a',['trendyol-a']).from(table).select('*')
+      expect(calls).toContainEqual(['from',table+'_by_account'])
+      expect(calls).toContainEqual(['in','marketplace_account_id',['trendyol-a']])
+      expect(calls).toContainEqual(['eq','merchant_code','workspace-a'])
+    }
+  })
   it('retains the old catalog contract during rollout without retrying authorization failures', async () => {
     for (const code of ['PGRST202', '42501']) {
       const calls: any[] = []
