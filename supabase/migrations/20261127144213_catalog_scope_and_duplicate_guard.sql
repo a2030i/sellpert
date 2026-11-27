@@ -88,11 +88,12 @@ grant execute on function security.upsert_marketplace_products(uuid,text,jsonb) 
 CREATE OR REPLACE FUNCTION public.unified_product_catalog_by_account(
   p_merchant_code text,
   p_account_ids uuid[],
-  p_status text DEFAULT 'all',
-  p_platform text DEFAULT NULL,
-  p_search text DEFAULT NULL,
-  p_limit integer DEFAULT 50,
-  p_offset integer DEFAULT 0
+  p_status text,
+  p_platform text,
+  p_search text,
+  p_limit integer,
+  p_offset integer,
+  p_include_unassigned boolean
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -129,7 +130,7 @@ BEGIN
     WHERE p.merchant_code=p_merchant_code
       AND (m.product_id IS NOT NULL OR (
         NOT EXISTS (SELECT 1 FROM public.product_channel_mappings all_m WHERE all_m.merchant_code=p_merchant_code AND all_m.product_id=p.id)
-        AND EXISTS (SELECT 1 FROM public.marketplace_accounts legacy WHERE legacy.merchant_code=p_merchant_code AND legacy.id=ANY(p_account_ids) AND legacy.is_legacy)
+        AND p_include_unassigned
       ))
       AND (p_platform IS NULL OR m.product_id IS NOT NULL)
       AND (nullif(btrim(p_search),'') IS NULL OR p.name ILIKE '%'||btrim(p_search)||'%' OR coalesce(p.name_en,'') ILIKE '%'||btrim(p_search)||'%' OR coalesce(p.sku,'') ILIKE '%'||btrim(p_search)||'%' OR coalesce(p.barcode,'') ILIKE '%'||btrim(p_search)||'%')
@@ -156,5 +157,16 @@ BEGIN
   RETURN v_result;
 END $$;
 
-REVOKE ALL ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer,boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer,boolean) TO authenticated, service_role;
+
+-- Keep the original signature for already-open clients and server callers.
+CREATE OR REPLACE FUNCTION public.unified_product_catalog_by_account(
+  p_merchant_code text,p_account_ids uuid[],p_status text DEFAULT 'all',
+  p_platform text DEFAULT NULL,p_search text DEFAULT NULL,p_limit integer DEFAULT 50,p_offset integer DEFAULT 0
+) RETURNS jsonb LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
+  select public.unified_product_catalog_by_account(p_merchant_code,p_account_ids,p_status,p_platform,p_search,p_limit,p_offset,
+    exists(select 1 from public.marketplace_accounts a where a.merchant_code=p_merchant_code and a.id=any(p_account_ids) and a.is_legacy))
+$$;
+REVOKE ALL ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.unified_product_catalog_by_account(text,uuid[],text,text,text,integer,integer) TO authenticated,service_role;

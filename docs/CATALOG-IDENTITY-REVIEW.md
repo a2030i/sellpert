@@ -8,6 +8,10 @@ within the authorized merchant so a source can be linked to an existing variant.
 Products uses the named tenant FK to fetch account memberships with its safe
 columns, then filters the complete paginated snapshot before computing counts.
 The catalog RPC applies the equivalent filter before its statistics/pagination.
+The explicit unassigned flag also preserves manual products before a merchant
+connects any selling account. The original RPC signature remains for old clients;
+the new browser falls back only for a missing signature during staggered rollout,
+never for authorization or query failures.
 
 The server product-ingestion RPC retains the existing merchant advisory lock and
 exact account/SKU idempotency. Existing reviewed mappings remain authoritative.

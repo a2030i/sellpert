@@ -57,6 +57,8 @@ begin
   if (r->'stats'->>'linked')::integer<>1 or (r->'stats'->>'review')::integer<>1 then raise exception 'Connected scope includes old or unassigned products'; end if;
   r:=public.unified_product_catalog_by_account('CAT-GUARD',array[]::uuid[]);
   if (r->'stats'->>'total')::integer<>0 then raise exception 'Empty account scope leaked products'; end if;
+  r:=public.unified_product_catalog_by_account('CAT-GUARD',array[]::uuid[],'all',null,null,50,0,true);
+  if (r->'stats'->>'total')::integer<>1 then raise exception 'Explicit unassigned scope hid manual product'; end if;
   -- Rehearse the proposed reviewed mapping and inverse; never alter source facts.
   select jsonb_build_object('product_id',product_id,'match_status',match_status) into snapshot
     from public.product_channel_mappings where merchant_code='CAT-GUARD' and identifier_value='NEW-SKU';

@@ -1,4 +1,4 @@
-import { useSellingAccountClient, useSelectedSellingAccounts } from '../components/SellingAccountScope'
+import { useSellingAccountClient, useSelectedSellingAccounts, useUnassignedProductScope } from '../components/SellingAccountScope'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { PRODUCT_SAFE_COLUMNS } from '../lib/supabase'
 import { useCallback } from 'react'
@@ -84,7 +84,7 @@ export default function Products({ merchant }: { merchant: Merchant | null }) {
   const merchantCode = merchant?.merchant_code
   const includeTrendyolOperations = Boolean(singleTrendyol && !singleTrendyol.is_legacy)
   const productAccountKey = selectedAccounts.map(account => account.id).sort().join(',')
-  const includeUnassigned = selectedAccounts.some(account => account.is_legacy)
+  const includeUnassigned = useUnassignedProductScope()
   const activeLoad = useRef<AbortController | null>(null)
   const loadData = useCallback(async (options: { background?: boolean } = {}) => {
     activeLoad.current?.abort()
